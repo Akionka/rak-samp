@@ -1,0 +1,46 @@
+[env]
+GTA_DIR = { value = "", condition = { env_not_set = ["GTA_DIR"] } }
+
+[tasks.build-asi]
+workspace = false
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.build-asi-debug]
+workspace = false
+command = "cargo"
+args = ["build"]
+
+[tasks.build-validation]
+workspace = false
+command = "cargo"
+args = ["build", "--release", "-p", "rak_rs_validation_plugin"]
+
+[tasks.require-gta-dir]
+command = "powershell"
+args = [
+    "-Command",
+    "if ([string]::IsNullOrWhiteSpace($env:GTA_DIR)) { throw 'GTA_DIR is not set. In PowerShell, run: $env:GTA_DIR = ''D:\\path\\to\\GTA''' }",
+]
+
+[tasks.deploy]
+workspace = false
+dependencies = ["require-gta-dir", "build-asi"]
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs.dll (Join-Path $env:GTA_DIR 'rak_rs.asi')\"",
+]
+
+[tasks.deploy-validation]
+workspace = false
+dependencies = ["require-gta-dir", "build-asi", "build-validation"]
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs.dll (Join-Path $env:GTA_DIR 'rak_rs.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs_validation_plugin.dll (Join-Path $env:GTA_DIR 'rak_rs_validation.asi')\"",
+]
+
+[tasks.debug]
+workspace = false
+dependencies = ["require-gta-dir", "build-asi-debug"]
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/debug/rak_rs.dll (Join-Path $env:GTA_DIR 'rak_rs.asi'); Copy-Item -Force target/i686-pc-windows-msvc/debug/rak_rs.pdb (Join-Path $env:GTA_DIR 'rak_rs.pdb')\"",
+]

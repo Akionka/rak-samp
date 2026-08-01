@@ -1,0 +1,15 @@
+[package]
+name = "rak_rs_plugin_api"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Versioned C ABI client for rak_rs ASI plugins"
+
+[lib]
+name = "rak_rs_plugin_api"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }
