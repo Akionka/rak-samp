@@ -1,43 +1,73 @@
 # Architecture
 
-## Process Model
+## Process model
 
 ```text
 GTA ASI loader
- ├─ rak_rs.asi (host)
- │   └─ Runtime ──> SA-MP constructor / RPC / vtable hooks
- └─ feature-a.asi, feature-b.asi, ... (plugins)
-     └─ rak_rs_plugin_api ──> RakRs_GetApiV1 ──> host callbacks
+ ├─ rak_rs.asi (one host and hook runtime)
+ ├─ feature-a.asi ─┐
+ └─ feature-b.asi ─┴─> rak_rs_plugin_api ─> RakRs_GetApiV1 ─> host
 ```
 
-Each ASI is loaded independently by GTA's loader. `rak_rs.asi` is the only component linked with the hook engine and MinHook, and it is emitted only as a `cdylib`, not an `rlib`. Plugin ASIs link only the ABI client crate, so adding plugins cannot install additional SA-MP hooks.
+Each ASI loads independently. The host is a `cdylib` and the only module linked
+to MinHook; plugins link only the ABI client crate.
 
-## Startup and Readiness
+## Components
 
-[`src/lib.rs`](src/lib.rs) exports `DllMain`; it starts the host bootstrap worker and returns immediately. The worker waits for `samp.dll`, calls `Runtime::attach`, and transitions the singleton host state from `WaitingForSamp` to `Ready` or `Failed`.
+| Area | Files | Responsibility |
+| --- | --- | --- |
+| Bootstrap | [`src/lib.rs`](src/lib.rs), [`src/host_api.rs`](src/host_api.rs), [`src/logging.rs`](src/logging.rs) | Start outside loader lock, publish readiness/API, own logging |
+| Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded payloads |
+| Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion |
+| Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | C ABI types, host discovery, safe wrappers |
+| Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Byte-aligned codecs and named event descriptors |
+| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/validation_plugin`](examples/validation_plugin) | Minimal integration and live diagnostics |
 
-Before it waits for SA-MP, the worker calls [`logging::initialize`](src/logging.rs). That module owns the process-local `log` facade and its `simplelog::WriteLogger` sink; [`src/host_api.rs`](src/host_api.rs) then records lifecycle transitions and subscription registration without exposing payload bytes. Logger setup is kept out of `DllMain` to avoid file I/O under the loader lock.
+## Lifecycle
 
-Plugins must not wait in their own `DllMain`. Their worker thread uses `rak_rs_plugin_api::wait_for_default_host`, which polls only for the already-loaded `rak_rs.asi` module, resolves `RakRs_GetApiV1`, validates ABI version 1 and table size, then waits for the ready status. It never loads the host itself.
+1. Host `DllMain` starts the bootstrap worker and returns.
+2. The worker initializes logging, waits for `samp.dll`, identifies its entry
+   point, and installs the constructor detour.
+3. RakClient construction installs the incoming-RPC detour and three in-place
+   vtable patches. The host reports `Ready`.
+4. Plugin workers find the already-loaded `rak_rs.asi`, validate ABI version and
+   table size, and register callbacks.
+5. For runtime unload, a plugin worker calls `unregister_and_wait` for every
+   subscription before an external manager frees the module.
 
-## ABI Interoperability
+Plugins must not wait or perform synchronized teardown in `DllMain`.
 
-[`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) defines C-layout enums, `RakRsSubscription`, `RakRsSendOptions`, opaque `RakRsEventV1`, and the append-only `RakRsApiV1` function table. [`src/host_api.rs`](src/host_api.rs) implements the table and translates ABI calls to `Runtime`, `ListenerHandle`, and `BitStream` operations. Its appended emulation entries validate the foreign pointer/byte/bit lengths, construct a bounded `BitStream`, and call `Runtime::emulate_incoming_packet` or `Runtime::emulate_incoming_rpc`; the safe `HostApi` methods derive those raw lengths from plugin-owned slices.
+## Event flow
 
-Plugin callbacks enter the host through `extern "system"` function pointers. The host wraps the current event ID and mutable stream in a private stack value; ABI event functions validate that opaque pointer before accessing it. The event expires when the callback returns. Subscription IDs are owned by the host. Before runtime unload, a plugin shutdown worker calls the appended `unregister_and_wait` entry for every ID; [`src/host_api.rs`](src/host_api.rs) removes the host-owned handle, then [`src/event.rs`](src/event.rs) enters the dispatch gate to wait for callbacks already running on another thread. Calls from the active callback thread return `CallbackInProgress`, so neither callbacks nor `DllMain` may perform the wait.
+Native detours convert traffic to bounded `BitStream` values only when a
+matching listener exists. [`src/host_api.rs`](src/host_api.rs) exposes each ID
+and mutable payload as an opaque callback-lifetime event. The registry invokes
+listeners in order; each may continue, replace, or block the event.
 
-[`plugin_api/src/events.rs`](plugin_api/src/events.rs) interoperates through this table. `events::Event` is a callback-lifetime wrapper around `RakRsEventV1`; every read, clear, and write calls the corresponding `RakRsApiV1` function pointer. A typed `events::Rpc<T>` pairs an RPC ID with decoder and encoder functions. The `incoming` and `outgoing` modules expose named MoonLoader-style helpers which filter IDs, decode `T`, then translate `RpcAction<T>` into `RakRsHookAction`. `Replace(T)` serializes `T` locally and calls the appended `event_replace_bytes` ABI function, which validates capacity and swaps the complete byte-aligned `BitStream` payload only on success. Byte-aligned helper families share primitive codecs for integers, vectors, and length-prefixed byte strings; encoded strings remain separate until the ABI can preserve arbitrary bit lengths and the plugin crate implements RakNet's Huffman codec. Thus typed helpers share the existing subscription, dispatch ordering, payload bounds, and single-hook process model; no extra detour, native pointer, or long-lived plugin callback is introduced.
+Typed `Rpc<T>` descriptors filter an ID, decode the payload, run plugin logic,
+and encode replacements locally before the host atomically swaps the complete
+byte-aligned stream. They add no hooks or long-lived callback runtime.
 
-## Hook and Dispatch Boundary
+Incoming packet emulation queues a native packet through the RakPeer receiver
+captured by the incoming-RPC detour, then uses the normal receive path. Incoming
+RPC emulation dispatches immediately and calls the captured native receiver
+only if listeners continue. Native pointers never cross the plugin ABI.
 
-[`src/platform/win32.rs`](src/platform/win32.rs) performs version-specific address resolution and all pointer/vtable work. It patches only the three required RakClient vtable slots in place, chaining to the pre-existing functions and restoring a slot only when the host still owns it. Each detour captures one `Arc<BackendState>` and passes it through every original-call helper; shutdown removes hooks before clearing the active slot, while an in-flight detour keeps its original function pointers alive through the captured state. It converts native RakNet streams into safe bounded `BitStream` values only when a matching listener exists; `RawPacket` and its embedded `PacketPlayerId` use the packed field offsets observed in a live R1 client, while the proven incoming-RPC call boundary keeps a separate aligned `RpcPlayerId`. That RPC detour also captures the actual RakPeer receiver pointer and player identity. RPC envelopes use RakNet-compatible compressed lengths. Before constructing a slice from an incoming packet's native data pointer, the backend validates the byte/bit relationship and a 16 MiB bound. Invalid metadata takes a fail-open path that leaves traffic untouched and emits one diagnostic per backend instance. [`build.rs`](build.rs) compiles the independent packed x86 C++ layout oracle in [`tests/fixtures/raknet_layout.cpp`](tests/fixtures/raknet_layout.cpp), which the Rust unit tests compare against `PacketPlayerId` and `RawPacket`. Emulated incoming packets require that captured RakPeer, enter its native packet queue without pre-dispatch, then run listeners once through the normal receive detour; the backend never derives RakPeer from the unrelated RakClient interface address. Emulated RPCs enter the registry synchronously and call the native receiver only if listeners continue. Plugins invoke these operations through the ABI but never receive a native pointer.
+## Native boundary
 
-[`src/event.rs`](src/event.rs) serializes dispatch from different threads with an owner-aware gate. Re-entry by the owner thread increments the gate depth instead of locking again, allowing a callback to emulate traffic synchronously. Listener callbacks are temporarily removed from the registry while executing, so a nested event skips the active `FnMut` callback but continues through other matching listeners; the callback is restored after it returns.
+The backend owns all pointer and vtable operations. It patches only slots 6, 8,
+and 25, chains their previous functions, and restores a slot only if its value
+is still the host detour. Each detour carries an `Arc` of its backend through
+original calls so teardown cannot invalidate active calls.
 
-The same module has an x86 fake-client fixture: a 55-slot vtable demonstrates slot-local patching, restoration, and preservation of a later hook. A test-only inline-hook fixture exercises MinHook’s create, trampoline, enable, disable, removal, and recreation lifecycle. The C++ packet fixture additionally initializes native memory that Rust reads field by field. Together they protect the native boundary independently of a proprietary client installation.
+Incoming packet structures use packed offsets; the incoming-RPC player value is
+separately aligned. Metadata checks fail open before pointer dereference. RPC
+envelopes use RakNet compressed lengths. The C++ layout oracle, fake RakClient
+vtable, and inline-hook fixture test these boundaries without proprietary client
+files; [VALIDATION.md](VALIDATION.md) covers the live integration check.
 
 ## Distribution
 
-Build the host for `i686-pc-windows-msvc`; Cargo produces `rak_rs.dll`. `cargo make deploy` copies it as `rak_rs.asi` to `$env:GTA_DIR`, which is the default module name resolved by the plugin API. Compile every plugin as its own x86 `cdylib`/ASI and depend only on `rak_rs_plugin_api`. The workspace member [`examples/sample_plugin`](examples/sample_plugin) produces a separate DLL and demonstrates that loading another plugin does not construct another `Runtime` or install another hook. Its `RakRsPlugin_Shutdown` export first quiesces its discovery worker, then synchronizes its subscription as an example contract for an external unload manager; it is not called automatically by the ASI loader.
-
-[`examples/validation_plugin`](examples/validation_plugin) is another independent consumer deployed by `cargo make deploy-validation`. Four packet/RPC observers cover both directions and update fixed atomic histograms; the packet observers also classify the inner ID of timestamp envelopes and reset the callback-local cursor before returning. Two preceding incoming listeners handle only the plugin's private marker payloads. The self-test worker calls the appended emulation ABI, registration order sends each event through its rewriter and then its observer, and the observer verifies the atomic replacement before blocking it. This covers plugin-to-host emulation, normal incoming dispatch, ordered cross-module mutation, and cancellation without delivering the reserved IDs to SA-MP or a server. The reporter resolves known IDs and performs all formatting and file I/O on a separate worker. A successful ordinary incoming packet count additionally proves the native receive detour read the packet's packed `bitSize` and `data` fields, extracted its ID, and crossed the host ABI into independently loaded plugin code. [`VALIDATION.md`](VALIDATION.md) defines the manual exercise and evidence to preserve.
+The configured target is `i686-pc-windows-msvc`. `cargo make deploy` renames the
+host DLL to `rak_rs.asi`; `cargo make deploy-validation` also installs the
+validation ASI. See [README.md](README.md) for usage.
