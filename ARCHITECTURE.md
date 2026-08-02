@@ -38,7 +38,9 @@ to MinHook; plugins link only the ABI client crate.
 
 The validation unload manager models step 5 from a separately loaded ASI: it
 waits for the validator's completion export, invokes its shutdown export, and
-calls `FreeLibrary` only after shutdown confirms callback quiescence.
+calls `FreeLibrary` only after shutdown confirms callback quiescence. An R1
+live run confirms the validation ASI disappears while the process-wide host
+continues running.
 
 Plugins must not wait or perform synchronized teardown in `DllMain`.
 The host runtime lives in a process-lifetime `OnceLock<Arc<Runtime>>`; ABI entry

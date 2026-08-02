@@ -98,5 +98,15 @@ returned `Ok` for one captured `ID_STATS_UPDATE` packet send and one
 timestamp decode errors.
 
 The validation shutdown worker then synchronized all six subscriptions and
-returned success. This proves callback detachment and worker coordination; it
-does not yet prove that an external manager can safely call `FreeLibrary`.
+returned success. This proves callback detachment and worker coordination; the
+separate external-unload result follows below.
+
+### External validation-plugin unload
+
+An R1 release run at commit `db92b2f` on 2026-08-02 used the independently
+loaded validation manager after all local and explicit-send tests passed. The
+manager called `RakRsPlugin_Shutdown`, the host synchronized subscriptions 2
+through 7, and `FreeLibrary` returned success. A subsequent
+`GetModuleHandleA("rak_rs_validation.asi")` lookup returned null while GTA
+remained running and responsive, confirming that no callback retained the
+unloaded plugin.

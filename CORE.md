@@ -84,8 +84,8 @@ live run. The by-value incoming-RPC player argument remains a distinct aligned
 layout. Fake-vtable and MinHook tests cover slot-local patching, restoration,
 original calls, removal, and recreation. Durable live-client evidence is kept
 in [REVIEW.md](REVIEW.md). An R1 release run also validates explicit packet/RPC
-sends and synchronized shutdown of all validation callbacks; external module
-unload remains a distinct live scenario.
+sends, synchronized shutdown of all validation callbacks, and external unload
+of the validation ASI while the host remains active.
 
 ## Limits
 
