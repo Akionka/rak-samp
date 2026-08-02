@@ -7,6 +7,61 @@ implementation history belongs in Git; pending work belongs in [TODO.md](TODO.md
 
 None.
 
+## Resolved findings — 2026-08-02
+
+### P1 — Runtime lock held during synchronous RPC emulation
+
+[`src/host_api.rs`](src/host_api.rs) retains the `host().runtime` mutex guard
+while `Runtime::emulate_incoming_rpc` synchronously invokes plugin callbacks. A
+callback that registers a listener or calls send/emulation tries to lock the
+same mutex and deadlocks. Obtain a callback-safe runtime handle and release the
+host mutex before dispatch.
+
+Resolved by publishing an `Arc<Runtime>` through `OnceLock` and cloning it
+before registration, send, or emulation calls. A regression test exercises a
+nested lookup while an outer runtime handle remains alive.
+
+### P1 — Inline hooks enabled before trampoline publication
+
+[`src/platform/win32.rs`](src/platform/win32.rs) enables an `InlineHook` inside
+`InlineHook::install`, but callers publish the returned trampoline afterward. A
+detour can therefore run with a zero trampoline during constructor or incoming
+RPC hook installation. Separate hook creation from enabling: create the hook,
+publish its trampoline, then enable it.
+
+Resolved by splitting `InlineHook::create` from `enable`; the constructor and
+incoming-RPC paths now publish the trampoline first. The MinHook fixture checks
+that creation alone leaves the target disabled.
+
+### P2 — Client-hook installation failures are discarded
+
+The RakClient constructor detour ignores failures from incoming-RPC or vtable
+hook installation after the host has reported `Ready`. Because construction is
+normally one-shot, plugins can remain attached to a nonfunctional host. Report
+the failure and transition the host to `Failed`, or implement a reliable retry.
+
+Resolved with an observable client-hook state. The bootstrap monitor logs the
+successful deferred installation or moves the public host state to `Failed`.
+
+### P2 — Packet timestamp option is ignored
+
+Packet sending forwards priority, reliability, and ordering channel but does
+nothing with `SendOptions::timestamp`. Either wrap timestamped packets in the
+RakNet `ID_TIMESTAMP` envelope or reject that option instead of reporting a
+successful ordinary send.
+
+Resolved by explicitly rejecting timestamped packet sends as
+`InvalidArgument`; the runtime reports a dedicated internal error.
+
+### P2 — Native bit lengths can overflow `i32`
+
+`NativeBitStream` converts Rust bit lengths to `i32` without validation. Values
+above `i32::MAX` wrap negative at the native boundary. Reject them with
+`PayloadTooLarge` before constructing the native stream.
+
+Resolved with checked conversions at native packet, RPC-envelope, and
+`NativeBitStream` boundaries plus an overflow regression test.
+
 ## Authoritative Windows x86 evidence
 
 ### RakNet packet layout

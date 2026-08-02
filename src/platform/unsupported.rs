@@ -1,4 +1,6 @@
-use crate::{AttachError, BitStream, SendError, SendOptions, event::Registry};
+use crate::{
+    AttachError, BitStream, SendError, SendOptions, event::Registry, runtime::ClientHookStatus,
+};
 use std::sync::Arc;
 
 pub(crate) struct Backend;
@@ -8,6 +10,10 @@ pub(crate) fn attach(_registry: Arc<Registry>) -> Result<Backend, AttachError> {
 }
 
 impl Backend {
+    pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
+        ClientHookStatus::Failed
+    }
+
     pub(crate) fn send_packet(
         &self,
         _packet_id: u8,

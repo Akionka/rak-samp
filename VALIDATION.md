@@ -3,7 +3,8 @@
 Use a legal SA-MP installation and a server that permits client plugins. The
 validation ASI logs IDs and counters, never payloads. Its only mutations are
 private local marker events that are rewritten, verified, and blocked before
-SA-MP or the server receives them.
+SA-MP or the server receives them. Server-bound sends and coordinated shutdown
+are disabled unless their marker files exist.
 
 ## Prepare
 
@@ -21,9 +22,30 @@ cargo make deploy-validation
 Confirm `$env:GTA_DIR` contains `rak_rs.asi` and `rak_rs_validation.asi`.
 Archive an old `rak-rs-validation.log` if a clean session is needed.
 
+For the explicit-send scenario, opt in before launching GTA:
+
+```powershell
+New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-send.enabled') -ItemType File -Force
+```
+
+This repeats one real eight-byte `ID_STATS_UPDATE` packet captured from the
+client and sends one empty `RPC_UPDATE_SCORES_AND_PINGS` request. Use this only
+on a server where the extra traffic is permitted.
+
+For the coordinated-shutdown scenario, create this marker as well:
+
+```powershell
+New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ItemType File -Force
+```
+
+That check stops the plugin workers and synchronizes all callbacks. It does not
+call `FreeLibrary`; true ASI unload still requires an external unload manager.
+
 ## Run
 
-1. Connect to a server and wait at least 10 seconds after spawning.
+1. Connect to a server and wait at least 10 seconds after spawning. When the
+   send marker is present, remain connected until the client emits a stats
+   update and the send self-test completes.
 2. Walk, drive, send a chat message, and allow normal traffic for 30 seconds.
 3. Press F5 ten times, about one second apart.
 4. Disconnect and exit normally.
@@ -45,6 +67,12 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
 - Histograms contain one `254(RAK_RS_SELF_TEST)` packet and one
   `255(RAK_RS_SELF_TEST)` RPC.
 - `null_events` and `timestamp_decode_errors` remain zero.
+- With the send marker, the log reports
+  `send self-test completed: packet=passed RPC=passed`.
+- With the shutdown marker, the log reports
+  `shutdown completed; all callbacks quiesced` and
+  `shutdown self-test returned 1`; `rak-rs.log` records six synchronized
+  unregistrations.
 
 ## Failures
 
@@ -61,4 +89,5 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
 - Crash or frozen counters: preserve both logs, client version, last action, and
   any Windows crash address and module.
 
-Remove `rak_rs_validation.asi` afterward; it is not required for normal use.
+Remove `rak_rs_validation.asi` and both optional marker files afterward; none is
+required for normal use.

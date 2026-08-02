@@ -2,16 +2,17 @@
 
 use rak_rs_plugin_api::{
     HostApi, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1, RakRsHookAction,
-    RakRsResult, RakRsSubscription, ResolveError, wait_for_default_host,
+    RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
     fs::{File, OpenOptions},
     io::Write,
+    path::Path,
     ptr,
     sync::{
         Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicPtr, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicPtr, AtomicU8, AtomicU32, Ordering},
     },
     thread::JoinHandle,
     time::{Duration, Instant},
@@ -28,8 +29,14 @@ use windows_sys::core::BOOL;
 const HOST_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
 const HOST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 const REPORT_INTERVAL: Duration = Duration::from_secs(5);
+const SEND_TEST_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 const ID_COUNT: usize = 256;
 const ID_TIMESTAMP: u8 = 40;
+const ID_STATS_UPDATE: u8 = 205;
+const RPC_UPDATE_SCORES_AND_PINGS: u8 = 155;
+const STATS_PAYLOAD_LEN: usize = 8;
+const SEND_TEST_MARKER: &str = "rak-rs-validation-send.enabled";
+const SHUTDOWN_TEST_MARKER: &str = "rak-rs-validation-shutdown.enabled";
 const TEST_PACKET_ID: u8 = 254;
 const TEST_RPC_ID: u8 = 255;
 const TEST_PACKET_INPUT: [u8; 16] = *b"rak-rs-packet-in";
@@ -42,6 +49,7 @@ const SELF_TEST_PASSED: u32 = 2;
 const SELF_TEST_FAILED: u32 = 3;
 const SELF_TEST_TIMED_OUT: u32 = 4;
 const SELF_TEST_CALL_FAILED: u32 = 5;
+const SELF_TEST_DISABLED: u32 = 6;
 
 type IdHistogram = [AtomicU32; ID_COUNT];
 type RegisterFn = unsafe extern "system" fn(
@@ -63,6 +71,11 @@ static NULL_EVENTS: AtomicU32 = AtomicU32::new(0);
 static TIMESTAMP_DECODE_ERRORS: AtomicU32 = AtomicU32::new(0);
 static PACKET_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static RPC_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
+static SEND_PACKET_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
+static SEND_RPC_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
+static STATS_PAYLOAD_READY: AtomicBool = AtomicBool::new(false);
+static STATS_PAYLOAD: [AtomicU8; STATS_PAYLOAD_LEN] =
+    [const { AtomicU8::new(0) }; STATS_PAYLOAD_LEN];
 static INCOMING_PACKET_IDS: IdHistogram = [const { AtomicU32::new(0) }; ID_COUNT];
 static OUTGOING_PACKET_IDS: IdHistogram = [const { AtomicU32::new(0) }; ID_COUNT];
 static INCOMING_TIMESTAMP_INNER_IDS: IdHistogram = [const { AtomicU32::new(0) }; ID_COUNT];
@@ -301,12 +314,15 @@ unsafe extern "system" fn on_outgoing_packet(
     _user_data: *mut c_void,
     event: *mut RakRsEventV1,
 ) -> RakRsHookAction {
-    observe_packet(
+    let observed = observe_packet(
         event,
         &OUTGOING_PACKETS,
         &OUTGOING_PACKET_IDS,
         &OUTGOING_TIMESTAMP_INNER_IDS,
     );
+    if let Some((api, ID_STATS_UPDATE)) = observed {
+        capture_stats_payload(api, event);
+    }
     RakRsHookAction::Continue
 }
 
@@ -444,15 +460,34 @@ fn event_matches<const N: usize>(
     event: *mut RakRsEventV1,
     expected: &[u8; N],
 ) -> bool {
+    read_exact_event(api, event).as_ref() == Some(expected)
+}
+
+fn read_exact_event<const N: usize>(
+    api: *mut RakRsApiV1,
+    event: *mut RakRsEventV1,
+) -> Option<[u8; N]> {
     let mut actual = [0; N];
     let mut trailing = 0;
-    let matches = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok
+    let read = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok
         && unsafe { ((*api).event_read_bytes)(event, actual.as_mut_ptr(), N) } == RakRsResult::Ok
-        && actual == *expected
         && unsafe { ((*api).event_read_u8)(event, &raw mut trailing) }
             == RakRsResult::ReadOutOfBounds;
     let restored = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok;
-    matches && restored
+    (read && restored).then_some(actual)
+}
+
+fn capture_stats_payload(api: *mut RakRsApiV1, event: *mut RakRsEventV1) {
+    if STATS_PAYLOAD_READY.load(Ordering::Acquire) {
+        return;
+    }
+    let Some(payload) = read_exact_event::<STATS_PAYLOAD_LEN>(api, event) else {
+        return;
+    };
+    for (destination, source) in STATS_PAYLOAD.iter().zip(payload) {
+        destination.store(source, Ordering::Relaxed);
+    }
+    STATS_PAYLOAD_READY.store(true, Ordering::Release);
 }
 
 fn observe(
@@ -504,6 +539,91 @@ fn run_self_test(api: HostApi) {
         self_test_label(PACKET_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(RPC_SELF_TEST.load(Ordering::Acquire)),
     ));
+    run_send_self_test(api);
+    schedule_shutdown_self_test();
+}
+
+fn run_send_self_test(api: HostApi) {
+    if !Path::new(SEND_TEST_MARKER).is_file() {
+        SEND_PACKET_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
+        SEND_RPC_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
+        write_log("send self-test disabled; opt in with rak-rs-validation-send.enabled");
+        return;
+    }
+    write_log("send self-test enabled; waiting for an outgoing ID_STATS_UPDATE payload");
+    let deadline = Instant::now() + SEND_TEST_WAIT_TIMEOUT;
+    while !STOP.load(Ordering::Acquire)
+        && !STATS_PAYLOAD_READY.load(Ordering::Acquire)
+        && Instant::now() < deadline
+    {
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    if !STATS_PAYLOAD_READY.load(Ordering::Acquire) {
+        SEND_PACKET_SELF_TEST.store(SELF_TEST_TIMED_OUT, Ordering::Release);
+        SEND_RPC_SELF_TEST.store(SELF_TEST_TIMED_OUT, Ordering::Release);
+        write_log("send self-test timed out before an ID_STATS_UPDATE payload was captured");
+        return;
+    }
+
+    let mut payload = [0; STATS_PAYLOAD_LEN];
+    for (destination, source) in payload.iter_mut().zip(&STATS_PAYLOAD) {
+        *destination = source.load(Ordering::Relaxed);
+    }
+    let packet_options = RakRsSendOptions {
+        reliability: 6,
+        ..RakRsSendOptions::default()
+    };
+    let packet_result = api.send_packet(
+        ID_STATS_UPDATE,
+        &payload,
+        payload.len() * u8::BITS as usize,
+        packet_options,
+    );
+    record_send_result("packet", packet_result, &SEND_PACKET_SELF_TEST);
+
+    let rpc_result = api.send_rpc(
+        RPC_UPDATE_SCORES_AND_PINGS,
+        &[],
+        0,
+        RakRsSendOptions::default(),
+    );
+    record_send_result("RPC", rpc_result, &SEND_RPC_SELF_TEST);
+    write_log(&format!(
+        "send self-test completed: packet={} RPC={}",
+        self_test_label(SEND_PACKET_SELF_TEST.load(Ordering::Acquire)),
+        self_test_label(SEND_RPC_SELF_TEST.load(Ordering::Acquire)),
+    ));
+}
+
+fn record_send_result(label: &str, result: RakRsResult, status: &AtomicU32) {
+    write_log(&format!("send self-test {label} returned {result:?}"));
+    status.store(
+        if result == RakRsResult::Ok {
+            SELF_TEST_PASSED
+        } else {
+            SELF_TEST_CALL_FAILED
+        },
+        Ordering::Release,
+    );
+}
+
+fn schedule_shutdown_self_test() {
+    if !Path::new(SHUTDOWN_TEST_MARKER).is_file() {
+        return;
+    }
+    write_log("shutdown self-test enabled; scheduling coordinated callback shutdown");
+    if let Err(error) = std::thread::Builder::new()
+        .name("rak-rs-validation-shutdown".into())
+        .spawn(|| {
+            std::thread::sleep(Duration::from_millis(250));
+            let result = RakRsPlugin_Shutdown();
+            write_log(&format!("shutdown self-test returned {result}"));
+        })
+    {
+        write_log(&format!(
+            "shutdown self-test thread failed to start: {error}"
+        ));
+    }
 }
 
 fn emulate_when_ready(mut emulate: impl FnMut() -> RakRsResult) -> RakRsResult {
@@ -535,7 +655,11 @@ fn record_emulation_result(label: &str, result: RakRsResult, status: &AtomicU32)
 fn self_test_finished(status: u32) -> bool {
     matches!(
         status,
-        SELF_TEST_PASSED | SELF_TEST_FAILED | SELF_TEST_TIMED_OUT | SELF_TEST_CALL_FAILED
+        SELF_TEST_PASSED
+            | SELF_TEST_FAILED
+            | SELF_TEST_TIMED_OUT
+            | SELF_TEST_CALL_FAILED
+            | SELF_TEST_DISABLED
     )
 }
 
@@ -553,6 +677,7 @@ fn self_test_label(status: u32) -> &'static str {
         SELF_TEST_FAILED => "failed",
         SELF_TEST_TIMED_OUT => "timed-out",
         SELF_TEST_CALL_FAILED => "call-failed",
+        SELF_TEST_DISABLED => "disabled",
         _ => "invalid",
     }
 }
@@ -597,9 +722,11 @@ fn report_counts(elapsed_seconds: u64) {
     report_histogram("incoming_rpc_ids", &INCOMING_RPC_IDS, incoming_rpc_name);
     report_histogram("outgoing_rpc_ids", &OUTGOING_RPC_IDS, outgoing_rpc_name);
     write_log(&format!(
-        "self_test: packet={} RPC={}",
+        "self_test: packet={} RPC={} send_packet={} send_RPC={}",
         self_test_label(PACKET_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(RPC_SELF_TEST.load(Ordering::Acquire)),
+        self_test_label(SEND_PACKET_SELF_TEST.load(Ordering::Acquire)),
+        self_test_label(SEND_RPC_SELF_TEST.load(Ordering::Acquire)),
     ));
 }
 

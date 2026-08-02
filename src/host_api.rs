@@ -1,6 +1,6 @@
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
-    PacketReliability, Runtime, SendError, SendOptions, logging,
+    PacketReliability, Runtime, SendError, SendOptions, logging, runtime::ClientHookStatus,
 };
 use log::{debug, error, info};
 use rak_rs_plugin_api::{
@@ -12,7 +12,7 @@ use std::{
     ffi::c_void,
     ptr,
     sync::{
-        Mutex, OnceLock,
+        Arc, Mutex, OnceLock,
         atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     },
     time::Duration,
@@ -25,7 +25,7 @@ const STATUS_FAILED: u32 = RakRsHostStatus::Failed as u32;
 struct HostState {
     status: AtomicU32,
     bootstrap_started: AtomicBool,
-    runtime: Mutex<Option<Runtime>>,
+    runtime: OnceLock<Arc<Runtime>>,
     subscriptions: Mutex<HashMap<u64, ListenerHandle>>,
     next_subscription: AtomicU64,
 }
@@ -52,12 +52,15 @@ pub(crate) fn begin_bootstrap() {
         loop {
             match Runtime::attach() {
                 Ok(runtime) => {
-                    *host()
-                        .runtime
-                        .lock()
-                        .unwrap_or_else(|error| error.into_inner()) = Some(runtime);
+                    let runtime = Arc::new(runtime);
+                    if host().runtime.set(Arc::clone(&runtime)).is_err() {
+                        host().status.store(STATUS_FAILED, Ordering::Release);
+                        error!("host runtime was initialized more than once");
+                        return;
+                    }
                     host().status.store(STATUS_READY, Ordering::Release);
                     info!("host runtime is ready");
+                    monitor_client_hooks(runtime);
                     return;
                 }
                 Err(AttachError::SampNotLoaded) => std::thread::sleep(Duration::from_millis(10)),
@@ -69,6 +72,23 @@ pub(crate) fn begin_bootstrap() {
             }
         }
     });
+}
+
+fn monitor_client_hooks(runtime: Arc<Runtime>) {
+    loop {
+        match runtime.client_hook_status() {
+            ClientHookStatus::Pending => std::thread::sleep(Duration::from_millis(10)),
+            ClientHookStatus::Ready => {
+                info!("RakClient packet and RPC hooks are ready");
+                return;
+            }
+            ClientHookStatus::Failed => {
+                host().status.store(STATUS_FAILED, Ordering::Release);
+                error!("host runtime failed to install RakClient packet and RPC hooks");
+                return;
+            }
+        }
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -415,22 +435,16 @@ fn register_listener(
         RakRsDirection::Outgoing => Direction::Outgoing,
     };
     let user_data = user_data as usize;
-    let listener = {
-        let runtime = host()
-            .runtime
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        let Some(runtime) = runtime.as_ref() else {
-            return RakRsResult::NotReady;
-        };
-        match kind {
-            ListenerKind::Packet => runtime.on_packet(direction, move |event| {
-                call_plugin_callback(callback, user_data, event.id(), event.payload_mut())
-            }),
-            ListenerKind::Rpc => runtime.on_rpc(direction, move |event| {
-                call_plugin_callback(callback, user_data, event.id(), event.payload_mut())
-            }),
-        }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakRsResult::NotReady;
+    };
+    let listener = match kind {
+        ListenerKind::Packet => runtime.on_packet(direction, move |event| {
+            call_plugin_callback(callback, user_data, event.id(), event.payload_mut())
+        }),
+        ListenerKind::Rpc => runtime.on_rpc(direction, move |event| {
+            call_plugin_callback(callback, user_data, event.id(), event.payload_mut())
+        }),
     };
 
     let id = host().next_subscription.fetch_add(1, Ordering::AcqRel);
@@ -487,11 +501,7 @@ fn send(
     let Ok(options) = send_options(options) else {
         return RakRsResult::InvalidArgument;
     };
-    let runtime = host()
-        .runtime
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    let Some(runtime) = runtime.as_ref() else {
+    let Some(runtime) = clone_initialized(&host().runtime) else {
         return RakRsResult::NotReady;
     };
     let result = match kind {
@@ -517,11 +527,7 @@ fn emulate_incoming(
     let Ok(payload) = (unsafe { stream_from_abi(data, byte_len, bit_len) }) else {
         return RakRsResult::InvalidArgument;
     };
-    let runtime = host()
-        .runtime
-        .lock()
-        .unwrap_or_else(|error| error.into_inner());
-    let Some(runtime) = runtime.as_ref() else {
+    let Some(runtime) = clone_initialized(&host().runtime) else {
         return RakRsResult::NotReady;
     };
     let result = match kind {
@@ -571,6 +577,7 @@ fn send_result(error: SendError) -> RakRsResult {
         SendError::ClientNotReady => RakRsResult::NotReady,
         SendError::PayloadTooLarge => RakRsResult::PayloadTooLarge,
         SendError::NativeCallFailed => RakRsResult::NativeCallFailed,
+        SendError::TimestampedPacketUnsupported => RakRsResult::InvalidArgument,
     }
 }
 
@@ -602,14 +609,36 @@ fn host() -> &'static HostState {
     HOST.get_or_init(|| HostState {
         status: AtomicU32::new(STATUS_WAITING),
         bootstrap_started: AtomicBool::new(false),
-        runtime: Mutex::new(None),
+        runtime: OnceLock::new(),
         subscriptions: Mutex::new(HashMap::new()),
         next_subscription: AtomicU64::new(1),
     })
+}
+
+fn clone_initialized<T>(slot: &OnceLock<Arc<T>>) -> Option<Arc<T>> {
+    slot.get().cloned()
 }
 
 #[derive(Clone, Copy, Debug)]
 enum ListenerKind {
     Packet,
     Rpc,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::clone_initialized;
+    use std::sync::{Arc, OnceLock};
+
+    #[test]
+    fn initialized_runtime_slot_can_be_reentered_while_a_handle_is_alive() {
+        let slot = OnceLock::new();
+        slot.set(Arc::new(7_u8)).unwrap();
+
+        let outer = clone_initialized(&slot).unwrap();
+        let nested = clone_initialized(&slot).unwrap();
+
+        assert_eq!((*outer, *nested), (7, 7));
+        assert_eq!(Arc::strong_count(&outer), 3);
+    }
 }

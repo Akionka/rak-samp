@@ -84,6 +84,7 @@ pub enum SendError {
     ClientNotReady,
     PayloadTooLarge,
     NativeCallFailed,
+    TimestampedPacketUnsupported,
 }
 
 impl fmt::Display for SendError {
@@ -95,6 +96,9 @@ impl fmt::Display for SendError {
             }
             Self::NativeCallFailed => {
                 formatter.write_str("the SA-MP client rejected the network operation")
+            }
+            Self::TimestampedPacketUnsupported => {
+                formatter.write_str("timestamped packet sends are not supported")
             }
         }
     }
@@ -109,6 +113,13 @@ impl std::error::Error for SendError {}
 pub struct Runtime {
     registry: Arc<Registry>,
     backend: platform::Backend,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum ClientHookStatus {
+    Pending,
+    Ready,
+    Failed,
 }
 
 impl Runtime {
@@ -156,6 +167,7 @@ impl Runtime {
         payload: &BitStream,
         options: SendOptions,
     ) -> Result<bool, SendError> {
+        validate_packet_options(options)?;
         self.backend.send_packet(packet_id, payload, options)
     }
 
@@ -190,10 +202,44 @@ impl Runtime {
     pub fn emulate_incoming_rpc(&self, rpc_id: u8, payload: BitStream) -> Result<bool, SendError> {
         self.backend.emulate_incoming_rpc(rpc_id, payload)
     }
+
+    pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
+        self.backend.client_hook_status()
+    }
+}
+
+fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {
+    if options.timestamp {
+        Err(SendError::TimestampedPacketUnsupported)
+    } else {
+        Ok(())
+    }
 }
 
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.backend.shutdown();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        PacketPriority, PacketReliability, SendError, SendOptions, validate_packet_options,
+    };
+
+    #[test]
+    fn timestamped_packet_options_are_explicitly_unsupported() {
+        let options = SendOptions {
+            priority: PacketPriority::High,
+            reliability: PacketReliability::ReliableOrdered,
+            ordering_channel: 0,
+            timestamp: true,
+        };
+
+        assert_eq!(
+            validate_packet_options(options),
+            Err(SendError::TimestampedPacketUnsupported)
+        );
     }
 }

@@ -6,7 +6,7 @@
 use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
     event::{HookAction, Registry},
-    runtime::{PacketPriority, PacketReliability},
+    runtime::{ClientHookStatus, PacketPriority, PacketReliability},
 };
 use minhook::MinHook;
 use std::{
@@ -30,6 +30,9 @@ const DEALLOCATE_PACKET_SLOT: usize = 9;
 const OUTGOING_RPC_SLOT: usize = 25;
 const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
+const CLIENT_HOOK_PENDING: u32 = 0;
+const CLIENT_HOOK_READY: u32 = 1;
+const CLIENT_HOOK_FAILED: u32 = 2;
 
 pub(crate) struct Backend {
     state: Arc<BackendState>,
@@ -49,6 +52,7 @@ struct BackendState {
     incoming_packet_original: AtomicUsize,
     deallocate_packet_original: AtomicUsize,
     outgoing_rpc_original: AtomicUsize,
+    client_hook_status: AtomicU32,
     incoming_packet_diagnostic_logged: AtomicBool,
     hooks: Mutex<HookStorage>,
 }
@@ -89,6 +93,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         incoming_packet_original: AtomicUsize::new(0),
         deallocate_packet_original: AtomicUsize::new(0),
         outgoing_rpc_original: AtomicUsize::new(0),
+        client_hook_status: AtomicU32::new(CLIENT_HOOK_PENDING),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         hooks: Mutex::new(HookStorage::default()),
     });
@@ -103,6 +108,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 }
 
 impl Backend {
+    pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
+        match self.state.client_hook_status.load(Ordering::Acquire) {
+            CLIENT_HOOK_READY => ClientHookStatus::Ready,
+            CLIENT_HOOK_FAILED => ClientHookStatus::Failed,
+            _ => ClientHookStatus::Pending,
+        }
+    }
+
     pub(crate) fn send_packet(
         &self,
         packet_id: u8,
@@ -145,11 +158,17 @@ impl Backend {
 impl BackendState {
     fn install_constructor_hook(self: &Arc<Self>) -> Result<(), AttachError> {
         let target = self.module_base + self.addresses.rak_client_constructor as usize;
-        let (detour, trampoline) =
-            InlineHook::install(target, rak_client_constructor_detour as *const () as usize)
+        let (mut detour, trampoline) =
+            InlineHook::create(target, rak_client_constructor_detour as *const () as usize)
                 .map_err(|_| AttachError::HookInstallFailed("RakClient constructor detour"))?;
         self.constructor_trampoline
             .store(trampoline, Ordering::Release);
+        if detour.enable().is_err() {
+            self.constructor_trampoline.store(0, Ordering::Release);
+            return Err(AttachError::HookInstallFailed(
+                "enabling RakClient constructor detour",
+            ));
+        }
         self.hooks
             .lock()
             .unwrap_or_else(|error| error.into_inner())
@@ -170,14 +189,21 @@ impl BackendState {
         }
 
         let incoming_target = self.module_base + self.addresses.incoming_rpc_handler as usize;
-        let (incoming_rpc, trampoline) =
-            InlineHook::install(incoming_target, incoming_rpc_detour as *const () as usize)
+        let (mut incoming_rpc, trampoline) =
+            InlineHook::create(incoming_target, incoming_rpc_detour as *const () as usize)
                 .map_err(|_| {
                     self.rak_client.store(0, Ordering::Release);
                     AttachError::HookInstallFailed("incoming RPC detour")
                 })?;
         self.incoming_rpc_trampoline
             .store(trampoline, Ordering::Release);
+        if incoming_rpc.enable().is_err() {
+            self.incoming_rpc_trampoline.store(0, Ordering::Release);
+            self.rak_client.store(0, Ordering::Release);
+            return Err(AttachError::HookInstallFailed(
+                "enabling incoming RPC detour",
+            ));
+        }
 
         let vtable = match unsafe { VtableHook::install(client, self) } {
             Ok(vtable) => vtable,
@@ -195,6 +221,8 @@ impl BackendState {
         let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
         hooks.incoming_rpc = Some(incoming_rpc);
         hooks.vtable = Some(vtable);
+        self.client_hook_status
+            .store(CLIENT_HOOK_READY, Ordering::Release);
         Ok(())
     }
 
@@ -210,7 +238,7 @@ impl BackendState {
             return Err(SendError::ClientNotReady);
         }
         let stream = packet_stream(packet_id, payload)?;
-        let mut native = NativeBitStream::new(&stream);
+        let mut native = NativeBitStream::new(&stream)?;
         let send: OutgoingPacketFn = unsafe { mem::transmute(original) };
         Ok(unsafe {
             send(
@@ -234,7 +262,7 @@ impl BackendState {
         if original == 0 {
             return Err(SendError::ClientNotReady);
         }
-        let mut native = NativeBitStream::new(payload);
+        let mut native = NativeBitStream::new(payload)?;
         let send: OutgoingRpcFn = unsafe { mem::transmute(original) };
         let mut id = i32::from(rpc_id);
         Ok(unsafe {
@@ -257,9 +285,11 @@ impl BackendState {
     ) -> Result<bool, SendError> {
         let peer = self.ready_rpc_receiver()?;
         let stream = packet_stream(packet_id, &payload)?;
+        let byte_len = i32::try_from(stream.len_bytes()).map_err(|_| SendError::PayloadTooLarge)?;
+        let bit_size = u32::try_from(stream.len_bits()).map_err(|_| SendError::PayloadTooLarge)?;
         let allocate: AllocatePacketFn =
             unsafe { mem::transmute(self.module_base + self.addresses.allocate_packet as usize) };
-        let packet = unsafe { allocate(stream.len_bytes() as i32) };
+        let packet = unsafe { allocate(byte_len) };
         if packet.is_null() {
             return Err(SendError::NativeCallFailed);
         }
@@ -270,7 +300,7 @@ impl BackendState {
             }
             ptr::copy_nonoverlapping(stream.as_bytes().as_ptr(), packet_data, stream.len_bytes());
             ptr::addr_of_mut!((*packet).length).write_unaligned(stream.len_bytes() as u32);
-            ptr::addr_of_mut!((*packet).bit_size).write_unaligned(stream.len_bits() as u32);
+            ptr::addr_of_mut!((*packet).bit_size).write_unaligned(bit_size);
 
             let lock: QueueWriteLockFn =
                 mem::transmute(self.module_base + self.addresses.write_lock as usize);
@@ -313,6 +343,8 @@ impl BackendState {
             .write_stream(&payload)
             .map_err(|_| SendError::PayloadTooLarge)?;
         let original: IncomingRpcFn = unsafe { mem::transmute(original) };
+        let envelope_len =
+            i32::try_from(envelope.len_bytes()).map_err(|_| SendError::PayloadTooLarge)?;
         let player = RpcPlayerId {
             binary_address: self.player_address.load(Ordering::Acquire),
             port: self.player_port.load(Ordering::Acquire),
@@ -321,7 +353,7 @@ impl BackendState {
             original(
                 receiver,
                 envelope.as_bytes().as_ptr().cast_mut(),
-                envelope.len_bytes() as i32,
+                envelope_len,
                 player,
             )
         })
@@ -418,24 +450,25 @@ struct NativeBitStream {
 }
 
 impl NativeBitStream {
-    fn new(stream: &BitStream) -> Self {
+    fn new(stream: &BitStream) -> Result<Self, SendError> {
+        let bit_len = native_bit_length(stream.len_bits())?;
         let mut data = stream.as_bytes().to_vec();
         let data_pointer = if data.is_empty() {
             ptr::null_mut()
         } else {
             data.as_mut_ptr()
         };
-        Self {
+        Ok(Self {
             raw: RawBitStream {
-                number_of_bits_used: stream.len_bits() as i32,
-                number_of_bits_allocated: stream.len_bits() as i32,
+                number_of_bits_used: bit_len,
+                number_of_bits_allocated: bit_len,
                 read_offset: 0,
                 data: data_pointer,
                 copy_data: false,
                 stack_data: [0; 256],
             },
             data,
-        }
+        })
     }
 
     fn as_mut_ptr(&mut self) -> *mut RawBitStream {
@@ -446,6 +479,10 @@ impl NativeBitStream {
         };
         &mut self.raw
     }
+}
+
+fn native_bit_length(bit_len: usize) -> Result<i32, SendError> {
+    i32::try_from(bit_len).map_err(|_| SendError::PayloadTooLarge)
 }
 
 #[repr(C)]
@@ -598,6 +635,7 @@ mod vtable_tests {
             incoming_packet_original: AtomicUsize::new(0),
             deallocate_packet_original: AtomicUsize::new(0),
             outgoing_rpc_original: AtomicUsize::new(0),
+            client_hook_status: AtomicU32::new(CLIENT_HOOK_PENDING),
             incoming_packet_diagnostic_logged: AtomicBool::new(false),
             hooks: Mutex::new(HookStorage::default()),
         }
@@ -684,6 +722,20 @@ mod vtable_tests {
             Ok(0x2000)
         );
     }
+
+    #[test]
+    fn client_hook_failure_is_observable_by_the_runtime() {
+        let state = Arc::new(test_backend_state());
+        let backend = Backend {
+            state: Arc::clone(&state),
+        };
+
+        assert_eq!(backend.client_hook_status(), ClientHookStatus::Pending);
+        state
+            .client_hook_status
+            .store(CLIENT_HOOK_FAILED, Ordering::Release);
+        assert_eq!(backend.client_hook_status(), ClientHookStatus::Failed);
+    }
 }
 
 #[cfg(test)]
@@ -712,50 +764,31 @@ mod inline_hook_tests {
         unsafe { original(value) + 10 }
     }
 
-    struct HookGuard {
-        target: *mut c_void,
-        installed: bool,
-    }
-
-    impl Drop for HookGuard {
-        fn drop(&mut self) {
-            if self.installed {
-                let _ = unsafe { MinHook::disable_hook(self.target) };
-                let _ = unsafe { MinHook::remove_hook(self.target) };
-            }
-            TEST_TRAMPOLINE.store(0, Ordering::Release);
-        }
-    }
-
     #[test]
-    fn installs_calls_disables_removes_and_recreates_an_inline_hook() {
+    fn publishes_trampoline_before_enabling_and_can_recreate_inline_hook() {
         let _serial = TEST_LOCK
             .get_or_init(|| Mutex::new(()))
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let target = target as *const () as *mut c_void;
-        let detour = detour as *const () as *mut c_void;
+        let target = target as *const () as usize;
+        let detour = detour as *const () as usize;
 
-        let trampoline = unsafe { MinHook::create_hook(target, detour) }.unwrap();
-        let mut hook = HookGuard {
-            target,
-            installed: true,
-        };
-        TEST_TRAMPOLINE.store(trampoline as usize, Ordering::Release);
+        let (mut hook, trampoline) = InlineHook::create(target, detour).unwrap();
 
+        // Creation must leave the target disabled until the caller publishes
+        // the trampoline used by the detour.
         assert_eq!(unsafe { self::target(7) }, 8);
-        unsafe { MinHook::enable_hook(target) }.unwrap();
+        TEST_TRAMPOLINE.store(trampoline, Ordering::Release);
+        hook.enable().unwrap();
         assert_eq!(unsafe { self::target(7) }, 18);
 
-        unsafe { MinHook::disable_hook(target) }.unwrap();
-        assert_eq!(unsafe { self::target(7) }, 8);
-        unsafe { MinHook::remove_hook(target) }.unwrap();
-        hook.installed = false;
+        hook.disable();
         assert_eq!(unsafe { self::target(7) }, 8);
 
-        let recreated = unsafe { MinHook::create_hook(target, detour) }.unwrap();
-        assert_ne!(recreated, core::ptr::null_mut());
-        unsafe { MinHook::remove_hook(target) }.unwrap();
+        let (recreated, recreated_trampoline) = InlineHook::create(target, detour).unwrap();
+        assert_ne!(recreated_trampoline, 0);
+        recreated.disable();
+        TEST_TRAMPOLINE.store(0, Ordering::Release);
     }
 }
 
@@ -773,24 +806,50 @@ struct VtableEntry {
 
 struct InlineHook {
     target: usize,
+    enabled: bool,
 }
 
 impl InlineHook {
-    fn install(target: usize, detour: usize) -> Result<(Self, usize), ()> {
+    fn create(target: usize, detour: usize) -> Result<(Self, usize), ()> {
         let trampoline = unsafe {
             MinHook::create_hook(target as *mut c_void, detour as *mut c_void).map_err(|_| ())?
         };
-        if unsafe { MinHook::enable_hook(target as *mut c_void) }.is_err() {
-            let _ = unsafe { MinHook::remove_hook(target as *mut c_void) };
-            return Err(());
-        }
-        Ok((Self { target }, trampoline as usize))
+        Ok((
+            Self {
+                target,
+                enabled: false,
+            },
+            trampoline as usize,
+        ))
     }
 
-    fn disable(self) {
+    fn enable(&mut self) -> Result<(), ()> {
+        unsafe { MinHook::enable_hook(self.target as *mut c_void) }.map_err(|_| ())?;
+        self.enabled = true;
+        Ok(())
+    }
+
+    fn disable(mut self) {
+        self.remove();
+    }
+
+    fn remove(&mut self) {
+        if self.target == 0 {
+            return;
+        }
         let target = self.target as *mut c_void;
-        let _ = unsafe { MinHook::disable_hook(target) };
+        if self.enabled {
+            let _ = unsafe { MinHook::disable_hook(target) };
+        }
         let _ = unsafe { MinHook::remove_hook(target) };
+        self.target = 0;
+        self.enabled = false;
+    }
+}
+
+impl Drop for InlineHook {
+    fn drop(&mut self) {
+        self.remove();
     }
 }
 
@@ -912,8 +971,13 @@ unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     }
     let original: RakClientConstructorFn = unsafe { mem::transmute(trampoline) };
     let client = unsafe { original() };
-    if !client.is_null() {
-        let _ = state.install_client_hooks(client);
+    if !client.is_null()
+        && let Err(error) = state.install_client_hooks(client)
+    {
+        state
+            .client_hook_status
+            .store(CLIENT_HOOK_FAILED, Ordering::Release);
+        log::error!("RakClient hook installation failed: {error}");
     }
     client
 }
@@ -1159,7 +1223,8 @@ fn validated_packet_byte_len(length: u32, bit_size: usize) -> Option<usize> {
 
 #[cfg(test)]
 mod packet_metadata_tests {
-    use super::{MAX_INCOMING_PACKET_BYTES, validated_packet_byte_len};
+    use super::{MAX_INCOMING_PACKET_BYTES, native_bit_length, validated_packet_byte_len};
+    use crate::SendError;
 
     #[test]
     fn accepts_byte_aligned_and_partial_byte_packets() {
@@ -1177,6 +1242,15 @@ mod packet_metadata_tests {
                 (MAX_INCOMING_PACKET_BYTES + 1) * 8
             ),
             None
+        );
+    }
+
+    #[test]
+    fn rejects_bit_lengths_that_overflow_native_i32() {
+        assert_eq!(native_bit_length(i32::MAX as usize), Ok(i32::MAX));
+        assert_eq!(
+            native_bit_length(i32::MAX as usize + 1),
+            Err(SendError::PayloadTooLarge)
         );
     }
 }
@@ -1249,6 +1323,7 @@ fn build_rpc_envelope(
     payload: &BitStream,
     timestamp: Option<[u8; 4]>,
 ) -> Result<Vec<u8>, SendError> {
+    let payload_bits = u32::try_from(payload.len_bits()).map_err(|_| SendError::PayloadTooLarge)?;
     let mut stream = BitStream::new();
     if let Some(timestamp) = timestamp {
         stream
@@ -1265,7 +1340,7 @@ fn build_rpc_envelope(
         .write_u8(id)
         .map_err(|_| SendError::PayloadTooLarge)?;
     stream
-        .write_compressed_u32(payload.len_bits() as u32)
+        .write_compressed_u32(payload_bits)
         .map_err(|_| SendError::PayloadTooLarge)?;
     stream
         .write_stream(payload)

@@ -43,6 +43,11 @@ From a worker thread, call `wait_for_default_host`, then register packet or RPC
 callbacks through `HostApi::raw()`. The `events` module provides typed helpers
 for common byte-aligned RPCs and exposes SA-MP text as `Vec<u8>`.
 
+Use `HostApi::send_packet` and `HostApi::send_rpc` for explicit traffic. Their
+payload slices exclude the packet or RPC ID, and `bit_len` identifies the exact
+number of meaningful bits. Explicit sends bypass outgoing listeners to avoid
+recursive callbacks. Timestamped packet sends are currently rejected.
+
 Retain every `RakRsSubscription`. Before unloading a plugin at runtime, call
 `HostApi::unregister_and_wait` for each subscription from a shutdown worker and
 wait for success. Do not wait from `DllMain` or a rak-rs callback.
@@ -59,8 +64,9 @@ cargo make deploy-validation
 ```
 
 The validation ASI records ID histograms and runs a blocked local rewrite test;
-it never logs payloads. Follow [VALIDATION.md](VALIDATION.md) for the procedure
-and pass criteria.
+it never logs payloads. Optional marker files enable server-bound send and
+coordinated-shutdown checks. Follow [VALIDATION.md](VALIDATION.md) for the
+procedure and pass criteria.
 
 ## Limits
 

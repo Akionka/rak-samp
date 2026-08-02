@@ -175,6 +175,36 @@ impl HostApi {
         unsafe { (self.raw.unregister_and_wait)(subscription) }
     }
 
+    /// Sends a packet through SA-MP's original RakClient method.
+    ///
+    /// `payload` excludes the packet ID. Outgoing listeners are bypassed to prevent recursive
+    /// dispatch. Timestamped packet options are currently rejected as invalid.
+    pub fn send_packet(
+        self,
+        packet_id: u8,
+        payload: &[u8],
+        bit_len: usize,
+        options: RakRsSendOptions,
+    ) -> RakRsResult {
+        unsafe {
+            (self.raw.send_packet)(packet_id, payload.as_ptr(), payload.len(), bit_len, options)
+        }
+    }
+
+    /// Sends an RPC through SA-MP's original RakClient method.
+    ///
+    /// `payload` excludes the RPC ID. Outgoing listeners are bypassed to prevent recursive
+    /// dispatch.
+    pub fn send_rpc(
+        self,
+        rpc_id: u8,
+        payload: &[u8],
+        bit_len: usize,
+        options: RakRsSendOptions,
+    ) -> RakRsResult {
+        unsafe { (self.raw.send_rpc)(rpc_id, payload.as_ptr(), payload.len(), bit_len, options) }
+    }
+
     /// Queues an incoming packet for SA-MP after incoming plugin listeners run.
     ///
     /// `payload` excludes the packet ID. A listener may rewrite or block the event;

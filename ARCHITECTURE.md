@@ -29,13 +29,17 @@ to MinHook; plugins link only the ABI client crate.
 2. The worker initializes logging, waits for `samp.dll`, identifies its entry
    point, and installs the constructor detour.
 3. RakClient construction installs the incoming-RPC detour and three in-place
-   vtable patches. The host reports `Ready`.
+   vtable patches. The bootstrap monitor logs success or changes the host state
+   to `Failed` if deferred installation fails.
 4. Plugin workers find the already-loaded `rak_rs.asi`, validate ABI version and
    table size, and register callbacks.
 5. For runtime unload, a plugin worker calls `unregister_and_wait` for every
    subscription before an external manager frees the module.
 
 Plugins must not wait or perform synchronized teardown in `DllMain`.
+The host runtime lives in a process-lifetime `OnceLock<Arc<Runtime>>`; ABI entry
+points clone the `Arc` before invoking runtime methods, so re-entrant callbacks
+do not retain a host-state lock.
 
 ## Event flow
 
@@ -60,6 +64,11 @@ and 25, chains their previous functions, and restores a slot only if its value
 is still the host detour. Each detour carries an `Arc` of its backend through
 original calls so teardown cannot invalidate active calls.
 
+MinHook detours are created disabled. The caller stores the original
+trampoline with release ordering before enabling the detour, preventing an
+early callback from observing a null original. Native bit counts use checked
+`i32` conversions before entering RakNet.
+
 Incoming packet structures use packed offsets; the incoming-RPC player value is
 separately aligned. Metadata checks fail open before pointer dereference. RPC
 envelopes use RakNet compressed lengths. The C++ layout oracle, fake RakClient
@@ -70,4 +79,5 @@ files; [VALIDATION.md](VALIDATION.md) covers the live integration check.
 
 The configured target is `i686-pc-windows-msvc`. `cargo make deploy` renames the
 host DLL to `rak_rs.asi`; `cargo make deploy-validation` also installs the
-validation ASI. See [README.md](README.md) for usage.
+validation ASI. Marker files opt its server-bound send and coordinated-shutdown
+checks into a live session. See [README.md](README.md) for usage.
