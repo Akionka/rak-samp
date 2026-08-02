@@ -46,10 +46,14 @@ rak_rs_plugin_api = { path = "../rak_rs/plugin_api" }
 ```
 
 From a worker thread, call `wait_for_default_host`, then register packet or RPC
-callbacks through `HostApi::raw()`. The `events` module provides typed helpers
-for common RPCs and exposes SA-MP text as `Vec<u8>`. It includes
-`events::incoming::on_show_dialog`; compressed dialog text is decoded and
-encoded by the installed SA-MP client's native StringCompressor.
+callbacks through `HostApi::raw()`. The `events` module provides the complete
+SA-MP 0.3.7 R1 typed RPC and packet catalog, while exposing uncertain SA-MP
+text as `Vec<u8>`. It includes `events::incoming::on_show_dialog`,
+`events::incoming::on_create_object`, and compressed packet helpers such as
+`events::packet::incoming::on_player_sync`. The skin helper receives
+`PlayerSkin { player_id, skin_id }` from incoming RPC 153; compressed dialog
+and material text are decoded and encoded by the installed SA-MP client's
+native StringCompressor.
 
 Typed replacements use `RpcAction::Replace`. For locally generated typed RPCs,
 call a descriptor such as `incoming::SHOW_DIALOG.encode(api, value)` and pass
@@ -100,10 +104,12 @@ ASI is no longer loaded. This tooling is not needed by ordinary plugins.
 
 ## Limits
 
-Bit-packed sync schemas, broader game-state APIs, and live validation on every
-supported client build remain pending. Only SA-MP 0.3.7 R1 has completed the
-full live-validation matrix; use the other recognized builds only for testing.
-Runtime unload is safe only through the synchronized shutdown contract above.
+The typed catalog is validated against the R1 wire reference. Broader
+game-state APIs and live validation on every supported client build remain
+pending. Remote compressed sync preserves its protocol bit layout rather than
+relying on Rust bitfields. Only SA-MP 0.3.7 R1 is the typed-layout authority;
+use the other recognized builds only for raw-event testing. Runtime unload is
+safe only through the synchronized shutdown contract above.
 
 ## License
 

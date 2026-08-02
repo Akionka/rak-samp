@@ -3,7 +3,7 @@
 use rak_rs_plugin_api::{
     HostApi, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1, RakRsHookAction,
     RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError,
-    events::{EncodedPayload, EventError, RpcAction, incoming},
+    events::{EncodedPayload, EventError, RpcAction, incoming, packet},
     wait_for_default_host,
 };
 use std::{
@@ -20,6 +20,7 @@ use std::{
     thread::JoinHandle,
     time::{Duration, Instant},
 };
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, TRUE},
     System::{
@@ -73,6 +74,11 @@ static INCOMING_RPCS: AtomicU32 = AtomicU32::new(0);
 static OUTGOING_RPCS: AtomicU32 = AtomicU32::new(0);
 static NULL_EVENTS: AtomicU32 = AtomicU32::new(0);
 static TIMESTAMP_DECODE_ERRORS: AtomicU32 = AtomicU32::new(0);
+static PLAYER_SKIN_DECODED: AtomicU32 = AtomicU32::new(0);
+static TYPED_R1_RPC_CALLBACKS: AtomicU32 = AtomicU32::new(0);
+static TYPED_R1_PACKET_CALLBACKS: AtomicU32 = AtomicU32::new(0);
+static TYPED_R1_RPC_REPLACED: AtomicBool = AtomicBool::new(false);
+static TYPED_R1_PACKET_REPLACED: AtomicBool = AtomicBool::new(false);
 static PACKET_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static RPC_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static DIALOG_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
@@ -309,14 +315,24 @@ unsafe extern "system" fn on_incoming_packet(
         &INCOMING_PACKET_IDS,
         &INCOMING_TIMESTAMP_INNER_IDS,
     );
-    test_verdict(
+    let action = test_verdict(
         observed,
         event,
         TEST_PACKET_ID,
         &TEST_PACKET_INPUT,
         &TEST_PACKET_REPLACEMENT,
         &PACKET_SELF_TEST,
-    )
+    );
+    if action == RakRsHookAction::Block {
+        return action;
+    }
+    let Some((raw_api, packet_id @ (200 | 207 | 208))) = observed else {
+        return action;
+    };
+    let Ok(api) = (unsafe { HostApi::from_raw(raw_api) }) else {
+        return action;
+    };
+    validate_typed_r1_packet(api, event, packet_id)
 }
 
 unsafe extern "system" fn on_outgoing_packet(
@@ -351,14 +367,127 @@ unsafe extern "system" fn on_incoming_rpc(
     if action == RakRsHookAction::Block {
         return action;
     }
-    let Some((raw_api, 61)) = observed else {
+    let Some((raw_api, rpc_id)) = observed else {
         return action;
     };
     let Ok(api) = (unsafe { HostApi::from_raw(raw_api) }) else {
-        DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
+        match rpc_id {
+            61 => DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release),
+            153 => write_log("SetPlayerSkin callback could not read the host API"),
+            _ => write_log("R1 typed RPC callback could not read the host API"),
+        }
         return action;
     };
-    validate_dialog_rewrite(api, event)
+    match rpc_id {
+        61 => validate_dialog_rewrite(api, event),
+        153 => validate_player_skin(api, event),
+        32 | 36 | 44 | 68 | 76 | 82 | 83 | 84 | 86 | 104 | 112 | 113 | 117 | 124 | 128 | 134
+        | 135 | 139 | 155 | 164 | 167 | 170 | 173 => validate_typed_r1_rpc(api, event, rpc_id),
+        _ => action,
+    }
+}
+
+fn validate_player_skin(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookAction {
+    match unsafe {
+        incoming::on_set_player_skin(api, event, |_skin| {
+            PLAYER_SKIN_DECODED.fetch_add(1, Ordering::Relaxed);
+            RpcAction::Continue
+        })
+    } {
+        Ok(action) => action,
+        Err(error) => {
+            write_log(&format!("SetPlayerSkin decode failed: {error}"));
+            RakRsHookAction::Continue
+        }
+    }
+}
+
+fn typed_rpc_action<T>(value: T) -> RpcAction<T> {
+    TYPED_R1_RPC_CALLBACKS.fetch_add(1, Ordering::Relaxed);
+    if TYPED_R1_RPC_REPLACED
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+    {
+        RpcAction::Replace(value)
+    } else {
+        RpcAction::Continue
+    }
+}
+
+fn typed_packet_action<T>(value: T) -> RpcAction<T> {
+    TYPED_R1_PACKET_CALLBACKS.fetch_add(1, Ordering::Relaxed);
+    if TYPED_R1_PACKET_REPLACED
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_ok()
+    {
+        RpcAction::Replace(value)
+    } else {
+        RpcAction::Continue
+    }
+}
+
+fn validate_typed_r1_packet(
+    api: HostApi,
+    event: *mut RakRsEventV1,
+    packet_id: u8,
+) -> RakRsHookAction {
+    macro_rules! handle_packet {
+        ($helper:path) => {
+            match unsafe { $helper(api, event, typed_packet_action) } {
+                Ok(action) => action,
+                Err(error) => {
+                    write_log(&format!("R1 typed packet {packet_id} failed: {error}"));
+                    RakRsHookAction::Continue
+                }
+            }
+        };
+    }
+    match packet_id {
+        200 => handle_packet!(packet::incoming::on_vehicle_sync),
+        207 => handle_packet!(packet::incoming::on_player_sync),
+        208 => handle_packet!(packet::incoming::on_markers_sync),
+        _ => RakRsHookAction::Continue,
+    }
+}
+
+fn validate_typed_r1_rpc(api: HostApi, event: *mut RakRsEventV1, rpc_id: u8) -> RakRsHookAction {
+    macro_rules! handle_rpc {
+        ($helper:path) => {
+            match unsafe { $helper(api, event, typed_rpc_action) } {
+                Ok(action) => action,
+                Err(error) => {
+                    write_log(&format!("R1 typed RPC {rpc_id} failed: {error}"));
+                    RakRsHookAction::Continue
+                }
+            }
+        };
+    }
+    match rpc_id {
+        32 => handle_rpc!(incoming::on_player_stream_in),
+        36 => handle_rpc!(incoming::on_create_3d_text),
+        44 => handle_rpc!(incoming::on_create_object),
+        68 => handle_rpc!(incoming::on_set_spawn_info),
+        76 => handle_rpc!(incoming::on_init_menu),
+        82 => handle_rpc!(incoming::on_interpolate_camera),
+        83 => handle_rpc!(incoming::on_toggle_select_text_draw),
+        84 => handle_rpc!(incoming::on_set_object_material),
+        86 => handle_rpc!(incoming::on_apply_player_animation),
+        104 => handle_rpc!(incoming::on_enable_stunt_bonus),
+        112 => handle_rpc!(incoming::on_play_crime_report),
+        113 => handle_rpc!(incoming::on_set_player_attached_object),
+        117 => handle_rpc!(incoming::on_enter_edit_object),
+        124 => handle_rpc!(incoming::on_toggle_player_spectating),
+        128 => handle_rpc!(incoming::on_request_class_response),
+        134 => handle_rpc!(incoming::on_show_text_draw),
+        135 => handle_rpc!(incoming::on_text_draw_hide),
+        139 => handle_rpc!(incoming::on_init_game),
+        155 => handle_rpc!(incoming::on_update_scores_and_pings),
+        164 => handle_rpc!(incoming::on_vehicle_stream_in),
+        167 => handle_rpc!(incoming::on_disable_vehicle_collisions),
+        170 => handle_rpc!(incoming::on_toggle_camera_target_notifying),
+        173 => handle_rpc!(incoming::on_apply_actor_animation),
+        _ => RakRsHookAction::Continue,
+    }
 }
 
 fn validate_dialog_rewrite(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookAction {
@@ -816,11 +945,16 @@ fn report_loop() {
 
 fn report_counts(elapsed_seconds: u64) {
     write_log(&format!(
-        "t={elapsed_seconds}s incoming_packets={} outgoing_packets={} incoming_rpcs={} outgoing_rpcs={} null_events={} timestamp_decode_errors={}",
+        "t={elapsed_seconds}s incoming_packets={} outgoing_packets={} incoming_rpcs={} outgoing_rpcs={} player_skin_decodes={} typed_r1_rpcs={} typed_r1_packets={} typed_r1_rpc_replaced={} typed_r1_packet_replaced={} null_events={} timestamp_decode_errors={}",
         INCOMING_PACKETS.load(Ordering::Relaxed),
         OUTGOING_PACKETS.load(Ordering::Relaxed),
         INCOMING_RPCS.load(Ordering::Relaxed),
         OUTGOING_RPCS.load(Ordering::Relaxed),
+        PLAYER_SKIN_DECODED.load(Ordering::Relaxed),
+        TYPED_R1_RPC_CALLBACKS.load(Ordering::Relaxed),
+        TYPED_R1_PACKET_CALLBACKS.load(Ordering::Relaxed),
+        TYPED_R1_RPC_REPLACED.load(Ordering::Relaxed),
+        TYPED_R1_PACKET_REPLACED.load(Ordering::Relaxed),
         NULL_EVENTS.load(Ordering::Relaxed),
         TIMESTAMP_DECODE_ERRORS.load(Ordering::Relaxed),
     ));
@@ -969,6 +1103,7 @@ fn incoming_rpc_name(id: u8) -> Option<&'static str> {
         138 => "PLAYER_QUIT",
         147 => "SET_VEHICLE_HEALTH",
         152 => "SET_WEATHER",
+        153 => "SET_PLAYER_SKIN",
         156 => "SET_INTERIOR",
         159 => "SET_VEHICLE_POSITION",
         160 => "SET_VEHICLE_ANGLE",
@@ -1005,7 +1140,8 @@ fn outgoing_rpc_name(id: u8) -> Option<&'static str> {
 fn initialize_log() {
     let Ok(file) = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true)
         .open(plugin_path("rak-rs-validation.log"))
     else {
         return;
@@ -1048,8 +1184,24 @@ fn write_log(message: &str) {
         return;
     };
     let mut file = file.lock().unwrap_or_else(|error| error.into_inner());
-    let _ = writeln!(file, "{message}");
+    let _ = file.write_all(format_log_line("INFO", "validation", message).as_bytes());
     let _ = file.flush();
+}
+
+fn format_log_line(level: &str, source: &str, message: &str) -> String {
+    format!(
+        "{} {} {} {}\n",
+        rfc3339_now(),
+        level,
+        source,
+        message.replace(['\r', '\n'], " ")
+    )
+}
+
+fn rfc3339_now() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
 }
 
 fn is_shutting_down() -> bool {
@@ -1179,6 +1331,7 @@ mod tests {
         assert_eq!(packet_name(41), Some("ID_RECEIVED_STATIC_DATA"));
         assert_eq!(packet_name(207), Some("ID_PLAYER_SYNC"));
         assert_eq!(incoming_rpc_name(93), Some("SERVER_MESSAGE"));
+        assert_eq!(incoming_rpc_name(153), Some("SET_PLAYER_SKIN"));
         assert_eq!(packet_name(TEST_PACKET_ID), Some("RAK_RS_SELF_TEST"));
         assert_eq!(incoming_rpc_name(TEST_RPC_ID), Some("RAK_RS_SELF_TEST"));
     }

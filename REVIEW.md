@@ -123,6 +123,27 @@ When new live evidence changes a native boundary, record the client build,
 observed fields or offsets, fix, and validation result here. Keep
 [CORE.md](CORE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) current.
 
+### Typed R1 RPC and packet codecs
+
+The 2026-08-03 typed-event expansion maps all incoming R1 RPC layouts and
+packet IDs against the public [SAMP.Lua event catalog](https://github.com/THE-FYP/SAMP.Lua/blob/c0f2de815425b20615f93816f36372d3a03110f2/samp/events.lua)
+and [synchronization definitions](https://github.com/THE-FYP/SAMP.Lua/blob/c0f2de815425b20615f93816f36372d3a03110f2/samp/synchronization.lua).
+The outgoing RPC IDs are additionally cross-checked against the public
+[SA-MP RPC list](https://github.com/Brunoo16/samp-packet-list/wiki/RPC-List).
+It serializes each field through `Event`/`PayloadWriter`; it does not cast
+callback bytes to Rust or native structs. The test-only ABI-event fixture
+round-trips decoding and atomic replacement for complex RPCs and compressed
+remote sync. The implementation bounds strings and repeated fields, rejects
+trailing semantic bits and invalid material discriminants, preserves mixed
+material order, reads marker coordinates as signed `i16` values, and consumes
+R1 marker packets' terminal sub-byte transport padding.
+
+This is catalog and fixture evidence, not a live-client compatibility claim.
+Encoded-string RPCs plus compressed player, vehicle, and marker packets require
+the R1 validation run recorded in [TODO.md](TODO.md). Other detected client
+builds retain raw event support but do not advertise these typed layouts as
+validated.
+
 ### Explicit send and coordinated shutdown
 
 An SA-MP 0.3.7 R1 release run at commit `7b704d2` on 2026-08-02 reported the

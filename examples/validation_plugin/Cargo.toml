@@ -10,6 +10,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 rak_rs_plugin_api = { path = "../../plugin_api" }
+time = { version = "0.3", features = ["formatting"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

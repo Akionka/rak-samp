@@ -9,6 +9,7 @@ use std::{
     sync::{Mutex, OnceLock},
     time::{Duration, Instant},
 };
+use time::{OffsetDateTime, format_description::well_known::Rfc3339};
 use windows_sys::Win32::{
     Foundation::{FreeLibrary, HINSTANCE, TRUE},
     System::{
@@ -118,7 +119,8 @@ fn resolve(module: HINSTANCE, name: &std::ffi::CStr) -> Option<ValidationFn> {
 fn initialize_log() {
     let result = OpenOptions::new()
         .create(true)
-        .append(true)
+        .write(true)
+        .truncate(true)
         .open("rak-rs-validation-unloader.log");
     if let Ok(file) = result {
         let _ = LOG_FILE.set(Mutex::new(file));
@@ -130,6 +132,22 @@ fn write_log(message: &str) {
         return;
     };
     let mut file = file.lock().unwrap_or_else(|error| error.into_inner());
-    let _ = writeln!(file, "{message}");
+    let _ = file.write_all(format_log_line("INFO", "validation-unloader", message).as_bytes());
     let _ = file.flush();
+}
+
+fn format_log_line(level: &str, source: &str, message: &str) -> String {
+    format!(
+        "{} {} {} {}\n",
+        rfc3339_now(),
+        level,
+        source,
+        message.replace(['\r', '\n'], " ")
+    )
+}
+
+fn rfc3339_now() -> String {
+    OffsetDateTime::now_utc()
+        .format(&Rfc3339)
+        .unwrap_or_else(|_| "1970-01-01T00:00:00Z".into())
 }

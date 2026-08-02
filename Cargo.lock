@@ -137,6 +137,7 @@ name = "rak_rs_validation_plugin"
 version = "0.1.0"
 dependencies = [
  "rak_rs_plugin_api",
+ "time",
  "windows-sys",
 ]
 
@@ -144,6 +145,7 @@ dependencies = [
 name = "rak_rs_validation_unloader"
 version = "0.1.0"
 dependencies = [
+ "time",
  "windows-sys",
 ]
 

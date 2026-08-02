@@ -1,5 +1,5 @@
 use log::LevelFilter;
-use simplelog::{Config, WriteLogger};
+use simplelog::{ConfigBuilder, WriteLogger};
 use std::{fs::OpenOptions, sync::Once};
 
 pub(crate) const LOG_FILE_NAME: &str = "rak-rs.log";
@@ -11,7 +11,8 @@ pub(crate) fn initialize() {
     INITIALIZE_LOGGER.call_once(|| {
         let file = match OpenOptions::new()
             .create(true)
-            .append(true)
+            .write(true)
+            .truncate(true)
             .open(LOG_FILE_NAME)
         {
             Ok(file) => file,
@@ -20,8 +21,8 @@ pub(crate) fn initialize() {
                 return;
             }
         };
-
-        if let Err(error) = WriteLogger::init(LevelFilter::Debug, Config::default(), file) {
+        let config = ConfigBuilder::new().set_time_format_rfc3339().build();
+        if let Err(error) = WriteLogger::init(LevelFilter::Debug, config, file) {
             eprintln!("rak-rs: could not initialize logging: {error}");
         }
     });

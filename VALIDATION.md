@@ -21,8 +21,8 @@ cargo make deploy-validation
 
 Confirm `$env:GTA_DIR` contains `rak_rs.asi` and `rak_rs_validation.asi`.
 The validator always writes `$env:GTA_DIR\rak-rs-validation.log`, even if
-another mod changes GTA's working directory. Archive an old log if a clean
-session is needed.
+another mod changes GTA's working directory. Each new ASI session rewrites its
+previous log. Records begin with an RFC 3339 UTC timestamp.
 
 For the explicit-send scenario, opt in before launching GTA:
 
@@ -85,6 +85,15 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
   `255(RAK_RS_SELF_TEST)` RPC. Incoming RPC 61 also appears once for the local
   encoded-dialog test; it is rewritten, decoded again, and blocked before SA-MP
   can display it.
+- If the server changes the local player's skin, the incoming RPC histogram
+  labels it as `153(SET_PLAYER_SKIN)` and `player_skin_decodes` increases. The
+  validator records neither the player nor skin ID.
+- R1 traffic for the new typed catalog increases `typed_r1_rpcs` or
+  `typed_r1_packets`. The first callback in each family is safely replaced with
+  its decoded value, shown by `typed_r1_rpc_replaced=true` and
+  `typed_r1_packet_replaced=true`; payloads are never logged.
+- Verify an active and an inactive marker with a negative coordinate when
+  marker traffic is available, confirming the signed R1 `i16` interpretation.
 - `null_events` and `timestamp_decode_errors` remain zero.
 - With the send marker, the log reports
   `send self-test completed: packet=passed RPC=passed`.

@@ -9,6 +9,7 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
+time = { version = "0.3", features = ["formatting"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

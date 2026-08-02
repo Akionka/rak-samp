@@ -23,8 +23,9 @@ hook is created disabled, its original trampoline is published, and only then
 is its detour enabled.
 
 [`src/logging.rs`](src/logging.rs) writes lifecycle and ABI diagnostics to
-`rak-rs.log`. Payloads are never logged, and logger failure does not stop the
-host.
+`rak-rs.log` through `simplelog`, with RFC 3339 UTC timestamps. A new host or
+validation ASI session truncates its previous log. Payloads are never logged,
+and logger failure does not stop the host.
 
 ## Traffic and dispatch
 
@@ -65,10 +66,33 @@ away from raw function pointers.
 
 [`plugin_api/src/events.rs`](plugin_api/src/events.rs) decodes common incoming
 and outgoing RPCs over the same raw subscription. `RpcAction` can continue,
-block, or atomically replace a complete exact-bit payload. Text stays as
+block, or atomically replace a complete exact-bit payload. The fixed-layout
+incoming set includes checkpoints, audio streams, object updates, death and map
+UI notifications, vehicle interiors, and player colors. Text stays as
 `Vec<u8>`, `string32` reads are capped at 4096 bytes, and `onShowDialog`
-supports SA-MP's compressed dialog text. `Rpc::encode` returns bytes plus the
-meaningful bit length, which can be passed directly to emulation or send APIs.
+supports SA-MP's compressed dialog text. `onSetPlayerSkin` exposes RPC 153 as
+two byte-aligned signed IDs (`player_id`, then `skin_id`). `Rpc::encode` returns
+bytes plus the meaningful bit length, which can be passed directly to emulation
+or send APIs.
+
+The R1 inbound catalog is complete. Its variable layouts cover game
+initialization, class/spawn state, streamed players (including eleven weapon-skill levels) and vehicles, 3D labels,
+objects with order-preserving texture/text materials, menus, camera and
+textdraw state, animations, attached objects, and score/ping collections.
+One-bit flags, fixed 32-byte strings, and encoded text retain their wire
+semantics. Every typed descriptor requires complete consumption; malformed or
+unsupported payloads return an error for the callback to fail open.
+
+`events::packet` uses the same callback ABI for fixed-size packet layouts. Its
+outgoing helpers cover authentication, RCON, stats, weapons, and player,
+vehicle, passenger, aim, unoccupied, trailer, bullet, and spectator
+synchronization. Incoming helpers decode authentication, connection lifecycle,
+and remote-player aim, bullet, unoccupied, trailer, passenger, player, vehicle,
+and marker sync. Remote player/vehicle sync uses compressed vectors, normalized
+quaternions, packed health/armour, and optional fields; marker coordinates are
+signed R1 `i16` values. Decoders check full bit consumption before replacement;
+packed key, weapon, seat, and camera state bytes stay opaque protocol values
+rather than Rust bitfields.
 
 Encoded strings deliberately use SA-MP's implementation rather than a second
 Huffman codec. [`src/client.rs`](src/client.rs) maps each supported build's
@@ -116,7 +140,6 @@ of the validation ASI while the host remains active.
 
 ## Limits
 
-Remaining complex or bit-packed event schemas, broader game-state APIs, and
-live verification of every supported build are not yet implemented. Native
-encoded-string integration is implemented but still needs live validation on
-each supported client build.
+The typed R1 catalog is complete. Broader game-state APIs and live verification
+on every detected client build remain pending; native encoded-string helpers and
+the new compressed layouts still need an R1 in-game validation run.

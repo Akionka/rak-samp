@@ -16,11 +16,11 @@ to MinHook; plugins link only the ABI client crate.
 
 | Area | Files | Responsibility |
 | --- | --- | --- |
-| Bootstrap | [`src/lib.rs`](src/lib.rs), [`src/host_api.rs`](src/host_api.rs), [`src/logging.rs`](src/logging.rs) | Start outside loader lock, publish readiness/API, own logging |
+| Bootstrap | [`src/lib.rs`](src/lib.rs), [`src/host_api.rs`](src/host_api.rs), [`src/logging.rs`](src/logging.rs) | Start outside loader lock, publish readiness/API, own RFC 3339 session logging |
 | Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded exact-bit payloads |
 | Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion and native string codec calls |
 | Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | Append-only C ABI, host discovery, safe wrappers |
-| Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Wire codecs and named event descriptors, including `onShowDialog` |
+| Typed events | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | R1 wire codecs and named RPC/packet descriptors, including encoded text, object materials, and compressed remote sync packets |
 | Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/chat_command_plugin`](examples/chat_command_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, command/send/emulation example, live diagnostics, and external unload validation |
 
 ## Lifecycle
@@ -64,7 +64,25 @@ and encode replacements before the host atomically swaps the complete exact-bit
 stream. Byte-aligned descriptors encode entirely in the plugin. A descriptor
 that needs a client codec, such as `SHOW_DIALOG`, asks the host to encode only
 that field and combines the returned left-aligned bits with ordinary fields.
-They add no hooks or long-lived callback runtime.
+`SET_PLAYER_SKIN` is byte-aligned: it maps RPC 153's two signed 32-bit IDs to
+`PlayerSkin` without a native codec. Typed helpers add no hooks or long-lived
+callback runtime.
+
+R1's `WorldPlayerAdd` descriptor (RPC 32) carries the streamed player's fixed
+data followed by eleven `u16` weapon-skill levels; replacements preserve all
+fifty payload bytes.
+
+`events::packet` uses `Packet<T>` (an explicit descriptor alias over the same
+mechanism) for fixed-size raw packets. It filters outgoing authentication,
+RCON, stats, weapons, and standard local sync IDs, then filters authentication,
+connection lifecycle, and remote incoming aim, bullet, unoccupied, trailer,
+passenger, player, vehicle, and marker sync. The variable R1 player/vehicle
+layouts encode their one-bit optional branches, compressed velocities,
+normalized quaternions, and packed health/armour directly; markers retain their
+signed `i16` coordinates. Every descriptor verifies there are no trailing
+semantic bits before a callback can replace it; marker sync consumes R1's
+terminal sub-byte transport padding. Protocol bitfield bytes remain opaque values,
+avoiding Rust layout or bitfield-order assumptions.
 
 ```text
 incoming RPC 61 -> Event -> SHOW_DIALOG decoder
