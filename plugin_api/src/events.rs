@@ -5943,9 +5943,12 @@ pub mod packet {
         Ok(f32::from(event.read_u16()?) / 32_767.5 - 1.0)
     }
 
+    fn compressed_float_code(value: f32) -> u16 {
+        ((value.clamp(-1.0, 1.0) + 1.0) * 32_767.5).round() as u16
+    }
+
     fn write_compressed_float(writer: &mut PayloadWriter, value: f32) {
-        let value = value.clamp(-1.0, 1.0);
-        writer.u16(((value + 1.0) * 32_767.5).floor() as u16);
+        writer.u16(compressed_float_code(value));
     }
 
     fn decode_compressed_vector(event: &mut Event<'_>) -> Result<Vector3, EventError> {
@@ -6544,6 +6547,19 @@ pub mod packet {
             PASSENGER_SYNC,
             "onPassengerSync"
         );
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn compressed_float_codes_survive_decode_and_replacement_quantization() {
+            for code in u16::MIN..=u16::MAX {
+                let decoded = f32::from(code) / 32_767.5 - 1.0;
+                assert_eq!(compressed_float_code(decoded), code, "code {code}");
+            }
+        }
     }
 }
 
