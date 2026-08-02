@@ -17,7 +17,12 @@ Use the project only where client-side modifications are allowed.
 
 ## Install
 
-Close GTA, then deploy from the repository root:
+For a tagged release, download `rak_rs.asi` or
+`rak-rs-windows-x86.zip` from its GitHub release, verify it against
+`SHA256SUMS.txt`, and copy `rak_rs.asi` into the GTA directory. The ZIP also
+contains the host PDB and the optional chat-command example.
+
+To build from source, close GTA and deploy from the repository root:
 
 ```powershell
 $env:GTA_DIR = 'D:\Games\GTA San Andreas'

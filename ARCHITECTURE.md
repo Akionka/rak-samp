@@ -123,3 +123,8 @@ host DLL to `rak_rs.asi`; `cargo make deploy-validation` also installs the
 validation ASI. Marker files opt its server-bound send and coordinated-shutdown
 checks into a live session. `cargo make deploy-validation-unload` additionally
 installs the external unload manager. See [README.md](README.md) for usage.
+
+CI checks formatting, the locked workspace tests, strict Clippy, and a release
+build on `windows-latest`. Tags matching `v*` publish the raw host ASI and PDB,
+SHA-256 checksums, and a ZIP containing the host documentation plus the tested
+chat-command example. Hyphenated version tags are marked as prereleases.

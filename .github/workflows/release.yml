@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  HOST_DLL: target/i686-pc-windows-msvc/release/rak_rs.dll
+  HOST_PDB: target/i686-pc-windows-msvc/release/rak_rs.pdb
+  EXAMPLE_DLL: target/i686-pc-windows-msvc/release/rak_rs_chat_command_example.dll
+  ARCHIVE_NAME: rak-rs-windows-x86.zip
+
+jobs:
+  release:
+    name: Build and Publish Windows x86 Release
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: i686-pc-windows-msvc
+          components: rustfmt, clippy
+
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+
+      - name: Run Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Run tests
+        run: cargo test --workspace --all-targets --locked
+
+      - name: Build release workspace
+        run: cargo build --workspace --release --locked
+
+      - name: Prepare release archive
+        shell: pwsh
+        run: |
+          $dist = "dist"
+          $exampleDist = Join-Path $dist "examples/chat_command"
+
+          New-Item -ItemType Directory -Force -Path $exampleDist | Out-Null
+          Copy-Item $env:HOST_DLL (Join-Path $dist "rak_rs.asi")
+          Copy-Item $env:HOST_PDB (Join-Path $dist "rak_rs.pdb")
+          Copy-Item $env:EXAMPLE_DLL (Join-Path $exampleDist "rak_rs_chat_command_example.asi")
+          Copy-Item "examples/chat_command_plugin/README.md" (Join-Path $exampleDist "README.md")
+          Copy-Item "README.md", "LICENSE" $dist
+          Compress-Archive -Path "$dist/*" -DestinationPath $env:ARCHIVE_NAME
+
+          @($env:ARCHIVE_NAME, "dist/rak_rs.asi", "dist/rak_rs.pdb") | ForEach-Object {
+            $hash = Get-FileHash -Algorithm SHA256 $_
+            "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path $_ -Leaf)
+          } | Out-File -Encoding ascii "SHA256SUMS.txt"
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: rak-rs-${{ github.ref_name }}-windows-x86
+          path: |
+            ${{ env.ARCHIVE_NAME }}
+            dist/rak_rs.asi
+            dist/rak_rs.pdb
+            SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $releaseArgs = @(
+            "release", "create", $env:GITHUB_REF_NAME,
+            "--verify-tag",
+            "--generate-notes",
+            "--title", "rak-rs $env:GITHUB_REF_NAME",
+            $env:ARCHIVE_NAME,
+            "dist/rak_rs.asi",
+            "dist/rak_rs.pdb",
+            "SHA256SUMS.txt"
+          )
+          if ($env:GITHUB_REF_NAME.Contains("-")) {
+            $releaseArgs += "--prerelease"
+          }
+          & gh @releaseArgs
