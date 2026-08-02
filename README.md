@@ -48,15 +48,15 @@ rak_rs_plugin_api = { path = "../rak_rs/plugin_api" }
 From a worker thread, call `wait_for_default_host`, then register packet or RPC
 callbacks through `HostApi::raw()`. The `events` module provides the complete
 SA-MP 0.3.7 R1 typed RPC and packet catalog, while exposing uncertain SA-MP
-text as `Vec<u8>`. It includes `events::incoming::on_show_dialog`,
-`events::incoming::on_create_object`, and compressed packet helpers such as
+text as `Vec<u8>`. It includes `events::rpc::incoming::on_show_dialog`,
+`events::rpc::incoming::on_create_object`, and compressed packet helpers such as
 `events::packet::incoming::on_player_sync`. The skin helper receives
 `PlayerSkin { player_id, skin_id }` from incoming RPC 153; compressed dialog
 and material text are decoded and encoded by the installed SA-MP client's
 native StringCompressor.
 
 Typed replacements use `RpcAction::Replace`. For locally generated typed RPCs,
-call a descriptor such as `incoming::SHOW_DIALOG.encode(api, value)` and pass
+call a descriptor such as `events::rpc::incoming::SHOW_DIALOG.encode(api, value)` and pass
 the returned `as_bytes()` and `len_bits()` to `emulate_incoming_rpc`. Keep the
 exact bit length: compressed strings are not necessarily byte-aligned.
 

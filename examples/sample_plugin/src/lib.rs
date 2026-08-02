@@ -2,7 +2,7 @@
 
 use rak_rs_plugin_api::{
     HostApi, RakRsDirection, RakRsEventV1, RakRsHookAction, RakRsResult, RakRsSubscription,
-    events::{RpcAction, incoming},
+    events::{RpcAction, rpc::incoming},
     wait_for_default_host,
 };
 use std::{

@@ -5,7 +5,7 @@
 This Rust 2024 workspace builds a process-wide Windows x86 host (`rak_rs.asi`).
 Host runtime and ABI implementation live in `src/`; independently loaded ASI
 plugins depend only on `plugin_api/`. Typed RPC helpers belong in
-`plugin_api/src/events.rs`. The examples contain a minimal plugin, a `/rakrs`
+`plugin_api/src/events/`. The examples contain a minimal plugin, a `/rakrs`
 chat-command plugin, and in-game validation tooling. Keep SA-MP offsets in
 `src/client.rs`, native hook code in `src/platform/win32.rs`, and independent
 ABI oracles in `tests/fixtures/`.

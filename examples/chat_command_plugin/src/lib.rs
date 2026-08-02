@@ -3,7 +3,10 @@
 use rak_rs_plugin_api::{
     ABI_VERSION_V1, HostApi, RakRsDirection, RakRsEventV1, RakRsHookAction, RakRsResult,
     RakRsSendOptions, RakRsSubscription,
-    events::{RpcAction, incoming, outgoing},
+    events::{
+        RpcAction,
+        rpc::{incoming, outgoing},
+    },
     wait_for_default_host,
 };
 use std::{

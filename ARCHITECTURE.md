@@ -20,7 +20,7 @@ to MinHook; plugins link only the ABI client crate.
 | Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded exact-bit payloads |
 | Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion and native string codec calls |
 | Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | Append-only C ABI, host discovery, safe wrappers |
-| Typed events | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | R1 wire codecs and named RPC/packet descriptors, including encoded text, object materials, and compressed remote sync packets |
+| Typed events | [`plugin_api/src/events/`](plugin_api/src/events/) | R1 wire codecs and named RPC/packet descriptors, including encoded text, object materials, and compressed remote sync packets |
 | Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/chat_command_plugin`](examples/chat_command_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, command/send/emulation example, live diagnostics, and external unload validation |
 
 ## Lifecycle
@@ -66,7 +66,9 @@ that needs a client codec, such as `SHOW_DIALOG`, asks the host to encode only
 that field and combines the returned left-aligned bits with ordinary fields.
 `SET_PLAYER_SKIN` is byte-aligned: it maps RPC 153's two signed 32-bit IDs to
 `PlayerSkin` without a native codec. Typed helpers add no hooks or long-lived
-callback runtime.
+callback runtime. RPC descriptors live in `events::rpc::incoming` and
+`events::rpc::outgoing`; raw packet descriptors remain in
+`events::packet::incoming` and `events::packet::outgoing`.
 
 R1's `WorldPlayerAdd` descriptor (RPC 32) carries the streamed player's fixed
 data followed by eleven `u16` weapon-skill levels; replacements preserve all

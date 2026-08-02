@@ -64,8 +64,10 @@ the active callback thread, so unload coordination must run on a worker before
 [`HostApi::send_rpc`](plugin_api/src/lib.rs) wrappers keep ordinary plugin code
 away from raw function pointers.
 
-[`plugin_api/src/events.rs`](plugin_api/src/events.rs) decodes common incoming
-and outgoing RPCs over the same raw subscription. `RpcAction` can continue,
+[`plugin_api/src/events/`](plugin_api/src/events/) decodes common incoming
+and outgoing RPCs over the same raw subscription. The public RPC catalogs are
+`events::rpc::incoming` and `events::rpc::outgoing`; packet directions remain
+under `events::packet`. `RpcAction` can continue,
 block, or atomically replace a complete exact-bit payload. The fixed-layout
 incoming set includes checkpoints, audio streams, object updates, death and map
 UI notifications, vehicle interiors, and player colors. Text stays as
@@ -107,9 +109,9 @@ The [sample plugin](examples/sample_plugin) demonstrates discovery, typed
 dispatch, and synchronized shutdown.
 
 The [chat-command example](examples/chat_command_plugin) subscribes once to
-outgoing RPCs. It decodes RPC 50 with `outgoing::on_send_command`, blocks the
+outgoing RPCs. It decodes RPC 50 with `rpc::outgoing::on_send_command`, blocks the
 local `/rakrs` command, serializes and sends a real RPC 101 through
-`outgoing::SEND_CHAT`, then serializes `incoming::SHOW_DIALOG` and emulates RPC
+`rpc::outgoing::SEND_CHAT`, then serializes `rpc::incoming::SHOW_DIALOG` and emulates RPC
 61 locally. It also blocks RPC 62 for its reserved dialog ID so closing the fake
 dialog does not notify the server. The explicit chat message is intentionally
 server-bound.

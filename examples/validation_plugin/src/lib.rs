@@ -3,7 +3,7 @@
 use rak_rs_plugin_api::{
     HostApi, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1, RakRsHookAction,
     RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError,
-    events::{EncodedPayload, EventError, RpcAction, incoming, packet},
+    events::{EncodedPayload, EventError, RpcAction, packet, rpc::incoming},
     wait_for_default_host,
 };
 use std::{
