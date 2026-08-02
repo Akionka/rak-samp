@@ -1004,6 +1004,18 @@ pub extern "system" fn RakRsValidation_OutgoingRpcCount() -> u32 {
     OUTGOING_RPCS.load(Ordering::Relaxed)
 }
 
+/// Reports whether all enabled local, send, and emulation self-tests finished.
+#[unsafe(no_mangle)]
+pub extern "system" fn RakRsValidation_SelfTestsComplete() -> BOOL {
+    let statuses = [
+        PACKET_SELF_TEST.load(Ordering::Acquire),
+        RPC_SELF_TEST.load(Ordering::Acquire),
+        SEND_PACKET_SELF_TEST.load(Ordering::Acquire),
+        SEND_RPC_SELF_TEST.load(Ordering::Acquire),
+    ];
+    BOOL::from(statuses.into_iter().all(self_test_finished))
+}
+
 #[cfg(test)]
 mod tests {
     use super::{

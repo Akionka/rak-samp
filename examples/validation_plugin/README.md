@@ -8,5 +8,9 @@ Server-bound packet/RPC sends and coordinated callback shutdown are separate
 opt-in scenarios controlled by marker files in GTA's working directory. Normal
 validation remains local and non-mutating.
 
+The plugin also exports `RakRsValidation_SelfTestsComplete` so the independent
+[validation unload manager](../validation_unloader) can wait before requesting
+synchronized shutdown and releasing this ASI.
+
 See [VALIDATION.md](../../VALIDATION.md) for deployment, test steps, pass
 criteria, and diagnosis.

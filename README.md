@@ -68,6 +68,11 @@ it never logs payloads. Optional marker files enable server-bound send and
 coordinated-shutdown checks. Follow [VALIDATION.md](VALIDATION.md) for the
 procedure and pass criteria.
 
+Use `cargo make deploy-validation-unload` for the separate runtime-unload
+scenario. Its manager waits for the validator's self-tests, requests
+synchronized shutdown, calls `FreeLibrary`, and verifies that the validation
+ASI is no longer loaded. This tooling is not needed by ordinary plugins.
+
 ## Limits
 
 Encoded strings (including `onShowDialog`), bit-packed sync schemas, broader

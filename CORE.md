@@ -71,7 +71,9 @@ and synchronized shutdown.
 The [validation plugin](examples/validation_plugin) keeps server-bound sends and
 coordinated shutdown behind marker files. It can replay one observed stats
 packet, send one scoreboard RPC, then stop its workers and synchronize all six
-subscriptions without doing work under `DllMain`.
+subscriptions without doing work under `DllMain`. The separate
+[validation unload manager](examples/validation_unloader) waits for those tests,
+calls the shutdown export, and only then releases the plugin's module reference.
 
 ## Native validation
 
@@ -81,7 +83,9 @@ independent C++ fixture in
 live run. The by-value incoming-RPC player argument remains a distinct aligned
 layout. Fake-vtable and MinHook tests cover slot-local patching, restoration,
 original calls, removal, and recreation. Durable live-client evidence is kept
-in [REVIEW.md](REVIEW.md).
+in [REVIEW.md](REVIEW.md). An R1 release run also validates explicit packet/RPC
+sends and synchronized shutdown of all validation callbacks; external module
+unload remains a distinct live scenario.
 
 ## Limits
 

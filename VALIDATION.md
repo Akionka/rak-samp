@@ -41,6 +41,21 @@ New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ItemType
 That check stops the plugin workers and synchronizes all callbacks. It does not
 call `FreeLibrary`; true ASI unload still requires an external unload manager.
 
+## Runtime unload scenario
+
+Run this as a separate session with GTA closed. Deploy the external manager and
+enable its marker:
+
+```powershell
+cargo make deploy-validation-unload
+Remove-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ErrorAction SilentlyContinue
+New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-unload.enabled') -ItemType File -Force
+```
+
+The coordinated-shutdown marker must be absent so the external manager owns
+the shutdown. The manager waits until all enabled validator self-tests finish,
+calls `RakRsPlugin_Shutdown`, and releases the validation ASI's loader reference.
+
 ## Run
 
 1. Connect to a server and wait at least 10 seconds after spawning. When the
@@ -73,6 +88,9 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
   `shutdown completed; all callbacks quiesced` and
   `shutdown self-test returned 1`; `rak-rs.log` records six synchronized
   unregistrations.
+- In the runtime-unload scenario, `rak-rs-validation-unloader.log` reports
+  `target shutdown succeeded` and `validation ASI unloaded successfully` while
+  GTA remains stable.
 
 ## Failures
 
@@ -89,5 +107,5 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
 - Crash or frozen counters: preserve both logs, client version, last action, and
   any Windows crash address and module.
 
-Remove `rak_rs_validation.asi` and both optional marker files afterward; none is
-required for normal use.
+Remove `rak_rs_validation.asi`, `rak_rs_validation_unloader.asi`, and all three
+optional marker files afterward; none is required for normal use.

@@ -6,8 +6,6 @@ with the implementing change.
 
 ## In progress
 
-- [ ] Validate explicit packet/RPC sends and coordinated callback shutdown on
-  a legal R1 installation.
 - [ ] Validate runtime ASI unload with an external unload manager after every
   subscription has synchronized.
 - [ ] Validate the complete lifecycle on legal R2, R3.1, R4.2, R5.1, and DL

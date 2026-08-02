@@ -88,3 +88,15 @@ once after this correction, with both replacements verified and blocked.
 When new live evidence changes a native boundary, record the client build,
 observed fields or offsets, fix, and validation result here. Keep
 [CORE.md](CORE.md) and [ARCHITECTURE.md](ARCHITECTURE.md) current.
+
+### Explicit send and coordinated shutdown
+
+An SA-MP 0.3.7 R1 release run at commit `7b704d2` on 2026-08-02 reported the
+deferred packet/RPC hooks ready, passed both local rewrite-and-block tests, and
+returned `Ok` for one captured `ID_STATS_UPDATE` packet send and one
+`RPC_UPDATE_SCORES_AND_PINGS` send. The session observed no null events or
+timestamp decode errors.
+
+The validation shutdown worker then synchronized all six subscriptions and
+returned success. This proves callback detachment and worker coordination; it
+does not yet prove that an external manager can safely call `FreeLibrary`.

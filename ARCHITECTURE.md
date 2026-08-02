@@ -21,7 +21,7 @@ to MinHook; plugins link only the ABI client crate.
 | Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion |
 | Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | C ABI types, host discovery, safe wrappers |
 | Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Byte-aligned codecs and named event descriptors |
-| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/validation_plugin`](examples/validation_plugin) | Minimal integration and live diagnostics |
+| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, live diagnostics, and external unload validation |
 
 ## Lifecycle
 
@@ -35,6 +35,10 @@ to MinHook; plugins link only the ABI client crate.
    table size, and register callbacks.
 5. For runtime unload, a plugin worker calls `unregister_and_wait` for every
    subscription before an external manager frees the module.
+
+The validation unload manager models step 5 from a separately loaded ASI: it
+waits for the validator's completion export, invokes its shutdown export, and
+calls `FreeLibrary` only after shutdown confirms callback quiescence.
 
 Plugins must not wait or perform synchronized teardown in `DllMain`.
 The host runtime lives in a process-lifetime `OnceLock<Arc<Runtime>>`; ABI entry
@@ -80,4 +84,5 @@ files; [VALIDATION.md](VALIDATION.md) covers the live integration check.
 The configured target is `i686-pc-windows-msvc`. `cargo make deploy` renames the
 host DLL to `rak_rs.asi`; `cargo make deploy-validation` also installs the
 validation ASI. Marker files opt its server-bound send and coordinated-shutdown
-checks into a live session. See [README.md](README.md) for usage.
+checks into a live session. `cargo make deploy-validation-unload` additionally
+installs the external unload manager. See [README.md](README.md) for usage.

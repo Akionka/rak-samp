@@ -9,6 +9,7 @@ members = [
     "plugin_api",
     "examples/sample_plugin",
     "examples/validation_plugin",
+    "examples/validation_unloader",
 ]
 default-members = ["."]
 resolver = "2"
