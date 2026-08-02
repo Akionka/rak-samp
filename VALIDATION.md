@@ -1,52 +1,48 @@
 # In-Game Validation
 
 Use a legal SA-MP installation and a server that permits client plugins. The
-validation ASI logs IDs and counters, never payloads. Its only mutations are
-private local marker events that are rewritten, verified, and blocked before
-SA-MP or the server receives them. Server-bound sends and coordinated shutdown
-are disabled unless their marker files exist.
+validator logs IDs and counters, never payloads. Its default tests are local:
+they rewrite, verify, and block private events before they reach SA-MP or the
+server.
 
-## Prepare
+## Run the standard check
 
-1. Close GTA.
-2. For the first run, use a clean GTA directory with only the ASI loader,
-   `samp.dll`, rak-rs, and the validation plugin. Other RakNet hooks make crash
-   attribution unreliable.
-3. Deploy from the repository root:
+Close GTA, then deploy from the repository root:
 
 ```powershell
 $env:GTA_DIR = 'D:\Games\GTA San Andreas'
 cargo make deploy-validation
 ```
 
-Confirm `$env:GTA_DIR` contains `rak_rs.asi` and `rak_rs_validation.asi`.
-The validator always writes `$env:GTA_DIR\rak-rs-validation.log`, even if
-another mod changes GTA's working directory. Each new ASI session rewrites its
-previous log. Records begin with an RFC 3339 UTC timestamp.
+Start GTA with `rak_rs.asi` and `rak_rs_validation.asi`, connect to a server,
+and use ordinary gameplay for about 30 seconds (walk or drive, chat, and press
+F5 several times). Exit normally. The validator writes
+`rak-rs-validation.log` beside its ASI; the host writes `rak-rs.log`.
 
-For the explicit-send scenario, opt in before launching GTA:
+A passing standard run has all of the following:
 
-```powershell
-New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-send.enabled') -ItemType File -Force
-```
+- GTA remains stable and exits normally.
+- The host reports that its runtime is ready.
+- The validation log reports `packet=passed RPC=passed dialog=passed`.
+- Packet and RPC counters increase, while `null_events` and
+  `timestamp_decode_errors` remain zero.
 
-This repeats one real eight-byte `ID_STATS_UPDATE` packet captured from the
-client and sends one empty `RPC_UPDATE_SCORES_AND_PINGS` request. Use this only
-on a server where the extra traffic is permitted.
+For investigation, preserve both logs, the SA-MP version, and the last action.
+If the host never becomes ready, check that the correct x86 ASIs and `samp.dll`
+were loaded. If RPCs arrive but packets do not, preserve the logs: the receive
+hook may not match the client build.
 
-For the coordinated-shutdown scenario, create this marker as well:
+## Optional scenarios
 
-```powershell
-New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ItemType File -Force
-```
+These marker files opt into behavior beyond the local test. Create them before
+starting GTA and remove them afterwards.
 
-That check stops the plugin workers and synchronizes all callbacks. It does not
-call `FreeLibrary`; true ASI unload still requires an external unload manager.
+| Scenario | Command | Effect |
+| --- | --- | --- |
+| Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
+| Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
-## Runtime unload scenario
-
-Run this as a separate session with GTA closed. Deploy the external manager and
-enable its marker:
+For the separate runtime-unload check, close GTA and run:
 
 ```powershell
 cargo make deploy-validation-unload
@@ -54,71 +50,5 @@ Remove-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -Error
 New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-unload.enabled') -ItemType File -Force
 ```
 
-The coordinated-shutdown marker must be absent so the external manager owns
-the shutdown. The manager waits until all enabled validator self-tests finish,
-calls `RakRsPlugin_Shutdown`, and releases the validation ASI's loader reference.
-
-## Run
-
-1. Connect to a server and wait at least 10 seconds after spawning. When the
-   send marker is present, remain connected until the client emits a stats
-   update and the send self-test completes.
-2. Walk, drive, send a chat message, and allow normal traffic for 30 seconds.
-3. Press F5 ten times, about one second apart.
-4. Disconnect and exit normally.
-
-Watch the log if needed:
-
-```powershell
-Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
-```
-
-## Pass criteria
-
-- GTA connects, survives the F5 presses, and exits normally.
-- `rak-rs.log` reports `host runtime is ready` and six registrations.
-- `rak-rs-validation.log` reports six registered callbacks and
-  `self-test completed: packet=passed RPC=passed dialog=passed`.
-- Incoming packet/RPC histograms are nonzero; walking or driving also produces
-  outgoing sync IDs such as `207(ID_PLAYER_SYNC)` or `200(ID_VEHICLE_SYNC)`.
-- Histograms contain one `254(RAK_RS_SELF_TEST)` packet and one
-  `255(RAK_RS_SELF_TEST)` RPC. Incoming RPC 61 also appears once for the local
-  encoded-dialog test; it is rewritten, decoded again, and blocked before SA-MP
-  can display it.
-- If the server changes the local player's skin, the incoming RPC histogram
-  labels it as `153(SET_PLAYER_SKIN)` and `player_skin_decodes` increases. The
-  validator records neither the player nor skin ID.
-- R1 traffic for the new typed catalog increases `typed_r1_rpcs` or
-  `typed_r1_packets`. The first callback in each family is safely replaced with
-  its decoded value, shown by `typed_r1_rpc_replaced=true` and
-  `typed_r1_packet_replaced=true`; payloads are never logged.
-- Verify an active and an inactive marker with a negative coordinate when
-  marker traffic is available, confirming the signed R1 `i16` interpretation.
-- `null_events` and `timestamp_decode_errors` remain zero.
-- With the send marker, the log reports
-  `send self-test completed: packet=passed RPC=passed`.
-- With the shutdown marker, the log reports
-  `shutdown completed; all callbacks quiesced` and
-  `shutdown self-test returned 1`; `rak-rs.log` records six synchronized
-  unregistrations.
-- In the runtime-unload scenario, `rak-rs-validation-unloader.log` reports
-  `target shutdown succeeded` and `validation ASI unloaded successfully` while
-  GTA remains stable.
-
-## Failures
-
-- No validation log: verify the ASI loader loaded the x86 release DLL under the
-  expected name.
-- Host discovery timeout: inspect `rak-rs.log` for a missing, unsupported, or
-  failed `samp.dll` attachment.
-- RPCs increase but packets do not: preserve both logs and the exact SA-MP
-  version; the receive vtable path is not reaching the plugin.
-- Self-test failure or timeout: preserve both logs; the result distinguishes an
-  emulation readiness problem from rewrite or cancellation failure.
-- Invalid incoming metadata: preserve `length` and `bit_size`; the backend has
-  failed open because the client layout does not match.
-- Crash or frozen counters: preserve both logs, client version, last action, and
-  any Windows crash address and module.
-
-Remove `rak_rs_validation.asi`, `rak_rs_validation_unloader.asi`, and all three
-optional marker files afterward; none is required for normal use.
+The external manager owns shutdown in this scenario. A pass reports successful
+target shutdown and validation-ASI unload while GTA stays stable.

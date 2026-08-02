@@ -4,147 +4,62 @@
 
 ```text
 GTA ASI loader
- ├─ rak_rs.asi (one host and hook runtime)
+ ├─ rak_rs.asi (host and native hooks)
  ├─ feature-a.asi ─┐
  └─ feature-b.asi ─┴─> rak_rs_plugin_api ─> RakRs_GetApiV1 ─> host
 ```
 
-Each ASI loads independently. The host is a `cdylib` and the only module linked
-to MinHook; plugins link only the ABI client crate.
+Each ASI loads independently. Only the host links the native hook backend;
+plugins use the versioned ABI client crate.
 
 ## Components
 
-| Area | Files | Responsibility |
+| Area | Location | Purpose |
 | --- | --- | --- |
-| Bootstrap | [`src/lib.rs`](src/lib.rs), [`src/host_api.rs`](src/host_api.rs), [`src/logging.rs`](src/logging.rs) | Start outside loader lock, publish readiness/API, own RFC 3339 session logging |
-| Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded exact-bit payloads |
-| Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion and native string codec calls |
-| Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | Append-only C ABI, host discovery, safe wrappers |
-| Typed events | [`plugin_api/src/events/`](plugin_api/src/events/) | R1 wire codecs and named RPC/packet descriptors, including encoded text, object materials, and compressed remote sync packets |
-| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/chat_command_plugin`](examples/chat_command_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, command/send/emulation example, live diagnostics, and external unload validation |
+| Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish host state, and log lifecycle events. |
+| Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events and enforce bounded, exact-bit payloads. |
+| Native backend | `src/platform/win32.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. |
+| Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI and safe plugin wrappers. |
+| Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs. |
+| Examples | `examples/` | Demonstrate a plugin, a chat command, and validation. |
 
 ## Lifecycle
 
-1. Host `DllMain` starts the bootstrap worker and returns.
-2. The worker initializes logging, waits for `samp.dll`, identifies its entry
-   point, and installs the constructor detour.
-3. RakClient construction installs the incoming-RPC detour and three in-place
-   vtable patches. The bootstrap monitor logs success or changes the host state
-   to `Failed` if deferred installation fails.
-4. Plugin workers find the already-loaded `rak_rs.asi`, validate ABI version and
-   table size, and register callbacks.
-5. For runtime unload, a plugin worker calls `unregister_and_wait` for every
-   subscription before an external manager frees the module.
-
-The validation unload manager models step 5 from a separately loaded ASI: it
-waits for the validator's completion export, invokes its shutdown export, and
-calls `FreeLibrary` only after shutdown confirms callback quiescence. An R1
-live run confirms the validation ASI disappears while the process-wide host
-continues running.
-
-Validation paths are resolved from the validation ASI module handle because
-other in-process mods may change GTA's working directory. Native codec tests
-retry only `NotReady` until SA-MP initializes its StringCompressor; other codec
-errors fail immediately.
-
-Plugins must not wait or perform synchronized teardown in `DllMain`.
-The host runtime lives in a process-lifetime `OnceLock<Arc<Runtime>>`; ABI entry
-points clone the `Arc` before invoking runtime methods, so re-entrant callbacks
-do not retain a host-state lock.
+1. `DllMain` starts a bootstrap worker and returns immediately.
+2. The worker waits for `samp.dll`, detects the client, and installs the
+   constructor hook.
+3. RakClient construction completes the client hooks; the host reports ready
+   or failed state.
+4. Plugin workers resolve the host, validate the API table, and register
+   callbacks.
+5. Before a plugin unloads, its worker unregisters and waits for every callback
+   to quiesce.
 
 ## Event flow
 
-Native detours convert traffic to bounded `BitStream` values only when a
-matching listener exists. [`src/host_api.rs`](src/host_api.rs) exposes each ID
-and mutable payload as an opaque callback-lifetime event. The registry invokes
-listeners in order; each may continue, replace, or block the event.
-
-Typed `Rpc<T>` descriptors filter an ID, decode the payload, run plugin logic,
-and encode replacements before the host atomically swaps the complete exact-bit
-stream. Byte-aligned descriptors encode entirely in the plugin. A descriptor
-that needs a client codec, such as `SHOW_DIALOG`, asks the host to encode only
-that field and combines the returned left-aligned bits with ordinary fields.
-`SET_PLAYER_SKIN` is byte-aligned: it maps RPC 153's two signed 32-bit IDs to
-`PlayerSkin` without a native codec. Typed helpers add no hooks or long-lived
-callback runtime. RPC descriptors live in `events::rpc::incoming` and
-`events::rpc::outgoing`; raw packet descriptors remain in
-`events::packet::incoming` and `events::packet::outgoing`.
-
-R1's `WorldPlayerAdd` descriptor (RPC 32) carries the streamed player's fixed
-data followed by eleven `u16` weapon-skill levels; replacements preserve all
-fifty payload bytes.
-
-`events::packet` uses `Packet<T>` (an explicit descriptor alias over the same
-mechanism) for fixed-size raw packets. It filters outgoing authentication,
-RCON, stats, weapons, and standard local sync IDs, then filters authentication,
-connection lifecycle, and remote incoming aim, bullet, unoccupied, trailer,
-passenger, player, vehicle, and marker sync. The variable R1 player/vehicle
-layouts encode their one-bit optional branches, compressed velocities,
-normalized quaternions, and packed health/armour directly; markers retain their
-signed `i16` coordinates. Every descriptor verifies there are no trailing
-semantic bits before a callback can replace it; marker sync consumes R1's
-terminal sub-byte transport padding. Protocol bitfield bytes remain opaque values,
-avoiding Rust layout or bitfield-order assumptions.
-
 ```text
-incoming RPC 61 -> Event -> SHOW_DIALOG decoder
-  -> event_read_encoded_string ABI -> Runtime -> Win32 thiscall reader
-plugin replacement -> SHOW_DIALOG encoder -> HostApi::encode_string
-  -> Runtime -> Win32 thiscall writer -> EncodedPayload(bytes, bit_len)
-  -> event_replace_bits ABI -> BitStream -> native RPC continuation
+RakNet traffic -> native hook -> bounded event -> listeners
+                                      |             |
+                                      |       continue/block/replace
+                                      v
+                              original client path
 ```
 
-The reader operates on a host-owned copy of the callback stream and advances
-the real event cursor only after native decoding succeeds. The writer uses a
-host-owned temporary native `BitStream`; it returns copied bytes and an exact
-bit length. SA-MP function addresses and its StringCompressor pointer come from
-the detected build's `AddressSet` and never cross into plugins.
+Listeners run in registration order. A listener may inspect or replace an
+exact-bit payload; unmatched traffic is passed through. Typed descriptors first
+decode and validate the payload, then serialize a replacement before the host
+applies it atomically. Explicit sends intentionally bypass outgoing listeners.
+Incoming packet emulation is queued through the captured RakPeer receiver;
+incoming RPC emulation dispatches before the native receiver.
 
-Incoming packet emulation queues a native packet through the RakPeer receiver
-captured by the incoming-RPC detour, then uses the normal receive path. Incoming
-RPC emulation dispatches immediately and calls the captured native receiver
-only if listeners continue. Native pointers never cross the plugin ABI.
+## Native and ABI boundaries
 
-The chat-command example demonstrates a nested cross-direction flow. Its one
-outgoing subscription decodes command RPC 50; `/rakrs` calls the captured
-original RPC method to send chat RPC 101, then feeds an encoded dialog through
-incoming RPC 61. Explicit send bypasses outgoing listeners, while the nested
-incoming dispatch uses the registry's same-thread re-entry path. A later
-outgoing dialog response RPC 62 is blocked when it carries the example's
-reserved dialog ID.
+Native pointers, client addresses, vtables, and StringCompressor calls remain
+inside the host. The host patches only its RakClient slots and restores a slot
+only when it still owns it. The ABI passes copied bytes, capacities, statuses,
+and bit lengths, never Rust-owned values or client pointers.
 
-## Native boundary
-
-The backend owns all pointer and vtable operations. It patches only slots 6, 8,
-and 25, chains their previous functions, and restores a slot only if its value
-is still the host detour. Each detour carries an `Arc` of its backend through
-original calls so teardown cannot invalidate active calls.
-
-MinHook detours are created disabled. The caller stores the original
-trampoline with release ordering before enabling the detour, preventing an
-early callback from observing a null original. Native bit counts use checked
-`i32` conversions before entering RakNet.
-
-SA-MP's StringCompressor reader and writer are invoked through x86 `thiscall`
-function pointers. Rust does not reproduce its Huffman tree. Temporary native
-streams use caller-owned storage sized before the call; pointer, capacity, and
-resulting bit-length checks reject unexpected native mutations.
-
-Incoming packet structures use packed offsets; the incoming-RPC player value is
-separately aligned. Metadata checks fail open before pointer dereference. RPC
-envelopes use RakNet compressed lengths. The C++ layout oracle, fake RakClient
-vtable, and inline-hook fixture test these boundaries without proprietary client
-files; [VALIDATION.md](VALIDATION.md) covers the live integration check.
-
-## Distribution
-
-The configured target is `i686-pc-windows-msvc`. `cargo make deploy` renames the
-host DLL to `rak_rs.asi`; `cargo make deploy-validation` also installs the
-validation ASI. Marker files opt its server-bound send and coordinated-shutdown
-checks into a live session. `cargo make deploy-validation-unload` additionally
-installs the external unload manager. See [README.md](README.md) for usage.
-
-CI checks formatting, the locked workspace tests, strict Clippy, and a release
-build on `windows-latest`. Tags matching `v*` publish the raw host ASI and PDB,
-SHA-256 checksums, and a ZIP containing the host documentation plus the tested
-chat-command example. Hyphenated version tags are marked as prereleases.
+The packet layout fixture and live validation protect the Windows x86 boundary.
+R1 provides the authoritative typed layouts; detected non-R1 clients are raw
+event targets pending validation. See [REVIEW.md](REVIEW.md) for evidence and
+[VALIDATION.md](VALIDATION.md) for the test procedure.
