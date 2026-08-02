@@ -92,6 +92,12 @@ created beside `rak_rs_validation.asi` despite other mods changing the working
 directory. At 80 seconds GTA remained responsive after 1,345 outgoing packets
 and 127 incoming RPCs, with zero null events and timestamp decode errors.
 
+The `/rakrs` chat-command example was also tested successfully on R1 on
+2026-08-02. Its outgoing command callback sent chat RPC 101 through the captured
+original, displayed a local dialog through emulated incoming RPC 61, and kept
+the process stable. The example reserves and blocks the fake dialog's response
+ID so that response is not forwarded to the server.
+
 ### RakNet packet layout
 
 `RawPacket` and its embedded `PacketPlayerId` in

@@ -7,6 +7,7 @@ license = "MIT"
 [workspace]
 members = [
     "plugin_api",
+    "examples/chat_command_plugin",
     "examples/sample_plugin",
     "examples/validation_plugin",
     "examples/validation_unloader",

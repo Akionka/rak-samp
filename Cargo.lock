@@ -110,6 +110,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "rak_rs_chat_command_example"
+version = "0.1.0"
+dependencies = [
+ "rak_rs_plugin_api",
+ "windows-sys",
+]
+
+[[package]]
 name = "rak_rs_plugin_api"
 version = "0.1.0"
 dependencies = [

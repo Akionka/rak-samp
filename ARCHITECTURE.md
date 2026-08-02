@@ -21,7 +21,7 @@ to MinHook; plugins link only the ABI client crate.
 | Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion and native string codec calls |
 | Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | Append-only C ABI, host discovery, safe wrappers |
 | Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Wire codecs and named event descriptors, including `onShowDialog` |
-| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, live diagnostics, and external unload validation |
+| Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/chat_command_plugin`](examples/chat_command_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, command/send/emulation example, live diagnostics, and external unload validation |
 
 ## Lifecycle
 
@@ -84,6 +84,14 @@ Incoming packet emulation queues a native packet through the RakPeer receiver
 captured by the incoming-RPC detour, then uses the normal receive path. Incoming
 RPC emulation dispatches immediately and calls the captured native receiver
 only if listeners continue. Native pointers never cross the plugin ABI.
+
+The chat-command example demonstrates a nested cross-direction flow. Its one
+outgoing subscription decodes command RPC 50; `/rakrs` calls the captured
+original RPC method to send chat RPC 101, then feeds an encoded dialog through
+incoming RPC 61. Explicit send bypasses outgoing listeners, while the nested
+incoming dispatch uses the registry's same-thread re-entry path. A later
+outgoing dialog response RPC 62 is blocked when it carries the example's
+reserved dialog ID.
 
 ## Native boundary
 

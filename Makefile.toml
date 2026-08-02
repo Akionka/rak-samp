@@ -21,6 +21,11 @@ workspace = false
 command = "cargo"
 args = ["build", "--release", "-p", "rak_rs_validation_unloader"]
 
+[tasks.build-chat-command-example]
+workspace = false
+command = "cargo"
+args = ["build", "--release", "-p", "rak_rs_chat_command_example"]
+
 [tasks.require-gta-dir]
 command = "powershell"
 args = [
@@ -55,6 +60,14 @@ script = [
     "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs.dll (Join-Path $env:GTA_DIR 'rak_rs.asi')\"",
     "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs_validation_plugin.dll (Join-Path $env:GTA_DIR 'rak_rs_validation.asi')\"",
     "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs_validation_unloader.dll (Join-Path $env:GTA_DIR 'rak_rs_validation_unloader.asi')\"",
+]
+
+[tasks.deploy-chat-command-example]
+workspace = false
+dependencies = ["require-gta-dir", "build-asi", "build-chat-command-example"]
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs.dll (Join-Path $env:GTA_DIR 'rak_rs.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_rs_chat_command_example.dll (Join-Path $env:GTA_DIR 'rak_rs_chat_command_example.asi')\"",
 ]
 
 [tasks.debug]

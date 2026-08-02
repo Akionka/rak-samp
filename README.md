@@ -8,7 +8,8 @@ and RPCs through a stable ABI.
 ## Requirements
 
 - Windows GTA: San Andreas with an ASI loader
-- SA-MP 0.3.7 R1, R2, R3.1, R4.2, R5.1, or DL
+- SA-MP 0.3.7 R1 (validated)
+- SA-MP 0.3.7 R2, R3.1, R4.2, R5.1, and DL are recognized but experimental
 - Rust target `i686-pc-windows-msvc`
 - Visual Studio C++ build tools for the native layout fixture
 
@@ -63,6 +64,18 @@ Incoming emulation accepts payload bytes after the packet/RPC ID plus their
 exact bit length. Emulated events follow normal incoming rewrite and block
 rules. See the [sample plugin](examples/sample_plugin) for a complete consumer.
 
+For a send-and-emulation example, deploy
+[`examples/chat_command_plugin`](examples/chat_command_plugin):
+
+```powershell
+cargo make deploy-chat-command-example
+```
+
+Entering `/rakrs` blocks that command, sends one real chat message as outgoing
+RPC 101, and displays a local fake dialog through incoming RPC 61. Its dialog
+response is blocked locally. Because the chat message reaches the server, use
+this example only where such traffic is permitted.
+
 ## Validation
 
 ```powershell
@@ -83,8 +96,9 @@ ASI is no longer loaded. This tooling is not needed by ordinary plugins.
 ## Limits
 
 Bit-packed sync schemas, broader game-state APIs, and live validation on every
-supported client build remain pending. Runtime unload is safe only through the
-synchronized shutdown contract above.
+supported client build remain pending. Only SA-MP 0.3.7 R1 has completed the
+full live-validation matrix; use the other recognized builds only for testing.
+Runtime unload is safe only through the synchronized shutdown contract above.
 
 ## License
 

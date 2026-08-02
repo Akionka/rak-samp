@@ -82,6 +82,14 @@ addresses and pointers stay inside the host.
 The [sample plugin](examples/sample_plugin) demonstrates discovery, typed
 dispatch, and synchronized shutdown.
 
+The [chat-command example](examples/chat_command_plugin) subscribes once to
+outgoing RPCs. It decodes RPC 50 with `outgoing::on_send_command`, blocks the
+local `/rakrs` command, serializes and sends a real RPC 101 through
+`outgoing::SEND_CHAT`, then serializes `incoming::SHOW_DIALOG` and emulates RPC
+61 locally. It also blocks RPC 62 for its reserved dialog ID so closing the fake
+dialog does not notify the server. The explicit chat message is intentionally
+server-bound.
+
 The [validation plugin](examples/validation_plugin) keeps server-bound sends and
 coordinated shutdown behind marker files. Its local tests also encode, decode,
 rewrite, verify, and block an `onShowDialog` payload without showing a dialog.
