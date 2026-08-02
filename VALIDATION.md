@@ -20,7 +20,9 @@ cargo make deploy-validation
 ```
 
 Confirm `$env:GTA_DIR` contains `rak_rs.asi` and `rak_rs_validation.asi`.
-Archive an old `rak-rs-validation.log` if a clean session is needed.
+The validator always writes `$env:GTA_DIR\rak-rs-validation.log`, even if
+another mod changes GTA's working directory. Archive an old log if a clean
+session is needed.
 
 For the explicit-send scenario, opt in before launching GTA:
 
@@ -76,11 +78,13 @@ Get-Content "$env:GTA_DIR\rak-rs-validation.log" -Wait
 - GTA connects, survives the F5 presses, and exits normally.
 - `rak-rs.log` reports `host runtime is ready` and six registrations.
 - `rak-rs-validation.log` reports six registered callbacks and
-  `self-test completed: packet=passed RPC=passed`.
+  `self-test completed: packet=passed RPC=passed dialog=passed`.
 - Incoming packet/RPC histograms are nonzero; walking or driving also produces
   outgoing sync IDs such as `207(ID_PLAYER_SYNC)` or `200(ID_VEHICLE_SYNC)`.
 - Histograms contain one `254(RAK_RS_SELF_TEST)` packet and one
-  `255(RAK_RS_SELF_TEST)` RPC.
+  `255(RAK_RS_SELF_TEST)` RPC. Incoming RPC 61 also appears once for the local
+  encoded-dialog test; it is rewritten, decoded again, and blocked before SA-MP
+  can display it.
 - `null_events` and `timestamp_decode_errors` remain zero.
 - With the send marker, the log reports
   `send self-test completed: packet=passed RPC=passed`.

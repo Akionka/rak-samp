@@ -179,6 +179,22 @@ impl BitStream {
     /// Replaces the complete stream with a byte-aligned payload without changing its capacity.
     pub(crate) fn replace_bytes(&mut self, bytes: &[u8]) -> Result<(), BitStreamError> {
         let bit_len = bytes.len().saturating_mul(u8::BITS as usize);
+        self.replace_bits(bytes, bit_len)
+    }
+
+    /// Replaces the complete stream while preserving an exact, possibly partial-byte bit length.
+    pub(crate) fn replace_bits(
+        &mut self,
+        bytes: &[u8],
+        bit_len: usize,
+    ) -> Result<(), BitStreamError> {
+        let available_bits = bytes.len().saturating_mul(u8::BITS as usize);
+        if bit_len > available_bits {
+            return Err(BitStreamError::InvalidOffset {
+                offset_bits: bit_len,
+                length_bits: available_bits,
+            });
+        }
         if let Some(capacity_bits) = self.max_bits
             && bit_len > capacity_bits
         {
@@ -188,10 +204,26 @@ impl BitStream {
             });
         }
         self.bytes.clear();
-        self.bytes.extend_from_slice(bytes);
+        self.bytes.extend_from_slice(&bytes[..bit_len.div_ceil(8)]);
         self.bit_len = bit_len;
         self.read_offset = 0;
         Ok(())
+    }
+
+    pub(crate) fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, BitStreamError> {
+        if bit_len > self.remaining_bits() {
+            return Err(BitStreamError::ReadOutOfBounds {
+                requested_bits: bit_len,
+                remaining_bits: self.remaining_bits(),
+            });
+        }
+        let mut output = vec![0_u8; bit_len.div_ceil(8)];
+        for bit_offset in 0..bit_len {
+            if self.read_bit()? {
+                output[bit_offset / 8] |= 0x80 >> (bit_offset % 8);
+            }
+        }
+        Ok(output)
     }
 
     pub fn read_bool(&mut self) -> Result<bool, BitStreamError> {
@@ -452,6 +484,20 @@ mod tests {
         stream.read_u8().unwrap();
         assert!(matches!(
             stream.read_bool(),
+            Err(BitStreamError::ReadOutOfBounds { .. })
+        ));
+    }
+
+    #[test]
+    fn replaces_and_reads_an_exact_partial_byte_payload() {
+        let mut stream = BitStream::from_bytes(vec![0; 2]);
+        stream.replace_bits(&[0b1011_1111], 4).unwrap();
+
+        assert_eq!(stream.len_bits(), 4);
+        assert_eq!(stream.as_bytes(), &[0b1011_1111]);
+        assert_eq!(stream.read_bits(4).unwrap(), vec![0b1011_0000]);
+        assert!(matches!(
+            stream.read_bits(1),
             Err(BitStreamError::ReadOutOfBounds { .. })
         ));
     }

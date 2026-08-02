@@ -11,8 +11,6 @@ with the implementing change.
 
 ## Backlog
 
-- [ ] Add bit-length-preserving atomic replacement and RakNet Huffman strings,
-  then implement encoded-string helpers such as `onShowDialog`.
 - [ ] Add the remaining complex and bit-packed MoonLoader-style RPC and sync
   packet schemas.
 - [ ] Add fixture tests for each typed decoder, wire rewrite, and appended ABI

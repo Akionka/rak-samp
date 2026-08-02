@@ -87,6 +87,14 @@ pub enum SendError {
     TimestampedPacketUnsupported,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum CodecError {
+    ClientNotReady,
+    InvalidArgument,
+    PayloadTooLarge,
+    NativeCallFailed,
+}
+
 impl fmt::Display for SendError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -205,6 +213,18 @@ impl Runtime {
 
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
         self.backend.client_hook_status()
+    }
+
+    pub(crate) fn encode_string(&self, value: &[u8]) -> Result<BitStream, CodecError> {
+        self.backend.encode_string(value)
+    }
+
+    pub(crate) fn decode_string(
+        &self,
+        payload: &mut BitStream,
+        output: &mut [u8],
+    ) -> Result<usize, CodecError> {
+        self.backend.decode_string(payload, output)
     }
 }
 

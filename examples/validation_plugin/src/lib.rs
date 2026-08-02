@@ -2,13 +2,16 @@
 
 use rak_rs_plugin_api::{
     HostApi, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1, RakRsHookAction,
-    RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError, wait_for_default_host,
+    RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError,
+    events::{EncodedPayload, EventError, RpcAction, incoming},
+    wait_for_default_host,
 };
 use std::{
     ffi::c_void,
     fs::{File, OpenOptions},
     io::Write,
-    path::Path,
+    os::windows::ffi::OsStringExt,
+    path::PathBuf,
     ptr,
     sync::{
         Mutex, OnceLock,
@@ -20,7 +23,7 @@ use std::{
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, TRUE},
     System::{
-        LibraryLoader::DisableThreadLibraryCalls,
+        LibraryLoader::{DisableThreadLibraryCalls, GetModuleFileNameW},
         SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
     },
 };
@@ -61,6 +64,7 @@ type RegisterFn = unsafe extern "system" fn(
 
 static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
 static LOG_FILE: OnceLock<Mutex<File>> = OnceLock::new();
+static PLUGIN_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
 static API: AtomicPtr<RakRsApiV1> = AtomicPtr::new(ptr::null_mut());
 static STOP: AtomicBool = AtomicBool::new(false);
 static INCOMING_PACKETS: AtomicU32 = AtomicU32::new(0);
@@ -71,6 +75,7 @@ static NULL_EVENTS: AtomicU32 = AtomicU32::new(0);
 static TIMESTAMP_DECODE_ERRORS: AtomicU32 = AtomicU32::new(0);
 static PACKET_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static RPC_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
+static DIALOG_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static SEND_PACKET_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static SEND_RPC_SELF_TEST: AtomicU32 = AtomicU32::new(SELF_TEST_PENDING);
 static STATS_PAYLOAD_READY: AtomicBool = AtomicBool::new(false);
@@ -114,9 +119,10 @@ unsafe extern "system" fn DllMain(
     match reason {
         DLL_PROCESS_ATTACH => {
             unsafe { DisableThreadLibraryCalls(instance) };
+            let instance = instance as usize;
             let worker = std::thread::Builder::new()
                 .name("rak-rs-validation-init".into())
-                .spawn(initialize);
+                .spawn(move || initialize(instance));
             if let Ok(worker) = worker {
                 STATE
                     .lock()
@@ -130,7 +136,10 @@ unsafe extern "system" fn DllMain(
     TRUE
 }
 
-fn initialize() {
+fn initialize(instance: usize) {
+    if let Some(directory) = module_directory(instance as HINSTANCE) {
+        let _ = PLUGIN_DIRECTORY.set(directory);
+    }
     initialize_log();
     write_log(&format!(
         "session started: process_id={}",
@@ -331,14 +340,86 @@ unsafe extern "system" fn on_incoming_rpc(
     event: *mut RakRsEventV1,
 ) -> RakRsHookAction {
     let observed = observe(event, &INCOMING_RPCS, &INCOMING_RPC_IDS);
-    test_verdict(
+    let action = test_verdict(
         observed,
         event,
         TEST_RPC_ID,
         &TEST_RPC_INPUT,
         &TEST_RPC_REPLACEMENT,
         &RPC_SELF_TEST,
-    )
+    );
+    if action == RakRsHookAction::Block {
+        return action;
+    }
+    let Some((raw_api, 61)) = observed else {
+        return action;
+    };
+    let Ok(api) = (unsafe { HostApi::from_raw(raw_api) }) else {
+        DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
+        return action;
+    };
+    validate_dialog_rewrite(api, event)
+}
+
+fn validate_dialog_rewrite(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookAction {
+    let first = unsafe {
+        incoming::on_show_dialog(api, event, |dialog| {
+            if dialog == test_dialog_input() {
+                DIALOG_SELF_TEST.store(SELF_TEST_REWRITTEN, Ordering::Release);
+                RpcAction::Replace(test_dialog_replacement())
+            } else {
+                RpcAction::Continue
+            }
+        })
+    };
+    if let Err(error) = first {
+        DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
+        write_log(&format!("dialog decode/rewrite failed: {error}"));
+        return RakRsHookAction::Continue;
+    }
+    if DIALOG_SELF_TEST.load(Ordering::Acquire) != SELF_TEST_REWRITTEN {
+        return first.unwrap_or(RakRsHookAction::Continue);
+    }
+    match unsafe {
+        incoming::on_show_dialog(api, event, |dialog| {
+            if dialog == test_dialog_replacement() {
+                DIALOG_SELF_TEST.store(SELF_TEST_PASSED, Ordering::Release);
+                RpcAction::Block
+            } else {
+                DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
+                RpcAction::Continue
+            }
+        })
+    } {
+        Ok(action) => action,
+        Err(error) => {
+            DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
+            write_log(&format!("dialog replacement verification failed: {error}"));
+            RakRsHookAction::Continue
+        }
+    }
+}
+
+fn test_dialog_input() -> incoming::ShowDialog {
+    incoming::ShowDialog {
+        dialog_id: 0x7FFE,
+        style: 2,
+        title: b"rak-rs input".to_vec(),
+        button1: b"accept".to_vec(),
+        button2: b"cancel".to_vec(),
+        text: b"native encoded dialog input".to_vec(),
+    }
+}
+
+fn test_dialog_replacement() -> incoming::ShowDialog {
+    incoming::ShowDialog {
+        dialog_id: 0x7FFD,
+        style: 5,
+        title: b"rak-rs replacement".to_vec(),
+        button1: b"yes".to_vec(),
+        button2: b"no".to_vec(),
+        text: b"native encoded dialog replacement".to_vec(),
+    }
 }
 
 unsafe extern "system" fn on_outgoing_rpc(
@@ -515,6 +596,23 @@ fn run_self_test(api: HostApi) {
     });
     record_emulation_result("RPC", rpc_result, &RPC_SELF_TEST);
 
+    match encode_dialog_when_ready(api) {
+        Ok(payload) => {
+            let dialog_result = emulate_when_ready(|| {
+                api.emulate_incoming_rpc(
+                    incoming::SHOW_DIALOG.id(),
+                    payload.as_bytes(),
+                    payload.len_bits(),
+                )
+            });
+            record_emulation_result("dialog RPC", dialog_result, &DIALOG_SELF_TEST);
+        }
+        Err(error) => {
+            DIALOG_SELF_TEST.store(SELF_TEST_CALL_FAILED, Ordering::Release);
+            write_log(&format!("dialog self-test encode failed: {error}"));
+        }
+    }
+
     let packet_result = emulate_when_ready(|| {
         api.emulate_incoming_packet(
             TEST_PACKET_ID,
@@ -528,23 +626,26 @@ fn run_self_test(api: HostApi) {
     while !STOP.load(Ordering::Acquire)
         && Instant::now() < deadline
         && (!self_test_finished(PACKET_SELF_TEST.load(Ordering::Acquire))
-            || !self_test_finished(RPC_SELF_TEST.load(Ordering::Acquire)))
+            || !self_test_finished(RPC_SELF_TEST.load(Ordering::Acquire))
+            || !self_test_finished(DIALOG_SELF_TEST.load(Ordering::Acquire)))
     {
         std::thread::sleep(Duration::from_millis(10));
     }
     mark_self_test_timeout(&PACKET_SELF_TEST);
     mark_self_test_timeout(&RPC_SELF_TEST);
+    mark_self_test_timeout(&DIALOG_SELF_TEST);
     write_log(&format!(
-        "self-test completed: packet={} RPC={}",
+        "self-test completed: packet={} RPC={} dialog={}",
         self_test_label(PACKET_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(RPC_SELF_TEST.load(Ordering::Acquire)),
+        self_test_label(DIALOG_SELF_TEST.load(Ordering::Acquire)),
     ));
     run_send_self_test(api);
     schedule_shutdown_self_test();
 }
 
 fn run_send_self_test(api: HostApi) {
-    if !Path::new(SEND_TEST_MARKER).is_file() {
+    if !plugin_path(SEND_TEST_MARKER).is_file() {
         SEND_PACKET_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
         SEND_RPC_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
         write_log("send self-test disabled; opt in with rak-rs-validation-send.enabled");
@@ -608,7 +709,7 @@ fn record_send_result(label: &str, result: RakRsResult, status: &AtomicU32) {
 }
 
 fn schedule_shutdown_self_test() {
-    if !Path::new(SHUTDOWN_TEST_MARKER).is_file() {
+    if !plugin_path(SHUTDOWN_TEST_MARKER).is_file() {
         return;
     }
     write_log("shutdown self-test enabled; scheduling coordinated callback shutdown");
@@ -634,6 +735,22 @@ fn emulate_when_ready(mut emulate: impl FnMut() -> RakRsResult) -> RakRsResult {
         }
         let result = emulate();
         if result != RakRsResult::NotReady || Instant::now() >= deadline {
+            return result;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+fn encode_dialog_when_ready(api: HostApi) -> Result<EncodedPayload, EventError> {
+    let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
+    loop {
+        if STOP.load(Ordering::Acquire) {
+            return Err(EventError::Host(RakRsResult::NotReady));
+        }
+        let result = incoming::SHOW_DIALOG.encode(api, test_dialog_input());
+        if !matches!(result, Err(EventError::Host(RakRsResult::NotReady)))
+            || Instant::now() >= deadline
+        {
             return result;
         }
         std::thread::sleep(Duration::from_millis(10));
@@ -722,9 +839,10 @@ fn report_counts(elapsed_seconds: u64) {
     report_histogram("incoming_rpc_ids", &INCOMING_RPC_IDS, incoming_rpc_name);
     report_histogram("outgoing_rpc_ids", &OUTGOING_RPC_IDS, outgoing_rpc_name);
     write_log(&format!(
-        "self_test: packet={} RPC={} send_packet={} send_RPC={}",
+        "self_test: packet={} RPC={} dialog={} send_packet={} send_RPC={}",
         self_test_label(PACKET_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(RPC_SELF_TEST.load(Ordering::Acquire)),
+        self_test_label(DIALOG_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(SEND_PACKET_SELF_TEST.load(Ordering::Acquire)),
         self_test_label(SEND_RPC_SELF_TEST.load(Ordering::Acquire)),
     ));
@@ -834,6 +952,7 @@ fn incoming_rpc_name(id: u8) -> Option<&'static str> {
         40 => "GAMEMODE_RESTART",
         42 => "STOP_AUDIO_STREAM",
         59 => "CHAT_BUBBLE",
+        61 => "SHOW_DIALOG",
         66 => "SET_PLAYER_ARMOUR",
         67 => "SET_PLAYER_ARMED_WEAPON",
         69 => "SET_PLAYER_TEAM",
@@ -887,11 +1006,41 @@ fn initialize_log() {
     let Ok(file) = OpenOptions::new()
         .create(true)
         .append(true)
-        .open("rak-rs-validation.log")
+        .open(plugin_path("rak-rs-validation.log"))
     else {
         return;
     };
     let _ = LOG_FILE.set(Mutex::new(file));
+}
+
+fn plugin_path(name: &str) -> PathBuf {
+    PLUGIN_DIRECTORY
+        .get()
+        .map_or_else(|| PathBuf::from(name), |directory| directory.join(name))
+}
+
+fn module_directory(instance: HINSTANCE) -> Option<PathBuf> {
+    let mut buffer = vec![0_u16; 260];
+    loop {
+        let length = unsafe {
+            GetModuleFileNameW(
+                instance,
+                buffer.as_mut_ptr(),
+                u32::try_from(buffer.len()).ok()?,
+            )
+        } as usize;
+        if length == 0 {
+            return None;
+        }
+        if length < buffer.len() {
+            let module = PathBuf::from(std::ffi::OsString::from_wide(&buffer[..length]));
+            return module.parent().map(PathBuf::from);
+        }
+        if buffer.len() >= 32_768 {
+            return None;
+        }
+        buffer.resize((buffer.len() * 2).min(32_768), 0);
+    }
 }
 
 fn write_log(message: &str) {
@@ -1010,6 +1159,7 @@ pub extern "system" fn RakRsValidation_SelfTestsComplete() -> BOOL {
     let statuses = [
         PACKET_SELF_TEST.load(Ordering::Acquire),
         RPC_SELF_TEST.load(Ordering::Acquire),
+        DIALOG_SELF_TEST.load(Ordering::Acquire),
         SEND_PACKET_SELF_TEST.load(Ordering::Acquire),
         SEND_RPC_SELF_TEST.load(Ordering::Acquire),
     ];

@@ -49,6 +49,9 @@ pub struct AddressSet {
     pub allocate_packet: u32,
     pub write_lock: u32,
     pub write_unlock: u32,
+    pub string_write_encoder: u32,
+    pub string_read_decoder: u32,
+    pub compressor_ptr: u32,
 }
 
 impl AddressSet {
@@ -62,6 +65,9 @@ impl AddressSet {
                 allocate_packet: 0x347E0,
                 write_lock: 0x35B10,
                 write_unlock: 0x35B50,
+                string_write_encoder: 0x506B0,
+                string_read_decoder: 0x507E0,
+                compressor_ptr: 0x10D894,
             },
             SampVersion::R2 => Self {
                 incoming_rpc_handler: 0x373D0,
@@ -69,6 +75,9 @@ impl AddressSet {
                 allocate_packet: 0x348C0,
                 write_lock: 0x35BF0,
                 write_unlock: 0x35C30,
+                string_write_encoder: 0x50790,
+                string_read_decoder: 0x508C0,
+                compressor_ptr: 0x10D894,
             },
             SampVersion::R3_1 => Self {
                 incoming_rpc_handler: 0x3A6A0,
@@ -76,6 +85,9 @@ impl AddressSet {
                 allocate_packet: 0x37B90,
                 write_lock: 0x38EC0,
                 write_unlock: 0x38F00,
+                string_write_encoder: 0x53A60,
+                string_read_decoder: 0x53B90,
+                compressor_ptr: 0x121914,
             },
             SampVersion::R4_2 => Self {
                 incoming_rpc_handler: 0x3ADE0,
@@ -83,6 +95,9 @@ impl AddressSet {
                 allocate_packet: 0x382D0,
                 write_lock: 0x39600,
                 write_unlock: 0x39640,
+                string_write_encoder: 0x541A0,
+                string_read_decoder: 0x542D0,
+                compressor_ptr: 0x121A3C,
             },
             SampVersion::R5_1 => Self {
                 incoming_rpc_handler: 0x3ADE0,
@@ -90,6 +105,9 @@ impl AddressSet {
                 allocate_packet: 0x382D0,
                 write_lock: 0x39600,
                 write_unlock: 0x39640,
+                string_write_encoder: 0x541A0,
+                string_read_decoder: 0x542D0,
+                compressor_ptr: 0x121A3C,
             },
             SampVersion::Dl => Self {
                 incoming_rpc_handler: 0x3A8A0,
@@ -97,6 +115,9 @@ impl AddressSet {
                 allocate_packet: 0x37D90,
                 write_lock: 0x390C0,
                 write_unlock: 0x39100,
+                string_write_encoder: 0x53C60,
+                string_read_decoder: 0x53D90,
+                compressor_ptr: 0x15FA54,
             },
         }
     }
@@ -126,6 +147,9 @@ mod tests {
             assert_ne!(addresses.allocate_packet, 0);
             assert_ne!(addresses.write_lock, 0);
             assert_ne!(addresses.write_unlock, 0);
+            assert_ne!(addresses.string_write_encoder, 0);
+            assert_ne!(addresses.string_read_decoder, 0);
+            assert_ne!(addresses.compressor_ptr, 0);
         }
     }
 }

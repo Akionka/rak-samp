@@ -17,10 +17,10 @@ to MinHook; plugins link only the ABI client crate.
 | Area | Files | Responsibility |
 | --- | --- | --- |
 | Bootstrap | [`src/lib.rs`](src/lib.rs), [`src/host_api.rs`](src/host_api.rs), [`src/logging.rs`](src/logging.rs) | Start outside loader lock, publish readiness/API, own logging |
-| Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded payloads |
-| Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion |
-| Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | C ABI types, host discovery, safe wrappers |
-| Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Byte-aligned codecs and named event descriptors |
+| Runtime | [`src/runtime.rs`](src/runtime.rs), [`src/event.rs`](src/event.rs), [`src/bitstream.rs`](src/bitstream.rs) | Safe traffic API, ordered dispatch, bounded exact-bit payloads |
+| Native backend | [`src/platform/win32.rs`](src/platform/win32.rs), [`src/client.rs`](src/client.rs) | Version mapping, detours, vtable patches, RakNet conversion and native string codec calls |
+| Plugin API | [`plugin_api/src/lib.rs`](plugin_api/src/lib.rs) | Append-only C ABI, host discovery, safe wrappers |
+| Typed RPCs | [`plugin_api/src/events.rs`](plugin_api/src/events.rs) | Wire codecs and named event descriptors, including `onShowDialog` |
 | Consumers | [`examples/sample_plugin`](examples/sample_plugin), [`examples/validation_plugin`](examples/validation_plugin), [`examples/validation_unloader`](examples/validation_unloader) | Minimal integration, live diagnostics, and external unload validation |
 
 ## Lifecycle
@@ -42,6 +42,11 @@ calls `FreeLibrary` only after shutdown confirms callback quiescence. An R1
 live run confirms the validation ASI disappears while the process-wide host
 continues running.
 
+Validation paths are resolved from the validation ASI module handle because
+other in-process mods may change GTA's working directory. Native codec tests
+retry only `NotReady` until SA-MP initializes its StringCompressor; other codec
+errors fail immediately.
+
 Plugins must not wait or perform synchronized teardown in `DllMain`.
 The host runtime lives in a process-lifetime `OnceLock<Arc<Runtime>>`; ABI entry
 points clone the `Arc` before invoking runtime methods, so re-entrant callbacks
@@ -55,8 +60,25 @@ and mutable payload as an opaque callback-lifetime event. The registry invokes
 listeners in order; each may continue, replace, or block the event.
 
 Typed `Rpc<T>` descriptors filter an ID, decode the payload, run plugin logic,
-and encode replacements locally before the host atomically swaps the complete
-byte-aligned stream. They add no hooks or long-lived callback runtime.
+and encode replacements before the host atomically swaps the complete exact-bit
+stream. Byte-aligned descriptors encode entirely in the plugin. A descriptor
+that needs a client codec, such as `SHOW_DIALOG`, asks the host to encode only
+that field and combines the returned left-aligned bits with ordinary fields.
+They add no hooks or long-lived callback runtime.
+
+```text
+incoming RPC 61 -> Event -> SHOW_DIALOG decoder
+  -> event_read_encoded_string ABI -> Runtime -> Win32 thiscall reader
+plugin replacement -> SHOW_DIALOG encoder -> HostApi::encode_string
+  -> Runtime -> Win32 thiscall writer -> EncodedPayload(bytes, bit_len)
+  -> event_replace_bits ABI -> BitStream -> native RPC continuation
+```
+
+The reader operates on a host-owned copy of the callback stream and advances
+the real event cursor only after native decoding succeeds. The writer uses a
+host-owned temporary native `BitStream`; it returns copied bytes and an exact
+bit length. SA-MP function addresses and its StringCompressor pointer come from
+the detected build's `AddressSet` and never cross into plugins.
 
 Incoming packet emulation queues a native packet through the RakPeer receiver
 captured by the incoming-RPC detour, then uses the normal receive path. Incoming
@@ -74,6 +96,11 @@ MinHook detours are created disabled. The caller stores the original
 trampoline with release ordering before enabling the detour, preventing an
 early callback from observing a null original. Native bit counts use checked
 `i32` conversions before entering RakNet.
+
+SA-MP's StringCompressor reader and writer are invoked through x86 `thiscall`
+function pointers. Rust does not reproduce its Huffman tree. Temporary native
+streams use caller-owned storage sized before the call; pointer, capacity, and
+resulting bit-length checks reject unexpected native mutations.
 
 Incoming packet structures use packed offsets; the incoming-RPC player value is
 separately aligned. Metadata checks fail open before pointer dereference. RPC

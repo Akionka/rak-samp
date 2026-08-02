@@ -63,6 +63,25 @@ pub struct RakRsSendOptions {
     pub timestamp: bool,
 }
 
+/// A RakNet encoded string represented as left-aligned bytes and an exact bit length.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RakRsEncodedString {
+    bytes: Vec<u8>,
+    bit_len: usize,
+}
+
+impl RakRsEncodedString {
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    #[must_use]
+    pub const fn len_bits(&self) -> usize {
+        self.bit_len
+    }
+}
+
 impl Default for RakRsSendOptions {
     fn default() -> Self {
         Self {
@@ -134,6 +153,20 @@ pub struct RakRsApiV1 {
         unsafe extern "system" fn(u8, *const u8, usize, usize) -> RakRsResult,
     /// Dispatches a locally generated incoming RPC. `data` excludes the RPC ID.
     pub emulate_incoming_rpc: unsafe extern "system" fn(u8, *const u8, usize, usize) -> RakRsResult,
+    /// Returns unread bits in a callback-local event. This field was appended to ABI v1.
+    pub event_remaining_bits: unsafe extern "system" fn(*mut RakRsEventV1) -> usize,
+    /// Reads exact bits into a left-aligned byte buffer. This field was appended to ABI v1.
+    pub event_read_bits:
+        unsafe extern "system" fn(*mut RakRsEventV1, *mut u8, usize) -> RakRsResult,
+    /// Atomically replaces a callback payload with an exact bit length.
+    pub event_replace_bits:
+        unsafe extern "system" fn(*mut RakRsEventV1, *const u8, usize, usize) -> RakRsResult,
+    /// Encodes one string with SA-MP's native RakNet compressor.
+    pub encode_string:
+        unsafe extern "system" fn(*const u8, usize, *mut u8, usize, *mut usize) -> RakRsResult,
+    /// Decodes one string from a callback event and advances its read cursor.
+    pub event_read_encoded_string:
+        unsafe extern "system" fn(*mut RakRsEventV1, *mut u8, usize, *mut usize) -> RakRsResult,
 }
 
 pub type RakRsGetApiV1 = unsafe extern "system" fn(u32) -> *const RakRsApiV1;
@@ -226,6 +259,34 @@ impl HostApi {
     /// blocking is still reported as [`RakRsResult::Ok`].
     pub fn emulate_incoming_rpc(self, rpc_id: u8, payload: &[u8], bit_len: usize) -> RakRsResult {
         unsafe { (self.raw.emulate_incoming_rpc)(rpc_id, payload.as_ptr(), payload.len(), bit_len) }
+    }
+
+    /// Encodes a NUL-free byte string with the current SA-MP client's RakNet compressor.
+    pub fn encode_string(self, value: &[u8]) -> Result<RakRsEncodedString, RakRsResult> {
+        let capacity_bits = value
+            .len()
+            .checked_mul(16)
+            .and_then(|bits| bits.checked_add(16))
+            .ok_or(RakRsResult::PayloadTooLarge)?;
+        let mut bytes = vec![0_u8; capacity_bits.div_ceil(u8::BITS as usize)];
+        let mut bit_len = 0;
+        let result = unsafe {
+            (self.raw.encode_string)(
+                value.as_ptr(),
+                value.len(),
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &raw mut bit_len,
+            )
+        };
+        if result != RakRsResult::Ok {
+            return Err(result);
+        }
+        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
+            return Err(RakRsResult::NativeCallFailed);
+        }
+        bytes.truncate(bit_len.div_ceil(u8::BITS as usize));
+        Ok(RakRsEncodedString { bytes, bit_len })
     }
 }
 
@@ -324,7 +385,7 @@ mod tests {
     }
 
     #[test]
-    fn emulation_functions_are_appended_to_abi_v1() {
+    fn newer_functions_are_appended_to_abi_v1() {
         let function_size = mem::size_of::<*const c_void>();
         assert_eq!(
             mem::offset_of!(RakRsApiV1, emulate_incoming_packet),
@@ -335,8 +396,28 @@ mod tests {
             mem::offset_of!(RakRsApiV1, emulate_incoming_packet) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakRsApiV1>(),
+            mem::offset_of!(RakRsApiV1, event_remaining_bits),
             mem::offset_of!(RakRsApiV1, emulate_incoming_rpc) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakRsApiV1, event_read_bits),
+            mem::offset_of!(RakRsApiV1, event_remaining_bits) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakRsApiV1, event_replace_bits),
+            mem::offset_of!(RakRsApiV1, event_read_bits) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakRsApiV1, encode_string),
+            mem::offset_of!(RakRsApiV1, event_replace_bits) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakRsApiV1, event_read_encoded_string),
+            mem::offset_of!(RakRsApiV1, encode_string) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakRsApiV1>(),
+            mem::offset_of!(RakRsApiV1, event_read_encoded_string) + function_size
         );
     }
 }

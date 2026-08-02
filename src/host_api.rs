@@ -1,6 +1,7 @@
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
-    PacketReliability, Runtime, SendError, SendOptions, logging, runtime::ClientHookStatus,
+    PacketReliability, Runtime, SendError, SendOptions, logging,
+    runtime::{ClientHookStatus, CodecError},
 };
 use log::{debug, error, info};
 use rak_rs_plugin_api::{
@@ -127,6 +128,11 @@ static RAK_RS_API_V1: RakRsApiV1 = RakRsApiV1 {
     unregister_and_wait,
     emulate_incoming_packet,
     emulate_incoming_rpc,
+    event_remaining_bits,
+    event_read_bits,
+    event_replace_bits,
+    encode_string,
+    event_read_encoded_string,
 };
 
 extern "system" fn host_status() -> RakRsHostStatus {
@@ -417,6 +423,117 @@ unsafe extern "system" fn event_replace_bytes(
     write_event(event, |stream| stream.replace_bytes(bytes))
 }
 
+unsafe extern "system" fn event_remaining_bits(event: *mut RakRsEventV1) -> usize {
+    let Ok(event) = (unsafe { abi_event(event) }) else {
+        return 0;
+    };
+    unsafe { &*event.payload }.remaining_bits()
+}
+
+unsafe extern "system" fn event_read_bits(
+    event: *mut RakRsEventV1,
+    output: *mut u8,
+    bit_len: usize,
+) -> RakRsResult {
+    if output.is_null() && bit_len != 0 {
+        return RakRsResult::InvalidArgument;
+    }
+    let Ok(event) = (unsafe { abi_event(event) }) else {
+        return RakRsResult::InvalidArgument;
+    };
+    match unsafe { &mut *event.payload }.read_bits(bit_len) {
+        Ok(bytes) => {
+            if !bytes.is_empty() {
+                unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len()) };
+            }
+            RakRsResult::Ok
+        }
+        Err(error) => bitstream_result(error),
+    }
+}
+
+unsafe extern "system" fn event_replace_bits(
+    event: *mut RakRsEventV1,
+    value: *const u8,
+    byte_len: usize,
+    bit_len: usize,
+) -> RakRsResult {
+    if value.is_null() && byte_len != 0 {
+        return RakRsResult::InvalidArgument;
+    }
+    if bit_len > byte_len.saturating_mul(u8::BITS as usize) {
+        return RakRsResult::InvalidArgument;
+    }
+    let bytes = if byte_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(value, byte_len) }
+    };
+    write_event(event, |stream| stream.replace_bits(bytes, bit_len))
+}
+
+unsafe extern "system" fn encode_string(
+    value: *const u8,
+    value_len: usize,
+    output: *mut u8,
+    output_capacity: usize,
+    output_bit_len: *mut usize,
+) -> RakRsResult {
+    if (value.is_null() && value_len != 0)
+        || (output.is_null() && output_capacity != 0)
+        || output_bit_len.is_null()
+    {
+        return RakRsResult::InvalidArgument;
+    }
+    let value = if value_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(value, value_len) }
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakRsResult::NotReady;
+    };
+    let encoded = match runtime.encode_string(value) {
+        Ok(encoded) => encoded,
+        Err(error) => return codec_result(error),
+    };
+    if encoded.len_bytes() > output_capacity {
+        return RakRsResult::PayloadTooLarge;
+    }
+    if encoded.len_bytes() != 0 {
+        unsafe {
+            ptr::copy_nonoverlapping(encoded.as_bytes().as_ptr(), output, encoded.len_bytes())
+        };
+    }
+    unsafe { output_bit_len.write(encoded.len_bits()) };
+    RakRsResult::Ok
+}
+
+unsafe extern "system" fn event_read_encoded_string(
+    event: *mut RakRsEventV1,
+    output: *mut u8,
+    output_capacity: usize,
+    output_len: *mut usize,
+) -> RakRsResult {
+    if output.is_null() || output_capacity == 0 || output_len.is_null() {
+        return RakRsResult::InvalidArgument;
+    }
+    let Ok(event) = (unsafe { abi_event(event) }) else {
+        return RakRsResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakRsResult::NotReady;
+    };
+    let output = unsafe { std::slice::from_raw_parts_mut(output, output_capacity) };
+    match runtime.decode_string(unsafe { &mut *event.payload }, output) {
+        Ok(length) => {
+            unsafe { output_len.write(length) };
+            RakRsResult::Ok
+        }
+        Err(error) => codec_result(error),
+    }
+}
+
 fn register_listener(
     direction: RakRsDirection,
     callback: Option<RakRsEventCallbackV1>,
@@ -578,6 +695,15 @@ fn send_result(error: SendError) -> RakRsResult {
         SendError::PayloadTooLarge => RakRsResult::PayloadTooLarge,
         SendError::NativeCallFailed => RakRsResult::NativeCallFailed,
         SendError::TimestampedPacketUnsupported => RakRsResult::InvalidArgument,
+    }
+}
+
+fn codec_result(error: CodecError) -> RakRsResult {
+    match error {
+        CodecError::ClientNotReady => RakRsResult::NotReady,
+        CodecError::InvalidArgument => RakRsResult::InvalidArgument,
+        CodecError::PayloadTooLarge => RakRsResult::PayloadTooLarge,
+        CodecError::NativeCallFailed => RakRsResult::NativeCallFailed,
     }
 }
 

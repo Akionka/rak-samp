@@ -16,6 +16,8 @@ use core::{fmt, marker::PhantomData};
 /// This covers the documented 4096-byte SA-MP dialog/info limit while preventing a malformed
 /// server packet from requesting an unbounded allocation in a plugin.
 pub const MAX_STRING32_BYTES: usize = 4096;
+/// Maximum decoded text bytes accepted by `encodedString4096` helpers.
+pub const MAX_ENCODED_STRING_BYTES: usize = 4095;
 
 /// A three-dimensional SA-MP coordinate or velocity.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -47,6 +49,8 @@ pub enum EventError {
     ValueOutOfRange { value: usize, maximum: usize },
     /// The opaque event pointer provided to the callback was null.
     NullEvent,
+    /// An exact bit length exceeded the supplied byte buffer.
+    InvalidBitLength { bit_len: usize, byte_len: usize },
 }
 
 impl fmt::Display for EventError {
@@ -65,6 +69,10 @@ impl fmt::Display for EventError {
                 write!(formatter, "value {value} exceeds the maximum {maximum}")
             }
             Self::NullEvent => formatter.write_str("rak-rs supplied a null callback event"),
+            Self::InvalidBitLength { bit_len, byte_len } => write!(
+                formatter,
+                "bit length {bit_len} exceeds the {byte_len}-byte payload"
+            ),
         }
     }
 }
@@ -120,6 +128,59 @@ impl<'callback> Event<'callback> {
         self.host_result(unsafe {
             (self.api.raw().event_replace_bytes)(self.raw, value.as_ptr(), value.len())
         })
+    }
+
+    /// Atomically replaces this payload with an exact, possibly partial-byte bit length.
+    pub fn replace_bits(&mut self, value: &[u8], bit_len: usize) -> Result<(), EventError> {
+        if bit_len > value.len().saturating_mul(u8::BITS as usize) {
+            return Err(EventError::InvalidBitLength {
+                bit_len,
+                byte_len: value.len(),
+            });
+        }
+        self.host_result(unsafe {
+            (self.api.raw().event_replace_bits)(self.raw, value.as_ptr(), value.len(), bit_len)
+        })
+    }
+
+    /// Returns the number of unread payload bits.
+    #[must_use]
+    pub fn remaining_bits(&self) -> usize {
+        unsafe { (self.api.raw().event_remaining_bits)(self.raw) }
+    }
+
+    /// Reads exact bits into a left-aligned byte buffer.
+    pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, EventError> {
+        let mut bytes = vec![0_u8; bit_len.div_ceil(u8::BITS as usize)];
+        self.host_result(unsafe {
+            (self.api.raw().event_read_bits)(self.raw, bytes.as_mut_ptr(), bit_len)
+        })?;
+        Ok(bytes)
+    }
+
+    /// Decodes one string with the current SA-MP client's RakNet compressor.
+    pub fn read_encoded_string(&mut self, capacity: usize) -> Result<Vec<u8>, EventError> {
+        if capacity == 0 {
+            return Err(EventError::ValueOutOfRange {
+                value: 0,
+                maximum: 0,
+            });
+        }
+        let mut bytes = vec![0_u8; capacity];
+        let mut length = 0;
+        self.host_result(unsafe {
+            (self.api.raw().event_read_encoded_string)(
+                self.raw,
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &raw mut length,
+            )
+        })?;
+        if length > bytes.len() {
+            return Err(EventError::Host(RakRsResult::NativeCallFailed));
+        }
+        bytes.truncate(length);
+        Ok(bytes)
     }
 
     /// Reads an unsigned byte.
@@ -236,27 +297,39 @@ impl<'callback> Event<'callback> {
 
 struct PayloadWriter {
     bytes: Vec<u8>,
+    bit_len: usize,
 }
 
 impl PayloadWriter {
     fn new() -> Self {
-        Self { bytes: Vec::new() }
+        Self {
+            bytes: Vec::new(),
+            bit_len: 0,
+        }
     }
 
     fn finish(self) -> Vec<u8> {
+        debug_assert_eq!(self.bit_len, self.bytes.len() * u8::BITS as usize);
         self.bytes
     }
 
+    fn finish_bits(self) -> EncodedPayload {
+        EncodedPayload {
+            bytes: self.bytes,
+            bit_len: self.bit_len,
+        }
+    }
+
     fn u8(&mut self, value: u8) {
-        self.bytes.push(value);
+        self.bytes(&[value]);
     }
 
     fn u16(&mut self, value: u16) {
-        self.bytes.extend_from_slice(&value.to_le_bytes());
+        self.bytes(&value.to_le_bytes());
     }
 
     fn u32(&mut self, value: u32) {
-        self.bytes.extend_from_slice(&value.to_le_bytes());
+        self.bytes(&value.to_le_bytes());
     }
 
     fn f32(&mut self, value: f32) {
@@ -264,7 +337,26 @@ impl PayloadWriter {
     }
 
     fn bytes(&mut self, value: &[u8]) {
-        self.bytes.extend_from_slice(value);
+        self.bits(value, value.len() * u8::BITS as usize);
+    }
+
+    fn bits(&mut self, value: &[u8], bit_len: usize) {
+        debug_assert!(bit_len <= value.len() * u8::BITS as usize);
+        for bit_offset in 0..bit_len {
+            self.bit(value[bit_offset / 8] & (0x80 >> (bit_offset % 8)) != 0);
+        }
+    }
+
+    fn bit(&mut self, value: bool) {
+        let byte_index = self.bit_len / u8::BITS as usize;
+        let bit_index = self.bit_len % u8::BITS as usize;
+        if byte_index == self.bytes.len() {
+            self.bytes.push(0);
+        }
+        if value {
+            self.bytes[byte_index] |= 0x80 >> bit_index;
+        }
+        self.bit_len += 1;
     }
 
     fn string8(&mut self, value: &[u8]) -> Result<(), EventError> {
@@ -296,6 +388,65 @@ impl PayloadWriter {
         self.f32(value.y);
         self.f32(value.z);
     }
+
+    fn encoded_string(&mut self, api: HostApi, value: &[u8]) -> Result<(), EventError> {
+        if value.len() > MAX_ENCODED_STRING_BYTES {
+            return Err(EventError::ValueOutOfRange {
+                value: value.len(),
+                maximum: MAX_ENCODED_STRING_BYTES,
+            });
+        }
+        let encoded = api.encode_string(value).map_err(EventError::Host)?;
+        self.bits(encoded.as_bytes(), encoded.len_bits());
+        Ok(())
+    }
+}
+
+/// A complete callback replacement with an exact bit length.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EncodedPayload {
+    bytes: Vec<u8>,
+    bit_len: usize,
+}
+
+impl EncodedPayload {
+    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, EventError> {
+        let bit_len =
+            bytes
+                .len()
+                .checked_mul(u8::BITS as usize)
+                .ok_or(EventError::ValueOutOfRange {
+                    value: bytes.len(),
+                    maximum: usize::MAX / u8::BITS as usize,
+                })?;
+        Ok(Self { bytes, bit_len })
+    }
+
+    pub fn from_bits(bytes: Vec<u8>, bit_len: usize) -> Result<Self, EventError> {
+        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
+            return Err(EventError::InvalidBitLength {
+                bit_len,
+                byte_len: bytes.len(),
+            });
+        }
+        Ok(Self { bytes, bit_len })
+    }
+
+    #[must_use]
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    #[must_use]
+    pub const fn len_bits(&self) -> usize {
+        self.bit_len
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RpcEncoder<T> {
+    Bytes(fn(T) -> Result<Vec<u8>, EventError>),
+    Bits(fn(HostApi, T) -> Result<EncodedPayload, EventError>),
 }
 
 /// A typed RPC descriptor with its SA-MP RPC ID and read/write layout.
@@ -303,7 +454,7 @@ impl PayloadWriter {
 pub struct Rpc<T> {
     id: u8,
     decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-    encode: fn(T) -> Result<Vec<u8>, EventError>,
+    encode: RpcEncoder<T>,
 }
 
 impl<T> Rpc<T> {
@@ -313,13 +464,38 @@ impl<T> Rpc<T> {
         decode: fn(&mut Event<'_>) -> Result<T, EventError>,
         encode: fn(T) -> Result<Vec<u8>, EventError>,
     ) -> Self {
-        Self { id, decode, encode }
+        Self {
+            id,
+            decode,
+            encode: RpcEncoder::Bytes(encode),
+        }
+    }
+
+    /// Creates a descriptor whose replacement serializer can use host codecs and exact bits.
+    pub const fn new_bits(
+        id: u8,
+        decode: fn(&mut Event<'_>) -> Result<T, EventError>,
+        encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
+    ) -> Self {
+        Self {
+            id,
+            decode,
+            encode: RpcEncoder::Bits(encode),
+        }
     }
 
     /// Returns this descriptor's SA-MP RPC ID.
     #[must_use]
     pub const fn id(self) -> u8 {
         self.id
+    }
+
+    /// Serializes one complete payload without mutating a callback event.
+    pub fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
+        match self.encode {
+            RpcEncoder::Bytes(encode) => EncodedPayload::from_bytes(encode(value)?),
+            RpcEncoder::Bits(encode) => encode(api, value),
+        }
     }
 
     /// Handles this RPC when `event` has the matching ID.
@@ -340,8 +516,8 @@ impl<T> Rpc<T> {
             RpcAction::Continue => Ok(RakRsHookAction::Continue),
             RpcAction::Block => Ok(RakRsHookAction::Block),
             RpcAction::Replace(value) => {
-                let payload = (self.encode)(value)?;
-                event.replace_bytes(&payload)?;
+                let payload = self.encode(event.api, value)?;
+                event.replace_bits(payload.as_bytes(), payload.len_bits())?;
                 Ok(RakRsHookAction::Continue)
             }
         }
@@ -380,6 +556,17 @@ pub mod incoming {
     pub struct GameText {
         pub style: i32,
         pub time_ms: i32,
+        pub text: Vec<u8>,
+    }
+
+    /// MoonLoader's `onShowDialog` payload (RPC 61).
+    #[derive(Clone, Debug, PartialEq)]
+    pub struct ShowDialog {
+        pub dialog_id: u16,
+        pub style: u8,
+        pub title: Vec<u8>,
+        pub button1: Vec<u8>,
+        pub button2: Vec<u8>,
         pub text: Vec<u8>,
     }
 
@@ -501,6 +688,9 @@ pub mod incoming {
         Rpc::new(93, decode_server_message, encode_server_message);
     /// The `onDisplayGameText` descriptor.
     pub const DISPLAY_GAME_TEXT: Rpc<GameText> = Rpc::new(73, decode_game_text, encode_game_text);
+    /// The `onShowDialog` descriptor.
+    pub const SHOW_DIALOG: Rpc<ShowDialog> =
+        Rpc::new_bits(61, decode_show_dialog, encode_show_dialog);
     /// The `onSetPlayerPos` descriptor.
     pub const SET_PLAYER_POS: Rpc<Vector3> = Rpc::new(12, decode_vector3, encode_vector3);
     /// The `onSetPlayerPosFindZ` descriptor.
@@ -627,6 +817,7 @@ pub mod incoming {
         DISPLAY_GAME_TEXT,
         "onDisplayGameText"
     );
+    rpc_helper!(on_show_dialog, ShowDialog, SHOW_DIALOG, "onShowDialog");
     rpc_helper!(on_set_player_pos, Vector3, SET_PLAYER_POS, "onSetPlayerPos");
     rpc_helper!(
         on_set_player_pos_find_z,
@@ -844,6 +1035,28 @@ pub mod incoming {
         writer.u32(value.time_ms as u32);
         writer.string32(&value.text)?;
         Ok(writer.finish())
+    }
+
+    fn decode_show_dialog(event: &mut Event<'_>) -> Result<ShowDialog, EventError> {
+        Ok(ShowDialog {
+            dialog_id: event.read_u16()?,
+            style: event.read_u8()?,
+            title: event.read_string8()?,
+            button1: event.read_string8()?,
+            button2: event.read_string8()?,
+            text: event.read_encoded_string(MAX_ENCODED_STRING_BYTES + 1)?,
+        })
+    }
+
+    fn encode_show_dialog(api: HostApi, value: ShowDialog) -> Result<EncodedPayload, EventError> {
+        let mut writer = PayloadWriter::new();
+        writer.u16(value.dialog_id);
+        writer.u8(value.style);
+        writer.string8(&value.title)?;
+        writer.string8(&value.button1)?;
+        writer.string8(&value.button2)?;
+        writer.encoded_string(api, &value.text)?;
+        Ok(writer.finish_bits())
     }
 
     fn decode_vector3(event: &mut Event<'_>) -> Result<Vector3, EventError> {
@@ -1442,5 +1655,32 @@ pub mod outgoing {
         let mut writer = PayloadWriter::new();
         writer.vector3(value);
         Ok(writer.finish())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payload_writer_preserves_partial_bit_lengths() {
+        let mut writer = PayloadWriter::new();
+        writer.u8(0xA5);
+        writer.bits(&[0b1100_0000], 3);
+        let payload = writer.finish_bits();
+
+        assert_eq!(payload.len_bits(), 11);
+        assert_eq!(payload.as_bytes(), &[0xA5, 0b1100_0000]);
+    }
+
+    #[test]
+    fn encoded_payload_rejects_bits_outside_its_buffer() {
+        assert!(matches!(
+            EncodedPayload::from_bits(vec![0], 9),
+            Err(EventError::InvalidBitLength {
+                bit_len: 9,
+                byte_len: 1
+            })
+        ));
     }
 }

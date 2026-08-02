@@ -41,7 +41,14 @@ rak_rs_plugin_api = { path = "../rak_rs/plugin_api" }
 
 From a worker thread, call `wait_for_default_host`, then register packet or RPC
 callbacks through `HostApi::raw()`. The `events` module provides typed helpers
-for common byte-aligned RPCs and exposes SA-MP text as `Vec<u8>`.
+for common RPCs and exposes SA-MP text as `Vec<u8>`. It includes
+`events::incoming::on_show_dialog`; compressed dialog text is decoded and
+encoded by the installed SA-MP client's native StringCompressor.
+
+Typed replacements use `RpcAction::Replace`. For locally generated typed RPCs,
+call a descriptor such as `incoming::SHOW_DIALOG.encode(api, value)` and pass
+the returned `as_bytes()` and `len_bits()` to `emulate_incoming_rpc`. Keep the
+exact bit length: compressed strings are not necessarily byte-aligned.
 
 Use `HostApi::send_packet` and `HostApi::send_rpc` for explicit traffic. Their
 payload slices exclude the packet or RPC ID, and `bit_len` identifies the exact
@@ -75,10 +82,9 @@ ASI is no longer loaded. This tooling is not needed by ordinary plugins.
 
 ## Limits
 
-Encoded strings (including `onShowDialog`), bit-packed sync schemas, broader
-game-state APIs, and live validation on every supported client build remain
-pending. Runtime unload is safe only through the synchronized shutdown contract
-above.
+Bit-packed sync schemas, broader game-state APIs, and live validation on every
+supported client build remain pending. Runtime unload is safe only through the
+synchronized shutdown contract above.
 
 ## License
 

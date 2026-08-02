@@ -29,9 +29,11 @@ host.
 ## Traffic and dispatch
 
 Plugins can subscribe to incoming or outgoing packets and RPCs, inspect their
-bounded [`BitStream`](src/bitstream.rs) payloads, replace byte-aligned payloads,
+bounded [`BitStream`](src/bitstream.rs) payloads, replace exact-bit payloads,
 block traffic, send raw traffic, or emulate incoming traffic. Callback-local
-events expire when the callback returns.
+events expire when the callback returns. `BitStream::replace_bits` retains a
+partial final byte, resets the read cursor, and enforces the native stream's
+original capacity.
 
 Explicit sends call the captured original RakClient methods and intentionally
 bypass outgoing listeners to avoid recursion. Native bit lengths above
@@ -63,15 +65,32 @@ away from raw function pointers.
 
 [`plugin_api/src/events.rs`](plugin_api/src/events.rs) decodes common incoming
 and outgoing RPCs over the same raw subscription. `RpcAction` can continue,
-block, or atomically replace a complete byte-aligned payload. Text stays as
-`Vec<u8>`, and `string32` reads are capped at 4096 bytes. The
-[sample plugin](examples/sample_plugin) demonstrates discovery, typed dispatch,
-and synchronized shutdown.
+block, or atomically replace a complete exact-bit payload. Text stays as
+`Vec<u8>`, `string32` reads are capped at 4096 bytes, and `onShowDialog`
+supports SA-MP's compressed dialog text. `Rpc::encode` returns bytes plus the
+meaningful bit length, which can be passed directly to emulation or send APIs.
+
+Encoded strings deliberately use SA-MP's implementation rather than a second
+Huffman codec. [`src/client.rs`](src/client.rs) maps each supported build's
+StringCompressor object and reader/writer functions. `HostApi::encode_string`
+and `Event::read_encoded_string` pass caller-owned buffers through
+[`src/host_api.rs`](src/host_api.rs) and [`Runtime`](src/runtime.rs) to x86
+`thiscall` wrappers in [`src/platform/win32.rs`](src/platform/win32.rs). Only
+bytes, capacities, results, and exact bit counts cross the plugin ABI; native
+addresses and pointers stay inside the host.
+
+The [sample plugin](examples/sample_plugin) demonstrates discovery, typed
+dispatch, and synchronized shutdown.
 
 The [validation plugin](examples/validation_plugin) keeps server-bound sends and
-coordinated shutdown behind marker files. It can replay one observed stats
-packet, send one scoreboard RPC, then stop its workers and synchronize all six
-subscriptions without doing work under `DllMain`. The separate
+coordinated shutdown behind marker files. Its local tests also encode, decode,
+rewrite, verify, and block an `onShowDialog` payload without showing a dialog.
+It resolves logs and marker files relative to its own ASI instead of relying on
+the process working directory, and waits for the native string compressor to
+become ready before running that test.
+It can replay one observed stats packet, send one scoreboard RPC, then stop its
+workers and synchronize all six subscriptions without doing work under
+`DllMain`. The separate
 [validation unload manager](examples/validation_unloader) waits for those tests,
 calls the shutdown export, and only then releases the plugin's module reference.
 
@@ -89,6 +108,7 @@ of the validation ASI while the host remains active.
 
 ## Limits
 
-RakNet Huffman strings, bit-length-preserving replacement, `onShowDialog`,
-remaining complex or bit-packed event schemas, broader game-state APIs, and
-live verification of every supported build are not yet implemented.
+Remaining complex or bit-packed event schemas, broader game-state APIs, and
+live verification of every supported build are not yet implemented. Native
+encoded-string integration is implemented but still needs live validation on
+each supported client build.

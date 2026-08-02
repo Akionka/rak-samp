@@ -64,6 +64,34 @@ Resolved with checked conversions at native packet, RPC-envelope, and
 
 ## Authoritative Windows x86 evidence
 
+### Native encoded-string functions
+
+The StringCompressor integration follows the locally inspected RakLua source at
+commit `e4f15ee6a81243ea773ba3061c09ed2086400847`. Its
+`src/libs/samp/samp.hpp` supplies the per-version writer, reader, and compressor
+pointer RVAs recorded in [`src/client.rs`](src/client.rs); its
+`src/RakLuaBitStream.cpp` calls both functions as x86 `thiscall` methods with a
+RakNet `BitStream` and preserves the writer's resulting bit count.
+
+[`src/platform/win32.rs`](src/platform/win32.rs) uses the same native entry
+points. This is reference evidence, not yet live proof for every address.
+
+An SA-MP 0.3.7 R1 session on 2026-08-02 encoded a private RPC 61 through the
+native writer, decoded it through the native reader, replaced it with a
+different exact-bit payload, decoded the replacement again, and blocked it
+before display. The validator reported `packet=passed RPC=passed dialog=passed`
+and remained stable with normal packet/RPC traffic and zero null-event or
+timestamp errors. A later run exposed a harmless startup race where the codec
+returned `NotReady` before SA-MP initialized its compressor; the validator now
+retries that result and fails immediately on other errors. Other client builds
+remain unvalidated as tracked in [TODO.md](TODO.md).
+
+The clean follow-up run with process 11464 confirmed the fix: by 15 seconds the
+validator reported `packet=passed RPC=passed dialog=passed`, and its log was
+created beside `rak_rs_validation.asi` despite other mods changing the working
+directory. At 80 seconds GTA remained responsive after 1,345 outgoing packets
+and 127 incoming RPCs, with zero null events and timestamp decode errors.
+
 ### RakNet packet layout
 
 `RawPacket` and its embedded `PacketPlayerId` in
