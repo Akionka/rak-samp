@@ -11,6 +11,7 @@ use rak_samp_plugin_api::{
     LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, LocalPlayer,
     MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS,
     MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampHookAction, RakSampResult, RakSampSendOptions,
+    RemotePlayerState,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -60,6 +61,26 @@ impl DirectSnapshotChanges {
 
     fn complete(self) -> bool {
         self.position && self.health && self.armour && self.vehicle
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct RemotePlayerStateChanges {
+    health_or_armour: bool,
+    special_action: bool,
+    animation: bool,
+}
+
+impl RemotePlayerStateChanges {
+    fn observe(&mut self, baseline: RemotePlayerState, snapshot: RemotePlayerState) {
+        self.health_or_armour |=
+            snapshot.health != baseline.health || snapshot.armour != baseline.armour;
+        self.special_action |= snapshot.special_action != baseline.special_action;
+        self.animation |= snapshot.animation_id != baseline.animation_id;
+    }
+
+    fn complete(self) -> bool {
+        self.health_or_armour && self.special_action && self.animation
     }
 }
 
@@ -475,17 +496,12 @@ fn run_remote_player_state(api: HostApi) {
     };
 
     let (id, baseline) = baseline;
-    let mut health_or_armour_changed = false;
-    let mut special_action_changed = false;
-    let mut animation_changed = false;
+    let mut changes = RemotePlayerStateChanges::default();
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.remote_player_state(id) {
             Ok(Some(state)) => {
-                health_or_armour_changed |=
-                    state.health != baseline.health || state.armour != baseline.armour;
-                special_action_changed |= state.special_action != baseline.special_action;
-                animation_changed |= state.animation_id != baseline.animation_id;
-                if health_or_armour_changed && special_action_changed && animation_changed {
+                changes.observe(baseline, state);
+                if changes.complete() {
                     SELF_TESTS
                         .remote_player_state
                         .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
@@ -1547,9 +1563,11 @@ fn mark_timeout(status: &AtomicU8) {
 mod tests {
     use super::{
         DirectChatDisplayModes, DirectCursorStates, DirectScoreboardStates, DirectSnapshotChanges,
-        DirectUiStates, DirectVisibilityStates,
+        DirectUiStates, DirectVisibilityStates, RemotePlayerStateChanges,
     };
-    use rak_samp_plugin_api::{LocalChatDisplayMode, LocalCursorMode, LocalPlayer, Vector3};
+    use rak_samp_plugin_api::{
+        LocalChatDisplayMode, LocalCursorMode, LocalPlayer, RemotePlayerState, Vector3,
+    };
 
     fn snapshot() -> LocalPlayer {
         LocalPlayer {
@@ -1594,6 +1612,41 @@ mod tests {
         let mut changes = DirectSnapshotChanges::default();
         changes.observe(&baseline, &changed);
         assert!(!changes.complete());
+    }
+
+    #[test]
+    fn remote_player_state_monitor_requires_all_transition_categories() {
+        let baseline = RemotePlayerState {
+            id: 7,
+            health: 100.0,
+            armour: 50.0,
+            special_action: 0,
+            animation_id: 0,
+        };
+        let mut changes = RemotePlayerStateChanges::default();
+        changes.observe(
+            baseline,
+            RemotePlayerState {
+                armour: 40.0,
+                ..baseline
+            },
+        );
+        changes.observe(
+            baseline,
+            RemotePlayerState {
+                special_action: 1,
+                ..baseline
+            },
+        );
+        assert!(!changes.complete());
+        changes.observe(
+            baseline,
+            RemotePlayerState {
+                animation_id: 2,
+                ..baseline
+            },
+        );
+        assert!(changes.complete());
     }
 
     #[test]
