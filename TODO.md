@@ -426,10 +426,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampSetLocalPlayerName`, `sampForceUnoccupiedSyncSeatId`,
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
   `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
-  force-sync APIs; excluded. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
-  `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
-  own remote-player layout or accessor evidence and a copied snapshot in
-  static-first step 7. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
+  force-sync APIs; excluded. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
   `sampStorePlayerAimData` may only become owned typed sync copies after exact
   source-field/layout proof; they must never write to a plugin-supplied pointer.
@@ -441,11 +438,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   independent packed remote-player fixture, exact complete update-path
   signatures for every copied field. The on-foot health/armour/special-action
   signature is now pinned at `Update(OnfootData) + 0x2F` (RVA `0x139CF`);
-  animation remains blocked on a distinct verified write lifecycle for the
-  `CRemotePlayer + 0x1C0` field, rather than being inferred from on-foot sync
-  bytes. Then add bounded
-  cache/queue tests, ABI mock/E2E coverage, and an opt-in second-client live
-  scenario that exercises damage, special action, and animation transitions.
+  `CRemotePlayer::Process + 0x1AE` (RVA `0x1309E`) now also pins the write to
+  `+0x1C0`. `HostApi::remote_player_state` and scalar projections now copy all
+  four fields through their own 32-request, four-per-pump cache; remain
+  provisional until the second-client live scenario exercises damage, special
+  action, animation transitions, disconnect, and shutdown.
 - [~] `sampGetPlayerCount` — `HostApi::player_count(include_npcs)` caches the
   two R1 `CPlayerPool::GetCount` scalar modes, covering SF.lua's non-streamed
   `GetCount(true)` path. The streamed-ped form remains pending GTA-ped layout
@@ -465,8 +462,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampGetLocalPlayerColor`, `sampIsLocalPlayerSpawned`,
   `sampGetPlayerArmor`, `sampGetPlayerHealth`, `sampGetPlayerSpecialAction`,
   `sampGetPlayerAnimationId` — explicit safe local-player query methods reuse
-  the single cached `HostApi::local_player` snapshot; remote-player calls
-  remain pending.
+  the single cached `HostApi::local_player` snapshot.
+- [~] Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
+  `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` —
+  `HostApi::remote_player_state` plus scalar projections expose a copied,
+  bounded R1 game-thread cache. Keep provisional pending the prepared
+  second-client lifecycle validation.
 - [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::player_score` and
   `HostApi::player_ping` cover cached local and demand-refreshed remote IDs;
   the existing `local_player_*` projections remain available. Keep provisional

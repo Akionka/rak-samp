@@ -367,6 +367,23 @@ fn run_player_directory(api: HostApi) {
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.player_info(id) {
             Ok(Some(player)) if !player.is_local && !player.nickname.is_empty() => {
+                let state = match api.remote_player_state(id) {
+                    Ok(Some(state)) => state,
+                    Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {
+                        id = id.wrapping_add(1) % MAX_SAMP_PLAYERS;
+                        std::thread::sleep(Duration::from_millis(20));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .player_directory
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "player-directory remote-state returned {error:?}: player_id={id}"
+                        ));
+                        return;
+                    }
+                };
                 if api.is_player_connected(id) == Ok(true)
                     && api.is_player_defined(id) == Ok(true)
                     && api.is_player_paused(id) == Ok(false)
@@ -375,6 +392,10 @@ fn run_player_directory(api: HostApi) {
                     && api.player_colour(id) == Ok(Some(player.colour))
                     && api.player_score(id) == Ok(Some(player.score))
                     && api.player_ping(id) == Ok(Some(player.ping))
+                    && api.player_health(id) == Ok(Some(state.health))
+                    && api.player_armour(id) == Ok(Some(state.armour))
+                    && api.player_special_action(id) == Ok(Some(state.special_action))
+                    && api.player_animation_id(id) == Ok(Some(state.animation_id))
                 {
                     SELF_TESTS
                         .player_directory

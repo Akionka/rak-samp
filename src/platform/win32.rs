@@ -12,7 +12,7 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
         LocalPlayerSnapshot, PacketPriority, PacketReliability, PlayerInfoSnapshot,
-        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use minhook::MinHook;
@@ -46,6 +46,8 @@ const LOCAL_CHAT_MESSAGES_PER_PUMP: usize = 4;
 const LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY: usize = 32;
 const LOCAL_DEATH_MESSAGES_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
+const REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
 const VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const VEHICLE_EXISTS_REQUESTS_PER_PUMP: usize = 4;
@@ -132,6 +134,8 @@ struct BackendState {
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
     player_info_cache: Mutex<Vec<PlayerInfoCacheEntry>>,
     player_info_requests: Mutex<VecDeque<u16>>,
+    remote_player_state_cache: Mutex<Vec<RemotePlayerStateCacheEntry>>,
+    remote_player_state_requests: Mutex<VecDeque<u16>>,
     vehicle_exists_cache: Mutex<Vec<VehicleExistsCacheEntry>>,
     vehicle_exists_requests: Mutex<VecDeque<u16>>,
     text_label_exists_cache: Mutex<Vec<TextLabelExistsCacheEntry>>,
@@ -175,6 +179,12 @@ struct BackendState {
 enum PlayerInfoCacheEntry {
     Unknown,
     Known(Option<PlayerInfoSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum RemotePlayerStateCacheEntry {
+    Unknown,
+    Known(Option<RemotePlayerStateSnapshot>),
 }
 
 #[derive(Clone, Copy)]
@@ -278,6 +288,13 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         player_info_requests: Mutex::new(VecDeque::with_capacity(
             PLAYER_INFO_REQUEST_QUEUE_CAPACITY,
+        )),
+        remote_player_state_cache: Mutex::new(vec![
+            RemotePlayerStateCacheEntry::Unknown;
+            MAX_SAMP_PLAYERS
+        ]),
+        remote_player_state_requests: Mutex::new(VecDeque::with_capacity(
+            REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
         )),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::with_capacity(
@@ -427,6 +444,13 @@ impl Backend {
         id: u16,
     ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
         self.state.player_info(id)
+    }
+
+    pub(crate) fn remote_player_state(
+        &self,
+        id: u16,
+    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
+        self.state.remote_player_state(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
@@ -920,6 +944,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_remote_player_state_request(&self, id: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .remote_player_state_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
     fn queue_vehicle_exists_request(&self, id: u16) -> Result<(), DirectClientError> {
         let mut requests = self
             .vehicle_exists_requests
@@ -1086,6 +1125,35 @@ impl BackendState {
     fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.player_info(id)
             .map(|player| player.is_some_and(|player| player.defined))
+    }
+
+    fn remote_player_state(
+        &self,
+        id: u16,
+    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let cached = self
+            .remote_player_state_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(usize::from(id))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?;
+        match cached {
+            RemotePlayerStateCacheEntry::Known(snapshot) => {
+                let _ = self.queue_remote_player_state_request(id);
+                Ok(snapshot)
+            }
+            RemotePlayerStateCacheEntry::Unknown => {
+                self.queue_remote_player_state_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
     }
 
     fn player_paused(&self, id: u16) -> Result<bool, DirectClientError> {
@@ -1475,6 +1543,7 @@ impl BackendState {
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
+        self.refresh_remote_player_state(profile);
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
         self.refresh_vehicle_exists(profile);
@@ -1556,6 +1625,16 @@ impl BackendState {
             .try_lock()
             .map(|mut queue| {
                 let count = queue.len().min(PLAYER_INFO_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_remote_player_state_requests(&self) -> Vec<u16> {
+        self.remote_player_state_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP);
                 queue.drain(..count).collect()
             })
             .unwrap_or_default()
@@ -1671,6 +1750,12 @@ impl BackendState {
         }
     }
 
+    fn clear_remote_player_state_cache(&self) {
+        if let Ok(mut cache) = self.remote_player_state_cache.try_lock() {
+            cache.fill(RemotePlayerStateCacheEntry::Unknown);
+        }
+    }
+
     fn clear_vehicle_exists_cache(&self) {
         if let Ok(mut cache) = self.vehicle_exists_cache.try_lock() {
             cache.fill(VehicleExistsCacheEntry::Unknown);
@@ -1735,6 +1820,20 @@ impl BackendState {
             };
             if let Some(entry) = cache.get_mut(usize::from(id)) {
                 *entry = PlayerInfoCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    fn refresh_remote_player_state(&self, profile: R1ClientProfile) {
+        for id in self.take_remote_player_state_requests() {
+            let Ok(snapshot) = profile.remote_player_state(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.remote_player_state_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = RemotePlayerStateCacheEntry::Known(snapshot);
             }
         }
     }
@@ -1982,6 +2081,7 @@ impl BackendState {
         {
             self.cache_local_player_snapshot(None);
             self.clear_player_info_cache();
+            self.clear_remote_player_state_cache();
             self.assigned_local_player_id
                 .store(player_id, Ordering::Release);
         }
@@ -2038,6 +2138,10 @@ impl BackendState {
         }
         self.clear_player_info_cache();
         if let Ok(mut requests) = self.player_info_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_remote_player_state_cache();
+        if let Ok(mut requests) = self.remote_player_state_requests.try_lock() {
             requests.clear();
         }
         self.clear_vehicle_exists_cache();
@@ -2460,6 +2564,11 @@ mod vtable_tests {
             local_player_candidate: Mutex::new(None),
             player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
             player_info_requests: Mutex::new(VecDeque::new()),
+            remote_player_state_cache: Mutex::new(vec![
+                RemotePlayerStateCacheEntry::Unknown;
+                MAX_SAMP_PLAYERS
+            ]),
+            remote_player_state_requests: Mutex::new(VecDeque::new()),
             vehicle_exists_cache: Mutex::new(vec![
                 VehicleExistsCacheEntry::Unknown;
                 MAX_SAMP_VEHICLES
@@ -2767,6 +2876,27 @@ mod vtable_tests {
         assert_eq!(
             state.player_info_requests.lock().unwrap().len(),
             PLAYER_INFO_REQUEST_QUEUE_CAPACITY - PLAYER_INFO_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
+    fn remote_player_state_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_remote_player_state_request(7).unwrap();
+        state.queue_remote_player_state_request(7).unwrap();
+        for id in 8..(7 + REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_remote_player_state_request(id).unwrap();
+        }
+        assert_eq!(
+            state.queue_remote_player_state_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_remote_player_state_requests();
+        assert_eq!(drained.len(), REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP);
+        assert_eq!(drained[0], 7);
+        assert_eq!(
+            state.remote_player_state_requests.lock().unwrap().len(),
+            REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY - REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP
         );
     }
 

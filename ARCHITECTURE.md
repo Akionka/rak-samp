@@ -85,6 +85,10 @@ it never exposes the remote object or ped used by that private call.
 `HostApi::is_player_paused` is another projection: the profile calls the exact
 R1 remote-status accessor during that same bounded refresh and retains only the
 status-zero boolean; local snapshots always publish false.
+`HostApi::remote_player_state` has an independent bounded demand queue and
+cache for copied remote health, armour, special action, and animation ID. Its
+private profile access is enabled only after the exact R1 update/process code
+signatures and GTA fingerprint have both passed.
 `HostApi::player_count` is a second scalar cache populated by the exact R1
 `CPlayerPool::GetCount` accessor in both NPC modes; it does not inspect the
 GTA world or expose streamed-ped counting.

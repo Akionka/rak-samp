@@ -6,8 +6,8 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 use rak_samp_plugin_api::{
     Gangzone, LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle,
-    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, TextDraw, TextLabel,
-    raknet::BitStream, wait_for_default_host,
+    PlayerInfo, RakSampDirection, RakSampHookAction, RemotePlayerState, Subscription, TextDraw,
+    TextLabel, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -157,6 +157,19 @@ fn initialize() {
         && api.is_player_connected(8) == Ok(false)
         && api.is_player_defined(8) == Ok(false)
         && api.is_player_paused(8) == Ok(false)
+        && api.remote_player_state(7)
+            == Ok(Some(RemotePlayerState {
+                id: 7,
+                health: 75.0,
+                armour: 25.0,
+                special_action: 3,
+                animation_id: 123,
+            }))
+        && api.player_health(7) == Ok(Some(75.0))
+        && api.player_armour(7) == Ok(Some(25.0))
+        && api.player_special_action(7) == Ok(Some(3))
+        && api.player_animation_id(7) == Ok(Some(123))
+        && api.remote_player_state(8) == Ok(None)
     {
         PLAYER_INFO_ID.store(7, Ordering::Release);
     }

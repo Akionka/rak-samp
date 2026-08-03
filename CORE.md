@@ -84,6 +84,11 @@ pending its second-player live lifecycle test.
 `CRemotePlayer::GetStatus` accessor. It maps only status zero to paused, as
 SF.lua does, and returns false for the local player without a remote call.
 
+`HostApi::remote_player_state` is deliberately a separate volatile cache, so
+a failed health/armour/action/animation copy cannot poison the directory
+record. It uses a second 32-ID queue drained at four copies per packet pump,
+and exposes only owned scalars.
+
 `HostApi::player_count(include_npcs)` is a separate cached scalar pair from
 the exact R1 `CPlayerPool::GetCount` accessor. The pump calls its two boolean
 modes, bounds each result to the R1 player capacity, and publishes them

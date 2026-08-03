@@ -118,6 +118,18 @@ pub(crate) struct PlayerInfoSnapshot {
     pub(crate) ping: u32,
 }
 
+/// Host-owned volatile state copied from one remote R1 player record on the
+/// verified game thread. It deliberately contains no player, ped, or GTA
+/// pointer.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct RemotePlayerStateSnapshot {
+    pub(crate) id: u16,
+    pub(crate) health: f32,
+    pub(crate) armour: f32,
+    pub(crate) special_action: u8,
+    pub(crate) animation_id: u16,
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -488,6 +500,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
         self.backend.player_info(id)
+    }
+
+    pub(crate) fn remote_player_state(
+        &self,
+        id: u16,
+    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
+        self.backend.remote_player_state(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

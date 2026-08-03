@@ -299,6 +299,20 @@ pub struct PlayerInfo {
     pub ping: u32,
 }
 
+/// Volatile read-only state copied from one defined remote R1 player.
+///
+/// Remote state is demand-refreshed by the verified game-thread pump. The
+/// first lookup can return [`RakSampResult::NotReady`]; no client or GTA
+/// pointer crosses the ABI.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RemotePlayerState {
+    pub id: u16,
+    pub health: f32,
+    pub armour: f32,
+    pub special_action: u8,
+    pub animation_id: u16,
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top
@@ -502,6 +516,19 @@ impl Default for RakSampPlayerInfoV1 {
             ping: 0,
         }
     }
+}
+
+/// C-compatible storage for an owned remote-player state result.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RakSampRemotePlayerStateV1 {
+    pub exists: u8,
+    pub special_action: u8,
+    pub _reserved: u16,
+    pub id: u16,
+    pub animation_id: u16,
+    pub health: f32,
+    pub armour: f32,
 }
 
 /// C-compatible storage for an owned [`Gangzone`] result.
@@ -923,6 +950,9 @@ pub struct RakSampApiV1 {
     pub player_defined: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
     /// Copies a cached R1 player-paused flag into `output`.
     pub player_paused: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies a cached R1 remote-player volatile state record into `output`.
+    pub remote_player_state:
+        unsafe extern "system" fn(u16, *mut RakSampRemotePlayerStateV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -2061,6 +2091,44 @@ impl HostApi {
         }
     }
 
+    /// Returns health, armour, special action, and animation ID copied from a
+    /// defined remote R1 player. `Ok(None)` means the latest completed query
+    /// found that ID disconnected or not world-defined.
+    pub fn remote_player_state(self, id: u16) -> Result<Option<RemotePlayerState>, RakSampResult> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut raw = RakSampRemotePlayerStateV1::default();
+        match unsafe { (self.raw.remote_player_state)(id, &mut raw) } {
+            RakSampResult::Ok => remote_player_state_from_abi(raw),
+            result => Err(result),
+        }
+    }
+
+    /// Returns the cached remote-player health for `id`.
+    pub fn player_health(self, id: u16) -> Result<Option<f32>, RakSampResult> {
+        self.remote_player_state(id)
+            .map(|state| state.map(|state| state.health))
+    }
+
+    /// Returns the cached remote-player armour for `id`.
+    pub fn player_armour(self, id: u16) -> Result<Option<f32>, RakSampResult> {
+        self.remote_player_state(id)
+            .map(|state| state.map(|state| state.armour))
+    }
+
+    /// Returns the cached remote-player special action for `id`.
+    pub fn player_special_action(self, id: u16) -> Result<Option<u8>, RakSampResult> {
+        self.remote_player_state(id)
+            .map(|state| state.map(|state| state.special_action))
+    }
+
+    /// Returns the cached remote-player animation ID for `id`.
+    pub fn player_animation_id(self, id: u16) -> Result<Option<u16>, RakSampResult> {
+        self.remote_player_state(id)
+            .map(|state| state.map(|state| state.animation_id))
+    }
+
     /// Returns copied player nickname bytes without assuming a text encoding.
     pub fn player_nickname(self, id: u16) -> Result<Option<Vec<u8>>, RakSampResult> {
         self.player_info(id)
@@ -2518,6 +2586,24 @@ fn player_info_from_abi(raw: RakSampPlayerInfoV1) -> Result<Option<PlayerInfo>, 
     }
 }
 
+fn remote_player_state_from_abi(
+    raw: RakSampRemotePlayerStateV1,
+) -> Result<Option<RemotePlayerState>, RakSampResult> {
+    match raw.exists {
+        0 if raw == RakSampRemotePlayerStateV1::default() => Ok(None),
+        1 if raw._reserved == 0 && raw.health.is_finite() && raw.armour.is_finite() => {
+            Ok(Some(RemotePlayerState {
+                id: raw.id,
+                health: raw.health,
+                armour: raw.armour,
+                special_action: raw.special_action,
+                animation_id: raw.animation_id,
+            }))
+        }
+        _ => Err(RakSampResult::NativeCallFailed),
+    }
+}
+
 fn gangzone_from_abi(raw: RakSampGangzoneV1) -> Result<Option<Gangzone>, RakSampResult> {
     match raw.exists {
         0 => {
@@ -2917,8 +3003,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, player_defined) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, remote_player_state),
             mem::offset_of!(RakSampApiV1, player_paused) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, remote_player_state) + function_size
         );
     }
 
@@ -3057,6 +3147,21 @@ mod tests {
         assert_eq!(api.player_colour(7), Ok(Some(0xFF22_4466)));
         assert_eq!(api.player_score(7), Ok(Some(-10)));
         assert_eq!(api.player_ping(7), Ok(Some(55)));
+        assert_eq!(
+            api.remote_player_state(7),
+            Ok(Some(RemotePlayerState {
+                id: 7,
+                health: 75.0,
+                armour: 25.0,
+                special_action: 3,
+                animation_id: 123,
+            }))
+        );
+        assert_eq!(api.player_health(7), Ok(Some(75.0)));
+        assert_eq!(api.player_armour(7), Ok(Some(25.0)));
+        assert_eq!(api.player_special_action(7), Ok(Some(3)));
+        assert_eq!(api.player_animation_id(7), Ok(Some(123)));
+        assert_eq!(api.remote_player_state(8), Ok(None));
         assert_eq!(api.player_info(8), Ok(None));
         assert_eq!(api.is_player_connected(8), Ok(false));
         assert_eq!(api.is_player_defined(8), Ok(false));

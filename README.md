@@ -67,6 +67,12 @@ always returns false for the local player. No player, ped, pool, or GTA handle
 crosses the ABI. This R1-only helper remains
 provisional until its opt-in second-player live validation is recorded.
 
+`HostApi::remote_player_state(id)` separately returns copied remote health,
+armour, special action, and animation ID. Its scalar projections are
+`player_health`, `player_armour`, `player_special_action`, and
+`player_animation_id`. It uses its own bounded 32-ID request queue and copies
+at most four records per game-thread pump, so it never blocks plugin threads.
+
 `HostApi::player_count(include_npcs)` returns the latest game-thread-cached R1
 player-pool scalar, including or excluding NPCs. It covers SF.lua's
 non-streamed count path only; counting streamed GTA peds requires separate

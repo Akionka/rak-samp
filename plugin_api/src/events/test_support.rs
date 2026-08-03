@@ -762,6 +762,29 @@ unsafe extern "system" fn test_player_count(include_npcs: u8, output: *mut u16) 
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_remote_player_state(
+    id: u16,
+    output: *mut crate::RakSampRemotePlayerStateV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::RakSampRemotePlayerStateV1 {
+            exists: 1,
+            special_action: 3,
+            _reserved: 0,
+            id,
+            animation_id: 123,
+            health: 75.0,
+            armour: 25.0,
+        }
+    } else {
+        crate::RakSampRemotePlayerStateV1::default()
+    };
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1047,6 +1070,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     textdraw_info: test_textdraw_info,
     player_defined: test_player_defined,
     player_paused: test_player_paused,
+    remote_player_state: test_remote_player_state,
 };
 
 pub(crate) fn test_api() -> HostApi {

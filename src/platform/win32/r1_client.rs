@@ -7,8 +7,8 @@
 use crate::runtime::{
     AnimationSnapshot, DirectClientError, GangzoneSnapshot, LocalChatMessageRequest,
     LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle,
-    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, Vector3,
+    LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
+    TextLabelSnapshot, TextdrawSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -68,6 +68,7 @@ const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
 const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x12BA0;
 const REMOTE_PLAYER_UPDATE_ONFOOT_RVA: usize = 0x139A0;
+const REMOTE_PLAYER_PROCESS_RVA: usize = 0x12EF0;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 const PED_GET_HEALTH_RVA: usize = 0xA6610;
@@ -112,6 +113,11 @@ const GANGZONE_RIGHT_OFFSET: usize = 0x08;
 const GANGZONE_TOP_OFFSET: usize = 0x0C;
 const GANGZONE_COLOUR_OFFSET: usize = 0x10;
 const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
+const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
+const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
+const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
+const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
+const REMOTE_PLAYER_STATE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -390,6 +396,15 @@ const REMOTE_PLAYER_UPDATE_ONFOOT_FIELDS_SIGNATURE: [u8; 104] = [
     0x89, 0x85, 0xC5, 0x01, 0x00, 0x00, 0x8A, 0x4B, 0x25, 0x8B, 0x85, 0x08, 0x01, 0x00, 0x00, 0x85,
     0xC0, 0x5F, 0x5E, 0x88, 0x8D, 0xBB, 0x00, 0x00, 0x00, 0x5B, 0x79, 0x0A, 0xC7, 0x85, 0x08, 0x01,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x8B, 0x4D,
+];
+// `CRemotePlayer::Process` copies its current animation word from `+0x108` to
+// the dedicated public-state field at `+0x1C0`, then preserves the associated
+// custom-animation state. This is the lifecycle anchor for the owned remote
+// state cache below.
+const REMOTE_PLAYER_PROCESS_ANIMATION_SIGNATURE: [u8; 43] = [
+    0xC7, 0x85, 0x08, 0x01, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x8B, 0x85, 0x08, 0x01, 0x00, 0x00,
+    0x89, 0x85, 0xC0, 0x01, 0x00, 0x00, 0x89, 0xBD, 0xCD, 0x01, 0x00, 0x00, 0x39, 0xBD, 0xCD, 0x01,
+    0x00, 0x00, 0x75, 0x2C, 0x3B, 0xC7, 0x75, 0x28, 0x8B, 0x4D, 0x00,
 ];
 
 const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
@@ -727,6 +742,67 @@ impl R1ClientProfile {
             colour: unsafe { get_colour(remote) },
             score: unsafe { get_score(pool, id) },
             ping: (unsafe { get_ping(pool, id) }).max(0) as u32,
+        }))
+    }
+
+    /// Copies the volatile fields maintained by R1's remote-player update and
+    /// process paths. This runs only on the host game-thread pump.
+    pub(super) fn remote_player_state(
+        self,
+        id: u16,
+    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let is_connected: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+        match unsafe { is_connected(pool, id) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let get_player: PlayerPoolGetRemotePlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+        let remote = unsafe { get_player(pool, id) };
+        if remote.is_null() || !readable_range(remote.cast(), REMOTE_PLAYER_STATE_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let does_exist: RemotePlayerDoesExistFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
+        match unsafe { does_exist(remote) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let health = unsafe {
+            read_unaligned::<f32>(remote as usize + REMOTE_PLAYER_REPORTED_HEALTH_OFFSET)
+        }
+        .filter(|value| value.is_finite())
+        .ok_or(DirectClientError::NotReady)?;
+        let armour = unsafe {
+            read_unaligned::<f32>(remote as usize + REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET)
+        }
+        .filter(|value| value.is_finite())
+        .ok_or(DirectClientError::NotReady)?;
+        let special_action =
+            unsafe { read_unaligned::<u8>(remote as usize + REMOTE_PLAYER_SPECIAL_ACTION_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let animation =
+            unsafe { read_unaligned::<u32>(remote as usize + REMOTE_PLAYER_ANIMATION_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(RemotePlayerStateSnapshot {
+            id,
+            health,
+            armour,
+            special_action,
+            animation_id: animation as u16,
         }))
     }
 
@@ -1492,6 +1568,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             module_base + REMOTE_PLAYER_UPDATE_ONFOOT_RVA + 0x2F,
             &REMOTE_PLAYER_UPDATE_ONFOOT_FIELDS_SIGNATURE,
         )
+        && code_matches(
+            module_base + REMOTE_PLAYER_PROCESS_RVA + 0x1AE,
+            &REMOTE_PLAYER_PROCESS_ANIMATION_SIGNATURE,
+        )
         && [
             PLAYER_POOL_GET_LOCAL_PLAYER_RVA,
             PLAYER_POOL_GET_LOCAL_NAME_RVA,
@@ -1668,8 +1748,9 @@ mod tests {
         PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
         REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, REMOTE_PLAYER_GET_STATUS_SIGNATURE,
-        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+        REMOTE_PLAYER_PROCESS_ANIMATION_SIGNATURE, SAMP_PED_GAME_PED_OFFSET,
+        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
+        TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_ALIGN_CENTER_OFFSET,
         TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
@@ -2369,6 +2450,15 @@ mod tests {
                 0x85, 0xC0, 0x74, 0x1E, 0x8B, 0x0E, 0xE8, 0xD7, 0x42, 0x09, 0x00, 0x85, 0xC0, 0x75,
                 0x13, 0x8B, 0x0E, 0xE8, 0x3C, 0x43, 0x09, 0x00, 0x85, 0xC0, 0x75, 0x08, 0x8B, 0x86,
                 0xD1, 0x01, 0x00, 0x00, 0x5E, 0xC3, 0x33, 0xC0, 0x5E, 0xC3,
+            ]
+        );
+        assert_eq!(
+            REMOTE_PLAYER_PROCESS_ANIMATION_SIGNATURE,
+            [
+                0xC7, 0x85, 0x08, 0x01, 0x00, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0x8B, 0x85, 0x08, 0x01,
+                0x00, 0x00, 0x89, 0x85, 0xC0, 0x01, 0x00, 0x00, 0x89, 0xBD, 0xCD, 0x01, 0x00, 0x00,
+                0x39, 0xBD, 0xCD, 0x01, 0x00, 0x00, 0x75, 0x2C, 0x3B, 0xC7, 0x75, 0x28, 0x8B, 0x4D,
+                0x00,
             ]
         );
     }

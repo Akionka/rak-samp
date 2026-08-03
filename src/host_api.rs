@@ -5,7 +5,8 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
         LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-        PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+        TextdrawSnapshot,
     },
 };
 use log::{debug, error, info};
@@ -13,8 +14,8 @@ use rak_samp_plugin_api::{
     ABI_VERSION_V1, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS,
     MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1,
     RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampGangzoneV1, RakSampHookAction,
-    RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
-    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, RakSampTextDrawV1,
+    RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampRemotePlayerStateV1,
+    RakSampResult, RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, RakSampTextDrawV1,
     RakSampTextLabelV1, Vector3,
 };
 use std::{
@@ -170,6 +171,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     textdraw_info,
     player_defined,
     player_paused,
+    remote_player_state,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -971,6 +973,32 @@ unsafe extern "system" fn player_info(id: u16, output: *mut RakSampPlayerInfoV1)
     }
 }
 
+unsafe extern "system" fn remote_player_state(
+    id: u16,
+    output: *mut RakSampRemotePlayerStateV1,
+) -> RakSampResult {
+    if id >= MAX_SAMP_PLAYERS || output.is_null() {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.remote_player_state(id) {
+        Ok(Some(snapshot)) => match remote_player_state_to_abi(snapshot) {
+            Ok(snapshot) => {
+                unsafe { *output = snapshot };
+                RakSampResult::Ok
+            }
+            Err(()) => RakSampResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            unsafe { *output = RakSampRemotePlayerStateV1::default() };
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn player_defined(id: u16, output: *mut u8) -> RakSampResult {
     if id >= MAX_SAMP_PLAYERS {
         return RakSampResult::InvalidArgument;
@@ -1503,6 +1531,23 @@ fn player_info_to_abi(snapshot: PlayerInfoSnapshot) -> Result<RakSampPlayerInfoV
         colour: snapshot.colour,
         score: snapshot.score,
         ping: snapshot.ping,
+    })
+}
+
+fn remote_player_state_to_abi(
+    snapshot: RemotePlayerStateSnapshot,
+) -> Result<RakSampRemotePlayerStateV1, ()> {
+    if !snapshot.health.is_finite() || !snapshot.armour.is_finite() {
+        return Err(());
+    }
+    Ok(RakSampRemotePlayerStateV1 {
+        exists: 1,
+        special_action: snapshot.special_action,
+        _reserved: 0,
+        id: snapshot.id,
+        animation_id: snapshot.animation_id,
+        health: snapshot.health,
+        armour: snapshot.armour,
     })
 }
 

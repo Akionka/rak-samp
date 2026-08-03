@@ -6,8 +6,8 @@ compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
     RakSampEventCallbackV1, RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1,
-    RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions, RakSampServerInfoV1,
-    RakSampSubscription, RakSampTextDrawV1, RakSampTextLabelV1, Vector3,
+    RakSampPlayerInfoV1, RakSampRemotePlayerStateV1, RakSampResult, RakSampSendOptions,
+    RakSampServerInfoV1, RakSampSubscription, RakSampTextDrawV1, RakSampTextLabelV1, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -480,6 +480,29 @@ unsafe extern "system" fn player_paused(id: u16, output: *mut u8) -> RakSampResu
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn remote_player_state(
+    id: u16,
+    output: *mut RakSampRemotePlayerStateV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        RakSampRemotePlayerStateV1 {
+            exists: 1,
+            special_action: 3,
+            _reserved: 0,
+            id,
+            animation_id: 123,
+            health: 75.0,
+            armour: 25.0,
+        }
+    } else {
+        RakSampRemotePlayerStateV1::default()
+    };
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn player_max_id(output: *mut u16) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -807,4 +830,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     textdraw_info,
     player_defined,
     player_paused,
+    remote_player_state,
 };
