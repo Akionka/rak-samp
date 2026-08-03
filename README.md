@@ -86,8 +86,12 @@ permitted.
 The same typed-send layer provides `send_dialog_response`, `send_click_player`,
 `send_click_textdraw`, `send_death_by_player`, `send_menu_quit`,
 `send_menu_select_row`, `send_picked_up_pickup`, and
-`send_vehicle_destroyed`. These are exact protocol actions; they do not invoke
-native UI or local-player mutation methods.
+`send_vehicle_destroyed`, `send_vehicle_damage`, `send_give_damage`,
+`send_take_damage`, `send_edit_attached_object`, `send_edit_object`, and
+`send_rcon_command`. These are exact protocol actions; they do not invoke
+native UI or local-player mutation methods. Attached-object edits require the
+complete typed payload, including both colour fields that SF.lua leaves
+unspecified.
 
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never

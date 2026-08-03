@@ -433,6 +433,28 @@ unsafe extern "system" fn test_send(
         || (id, bit_len, bytes) == (132, 8, &[7])
         || (id, bit_len, bytes) == (131, 32, &[9, 0, 0, 0])
         || (id, bit_len, bytes) == (136, 16, &[0x34, 0x12])
+        || (id, bit_len, bytes) == (106, 96, &[0x34, 0x12, 1, 0, 0, 0, 2, 0, 0, 0, 3, 4])
+        || (id, bit_len, bytes)
+            == (
+                115,
+                113,
+                &[
+                    0x1A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00,
+                    0x00, 0x00,
+                ],
+            )
+        || (id, bit_len, bytes)
+            == (
+                115,
+                113,
+                &[
+                    0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00,
+                    0x00, 0x00,
+                ],
+            )
+        || (id, bit_len, bytes) == (116, 480, &[0; 60])
+        || (id, bit_len, bytes) == (117, 241, &[0; 31])
+        || (id, bit_len, bytes) == (201, 64, &[4, 0, 0, 0, b'r', b'c', b'o', b'n'])
     {
         RakSampResult::Ok
     } else {

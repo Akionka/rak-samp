@@ -1013,6 +1013,74 @@ impl HostApi {
         self.send_typed_rpc(events::rpc::outgoing::SEND_VEHICLE_DESTROYED, vehicle_id)
     }
 
+    /// Sends a server-bound vehicle-damage update (RPC 106).
+    pub fn send_vehicle_damage(
+        self,
+        vehicle_id: u16,
+        panel_damage: i32,
+        door_damage: i32,
+        lights: u8,
+        tires: u8,
+    ) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_VEHICLE_DAMAGED,
+            events::rpc::outgoing::VehicleDamage {
+                vehicle_id,
+                panel_damage,
+                door_damage,
+                lights,
+                tires,
+            },
+        )
+    }
+
+    /// Sends a server-bound give-damage notification (RPC 115).
+    pub fn send_give_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+    ) -> RakSampResult {
+        self.send_damage(player_id, damage, weapon, body_part, false)
+    }
+
+    /// Sends a server-bound take-damage notification (RPC 115).
+    pub fn send_take_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+    ) -> RakSampResult {
+        self.send_damage(player_id, damage, weapon, body_part, true)
+    }
+
+    /// Sends a complete attached-object edit action (RPC 116).
+    ///
+    /// The typed value deliberately includes both colour fields. SF.lua's
+    /// helper leaves them unspecified, so accepting its partial parameter list
+    /// here could create malformed or accidentally lossy traffic.
+    pub fn send_edit_attached_object(
+        self,
+        edit: events::rpc::outgoing::EditAttachedObject,
+    ) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_EDIT_ATTACHED_OBJECT, edit)
+    }
+
+    /// Sends a complete global or player-object edit action (RPC 117).
+    pub fn send_edit_object(self, edit: events::rpc::outgoing::EditObject) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_EDIT_OBJECT, edit)
+    }
+
+    /// Sends a bounded server-bound RCON command packet (201).
+    pub fn send_rcon_command(self, command: &[u8]) -> RakSampResult {
+        self.send_typed_packet(
+            events::packet::outgoing::SEND_RCON_COMMAND,
+            command.to_vec(),
+        )
+    }
+
     /// Sends a complete owned plugin-side bit stream as a packet payload.
     pub fn send_packet_stream(
         self,
@@ -1256,6 +1324,38 @@ impl HostApi {
             return RakSampResult::InvalidArgument;
         };
         self.send_rpc(
+            descriptor.id(),
+            payload.as_bytes(),
+            payload.len_bits(),
+            RakSampSendOptions::default(),
+        )
+    }
+
+    fn send_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+        take: bool,
+    ) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_DAMAGE,
+            events::rpc::outgoing::Damage {
+                player_id,
+                damage,
+                weapon,
+                body_part,
+                take,
+            },
+        )
+    }
+
+    fn send_typed_packet<T>(self, descriptor: events::Packet<T>, value: T) -> RakSampResult {
+        let Ok(payload) = descriptor.encode(self, value) else {
+            return RakSampResult::InvalidArgument;
+        };
+        self.send_packet(
             descriptor.id(),
             payload.as_bytes(),
             payload.len_bits(),
@@ -1589,6 +1689,55 @@ mod tests {
         assert_eq!(api.send_vehicle_destroyed(0x1234), RakSampResult::Ok);
         assert_eq!(
             api.send_dialog_response(0, 0, 0, &[b'x'; 256]),
+            RakSampResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
+        let api = test_support::test_api();
+        assert_eq!(
+            api.send_vehicle_damage(0x1234, 1, 2, 3, 4),
+            RakSampResult::Ok
+        );
+        assert_eq!(api.send_give_damage(0x1234, 1.0, 24, 9), RakSampResult::Ok);
+        assert_eq!(api.send_take_damage(0x1234, 1.0, 24, 9), RakSampResult::Ok);
+
+        let zero = events::Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        let attached = events::rpc::outgoing::EditAttachedObject {
+            response: 0,
+            index: 0,
+            model_id: 0,
+            bone: 0,
+            position: zero,
+            rotation: zero,
+            scale: zero,
+            color1: 0,
+            color2: 0,
+        };
+        let attached_payload = events::rpc::outgoing::SEND_EDIT_ATTACHED_OBJECT
+            .encode(api, attached)
+            .expect("zero attached-object edit must encode");
+        assert_eq!(attached_payload.len_bits(), 480);
+        assert_eq!(attached_payload.as_bytes(), &[0; 60]);
+        assert_eq!(api.send_edit_attached_object(attached), RakSampResult::Ok);
+        assert_eq!(
+            api.send_edit_object(events::rpc::outgoing::EditObject {
+                player_object: false,
+                object_id: 0,
+                response: 0,
+                position: zero,
+                rotation: zero,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(api.send_rcon_command(b"rcon"), RakSampResult::Ok);
+        assert_eq!(
+            api.send_rcon_command(&[b'x'; events::MAX_STRING32_BYTES + 1]),
             RakSampResult::InvalidArgument
         );
     }

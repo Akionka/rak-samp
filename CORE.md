@@ -34,9 +34,11 @@ the empty RPC 129 request. They are explicit server-bound actions, not local UI
 or chat-history mutations.
 
 Other typed protocol actions—dialog responses, player/textdraw clicks, death,
-menu, pickup, and vehicle-destroyed notifications—reuse their exact R1 event
-codecs before calling the original RakClient send path. They do not claim to
-perform the local state changes of similarly named native methods.
+menu, pickup, vehicle-damage, give/take damage, object edits, RCON commands,
+and vehicle-destroyed notifications—reuse their exact R1 event codecs before
+calling the original RakClient send path. They do not claim to perform the
+local state changes of similarly named native methods. Attached-object edits
+require their complete payload, including both colour fields.
 
 `HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
 32-request host queue. `HostApi::local_player` returns an owned clone of a

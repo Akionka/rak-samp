@@ -163,10 +163,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendAimData`,
   `sampSendBulletData`, `sampSendIncarData`, `sampSendOnfootData`,
   `sampSendSpectatorData`, `sampSendTrailerData`, `sampSendPassengerData`,
-  `sampSendUnoccupiedData`, `sampSendDamageVehicle`, `sampSendScmEvent`,
-  `sampSendGiveDamage`, `sampSendTakeDamage`,
-  `sampSendEditAttachedObject`, `sampSendEditObject`, `sampSendRconCommand`,
-  `sampDisconnectWithReason`, `sampConnectToServer`
+  `sampSendUnoccupiedData`, `sampSendScmEvent`, `sampDisconnectWithReason`,
+  `sampConnectToServer`
 - [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
   empty, server-bound RPC 129 without invoking native local-player methods.
 - [x] `sampSendDialogResponse`, `sampSendClickPlayer`,
@@ -174,6 +172,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampSendMenuSelectRow`, `sampSendPickedUpPickup`,
   `sampSendVehicleDestroyed` — matching `HostApi::send_*` helpers serialize
   the typed outgoing RPCs and send them through the original RakClient path.
+- [x] `sampSendDamageVehicle`, `sampSendGiveDamage`, `sampSendTakeDamage`,
+  `sampSendEditAttachedObject`, `sampSendEditObject`, `sampSendRconCommand` —
+  matching `HostApi::send_*` helpers serialize the exact bounded outgoing RPC
+  or packet. Attached-object edits require the complete typed payload,
+  including both colours omitted by SF.lua's partial helper signature.
 
 ### SF.lua’s explicit future items (`init.lua`)
 
