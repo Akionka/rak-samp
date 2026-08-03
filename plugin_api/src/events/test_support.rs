@@ -434,6 +434,7 @@ unsafe extern "system" fn test_send(
         || (id, bit_len, bytes) == (131, 32, &[9, 0, 0, 0])
         || (id, bit_len, bytes) == (136, 16, &[0x34, 0x12])
         || (id, bit_len, bytes) == (106, 96, &[0x34, 0x12, 1, 0, 0, 0, 2, 0, 0, 0, 3, 4])
+        || (id, bit_len, bytes) == (96, 128, &[1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0])
         || (id, bit_len, bytes)
             == (
                 115,

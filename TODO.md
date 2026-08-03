@@ -160,7 +160,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `raknetSendBitStreamEx`, `raknetSendBitStream` — represented by
   `HostApi::send_packet_stream` and `HostApi::send_packet` with the packet ID
   explicit rather than embedded in an unchecked native bitstream.
-- [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendScmEvent`,
+- [ ] `sampGetRakclientInterface`, `sampGetRakpeer`,
   `sampDisconnectWithReason`, `sampConnectToServer`
 - [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
   empty, server-bound RPC 129 without invoking native local-player methods.
@@ -174,6 +174,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   matching `HostApi::send_*` helpers serialize the exact bounded outgoing RPC
   or packet. Attached-object edits require the complete typed payload,
   including both colours omitted by SF.lua's partial helper signature.
+- [x] `sampSendScmEvent` — `HostApi::send_scm_event` maps the complete typed
+  R1 RPC 96 payload into its required wire order.
 - [x] `sampSendAimData`, `sampSendBulletData`, `sampSendIncarData`,
   `sampSendOnfootData`, `sampSendSpectatorData`, `sampSendTrailerData`,
   `sampSendPassengerData`, `sampSendUnoccupiedData` — matching complete typed

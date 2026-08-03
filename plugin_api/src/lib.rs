@@ -1034,6 +1034,22 @@ impl HostApi {
         )
     }
 
+    /// Sends a server-bound SCM event (RPC 96).
+    ///
+    /// The values follow SA-MP's wire order: ID, first parameter, second
+    /// parameter, then event ID.
+    pub fn send_scm_event(self, event: i32, id: i32, param1: i32, param2: i32) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_VEHICLE_TUNING,
+            events::rpc::outgoing::VehicleTuning {
+                vehicle_id: id,
+                param1,
+                param2,
+                event,
+            },
+        )
+    }
+
     /// Sends a server-bound give-damage notification (RPC 115).
     pub fn send_give_damage(
         self,
@@ -1740,6 +1756,7 @@ mod tests {
             api.send_vehicle_damage(0x1234, 1, 2, 3, 4),
             RakSampResult::Ok
         );
+        assert_eq!(api.send_scm_event(4, 1, 2, 3), RakSampResult::Ok);
         assert_eq!(api.send_give_damage(0x1234, 1.0, 24, 9), RakSampResult::Ok);
         assert_eq!(api.send_take_damage(0x1234, 1.0, 24, 9), RakSampResult::Ok);
 
