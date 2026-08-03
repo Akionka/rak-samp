@@ -433,6 +433,15 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
   `sampStorePlayerAimData` may only become owned typed sync copies after exact
   source-field/layout proof; they must never write to a plugin-supplied pointer.
+  Preparation audit (not implementation evidence): the installed R1 DLL's
+  `CRemotePlayer::Update(OnfootData, TICK)` at RVA `0x139A0` copies the
+  fixture-sized 68-byte on-foot record to `this + 0xC8`, converts its health
+  and armour bytes into reported floats at `+0x1BC` and `+0x1B8`, and writes
+  its special-action byte to `+0xBB`. Before exposing any snapshot, add an
+  independent packed remote-player fixture, exact complete update-path
+  signatures for every copied field (including animation lifecycle), bounded
+  cache/queue tests, ABI mock/E2E coverage, and an opt-in second-client live
+  scenario that exercises damage, special action, and animation transitions.
 - [~] `sampGetPlayerCount` — `HostApi::player_count(include_npcs)` caches the
   two R1 `CPlayerPool::GetCount` scalar modes, covering SF.lua's non-streamed
   `GetCount(true)` path. The streamed-ped form remains pending GTA-ped layout
