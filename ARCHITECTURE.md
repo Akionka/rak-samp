@@ -19,7 +19,7 @@ plugins use the versioned ABI client crate.
 | Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish host state, and log lifecycle events. |
 | Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events and enforce bounded, exact-bit payloads. |
 | Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect and retain the recognized SA-MP version, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local helpers. |
-| Plugin API | `plugin_api/src/lib.rs` | Define the versioned C-compatible ABI, safe filtered/typed callbacks, and grouped subscription shutdown. Alpha releases may make explicit compatibility breaks. |
+| Plugin API | `plugin_api/src/lib.rs`, `plugin_api/src/raknet.rs` | Define the versioned C-compatible ABI, safe filtered/typed callbacks, static protocol-name catalogs, and grouped subscription shutdown. Alpha releases may make explicit compatibility breaks. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
 | Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
 

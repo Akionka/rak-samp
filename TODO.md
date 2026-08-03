@@ -34,7 +34,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `isSampAvailable` — safe `HostApi::is_samp_available` reports that the
   host attached and its RakClient hooks are ready, without dereferencing
   `CNetGame` on the plugin thread.
-- [ ] `sampGetBase`, `isSampLoaded`, `isSampfuncsLuaLoaded`
+- [ ] `sampGetBase`, `isSampLoaded`
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 
@@ -120,6 +120,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### RakNet and network actions (`raknet.lua`)
 
+- [x] `raknetGetRpcName`, `raknetGetPacketName` — pure catalog lookups are
+  available as `rak_samp_plugin_api::raknet::{rpc_name, packet_name}`.
 - [ ] `raknetBitStreamReadBool`, `raknetBitStreamReadBuffer`,
   `raknetBitStreamReadInt8`, `raknetBitStreamReadInt16`,
   `raknetBitStreamReadInt32`, `raknetBitStreamReadFloat`,
@@ -136,7 +138,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `raknetBitStreamWriteString`, `raknetBitStreamDecodeString`,
   `raknetBitStreamEncodeString`, `raknetBitStreamWriteBitStream`,
   `raknetSendRpcEx`, `raknetSendBitStreamEx`, `raknetSendRpc`,
-  `raknetSendBitStream`, `raknetGetRpcName`, `raknetGetPacketName`
+  `raknetSendBitStream`
 - [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendAimData`,
   `sampSendBulletData`, `sampSendIncarData`, `sampSendOnfootData`,
   `sampSendSpectatorData`, `sampSendTrailerData`, `sampSendPassengerData`,

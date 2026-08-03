@@ -58,6 +58,9 @@ For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
 host's RakClient hooks are ready. Neither query reads client memory.
 
+`rak_samp_plugin_api::raknet::{rpc_name, packet_name}` supplies SF.lua's
+static RPC and packet labels without requiring host discovery or a client call.
+
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
 perform that wait in `DllMain` or in a callback. The

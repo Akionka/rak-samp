@@ -44,6 +44,10 @@ the host already verified during attach. `HostApi::is_samp_available` reports
 host/hook readiness. Both are safe across every recognized build and need no
 native-layout access or live gameplay validation.
 
+`rak_samp_plugin_api::raknet` contains pure SF.lua-compatible RPC and packet
+name catalogs. These helpers are available without resolving the host and do
+not interpret or inspect network payloads.
+
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
 retain the callbacks that need a retry. Waiting in `DllMain` or a callback is

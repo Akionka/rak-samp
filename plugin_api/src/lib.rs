@@ -11,6 +11,7 @@
 compile_error!("rak_samp_plugin_api supports only 32-bit Windows x86 targets");
 
 pub mod events;
+pub mod raknet;
 
 use core::{ffi::c_void, fmt, mem, ptr::NonNull};
 use std::{
