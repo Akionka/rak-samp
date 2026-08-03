@@ -871,6 +871,52 @@ unsafe extern "system" fn test_text_label_info(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_textdraw_info(
+    pool_index: u16,
+    output: *mut crate::RakSampTextDrawV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if pool_index == 7 {
+        *output = crate::RakSampTextDrawV1 {
+            exists: 1,
+            proportional: 1,
+            align_left: 0,
+            align_center: 1,
+            align_right: 0,
+            box_enabled: 1,
+            _reserved: [0; 2],
+            pool_index,
+            shadow: 2,
+            outline: 3,
+            letter_width: 1.0,
+            letter_height: 2.0,
+            letter_colour: 0xFF11_2233,
+            x: 3.0,
+            y: 4.0,
+            background_colour: 0xFF44_5566,
+            style: 5,
+            box_width: 6.0,
+            box_height: 7.0,
+            box_colour: 0xFF77_8899,
+            model_id: 10,
+            _reserved2: 0,
+            rotation: crate::Vector3 {
+                x: 8.0,
+                y: 9.0,
+                z: 10.0,
+            },
+            zoom: 11.0,
+            model_colour1: 12,
+            model_colour2: 13,
+        };
+    } else {
+        *output = crate::RakSampTextDrawV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -982,6 +1028,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     object_exists: test_object_exists,
     gangzone_info: test_gangzone_info,
     text_label_info: test_text_label_info,
+    textdraw_info: test_textdraw_info,
 };
 
 pub(crate) fn test_api() -> HostApi {

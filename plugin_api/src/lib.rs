@@ -333,6 +333,39 @@ pub struct TextLabel {
     pub attached_vehicle_id: Option<u16>,
 }
 
+/// An owned R1 textdraw numeric record copied from the game-thread cache.
+///
+/// `pool_index` uses R1's raw order of 2,048 global slots followed by 256
+/// local slots. Colours retain the native Direct3D values from the R1 draw
+/// record. The display-string storage is intentionally not included until its
+/// separate native lifecycle and semantic role are independently proven.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TextDraw {
+    pub pool_index: u16,
+    pub letter_width: f32,
+    pub letter_height: f32,
+    pub letter_colour: u32,
+    pub x: f32,
+    pub y: f32,
+    pub shadow: u8,
+    pub outline: u8,
+    pub background_colour: u32,
+    pub style: i32,
+    pub proportional: bool,
+    pub align_left: bool,
+    pub align_center: bool,
+    pub align_right: bool,
+    pub box_enabled: bool,
+    pub box_width: f32,
+    pub box_height: f32,
+    pub box_colour: u32,
+    pub model_id: u16,
+    pub rotation: Vector3,
+    pub zoom: f32,
+    pub model_colour1: u16,
+    pub model_colour2: u16,
+}
+
 /// An owned, read-only current-server snapshot.
 ///
 /// The address and hostname remain bytes because SA-MP does not guarantee a
@@ -512,6 +545,43 @@ pub struct RakSampTextLabelV1 {
     pub text_len: u16,
     pub _reserved3: [u8; 2],
     pub text: [u8; MAX_SAMP_TEXT_LABEL_TEXT_BYTES],
+}
+
+/// C-compatible storage for an owned [`TextDraw`] result.
+///
+/// `exists` is zero when the latest completed query found no textdraw. When
+/// it is one, all scalar fields are initialized from one R1 game-thread copy.
+/// Flags use canonical zero or one values; colours retain their native R1
+/// Direct3D representation.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RakSampTextDrawV1 {
+    pub exists: u8,
+    pub proportional: u8,
+    pub align_left: u8,
+    pub align_center: u8,
+    pub align_right: u8,
+    pub box_enabled: u8,
+    pub _reserved: [u8; 2],
+    pub pool_index: u16,
+    pub shadow: u8,
+    pub outline: u8,
+    pub letter_width: f32,
+    pub letter_height: f32,
+    pub letter_colour: u32,
+    pub x: f32,
+    pub y: f32,
+    pub background_colour: u32,
+    pub style: i32,
+    pub box_width: f32,
+    pub box_height: f32,
+    pub box_colour: u32,
+    pub model_id: u16,
+    pub _reserved2: u16,
+    pub rotation: Vector3,
+    pub zoom: f32,
+    pub model_colour1: u16,
+    pub model_colour2: u16,
 }
 
 impl Default for RakSampTextLabelV1 {
@@ -847,6 +917,8 @@ pub struct RakSampApiV1 {
     pub gangzone_info: unsafe extern "system" fn(u16, *mut RakSampGangzoneV1) -> RakSampResult,
     /// Copies a cached R1 3D text-label record into `output`.
     pub text_label_info: unsafe extern "system" fn(u16, *mut RakSampTextLabelV1) -> RakSampResult,
+    /// Copies a cached R1 numeric textdraw record into `output`.
+    pub textdraw_info: unsafe extern "system" fn(u16, *mut RakSampTextDrawV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -2117,6 +2189,24 @@ impl HostApi {
         }
     }
 
+    /// Returns the latest cached R1 numeric textdraw record for `pool_index`.
+    ///
+    /// The first lookup returns [`RakSampResult::NotReady`] while the verified
+    /// game-thread pump copies one bounded record. `Ok(None)` means the latest
+    /// completed query found no textdraw; retry normal plugin work instead of
+    /// blocking a callback. This deliberately does not expose a textdraw/pool
+    /// pointer or unproven display-string storage.
+    pub fn textdraw(self, pool_index: u16) -> Result<Option<TextDraw>, RakSampResult> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut raw = RakSampTextDrawV1::default();
+        match unsafe { (self.raw.textdraw_info)(pool_index, &mut raw) } {
+            RakSampResult::Ok => textdraw_from_abi(raw),
+            result => Err(result),
+        }
+    }
+
     /// Returns copied core metadata for the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
@@ -2451,6 +2541,62 @@ fn text_label_from_abi(raw: RakSampTextLabelV1) -> Result<Option<TextLabel>, Rak
     }
 }
 
+fn textdraw_from_abi(raw: RakSampTextDrawV1) -> Result<Option<TextDraw>, RakSampResult> {
+    match raw.exists {
+        0 => {
+            if raw != RakSampTextDrawV1::default() {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(None)
+        }
+        1 if matches!(raw.proportional, 0 | 1)
+            && matches!(raw.align_left, 0 | 1)
+            && matches!(raw.align_center, 0 | 1)
+            && matches!(raw.align_right, 0 | 1)
+            && matches!(raw.box_enabled, 0 | 1)
+            && raw._reserved == [0; 2]
+            && raw._reserved2 == 0
+            && raw.letter_width.is_finite()
+            && raw.letter_height.is_finite()
+            && raw.x.is_finite()
+            && raw.y.is_finite()
+            && raw.box_width.is_finite()
+            && raw.box_height.is_finite()
+            && raw.rotation.x.is_finite()
+            && raw.rotation.y.is_finite()
+            && raw.rotation.z.is_finite()
+            && raw.zoom.is_finite() =>
+        {
+            Ok(Some(TextDraw {
+                pool_index: raw.pool_index,
+                letter_width: raw.letter_width,
+                letter_height: raw.letter_height,
+                letter_colour: raw.letter_colour,
+                x: raw.x,
+                y: raw.y,
+                shadow: raw.shadow,
+                outline: raw.outline,
+                background_colour: raw.background_colour,
+                style: raw.style,
+                proportional: raw.proportional != 0,
+                align_left: raw.align_left != 0,
+                align_center: raw.align_center != 0,
+                align_right: raw.align_right != 0,
+                box_enabled: raw.box_enabled != 0,
+                box_width: raw.box_width,
+                box_height: raw.box_height,
+                box_colour: raw.box_colour,
+                model_id: raw.model_id,
+                rotation: raw.rotation,
+                zoom: raw.zoom,
+                model_colour1: raw.model_colour1,
+                model_colour2: raw.model_colour2,
+            }))
+        }
+        _ => Err(RakSampResult::NativeCallFailed),
+    }
+}
+
 unsafe extern "system" fn dispatch_callback(
     user_data: *mut c_void,
     raw: *mut RakSampEventV1,
@@ -2715,8 +2861,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, gangzone_info) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, textdraw_info),
             mem::offset_of!(RakSampApiV1, text_label_info) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, textdraw_info) + function_size
         );
     }
 
@@ -2919,6 +3069,43 @@ mod tests {
         assert_eq!(api.text_label(8), Ok(None));
         assert_eq!(
             api.text_label(MAX_SAMP_TEXT_LABELS),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(
+            api.textdraw(7),
+            Ok(Some(TextDraw {
+                pool_index: 7,
+                letter_width: 1.0,
+                letter_height: 2.0,
+                letter_colour: 0xFF11_2233,
+                x: 3.0,
+                y: 4.0,
+                shadow: 2,
+                outline: 3,
+                background_colour: 0xFF44_5566,
+                style: 5,
+                proportional: true,
+                align_left: false,
+                align_center: true,
+                align_right: false,
+                box_enabled: true,
+                box_width: 6.0,
+                box_height: 7.0,
+                box_colour: 0xFF77_8899,
+                model_id: 10,
+                rotation: Vector3 {
+                    x: 8.0,
+                    y: 9.0,
+                    z: 10.0,
+                },
+                zoom: 11.0,
+                model_colour1: 12,
+                model_colour2: 13,
+            }))
+        );
+        assert_eq!(api.textdraw(8), Ok(None));
+        assert_eq!(
+            api.textdraw(MAX_SAMP_TEXTDRAWS),
             Err(RakSampResult::InvalidArgument)
         );
         assert_eq!(

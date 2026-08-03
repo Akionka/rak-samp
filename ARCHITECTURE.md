@@ -103,6 +103,10 @@ pointer crosses the ABI.
 R1 raw order of 2,048 global followed by 256 local slots. Plugin threads enqueue
 unknown pool indexes; the pump drains at most four bounded pool-flag reads per
 entry and publishes only owned booleans, never textdraw data or a pool pointer.
+`HostApi::textdraw` uses a separate 2,304-slot numeric-record cache in the same
+raw order. Plugin threads enqueue unknown indexes; the pump drains at most four
+checked copies per entry and publishes only owned scalars. Native display-string
+storage and textdraw/pool pointers never cross the ABI.
 `HostApi::is_object_defined` is a separate 1,000-slot boolean cache. Plugin
 threads enqueue unknown object IDs; the pump drains at most four bounded pool-
 flag reads per entry and publishes only owned booleans, never object data, a

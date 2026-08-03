@@ -48,6 +48,7 @@ starting GTA and remove them afterwards.
 | R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
 | R1 3D text-label snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until one owned label record is copied and agrees with the existence cache. It logs only the outcome and label ID. |
 | R1 textdraw existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-textdraw-exists.enabled') -ItemType File -Force` | On a server with a visible textdraw, demand-refreshes bounded raw textdraw pool indexes through the R1 game-thread pump until a defined slot is copied. It logs only the outcome and pool index. |
+| R1 numeric textdraw snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-textdraw.enabled') -ItemType File -Force` | On a server with a visible textdraw, demand-refreshes bounded raw textdraw pool indexes through the R1 game-thread pump until one owned numeric record is copied and agrees with the existence cache. It logs only the outcome and pool index. |
 | R1 object existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-object-exists.enabled') -ItemType File -Force` | On a server with a visible streamed object, demand-refreshes bounded object IDs through the R1 game-thread pump until a defined object is copied. It logs only the outcome and object ID. |
 | R1 gangzone snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-gangzone.enabled') -ItemType File -Force` | On a server with a visible gangzone, demand-refreshes bounded gangzone IDs through the R1 game-thread pump until a fixed rectangle-and-colour record is copied. It logs only the outcome and gangzone ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
@@ -89,11 +90,17 @@ text or fields, verify no packet/RPC traffic is generated, exit normally, and
 remove the marker.
 
 For the textdraw check, join a server that displays a textdraw, create the
-textdraw marker, and wait up to two minutes for `textdraw-exists self-test
+textdraw-exists marker, and wait up to two minutes for `textdraw-exists self-test
 passed`. The raw pool index may be in the 2,048 global or 256 local slot range;
 the first query may return `NotReady`. Confirm the log contains only the outcome
 and pool index, no packet/RPC traffic is generated, then exit normally and
 remove the marker.
+
+For the numeric textdraw snapshot check, join the same kind of server, create
+the textdraw marker, and wait up to two minutes for `textdraw self-test passed`.
+Confirm the copied record corresponds to the visible textdraw without recording
+its content or fields, verify no packet/RPC traffic is generated, exit normally,
+and remove the marker.
 
 For the object check, join a server with a visible streamed object, create the
 object marker, and wait up to two minutes for `object-exists self-test passed`.

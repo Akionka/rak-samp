@@ -84,6 +84,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   textdraw must observe a defined raw pool index through the opt-in scan, no
   generated traffic, and stable shutdown; no textdraw data or pool pointer is
   exposed.
+- **Cached R1 numeric textdraw live gate:** `HostApi::textdraw` demand-refreshes
+  one bounded copied numeric record from the game-thread pump. A legal R1 run
+  on a server with a visible textdraw must observe one record with the matching
+  raw pool index and defined flag, no generated traffic, and stable shutdown;
+  logs must contain outcomes and indexes only, never display text or fields.
 - **Cached R1 object-existence live gate:** `HostApi::is_object_defined`
   demand-refreshes only the bounded `CObjectPool::m_bNotEmpty[id]` boolean from
   the game-thread pump. A legal R1 run on a server with a visible streamed
@@ -159,6 +164,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   those pool-pointer fields. The profile verifies this exact anchor, probes
   the bounded range, and copies only canonical `0/1` flags on the game-thread
   pump; textdraw content is intentionally not read.
+- **R1 numeric textdraw layout and ownership:** the independent packed fixture
+  places the `CTextDraw` data block at `0x963`, behind each textdraw object
+  pointer in `CTextDrawPool` at `0x2400 + pool_index * 4`. The installed
+  fingerprinted R1 DLL's `CTextDraw` constructor at RVA `0xACF10` has exact
+  core scalar-store and model-field signature regions at `+0x19` and `+0xB4`;
+  the R1 profile requires both before any numeric copy. The game-thread pump
+  checks the pool flag, canonical booleans, readable ranges, and finite floats,
+  then publishes only owned scalars. Display-string storage is deliberately
+  excluded until its separate allocation and lifecycle semantics are proven.
 - **R1 object-pool existence layout:** the pinned R1 C++ lead defines the
   packed `CObjectPool*` at `CNetGame::m_pPools + 0x04`, with its signed largest
   ID at offset `0` and 1,000-BOOL `m_bNotEmpty` array at offset `0x04`. The

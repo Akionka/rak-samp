@@ -110,6 +110,11 @@ label/pool pointers and mutations remain outside the safe ABI.
 followed by 256 local slots, exposes only the copied boolean, and keeps text,
 layout fields, and textdraw/pool pointers outside the safe ABI.
 
+`HostApi::textdraw` is a separate bounded 2,304-slot cache of owned numeric R1
+textdraw records. It drains at most four requests per pump entry and publishes
+only checked scalar fields; the native display-string buffer and every
+textdraw/pool pointer remain outside the safe ABI until separately proven.
+
 `HostApi::is_object_defined` is a separate bounded 1,000-slot cache of R1
 `CObjectPool::m_bNotEmpty`. It exposes only the copied existence boolean; object
 state, object/pool pointers, and GTA handles remain outside the safe ABI.

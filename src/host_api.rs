@@ -5,7 +5,7 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
         LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-        PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+        PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use log::{debug, error, info};
@@ -14,7 +14,8 @@ use rak_samp_plugin_api::{
     MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1,
     RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampGangzoneV1, RakSampHookAction,
     RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
-    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, RakSampTextLabelV1, Vector3,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, RakSampTextDrawV1,
+    RakSampTextLabelV1, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -166,6 +167,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     object_exists,
     gangzone_info,
     text_label_info,
+    textdraw_info,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -1135,6 +1137,35 @@ unsafe extern "system" fn text_label_info(
     }
 }
 
+unsafe extern "system" fn textdraw_info(
+    pool_index: u16,
+    output: *mut RakSampTextDrawV1,
+) -> RakSampResult {
+    if pool_index >= MAX_SAMP_TEXTDRAWS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.textdraw(pool_index) {
+        Ok(Some(snapshot)) => match textdraw_to_abi(snapshot) {
+            Ok(snapshot) => {
+                *output = snapshot;
+                RakSampResult::Ok
+            }
+            Err(()) => RakSampResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            *output = RakSampTextDrawV1::default();
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1491,6 +1522,54 @@ fn text_label_to_abi(snapshot: TextLabelSnapshot) -> Result<RakSampTextLabelV1, 
     })
 }
 
+fn textdraw_to_abi(snapshot: TextdrawSnapshot) -> Result<RakSampTextDrawV1, ()> {
+    if !snapshot.letter_width.is_finite()
+        || !snapshot.letter_height.is_finite()
+        || !snapshot.x.is_finite()
+        || !snapshot.y.is_finite()
+        || !snapshot.box_width.is_finite()
+        || !snapshot.box_height.is_finite()
+        || !snapshot.rotation.x.is_finite()
+        || !snapshot.rotation.y.is_finite()
+        || !snapshot.rotation.z.is_finite()
+        || !snapshot.zoom.is_finite()
+    {
+        return Err(());
+    }
+    Ok(RakSampTextDrawV1 {
+        exists: 1,
+        proportional: u8::from(snapshot.proportional),
+        align_left: u8::from(snapshot.align_left),
+        align_center: u8::from(snapshot.align_center),
+        align_right: u8::from(snapshot.align_right),
+        box_enabled: u8::from(snapshot.box_enabled),
+        _reserved: [0; 2],
+        pool_index: snapshot.pool_index,
+        shadow: snapshot.shadow,
+        outline: snapshot.outline,
+        letter_width: snapshot.letter_width,
+        letter_height: snapshot.letter_height,
+        letter_colour: snapshot.letter_colour,
+        x: snapshot.x,
+        y: snapshot.y,
+        background_colour: snapshot.background_colour,
+        style: snapshot.style,
+        box_width: snapshot.box_width,
+        box_height: snapshot.box_height,
+        box_colour: snapshot.box_colour,
+        model_id: snapshot.model_id,
+        _reserved2: 0,
+        rotation: Vector3 {
+            x: snapshot.rotation.x,
+            y: snapshot.rotation.y,
+            z: snapshot.rotation.z,
+        },
+        zoom: snapshot.zoom,
+        model_colour1: snapshot.model_colour1,
+        model_colour2: snapshot.model_colour2,
+    })
+}
+
 fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV1, ()> {
     let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
     let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
@@ -1773,6 +1852,19 @@ mod tests {
             unsafe { text_label_info(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
+        let mut textdraw = RakSampTextDrawV1::default();
+        assert_eq!(
+            unsafe { textdraw_info(7, &mut textdraw) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { textdraw_info(MAX_SAMP_TEXTDRAWS, &mut textdraw) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { textdraw_info(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
         let mut textdraw_exists_output = 0;
         assert_eq!(
             unsafe { textdraw_exists(7, &mut textdraw_exists_output) },
@@ -1961,5 +2053,43 @@ mod tests {
         assert_eq!(&raw.text[..13], b"fixture label");
         assert_eq!(raw.attached_player_id, 8);
         assert_eq!(raw.attached_vehicle_id, u16::MAX);
+    }
+
+    #[test]
+    fn textdraw_snapshot_conversion_uses_only_fixed_abi_storage() {
+        let raw = textdraw_to_abi(TextdrawSnapshot {
+            pool_index: 7,
+            letter_width: 1.0,
+            letter_height: 2.0,
+            letter_colour: 0xFF11_2233,
+            x: 3.0,
+            y: 4.0,
+            shadow: 2,
+            outline: 3,
+            background_colour: 0xFF44_5566,
+            style: 5,
+            proportional: true,
+            align_left: false,
+            align_center: true,
+            align_right: false,
+            box_enabled: true,
+            box_width: 6.0,
+            box_height: 7.0,
+            box_colour: 0xFF77_8899,
+            model_id: 10,
+            rotation: crate::runtime::Vector3 {
+                x: 8.0,
+                y: 9.0,
+                z: 10.0,
+            },
+            zoom: 11.0,
+            model_colour1: 12,
+            model_colour2: 13,
+        })
+        .expect("fixture textdraw fits the ABI");
+        assert_eq!(raw.exists, 1);
+        assert_eq!(raw.pool_index, 7);
+        assert_eq!(raw.align_center, 1);
+        assert_eq!(raw.model_colour2, 13);
     }
 }

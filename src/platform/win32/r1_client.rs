@@ -7,7 +7,8 @@
 use crate::runtime::{
     AnimationSnapshot, DirectClientError, GangzoneSnapshot, LocalChatMessageRequest,
     LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle,
-    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, Vector3,
+    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+    TextdrawSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -49,6 +50,7 @@ const NET_GAME_RESET_OBJECT_POOL_RVA: usize = 0x8CC0;
 const NET_GAME_RESET_GANGZONE_POOL_RVA: usize = 0x8D60;
 const GANG_ZONE_POOL_CREATE_RVA: usize = 0x2170;
 const TEXT_LABEL_POOL_CREATE_RVA: usize = 0x11C0;
+const TEXTDRAW_CTOR_RVA: usize = 0xACF10;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -98,6 +100,7 @@ const LABEL_ATTACHED_VEHICLE_OFFSET: usize = 0x1B;
 const LABEL_SIZE: usize = 0x1D;
 const MAX_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
+const TEXTDRAW_POOL_OBJECTS_OFFSET: usize = 0x2400;
 const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
 const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;
 const GANGZONE_LEFT_OFFSET: usize = 0x00;
@@ -122,6 +125,29 @@ const DIALOG_CAPTION_OFFSET: usize = 0x40;
 const DIALOG_CAPTION_CAPACITY: usize = 65;
 const DIALOG_SERVER_SIDE_OFFSET: usize = 0x81;
 const INPUT_ENABLED_OFFSET: usize = 0x14E0;
+const TEXTDRAW_DATA_OFFSET: usize = 0x963;
+const TEXTDRAW_LETTER_WIDTH_OFFSET: usize = TEXTDRAW_DATA_OFFSET;
+const TEXTDRAW_LETTER_HEIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x04;
+const TEXTDRAW_LETTER_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x08;
+const TEXTDRAW_ALIGN_CENTER_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0D;
+const TEXTDRAW_BOX_ENABLED_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0E;
+const TEXTDRAW_BOX_WIDTH_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0F;
+const TEXTDRAW_BOX_HEIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x13;
+const TEXTDRAW_BOX_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x17;
+const TEXTDRAW_PROPORTIONAL_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x1B;
+const TEXTDRAW_BACKGROUND_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x1C;
+const TEXTDRAW_SHADOW_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x20;
+const TEXTDRAW_OUTLINE_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x21;
+const TEXTDRAW_ALIGN_LEFT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x22;
+const TEXTDRAW_ALIGN_RIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x23;
+const TEXTDRAW_STYLE_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x24;
+const TEXTDRAW_X_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x28;
+const TEXTDRAW_Y_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x2C;
+const TEXTDRAW_MODEL_ID_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x45;
+const TEXTDRAW_ROTATION_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x47;
+const TEXTDRAW_ZOOM_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x53;
+const TEXTDRAW_MODEL_COLOUR1_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x57;
+const TEXTDRAW_MODEL_COLOUR2_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x59;
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CDialog::Show` at `DIALOG_SHOW_RVA`.
 // The function uses a frame-less prologue; do not substitute the common
@@ -274,6 +300,33 @@ const TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE: [u8; 48] = [
     0x89, 0x46, 0x04, 0x8B, 0x44, 0x24, 0x24, 0x89, 0x4E, 0x08, 0x8B, 0x4C, 0x24, 0x28, 0x89, 0x56,
     0x0C, 0x8A, 0x54, 0x24, 0x2C, 0x89, 0x46, 0x10, 0x66, 0x8B, 0x44, 0x24, 0x30, 0x89, 0x4E, 0x14,
     0x66, 0x8B, 0x4C, 0x24, 0x34, 0x88, 0x56, 0x18, 0x66, 0x89, 0x46, 0x19, 0x66, 0x89, 0x4E, 0x1B,
+];
+// R1's `CTextDraw` constructor sets `m_data` at offset `0x963`, then copies
+// all scalar fields from the packed transmit record. The two signatures cover
+// the letter/box/alignment/position stores and the model/rotation/zoom/colour
+// stores separately so the safe snapshot below never relies on a public C++
+// header as its layout authority.
+const TEXTDRAW_CTOR_CORE_FIELDS_SIGNATURE: [u8; 155] = [
+    0x8B, 0x44, 0x24, 0x10, 0x8B, 0x48, 0x01, 0x89, 0x0A, 0x8B, 0x50, 0x05, 0x89, 0x96, 0x67, 0x09,
+    0x00, 0x00, 0x8B, 0x48, 0x09, 0x89, 0x8E, 0x6B, 0x09, 0x00, 0x00, 0x33, 0xDB, 0x88, 0x9E, 0x6F,
+    0x09, 0x00, 0x00, 0x8A, 0x10, 0xC0, 0xEA, 0x03, 0x80, 0xE2, 0x01, 0x88, 0x96, 0x70, 0x09, 0x00,
+    0x00, 0x8A, 0x08, 0x80, 0xE1, 0x01, 0x88, 0x8E, 0x71, 0x09, 0x00, 0x00, 0x8B, 0x50, 0x0D, 0x89,
+    0x96, 0x72, 0x09, 0x00, 0x00, 0x8B, 0x48, 0x11, 0x89, 0x8E, 0x76, 0x09, 0x00, 0x00, 0x8B, 0x50,
+    0x15, 0x89, 0x96, 0x7A, 0x09, 0x00, 0x00, 0x8A, 0x08, 0xC0, 0xE9, 0x04, 0x80, 0xE1, 0x01, 0x88,
+    0x8E, 0x7E, 0x09, 0x00, 0x00, 0x8B, 0x50, 0x1B, 0x89, 0x96, 0x7F, 0x09, 0x00, 0x00, 0x8A, 0x48,
+    0x19, 0x88, 0x8E, 0x83, 0x09, 0x00, 0x00, 0x8A, 0x50, 0x1A, 0x88, 0x96, 0x84, 0x09, 0x00, 0x00,
+    0x8A, 0x08, 0xD0, 0xE9, 0x80, 0xE1, 0x01, 0x88, 0x8E, 0x85, 0x09, 0x00, 0x00, 0x8A, 0x10, 0xC0,
+    0xEA, 0x02, 0x80, 0xE2, 0x01, 0x88, 0x96, 0x86, 0x09, 0x00, 0x00,
+];
+const TEXTDRAW_CTOR_MODEL_FIELDS_SIGNATURE: [u8; 126] = [
+    0x0F, 0xB6, 0x48, 0x1F, 0x89, 0x8E, 0x87, 0x09, 0x00, 0x00, 0x8B, 0x50, 0x21, 0x89, 0x96, 0x8B,
+    0x09, 0x00, 0x00, 0x8B, 0x48, 0x25, 0x89, 0x8E, 0x8F, 0x09, 0x00, 0x00, 0x83, 0xCF, 0xFF, 0x89,
+    0xBE, 0x9B, 0x09, 0x00, 0x00, 0x89, 0xBE, 0x9F, 0x09, 0x00, 0x00, 0x8A, 0x50, 0x20, 0x88, 0x96,
+    0xA7, 0x09, 0x00, 0x00, 0x66, 0x8B, 0x48, 0x29, 0x66, 0x89, 0x8E, 0xA8, 0x09, 0x00, 0x00, 0x8B,
+    0x50, 0x2B, 0x89, 0x96, 0xAA, 0x09, 0x00, 0x00, 0x8B, 0x48, 0x2F, 0x89, 0x8E, 0xAE, 0x09, 0x00,
+    0x00, 0x8B, 0x50, 0x33, 0x89, 0x96, 0xB2, 0x09, 0x00, 0x00, 0x8B, 0x48, 0x37, 0x89, 0x8E, 0xB6,
+    0x09, 0x00, 0x00, 0x66, 0x8B, 0x50, 0x3B, 0x8B, 0x4C, 0x24, 0x14, 0x66, 0x89, 0x96, 0xBA, 0x09,
+    0x00, 0x00, 0x66, 0x8B, 0x40, 0x3D, 0x51, 0x66, 0x89, 0x86, 0xBC, 0x09, 0x00, 0x00,
 ];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
@@ -844,6 +897,117 @@ impl R1ClientProfile {
         )
     }
 
+    /// Copies one R1 numeric textdraw record on the game-thread pump. The raw
+    /// index preserves the native 2,048-global then 256-local pool order. No
+    /// textdraw/pool pointer or unproven display-string buffer crosses the
+    /// private profile boundary.
+    pub(super) fn textdraw(
+        self,
+        pool_index: u16,
+    ) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let flags_end =
+            TEXTDRAW_POOL_NOT_EMPTY_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, flags_end) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !read_r1_bool(
+            pool + TEXTDRAW_POOL_NOT_EMPTY_OFFSET + usize::from(pool_index) * mem::size_of::<i32>(),
+        )? {
+            return Ok(None);
+        }
+        let object_slot =
+            pool + TEXTDRAW_POOL_OBJECTS_OFFSET + usize::from(pool_index) * mem::size_of::<usize>();
+        let object = unsafe { read_unaligned::<usize>(object_slot) }
+            .filter(|object| *object != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let last_field_end = TEXTDRAW_MODEL_COLOUR2_OFFSET + mem::size_of::<u16>();
+        if !readable_range(object as *const u8, last_field_end) {
+            return Err(DirectClientError::NotReady);
+        }
+        let letter_width = unsafe { read_unaligned::<f32>(object + TEXTDRAW_LETTER_WIDTH_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let letter_height =
+            unsafe { read_unaligned::<f32>(object + TEXTDRAW_LETTER_HEIGHT_OFFSET) }
+                .filter(|value| value.is_finite())
+                .ok_or(DirectClientError::NotReady)?;
+        let letter_colour =
+            unsafe { read_unaligned::<u32>(object + TEXTDRAW_LETTER_COLOUR_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let x = unsafe { read_unaligned::<f32>(object + TEXTDRAW_X_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let y = unsafe { read_unaligned::<f32>(object + TEXTDRAW_Y_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let box_width = unsafe { read_unaligned::<f32>(object + TEXTDRAW_BOX_WIDTH_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let box_height = unsafe { read_unaligned::<f32>(object + TEXTDRAW_BOX_HEIGHT_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let box_colour = unsafe { read_unaligned::<u32>(object + TEXTDRAW_BOX_COLOUR_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let background_colour =
+            unsafe { read_unaligned::<u32>(object + TEXTDRAW_BACKGROUND_COLOUR_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let style = unsafe { read_unaligned::<i32>(object + TEXTDRAW_STYLE_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let model_id = unsafe { read_unaligned::<u16>(object + TEXTDRAW_MODEL_ID_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let rotation = unsafe { read_vector3(object + TEXTDRAW_ROTATION_OFFSET) }
+            .filter(|value| value.x.is_finite() && value.y.is_finite() && value.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let zoom = unsafe { read_unaligned::<f32>(object + TEXTDRAW_ZOOM_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(TextdrawSnapshot {
+            pool_index,
+            letter_width,
+            letter_height,
+            letter_colour,
+            x,
+            y,
+            shadow: unsafe { read_unaligned::<u8>(object + TEXTDRAW_SHADOW_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?,
+            outline: unsafe { read_unaligned::<u8>(object + TEXTDRAW_OUTLINE_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?,
+            background_colour,
+            style,
+            proportional: read_u8_bool(object + TEXTDRAW_PROPORTIONAL_OFFSET)?,
+            align_left: read_u8_bool(object + TEXTDRAW_ALIGN_LEFT_OFFSET)?,
+            align_center: read_u8_bool(object + TEXTDRAW_ALIGN_CENTER_OFFSET)?,
+            align_right: read_u8_bool(object + TEXTDRAW_ALIGN_RIGHT_OFFSET)?,
+            box_enabled: read_u8_bool(object + TEXTDRAW_BOX_ENABLED_OFFSET)?,
+            box_width,
+            box_height,
+            box_colour,
+            model_id,
+            rotation,
+            zoom,
+            model_colour1: unsafe { read_unaligned::<u16>(object + TEXTDRAW_MODEL_COLOUR1_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?,
+            model_colour2: unsafe { read_unaligned::<u16>(object + TEXTDRAW_MODEL_COLOUR2_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?,
+        }))
+    }
+
     /// Reads one R1 object-pool existence flag on the game-thread pump.
     /// Only the copied boolean crosses the private profile boundary.
     pub(super) fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
@@ -1209,6 +1373,14 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
         )
         && code_matches(
+            module_base + TEXTDRAW_CTOR_RVA + 0x19,
+            &TEXTDRAW_CTOR_CORE_FIELDS_SIGNATURE,
+        )
+        && code_matches(
+            module_base + TEXTDRAW_CTOR_RVA + 0xB4,
+            &TEXTDRAW_CTOR_MODEL_FIELDS_SIGNATURE,
+        )
+        && code_matches(
             module_base + NET_GAME_RESET_TEXTDRAW_POOL_RVA + 0x15,
             &NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
         )
@@ -1331,6 +1503,14 @@ fn read_r1_bool(address: usize) -> Result<bool, DirectClientError> {
     }
 }
 
+fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
+    match unsafe { read_unaligned::<u8>(address) } {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        _ => Err(DirectClientError::NotReady),
+    }
+}
+
 fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
     let length = entry
         .iter()
@@ -1438,9 +1618,18 @@ mod tests {
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
         SCOREBOARD_ENABLED_OFFSET, TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
-        TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
-        VEHICLE_POOL_DOES_EXIST_SIGNATURE, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id,
-        bounded_c_string, nul_terminated, parse_animation_entry,
+        TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_ALIGN_CENTER_OFFSET,
+        TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
+        TEXTDRAW_BOX_COLOUR_OFFSET, TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET,
+        TEXTDRAW_BOX_WIDTH_OFFSET, TEXTDRAW_CTOR_CORE_FIELDS_SIGNATURE,
+        TEXTDRAW_CTOR_MODEL_FIELDS_SIGNATURE, TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET,
+        TEXTDRAW_LETTER_HEIGHT_OFFSET, TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET,
+        TEXTDRAW_MODEL_COLOUR2_OFFSET, TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET,
+        TEXTDRAW_POOL_NOT_EMPTY_OFFSET, TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET,
+        TEXTDRAW_ROTATION_OFFSET, TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET,
+        TEXTDRAW_Y_OFFSET, TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_DOES_EXIST_SIGNATURE,
+        VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id, bounded_c_string, nul_terminated,
+        parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -1479,6 +1668,30 @@ mod tests {
         fn rak_samp_fixture_r1_text_label_attached_player_offset() -> usize;
         fn rak_samp_fixture_r1_text_label_attached_vehicle_offset() -> usize;
         fn rak_samp_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_pool_objects_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_data_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_letter_width_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_letter_height_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_letter_colour_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_align_center_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_box_enabled_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_box_width_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_box_height_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_box_colour_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_proportional_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_background_colour_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_shadow_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_outline_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_align_left_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_align_right_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_style_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_x_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_y_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_model_id_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_rotation_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_zoom_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_model_colour1_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_model_colour2_offset() -> usize;
         fn rak_samp_fixture_r1_object_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_gangzone_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_gangzone_size() -> usize;
@@ -1624,6 +1837,107 @@ mod tests {
                 rak_samp_fixture_r1_textdraw_pool_not_empty_offset(),
                 TEXTDRAW_POOL_NOT_EMPTY_OFFSET
             );
+            let textdraw_offsets = [
+                (
+                    rak_samp_fixture_r1_textdraw_pool_objects_offset(),
+                    TEXTDRAW_POOL_OBJECTS_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_data_offset(),
+                    TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_letter_width_offset(),
+                    TEXTDRAW_LETTER_WIDTH_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_letter_height_offset(),
+                    TEXTDRAW_LETTER_HEIGHT_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_letter_colour_offset(),
+                    TEXTDRAW_LETTER_COLOUR_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_align_center_offset(),
+                    TEXTDRAW_ALIGN_CENTER_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_box_enabled_offset(),
+                    TEXTDRAW_BOX_ENABLED_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_box_width_offset(),
+                    TEXTDRAW_BOX_WIDTH_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_box_height_offset(),
+                    TEXTDRAW_BOX_HEIGHT_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_box_colour_offset(),
+                    TEXTDRAW_BOX_COLOUR_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_proportional_offset(),
+                    TEXTDRAW_PROPORTIONAL_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_background_colour_offset(),
+                    TEXTDRAW_BACKGROUND_COLOUR_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_shadow_offset(),
+                    TEXTDRAW_SHADOW_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_outline_offset(),
+                    TEXTDRAW_OUTLINE_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_align_left_offset(),
+                    TEXTDRAW_ALIGN_LEFT_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_align_right_offset(),
+                    TEXTDRAW_ALIGN_RIGHT_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_style_offset(),
+                    TEXTDRAW_STYLE_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_x_offset(),
+                    TEXTDRAW_X_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_y_offset(),
+                    TEXTDRAW_Y_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_model_id_offset(),
+                    TEXTDRAW_MODEL_ID_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_rotation_offset(),
+                    TEXTDRAW_ROTATION_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_zoom_offset(),
+                    TEXTDRAW_ZOOM_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_model_colour1_offset(),
+                    TEXTDRAW_MODEL_COLOUR1_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+                (
+                    rak_samp_fixture_r1_textdraw_model_colour2_offset(),
+                    TEXTDRAW_MODEL_COLOUR2_OFFSET - TEXTDRAW_DATA_OFFSET,
+                ),
+            ];
+            for (actual, expected) in textdraw_offsets {
+                assert_eq!(actual, expected);
+            }
             assert_eq!(
                 rak_samp_fixture_r1_object_pool_not_empty_offset(),
                 OBJECT_POOL_NOT_EMPTY_OFFSET
@@ -1683,6 +1997,35 @@ mod tests {
                 )
             },
             None
+        );
+    }
+
+    #[test]
+    fn textdraw_constructor_signatures_cover_the_r1_numeric_store_regions() {
+        assert_eq!(
+            &TEXTDRAW_CTOR_CORE_FIELDS_SIGNATURE[..18],
+            [
+                0x8B, 0x44, 0x24, 0x10, 0x8B, 0x48, 0x01, 0x89, 0x0A, 0x8B, 0x50, 0x05, 0x89, 0x96,
+                0x67, 0x09, 0x00, 0x00,
+            ]
+        );
+        assert_eq!(
+            &TEXTDRAW_CTOR_CORE_FIELDS_SIGNATURE[128..],
+            [
+                0x8A, 0x08, 0xD0, 0xE9, 0x80, 0xE1, 0x01, 0x88, 0x8E, 0x85, 0x09, 0x00, 0x00, 0x8A,
+                0x10, 0xC0, 0xEA, 0x02, 0x80, 0xE2, 0x01, 0x88, 0x96, 0x86, 0x09, 0x00, 0x00,
+            ]
+        );
+        assert_eq!(
+            &TEXTDRAW_CTOR_MODEL_FIELDS_SIGNATURE[..19],
+            [
+                0x0F, 0xB6, 0x48, 0x1F, 0x89, 0x8E, 0x87, 0x09, 0x00, 0x00, 0x8B, 0x50, 0x21, 0x89,
+                0x96, 0x8B, 0x09, 0x00, 0x00,
+            ]
+        );
+        assert_eq!(
+            &TEXTDRAW_CTOR_MODEL_FIELDS_SIGNATURE[119..],
+            [0x66, 0x89, 0x86, 0xBC, 0x09, 0x00, 0x00]
         );
     }
 

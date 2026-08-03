@@ -29,6 +29,7 @@ pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
 pub(crate) const TEXT_LABEL_TEST_MARKER: &str = "rak-samp-validation-text-label.enabled";
 pub(crate) const TEXTDRAW_EXISTS_TEST_MARKER: &str = "rak-samp-validation-textdraw-exists.enabled";
+pub(crate) const TEXTDRAW_TEST_MARKER: &str = "rak-samp-validation-textdraw.enabled";
 pub(crate) const OBJECT_EXISTS_TEST_MARKER: &str = "rak-samp-validation-object-exists.enabled";
 pub(crate) const GANGZONE_TEST_MARKER: &str = "rak-samp-validation-gangzone.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
@@ -343,6 +344,7 @@ pub(crate) fn run(api: HostApi) {
     run_text_label_exists(api);
     run_text_label(api);
     run_textdraw_exists(api);
+    run_textdraw(api);
     run_object_exists(api);
     run_gangzone(api);
     run_send(api);
@@ -585,6 +587,62 @@ fn run_textdraw_exists(api: HostApi) {
         .textdraw_exists
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("textdraw-exists self-test timed out without a defined textdraw");
+}
+
+fn run_textdraw(api: HostApi) {
+    if !logging::plugin_path(TEXTDRAW_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .textdraw
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "textdraw self-test disabled; opt in with rak-samp-validation-textdraw.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut pool_index = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.textdraw(pool_index) {
+            Ok(Some(draw))
+                if draw.pool_index == pool_index
+                    && api.is_textdraw_defined(pool_index) == Ok(true) =>
+            {
+                SELF_TESTS
+                    .textdraw
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "textdraw self-test passed: pool_index={pool_index}"
+                ));
+                return;
+            }
+            Ok(Some(_)) => {
+                SELF_TESTS
+                    .textdraw
+                    .store(SelfTestStatus::Failed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "textdraw self-test failed: pool_index={pool_index}"
+                ));
+                return;
+            }
+            Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .textdraw
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "textdraw self-test returned {error:?}: pool_index={pool_index}"
+                ));
+                return;
+            }
+        }
+        pool_index = (pool_index + 1) % MAX_SAMP_TEXTDRAWS;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .textdraw
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("textdraw self-test timed out without a copied numeric snapshot");
 }
 
 fn run_object_exists(api: HostApi) {

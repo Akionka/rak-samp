@@ -12,7 +12,7 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
         LocalPlayerSnapshot, PacketPriority, PacketReliability, PlayerInfoSnapshot,
-        ServerInfoSnapshot, TextLabelSnapshot,
+        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use minhook::MinHook;
@@ -55,6 +55,8 @@ const TEXT_LABEL_REQUEST_QUEUE_CAPACITY: usize = 32;
 const TEXT_LABEL_REQUESTS_PER_PUMP: usize = 4;
 const TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const TEXTDRAW_EXISTS_REQUESTS_PER_PUMP: usize = 4;
+const TEXTDRAW_REQUEST_QUEUE_CAPACITY: usize = 32;
+const TEXTDRAW_REQUESTS_PER_PUMP: usize = 4;
 const OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const OBJECT_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const GANGZONE_REQUEST_QUEUE_CAPACITY: usize = 32;
@@ -138,6 +140,8 @@ struct BackendState {
     text_label_requests: Mutex<VecDeque<u16>>,
     textdraw_exists_cache: Mutex<Vec<TextdrawExistsCacheEntry>>,
     textdraw_exists_requests: Mutex<VecDeque<u16>>,
+    textdraw_cache: Mutex<Vec<TextdrawCacheEntry>>,
+    textdraw_requests: Mutex<VecDeque<u16>>,
     object_exists_cache: Mutex<Vec<ObjectExistsCacheEntry>>,
     object_exists_requests: Mutex<VecDeque<u16>>,
     gangzone_cache: Mutex<Vec<GangzoneCacheEntry>>,
@@ -195,6 +199,12 @@ enum TextLabelCacheEntry {
 enum TextdrawExistsCacheEntry {
     Unknown,
     Known(bool),
+}
+
+#[derive(Clone, Copy)]
+enum TextdrawCacheEntry {
+    Unknown,
+    Known(Option<TextdrawSnapshot>),
 }
 
 #[derive(Clone, Copy)]
@@ -289,6 +299,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         textdraw_exists_requests: Mutex::new(VecDeque::with_capacity(
             TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY,
         )),
+        textdraw_cache: Mutex::new(vec![TextdrawCacheEntry::Unknown; MAX_SAMP_TEXTDRAWS]),
+        textdraw_requests: Mutex::new(VecDeque::with_capacity(TEXTDRAW_REQUEST_QUEUE_CAPACITY)),
         object_exists_cache: Mutex::new(vec![ObjectExistsCacheEntry::Unknown; MAX_SAMP_OBJECTS]),
         object_exists_requests: Mutex::new(VecDeque::with_capacity(
             OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY,
@@ -442,6 +454,13 @@ impl Backend {
 
     pub(crate) fn textdraw_exists(&self, pool_index: u16) -> Result<bool, DirectClientError> {
         self.state.textdraw_exists(pool_index)
+    }
+
+    pub(crate) fn textdraw(
+        &self,
+        pool_index: u16,
+    ) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
+        self.state.textdraw(pool_index)
     }
 
     pub(crate) fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
@@ -953,6 +972,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_textdraw_request(&self, pool_index: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .textdraw_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&pool_index) {
+            return Ok(());
+        }
+        if requests.len() == TEXTDRAW_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(pool_index);
+        Ok(())
+    }
+
     fn queue_object_exists_request(&self, id: u16) -> Result<(), DirectClientError> {
         let mut requests = self
             .object_exists_requests
@@ -1193,6 +1227,35 @@ impl BackendState {
         }
     }
 
+    fn textdraw(&self, pool_index: u16) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        if usize::from(pool_index) >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        match self
+            .textdraw_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(usize::from(pool_index))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?
+        {
+            TextdrawCacheEntry::Known(snapshot) => {
+                let _ = self.queue_textdraw_request(pool_index);
+                Ok(snapshot)
+            }
+            TextdrawCacheEntry::Unknown => {
+                self.queue_textdraw_request(pool_index)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
     fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -1400,6 +1463,7 @@ impl BackendState {
         self.refresh_text_label_exists(profile);
         self.refresh_text_labels(profile);
         self.refresh_textdraw_exists(profile);
+        self.refresh_textdraws(profile);
         self.refresh_object_exists(profile);
         self.refresh_gangzones(profile);
         if profile.dialog_is_ready() {
@@ -1519,6 +1583,16 @@ impl BackendState {
             .unwrap_or_default()
     }
 
+    fn take_textdraw_requests(&self) -> Vec<u16> {
+        self.textdraw_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(TEXTDRAW_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn take_object_exists_requests(&self) -> Vec<u16> {
         self.object_exists_requests
             .try_lock()
@@ -1600,6 +1674,12 @@ impl BackendState {
     fn clear_textdraw_exists_cache(&self) {
         if let Ok(mut cache) = self.textdraw_exists_cache.try_lock() {
             cache.fill(TextdrawExistsCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_textdraw_cache(&self) {
+        if let Ok(mut cache) = self.textdraw_cache.try_lock() {
+            cache.fill(TextdrawCacheEntry::Unknown);
         }
     }
 
@@ -1716,6 +1796,20 @@ impl BackendState {
             };
             if let Some(entry) = cache.get_mut(usize::from(pool_index)) {
                 *entry = TextdrawExistsCacheEntry::Known(exists);
+            }
+        }
+    }
+
+    fn refresh_textdraws(&self, profile: R1ClientProfile) {
+        for pool_index in self.take_textdraw_requests() {
+            let Ok(snapshot) = profile.textdraw(pool_index) else {
+                continue;
+            };
+            let Ok(mut cache) = self.textdraw_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(pool_index)) {
+                *entry = TextdrawCacheEntry::Known(snapshot);
             }
         }
     }
@@ -1942,6 +2036,10 @@ impl BackendState {
         }
         self.clear_textdraw_exists_cache();
         if let Ok(mut requests) = self.textdraw_exists_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_textdraw_cache();
+        if let Ok(mut requests) = self.textdraw_requests.try_lock() {
             requests.clear();
         }
         self.clear_object_exists_cache();
@@ -2359,6 +2457,8 @@ mod vtable_tests {
                 MAX_SAMP_TEXTDRAWS
             ]),
             textdraw_exists_requests: Mutex::new(VecDeque::new()),
+            textdraw_cache: Mutex::new(vec![TextdrawCacheEntry::Unknown; MAX_SAMP_TEXTDRAWS]),
+            textdraw_requests: Mutex::new(VecDeque::new()),
             object_exists_cache: Mutex::new(vec![
                 ObjectExistsCacheEntry::Unknown;
                 MAX_SAMP_OBJECTS
@@ -2486,6 +2586,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.textdraw_exists(7),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.textdraw(7),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
@@ -2727,6 +2831,27 @@ mod vtable_tests {
         assert_eq!(
             state.textdraw_exists_requests.lock().unwrap().len(),
             TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY - TEXTDRAW_EXISTS_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
+    fn textdraw_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_textdraw_request(7).unwrap();
+        state.queue_textdraw_request(7).unwrap();
+        assert_eq!(state.textdraw_requests.lock().unwrap().len(), 1);
+        for pool_index in 8..(7 + TEXTDRAW_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_textdraw_request(pool_index).unwrap();
+        }
+        assert_eq!(
+            state.queue_textdraw_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_textdraw_requests();
+        assert_eq!(drained, vec![7, 8, 9, 10]);
+        assert_eq!(
+            state.textdraw_requests.lock().unwrap().len(),
+            TEXTDRAW_REQUEST_QUEUE_CAPACITY - TEXTDRAW_REQUESTS_PER_PUMP
         );
     }
 

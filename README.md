@@ -95,6 +95,12 @@ R1 textdraw existence flag. Its raw 2,304-slot index covers 2,048 global then
 or returns a textdraw/pool pointer, and remains provisional pending its opt-in
 live scan.
 
+`HostApi::textdraw(pool_index)` demand-refreshes an owned numeric R1 textdraw
+copy: letter, position, alignment, box, and model fields. It preserves the raw
+2,048-global then 256-local slot order and deliberately excludes display text
+until that native buffer's lifecycle is independently proven. It never exposes
+a textdraw/pool pointer and remains provisional pending its opt-in live scan.
+
 `HostApi::is_object_defined(id)` similarly demand-refreshes only the bounded
 R1 object existence flag. It never returns an object, pool, or GTA handle, and
 remains provisional pending its opt-in live scan.

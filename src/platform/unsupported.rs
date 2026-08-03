@@ -5,6 +5,7 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
         LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+        TextdrawSnapshot,
     },
 };
 use std::sync::Arc;
@@ -120,6 +121,13 @@ impl Backend {
         &self,
         _id: u16,
     ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn textdraw(
+        &self,
+        _pool_index: u16,
+    ) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

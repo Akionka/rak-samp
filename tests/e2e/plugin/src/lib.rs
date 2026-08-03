@@ -6,8 +6,8 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 use rak_samp_plugin_api::{
     Gangzone, LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle,
-    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, TextLabel, raknet::BitStream,
-    wait_for_default_host,
+    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, TextDraw, TextLabel,
+    raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -47,6 +47,7 @@ static VEHICLE_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static ACTIVE_DIALOG_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXT_LABEL_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXTDRAW_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
+static TEXTDRAW_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static OBJECT_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static GANGZONE_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXT_LABEL_ID: AtomicI32 = AtomicI32::new(i32::MIN);
@@ -179,6 +180,40 @@ fn initialize() {
     }
     if api.is_textdraw_defined(7) == Ok(true) && api.is_textdraw_defined(8) == Ok(false) {
         TEXTDRAW_EXISTS.store(7, Ordering::Release);
+    }
+    if api.textdraw(7)
+        == Ok(Some(TextDraw {
+            pool_index: 7,
+            letter_width: 1.0,
+            letter_height: 2.0,
+            letter_colour: 0xFF11_2233,
+            x: 3.0,
+            y: 4.0,
+            shadow: 2,
+            outline: 3,
+            background_colour: 0xFF44_5566,
+            style: 5,
+            proportional: true,
+            align_left: false,
+            align_center: true,
+            align_right: false,
+            box_enabled: true,
+            box_width: 6.0,
+            box_height: 7.0,
+            box_colour: 0xFF77_8899,
+            model_id: 10,
+            rotation: rak_samp_plugin_api::Vector3 {
+                x: 8.0,
+                y: 9.0,
+                z: 10.0,
+            },
+            zoom: 11.0,
+            model_colour1: 12,
+            model_colour2: 13,
+        }))
+        && api.textdraw(8) == Ok(None)
+    {
+        TEXTDRAW_ID.store(7, Ordering::Release);
     }
     if api.is_object_defined(7) == Ok(true) && api.is_object_defined(8) == Ok(false) {
         OBJECT_EXISTS.store(7, Ordering::Release);
@@ -356,6 +391,11 @@ pub extern "system" fn RakSampE2ePlugin_TextLabelExists() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_TextdrawExists() -> i32 {
     TEXTDRAW_EXISTS.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_TextdrawId() -> i32 {
+    TEXTDRAW_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

@@ -105,6 +105,12 @@ fixtures, disassembly, or the E2E mock alone.
    `ResetTextDrawPool` field signature, four-per-pump budget, and opt-in scan
    are ready; retain `[~]` until a legal R1 run finds a defined textdraw without
    traffic and exits normally.
+   The sixth bounded textdraw sub-batch is `HostApi::textdraw(pool_index)`, a
+   2,304-slot demand-refreshed numeric copy. Its independent data-layout
+   fixture, constructor store signatures, four-per-pump budget, E2E mock, and
+   opt-in snapshot scan are ready; retain `[~]` until a legal R1 run verifies a
+   visible textdraw without traffic and exits normally. Display strings remain
+   a separate pending semantic investigation.
    The third bounded object sub-batch is `HostApi::is_object_defined(id)`, a
    1,000-ID demand-refreshed cache of only `CObjectPool::m_bNotEmpty[id]`. Its
    fixture, `ResetObjectPool` field signature, four-per-pump budget, and opt-in
@@ -199,6 +205,11 @@ fixtures, disassembly, or the E2E mock alone.
   passed` and one defined raw pool index. It must tolerate initial `NotReady`
   while the bounded queue is pumped, generate no packet/RPC traffic, and leave
   normal shutdown stable.
+- [ ] With the textdraw marker enabled on a server that displays a textdraw,
+  confirm the validator records only `textdraw self-test passed` and one raw
+  pool index. Independently compare the copied numeric record to the visible
+  textdraw without logging its content or fields. It must tolerate initial
+  `NotReady`, generate no packet/RPC traffic, and leave normal shutdown stable.
 - [ ] With the object-exists marker enabled on a server that displays a
   streamed object, confirm the validator records only `object-exists self-test
   passed` and one defined object ID. It must tolerate initial `NotReady` while
@@ -375,13 +386,17 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   the raw 2,048-global then 256-local slot order and exposes only the copied
   boolean. Keep provisional until the opt-in textdraw scan records a defined
   slot, no traffic, and normal shutdown.
-- [ ] `sampTextdrawGetString`, `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
+- [~] `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
   `sampTextdrawGetShadowColor`, `sampTextdrawGetOutlineColor`,
   `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
   `sampTextdrawGetBoxEnabledColorAndSize`, and
-  `sampTextdrawGetModelRotationZoomVehColor` form a future copied textdraw
-  snapshot in static-first step 7. Keep IDs, strings, and fields bounded and
-  do not expose a pool pointer.
+  `sampTextdrawGetModelRotationZoomVehColor` — `HostApi::textdraw(pool_index)`
+  copies the proven numeric R1 fields through a bounded game-thread cache.
+  Keep provisional until its dedicated live snapshot scan confirms a visible
+  record without traffic or shutdown instability.
+- [ ] `sampTextdrawGetString` needs a distinct fixed bounded-copy design after
+  the R1 display-string allocation, replacement, and lifetime semantics are
+  independently proven. Do not expose a native string or pool pointer.
 
 ### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
 

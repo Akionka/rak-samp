@@ -143,6 +143,36 @@ pub(crate) struct TextLabelSnapshot {
     pub(crate) attached_vehicle_id: Option<u16>,
 }
 
+/// Host-owned numeric data copied from one R1 textdraw record on the verified
+/// game thread. The display-string buffers are deliberately excluded until
+/// their distinct native semantics are separately proven.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TextdrawSnapshot {
+    pub(crate) pool_index: u16,
+    pub(crate) letter_width: f32,
+    pub(crate) letter_height: f32,
+    pub(crate) letter_colour: u32,
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) shadow: u8,
+    pub(crate) outline: u8,
+    pub(crate) background_colour: u32,
+    pub(crate) style: i32,
+    pub(crate) proportional: bool,
+    pub(crate) align_left: bool,
+    pub(crate) align_center: bool,
+    pub(crate) align_right: bool,
+    pub(crate) box_enabled: bool,
+    pub(crate) box_width: f32,
+    pub(crate) box_height: f32,
+    pub(crate) box_colour: u32,
+    pub(crate) model_id: u16,
+    pub(crate) rotation: Vector3,
+    pub(crate) zoom: f32,
+    pub(crate) model_colour1: u16,
+    pub(crate) model_colour2: u16,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalChatMessageStyle {
     Chat,
@@ -491,6 +521,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
         self.backend.text_label(id)
+    }
+
+    pub(crate) fn textdraw(
+        &self,
+        pool_index: u16,
+    ) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
+        self.backend.textdraw(pool_index)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {

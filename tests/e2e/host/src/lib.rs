@@ -7,7 +7,7 @@ use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
     RakSampEventCallbackV1, RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1,
     RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions, RakSampServerInfoV1,
-    RakSampSubscription, RakSampTextLabelV1, Vector3,
+    RakSampSubscription, RakSampTextDrawV1, RakSampTextLabelV1, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -571,6 +571,52 @@ unsafe extern "system" fn text_label_info(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn textdraw_info(
+    pool_index: u16,
+    output: *mut RakSampTextDrawV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if pool_index == 7 {
+        *output = RakSampTextDrawV1 {
+            exists: 1,
+            proportional: 1,
+            align_left: 0,
+            align_center: 1,
+            align_right: 0,
+            box_enabled: 1,
+            _reserved: [0; 2],
+            pool_index,
+            shadow: 2,
+            outline: 3,
+            letter_width: 1.0,
+            letter_height: 2.0,
+            letter_colour: 0xFF11_2233,
+            x: 3.0,
+            y: 4.0,
+            background_colour: 0xFF44_5566,
+            style: 5,
+            box_width: 6.0,
+            box_height: 7.0,
+            box_colour: 0xFF77_8899,
+            model_id: 10,
+            _reserved2: 0,
+            rotation: Vector3 {
+                x: 8.0,
+                y: 9.0,
+                z: 10.0,
+            },
+            zoom: 11.0,
+            model_colour1: 12,
+            model_colour2: 13,
+        };
+    } else {
+        *output = RakSampTextDrawV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -742,4 +788,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     object_exists,
     gangzone_info,
     text_label_info,
+    textdraw_info,
 };

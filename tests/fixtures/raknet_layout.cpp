@@ -184,6 +184,52 @@ struct FixtureR1TextDrawPoolExistsPrefix {
     void* objects[2048 + 256];
 };
 
+struct FixtureR1TextDrawData {
+    float letter_width;
+    float letter_height;
+    unsigned int letter_colour;
+    unsigned char unknown;
+    unsigned char align_center;
+    unsigned char box_enabled;
+    float box_width;
+    float box_height;
+    unsigned int box_colour;
+    unsigned char proportional;
+    unsigned int background_colour;
+    unsigned char shadow;
+    unsigned char outline;
+    unsigned char align_left;
+    unsigned char align_right;
+    int style;
+    float x;
+    float y;
+    unsigned char pad[8];
+    unsigned int field_99b;
+    unsigned int field_99f;
+    unsigned int index;
+    unsigned char field_9a7;
+    unsigned short model_id;
+    FixtureVector3 rotation;
+    float zoom;
+    unsigned short model_colour1;
+    unsigned short model_colour2;
+    unsigned char field_9be;
+    unsigned char field_9bf;
+    unsigned char field_9c0;
+    unsigned int field_9c1;
+    unsigned int field_9c5;
+    unsigned int field_9c9;
+    unsigned int field_9cd;
+    unsigned char field_9d1;
+    unsigned int field_9d2;
+};
+
+struct FixtureR1TextDraw {
+    char text[801];
+    char string[1602];
+    FixtureR1TextDrawData data;
+};
+
 struct FixtureR1ObjectPoolExistsPrefix {
     int largest_id;
     int not_empty[1000];
@@ -272,6 +318,30 @@ static_assert(offsetof(FixtureR1TextLabel, attached_vehicle) == 0x1B);
 static_assert(offsetof(FixtureR1LabelPoolExistsPrefix, not_empty) == 0xE800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty) == 0);
 static_assert(sizeof(FixtureR1TextDrawPoolExistsPrefix) == 0x4800);
+static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, objects) == 0x2400);
+static_assert(offsetof(FixtureR1TextDraw, data) == 0x963);
+static_assert(offsetof(FixtureR1TextDrawData, letter_width) == 0x00);
+static_assert(offsetof(FixtureR1TextDrawData, letter_height) == 0x04);
+static_assert(offsetof(FixtureR1TextDrawData, letter_colour) == 0x08);
+static_assert(offsetof(FixtureR1TextDrawData, align_center) == 0x0D);
+static_assert(offsetof(FixtureR1TextDrawData, box_enabled) == 0x0E);
+static_assert(offsetof(FixtureR1TextDrawData, box_width) == 0x0F);
+static_assert(offsetof(FixtureR1TextDrawData, box_height) == 0x13);
+static_assert(offsetof(FixtureR1TextDrawData, box_colour) == 0x17);
+static_assert(offsetof(FixtureR1TextDrawData, proportional) == 0x1B);
+static_assert(offsetof(FixtureR1TextDrawData, background_colour) == 0x1C);
+static_assert(offsetof(FixtureR1TextDrawData, shadow) == 0x20);
+static_assert(offsetof(FixtureR1TextDrawData, outline) == 0x21);
+static_assert(offsetof(FixtureR1TextDrawData, align_left) == 0x22);
+static_assert(offsetof(FixtureR1TextDrawData, align_right) == 0x23);
+static_assert(offsetof(FixtureR1TextDrawData, style) == 0x24);
+static_assert(offsetof(FixtureR1TextDrawData, x) == 0x28);
+static_assert(offsetof(FixtureR1TextDrawData, y) == 0x2C);
+static_assert(offsetof(FixtureR1TextDrawData, model_id) == 0x45);
+static_assert(offsetof(FixtureR1TextDrawData, rotation) == 0x47);
+static_assert(offsetof(FixtureR1TextDrawData, zoom) == 0x53);
+static_assert(offsetof(FixtureR1TextDrawData, model_colour1) == 0x57);
+static_assert(offsetof(FixtureR1TextDrawData, model_colour2) == 0x59);
 static_assert(offsetof(FixtureR1ObjectPoolExistsPrefix, not_empty) == 0x04);
 static_assert(sizeof(FixtureR1Gangzone) == 0x18);
 static_assert(offsetof(FixtureR1GangzonePoolPrefix, not_empty) == 0x1000);
@@ -476,6 +546,102 @@ std::size_t rak_samp_fixture_r1_text_label_attached_vehicle_offset() {
 
 std::size_t rak_samp_fixture_r1_textdraw_pool_not_empty_offset() {
     return offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_pool_objects_offset() {
+    return offsetof(FixtureR1TextDrawPoolExistsPrefix, objects);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_data_offset() {
+    return offsetof(FixtureR1TextDraw, data);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_letter_width_offset() {
+    return offsetof(FixtureR1TextDrawData, letter_width);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_letter_height_offset() {
+    return offsetof(FixtureR1TextDrawData, letter_height);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_letter_colour_offset() {
+    return offsetof(FixtureR1TextDrawData, letter_colour);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_align_center_offset() {
+    return offsetof(FixtureR1TextDrawData, align_center);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_box_enabled_offset() {
+    return offsetof(FixtureR1TextDrawData, box_enabled);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_box_width_offset() {
+    return offsetof(FixtureR1TextDrawData, box_width);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_box_height_offset() {
+    return offsetof(FixtureR1TextDrawData, box_height);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_box_colour_offset() {
+    return offsetof(FixtureR1TextDrawData, box_colour);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_proportional_offset() {
+    return offsetof(FixtureR1TextDrawData, proportional);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_background_colour_offset() {
+    return offsetof(FixtureR1TextDrawData, background_colour);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_shadow_offset() {
+    return offsetof(FixtureR1TextDrawData, shadow);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_outline_offset() {
+    return offsetof(FixtureR1TextDrawData, outline);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_align_left_offset() {
+    return offsetof(FixtureR1TextDrawData, align_left);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_align_right_offset() {
+    return offsetof(FixtureR1TextDrawData, align_right);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_style_offset() {
+    return offsetof(FixtureR1TextDrawData, style);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_x_offset() {
+    return offsetof(FixtureR1TextDrawData, x);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_y_offset() {
+    return offsetof(FixtureR1TextDrawData, y);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_model_id_offset() {
+    return offsetof(FixtureR1TextDrawData, model_id);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_rotation_offset() {
+    return offsetof(FixtureR1TextDrawData, rotation);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_zoom_offset() {
+    return offsetof(FixtureR1TextDrawData, zoom);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_model_colour1_offset() {
+    return offsetof(FixtureR1TextDrawData, model_colour1);
+}
+
+std::size_t rak_samp_fixture_r1_textdraw_model_colour2_offset() {
+    return offsetof(FixtureR1TextDrawData, model_colour2);
 }
 
 std::size_t rak_samp_fixture_r1_object_pool_not_empty_offset() {
