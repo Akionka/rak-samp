@@ -41,6 +41,7 @@ static LOCAL_CHAT_INPUT_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_ANIMATION_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_INFO_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_COUNT: AtomicI32 = AtomicI32::new(i32::MIN);
+static PLAYER_MAX_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -148,6 +149,9 @@ fn initialize() {
     }
     if api.player_count(true) == Ok(2) && api.player_count(false) == Ok(1) {
         PLAYER_COUNT.store(2, Ordering::Release);
+    }
+    if api.player_max_id() == Ok(77) {
+        PLAYER_MAX_ID.store(77, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -264,6 +268,11 @@ pub extern "system" fn RakSampE2ePlugin_PlayerInfoId() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_PlayerCount() -> i32 {
     PLAYER_COUNT.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_PlayerMaxId() -> i32 {
+    PLAYER_MAX_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

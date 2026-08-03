@@ -79,6 +79,10 @@ player/ped/pool/GTA handle reaches a plugin.
 `HostApi::player_count` is a second scalar cache populated by the exact R1
 `CPlayerPool::GetCount` accessor in both NPC modes; it does not inspect the
 GTA world or expose streamed-ped counting.
+`HostApi::player_max_id` is a third cache containing only the bounded R1
+non-streamed player-pool maximum ID, refreshed by the same game-thread pump
+after the profile's `UpdateLargestId` signature and fixture-backed field offset
+have passed. It likewise does not inspect GTA peds.
 
 ## Native and ABI boundaries
 

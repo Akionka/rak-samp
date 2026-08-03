@@ -69,6 +69,11 @@ non-streamed count path only; counting streamed GTA peds requires separate
 native evidence and is not exposed. Like every direct R1 read, it is
 provisional until live validation is recorded.
 
+`HostApi::player_max_id()` returns the latest game-thread-cached R1
+non-streamed player-pool maximum ID. It intentionally does not inspect GTA
+peds for SF.lua's streamed alternative, and remains provisional until its
+direct live validation is recorded.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

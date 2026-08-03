@@ -32,6 +32,7 @@ type PluginLocalChatInputActive = unsafe extern "system" fn() -> i32;
 type PluginLocalAnimationId = unsafe extern "system" fn() -> i32;
 type PluginPlayerInfoId = unsafe extern "system" fn() -> i32;
 type PluginPlayerCount = unsafe extern "system" fn() -> i32;
+type PluginPlayerMaxId = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -135,6 +136,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_PlayerInfoId")?) };
     let player_count: PluginPlayerCount =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_PlayerCount")?) };
+    let player_max_id: PluginPlayerMaxId =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_PlayerMaxId")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -183,6 +186,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { player_count() } != 2 {
         return Err("plugin did not convert the mock player-pool count".to_owned());
+    }
+    if unsafe { player_max_id() } != 77 {
+        return Err("plugin did not convert the mock player-pool maximum ID".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

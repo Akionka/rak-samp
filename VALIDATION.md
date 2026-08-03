@@ -74,6 +74,10 @@ including-NPC player-pool count is nonzero. Check that it is sensible for the
 server's visible player list; it is not a streamed-GTA-ped count and does not
 send traffic.
 
+The same outcome line reports `player_max_id=Ok`. Confirm its non-streamed
+player-pool value is at least the assigned local-player ID; it is not the
+separate streamed-GTA-ped maximum and does not send traffic.
+
 For the separate runtime-unload check, close GTA and run:
 
 ```powershell

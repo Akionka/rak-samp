@@ -424,6 +424,10 @@ impl Runtime {
         self.backend.player_count(include_npcs)
     }
 
+    pub(crate) fn player_max_id(&self) -> Result<u16, DirectClientError> {
+        self.backend.player_max_id()
+    }
+
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         self.backend.server_info()
     }

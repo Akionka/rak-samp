@@ -56,6 +56,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   publishes bounded scalar values. A legal R1 run must confirm a sensible
   nonzero count, no generated traffic, and stable shutdown; streamed GTA-ped
   counting is intentionally not claimed.
+- **Cached R1 player-max-ID live gate:** `HostApi::player_max_id` reads only
+  the bounded non-streamed R1 player-pool maximum from the game-thread pump.
+  A legal R1 run must confirm it is at least the assigned local ID, produces
+  no generated traffic, and exits normally; streamed GTA-ped maximum-ID
+  semantics are intentionally not claimed.
 
 ## Windows x86 evidence
 
@@ -74,6 +79,14 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   this exact signature before enabling any direct R1 helper. It is a native
   accessor call, not a new native-memory layout, so no C++ layout fixture is
   claimed.
+- **R1 player-max-ID field and update target:** the independent C++ fixture
+  places the R1 player-pool `m_nLargestId` prefix field at offset `0x00` before
+  the already checked local-ID field at `0x04`. The installed SA-MP 0.3.7 R1
+  `samp.dll` audit identifies `CPlayerPool::UpdateLargestId` at RVA `0x102B0`
+  with leading bytes `56 57 33 F6 B8 02 00 00 00 8D 91 E2 0F 00 00 90`; the
+  profile requires that exact target signature before its game-thread pump
+  copies the signed field. Values outside the R1 player-ID range are rejected,
+  and neither the pool pointer nor a GTA ped reaches the ABI.
 
 - **RakNet packet layout:** `RawPacket` and its embedded `PacketPlayerId` use
   packed offsets. The by-value incoming-RPC `RpcPlayerId` is a distinct aligned

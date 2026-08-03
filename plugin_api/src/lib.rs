@@ -661,6 +661,8 @@ pub struct RakSampApiV1 {
     pub player_info: unsafe extern "system" fn(u16, *mut RakSampPlayerInfoV1) -> RakSampResult,
     /// Copies the latest game-thread-cached R1 player-pool count into `output`.
     pub player_count: unsafe extern "system" fn(u8, *mut u16) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 non-streamed player maximum ID into `output`.
+    pub player_max_id: unsafe extern "system" fn(*mut u16) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1802,6 +1804,19 @@ impl HostApi {
         }
     }
 
+    /// Returns the latest cached R1 non-streamed player maximum ID.
+    ///
+    /// This covers SF.lua's non-streamed `sampGetMaxPlayerId` branch. The
+    /// streamed-ped form requires independent GTA-world evidence and is not
+    /// inferred from the SA-MP player pool.
+    pub fn player_max_id(self) -> Result<u16, RakSampResult> {
+        let mut id = 0;
+        match unsafe { (self.raw.player_max_id)(&mut id) } {
+            RakSampResult::Ok => Ok(id),
+            result => Err(result),
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -2264,8 +2279,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, player_info) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_max_id),
             mem::offset_of!(RakSampApiV1, player_count) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_max_id) + function_size
         );
     }
 
@@ -2406,6 +2425,7 @@ mod tests {
         assert_eq!(api.is_player_connected(8), Ok(false));
         assert_eq!(api.player_count(true), Ok(3));
         assert_eq!(api.player_count(false), Ok(2));
+        assert_eq!(api.player_max_id(), Ok(42));
         assert_eq!(
             api.player_info(MAX_SAMP_PLAYERS),
             Err(RakSampResult::InvalidArgument)

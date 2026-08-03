@@ -463,6 +463,14 @@ unsafe extern "system" fn player_count(include_npcs: u8, output: *mut u16) -> Ra
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn player_max_id(output: *mut u16) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 77;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -626,4 +634,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     local_animation_id,
     player_info,
     player_count,
+    player_max_id,
 };

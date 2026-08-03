@@ -157,6 +157,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     local_animation_id,
     player_info,
     player_count,
+    player_max_id,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -957,6 +958,22 @@ unsafe extern "system" fn player_count(include_npcs: u8, output: *mut u16) -> Ra
     }
 }
 
+unsafe extern "system" fn player_max_id(output: *mut u16) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.player_max_id() {
+        Ok(id) => {
+            *output = id;
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1462,6 +1479,15 @@ mod tests {
         );
         assert_eq!(
             unsafe { player_count(1, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut max_id = 0;
+        assert_eq!(
+            unsafe { player_max_id(&mut max_id) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { player_max_id(std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

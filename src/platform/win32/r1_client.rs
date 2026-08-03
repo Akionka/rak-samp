@@ -52,6 +52,7 @@ const PLAYER_POOL_GET_NAME_RVA: usize = 0x13CE0;
 const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
 const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
 const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
+const PLAYER_POOL_UPDATE_LARGEST_ID_RVA: usize = 0x102B0;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
@@ -65,6 +66,7 @@ const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const MAX_SAMP_PLAYERS: u16 = 1004;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
+const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -179,6 +181,9 @@ const PLAYER_POOL_GET_PING_SIGNATURE: [u8; 16] = [
 ];
 const PLAYER_POOL_GET_COUNT_SIGNATURE: [u8; 16] = [
     0x8B, 0x54, 0x24, 0x04, 0x56, 0x33, 0xC0, 0x85, 0xD2, 0x57, 0x74, 0x71, 0x33, 0xD2, 0x8B, 0xFF,
+];
+const PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE: [u8; 16] = [
+    0x56, 0x57, 0x33, 0xF6, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x8D, 0x91, 0xE2, 0x0F, 0x00, 0x00, 0x90,
 ];
 const REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE: [u8; 16] = [
     0x0F, 0xB7, 0x81, 0xAB, 0x00, 0x00, 0x00, 0x50, 0xE8, 0x63, 0xAB, 0x09, 0x00, 0xC1, 0xE8, 0x08,
@@ -502,6 +507,27 @@ impl R1ClientProfile {
         Ok((including_npcs, excluding_npcs))
     }
 
+    pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null()
+            || !readable_range(
+                pool.cast(),
+                PLAYER_POOL_LARGEST_ID_OFFSET + mem::size_of::<i32>(),
+            )
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let largest_id =
+            unsafe { read_unaligned::<i32>(pool as usize + PLAYER_POOL_LARGEST_ID_OFFSET) }
+                .and_then(|id| u16::try_from(id).ok())
+                .filter(|id| *id < MAX_SAMP_PLAYERS)
+                .ok_or(DirectClientError::NotReady)?;
+        Ok(largest_id)
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -777,6 +803,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &PLAYER_POOL_GET_COUNT_SIGNATURE,
         )
         && code_matches(
+            module_base + PLAYER_POOL_UPDATE_LARGEST_ID_RVA,
+            &PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE,
+        )
+        && code_matches(
             module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA,
             &REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         )
@@ -933,10 +963,10 @@ mod tests {
         PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
         PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
         PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
-        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LOCAL_ID_OFFSET,
-        REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, SAMP_PED_GAME_PED_OFFSET,
-        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
-        assigned_player_id, nul_terminated, parse_animation_entry,
+        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+        PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
+        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
+        SCOREBOARD_ENABLED_OFFSET, assigned_player_id, nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -954,6 +984,7 @@ mod tests {
         fn rak_samp_fixture_r1_incar_speed_offset() -> usize;
         fn rak_samp_fixture_r1_ped_game_ped_offset() -> usize;
         fn rak_samp_fixture_r1_player_pool_local_id_offset() -> usize;
+        fn rak_samp_fixture_r1_player_pool_largest_id_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_host_address_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_hostname_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_port_offset() -> usize;
@@ -1017,6 +1048,10 @@ mod tests {
             assert_eq!(
                 rak_samp_fixture_r1_player_pool_local_id_offset(),
                 PLAYER_POOL_LOCAL_ID_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_player_pool_largest_id_offset(),
+                PLAYER_POOL_LARGEST_ID_OFFSET
             );
             assert_eq!(
                 rak_samp_fixture_r1_net_game_host_address_offset(),
@@ -1227,6 +1262,13 @@ mod tests {
             [
                 0x8B, 0x54, 0x24, 0x04, 0x56, 0x33, 0xC0, 0x85, 0xD2, 0x57, 0x74, 0x71, 0x33, 0xD2,
                 0x8B, 0xFF,
+            ]
+        );
+        assert_eq!(
+            PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE,
+            [
+                0x56, 0x57, 0x33, 0xF6, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x8D, 0x91, 0xE2, 0x0F, 0x00,
+                0x00, 0x90,
             ]
         );
         assert_eq!(

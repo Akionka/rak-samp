@@ -115,6 +115,8 @@ struct BackendState {
     player_count_including_npcs: AtomicI32,
     player_count_excluding_npcs: AtomicI32,
     player_count_ready: AtomicBool,
+    player_max_id: AtomicI32,
+    player_max_id_ready: AtomicBool,
     server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
     assigned_local_player_id: AtomicU16,
     samp_game_state: AtomicI32,
@@ -202,6 +204,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         player_count_including_npcs: AtomicI32::new(0),
         player_count_excluding_npcs: AtomicI32::new(0),
         player_count_ready: AtomicBool::new(false),
+        player_max_id: AtomicI32::new(0),
+        player_max_id_ready: AtomicBool::new(false),
         server_info_snapshot: Mutex::new(None),
         assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         samp_game_state: AtomicI32::new(0),
@@ -319,6 +323,10 @@ impl Backend {
 
     pub(crate) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
         self.state.player_count(include_npcs)
+    }
+
+    pub(crate) fn player_max_id(&self) -> Result<u16, DirectClientError> {
+        self.state.player_max_id()
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -831,6 +839,19 @@ impl BackendState {
         u16::try_from(count).map_err(|_| DirectClientError::NotReady)
     }
 
+    fn player_max_id(&self) -> Result<u16, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.player_max_id_ready.load(Ordering::Acquire)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        u16::try_from(self.player_max_id.load(Ordering::Acquire))
+            .map_err(|_| DirectClientError::NotReady)
+    }
+
     fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -958,6 +979,7 @@ impl BackendState {
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
         self.refresh_player_count(profile);
+        self.refresh_player_max_id(profile);
         if profile.dialog_is_ready() {
             let dialogs = self.take_local_dialogs();
             for dialog in dialogs {
@@ -1111,6 +1133,16 @@ impl BackendState {
                 self.player_count_ready.store(true, Ordering::Release);
             }
             Err(_) => self.player_count_ready.store(false, Ordering::Release),
+        }
+    }
+
+    fn refresh_player_max_id(&self, profile: R1ClientProfile) {
+        match profile.player_max_id() {
+            Ok(id) => {
+                self.player_max_id.store(i32::from(id), Ordering::Release);
+                self.player_max_id_ready.store(true, Ordering::Release);
+            }
+            Err(_) => self.player_max_id_ready.store(false, Ordering::Release),
         }
     }
 
@@ -1294,6 +1326,7 @@ impl BackendState {
         self.local_chat_input_active_ready
             .store(false, Ordering::Release);
         self.player_count_ready.store(false, Ordering::Release);
+        self.player_max_id_ready.store(false, Ordering::Release);
         if let Ok(mut catalog) = self.animation_catalog.try_lock() {
             *catalog = None;
         }
@@ -1665,6 +1698,8 @@ mod vtable_tests {
             player_count_including_npcs: AtomicI32::new(0),
             player_count_excluding_npcs: AtomicI32::new(0),
             player_count_ready: AtomicBool::new(false),
+            player_max_id: AtomicI32::new(0),
+            player_max_id_ready: AtomicBool::new(false),
             server_info_snapshot: Mutex::new(None),
             assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             samp_game_state: AtomicI32::new(0),
@@ -1758,6 +1793,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.player_count(true),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.player_max_id(),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(

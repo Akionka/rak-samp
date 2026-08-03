@@ -92,6 +92,10 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn player_max_id(&self) -> Result<u16, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn show_local_chat_message(
         &self,
         _request: LocalChatMessageRequest,

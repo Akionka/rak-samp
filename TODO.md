@@ -59,23 +59,30 @@ fixtures, disassembly, or the E2E mock alone.
    pump; it deliberately covers SF.lua's non-streamed count path, not the
    GTA-ped-based streamed count. Keep provisional until the direct validator
    records a nonzero count and normal shutdown.
-3. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
+3. [~] Cache R1 `CPlayerPool::m_nLargestId` through
+   `HostApi::player_max_id()`. The static implementation reads the fixture
+   checked pool-prefix scalar only on the game-thread pump after the exact R1
+   `UpdateLargestId` signature passes, and publishes a bounded ID. It covers
+   only SF.lua's non-streamed branch; the streamed GTA-ped form remains out of
+   scope. Keep provisional until the direct validator records a maximum ID at
+   least as large as the assigned local ID and normal shutdown.
+4. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
    Do not begin either until the exact R1 string-buffer ownership, sizes,
    active-state interaction, and update lifecycle are independently proven.
    Candidate outputs are copied dialog ID/style/title/text/buttons/list
    selection and copied chat draft text only; close/select/edit/open/command
    registration remain mutations and are excluded.
-4. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
+5. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
    state first, then vehicle existence, labels, textdraws, objects, and
    pickups. Each needs a bounded copied model, independent native-layout
    fixture, direct target/field fingerprint, pump refresh budget, and a
    dedicated opt-in validator. Do not group unrelated pool layouts into one
    profile change.
-5. [ ] Reconcile the remaining typed protocol names below against the existing
+6. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
    client-side native action merely because it sends the same RPC.
-6. [ ] When the static-only list is exhausted, prepare release artifacts and
+7. [ ] When the static-only list is exhausted, prepare release artifacts and
    validation instructions, then wait for the live R1 scenarios below. Do not
    start mutations, force-sync, reconnection, raw pointer, or raw callback
    APIs without a new explicit experimental/unsafe design.
@@ -123,6 +130,10 @@ fixtures, disassembly, or the E2E mock alone.
   the visible player list. It must not generate packet/RPC traffic or make
   shutdown unstable. Streamed-ped count remains out of scope pending separate
   GTA-ped evidence.
+- [ ] Confirm the direct validator records `player_max_id=Ok` after joining a
+  server and that the non-streamed maximum ID is at least the assigned local
+  ID. It must generate no packet/RPC traffic and leave normal shutdown stable;
+  the streamed-GTA-ped branch remains out of scope pending separate evidence.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -298,7 +309,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
   `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
   force-sync APIs; excluded. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
-  `sampIsPlayerPaused`, `sampGetMaxPlayerId`,
+  `sampIsPlayerPaused`,
   `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
   own remote-player layout or accessor evidence and a copied snapshot in
   static-first step 3. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
@@ -309,6 +320,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   two R1 `CPlayerPool::GetCount` scalar modes, covering SF.lua's non-streamed
   `GetCount(true)` path. The streamed-ped form remains pending GTA-ped layout
   evidence. Keep this scalar cache provisional until its direct live check.
+- [~] `sampGetMaxPlayerId` — `HostApi::player_max_id()` caches the exact R1
+  `CPlayerPool::m_nLargestId` scalar and covers SF.lua's non-streamed branch.
+  Its streamed-GTA-ped branch remains pending separate native-layout evidence.
+  Keep this cache provisional until its direct live check.
 - [~] `sampIsPlayerConnected`, `sampGetPlayerNickname`, `sampIsPlayerNpc`,
   remote forms of `sampGetPlayerScore`, `sampGetPlayerPing`, and
   `sampGetPlayerColor` — `HostApi::player_info` plus its projections use a

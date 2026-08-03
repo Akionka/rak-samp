@@ -84,6 +84,11 @@ modes, bounds each result to the R1 player capacity, and publishes them
 atomically. It represents the non-streamed player-pool count only; it does not
 walk GTA peds to approximate SF.lua's streamed-count branch.
 
+`HostApi::player_max_id` is a separate cached scalar from the independently
+fixture-checked R1 `CPlayerPool` prefix. The pump reads it only after the
+exact `UpdateLargestId` target passes profile verification; it exposes the
+non-streamed maximum ID only and does not walk GTA peds.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

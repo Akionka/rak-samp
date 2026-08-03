@@ -275,6 +275,10 @@ std::size_t rak_samp_fixture_r1_player_pool_local_id_offset() {
     return offsetof(FixtureR1PlayerPoolPrefix, local_id);
 }
 
+std::size_t rak_samp_fixture_r1_player_pool_largest_id_offset() {
+    return offsetof(FixtureR1PlayerPoolPrefix, largest_id);
+}
+
 std::size_t rak_samp_fixture_r1_net_game_host_address_offset() {
     return offsetof(FixtureR1NetGamePrefix, host_address);
 }
