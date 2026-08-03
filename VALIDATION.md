@@ -7,7 +7,9 @@ server.
 
 ## Run the standard check
 
-Close GTA, then deploy from the repository root:
+Close `gta_sa.exe`, then deploy from the repository root. `gta_sa.exe` loads
+the ASIs and locks them while it is running; the SA-MP launcher (`samp.exe`)
+does not load the ASIs and does not need to be closed.
 
 ```powershell
 $env:GTA_DIR = 'D:\Games\GTA San Andreas'
