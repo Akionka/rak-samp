@@ -1020,6 +1020,46 @@ impl HostApi {
         })
     }
 
+    /// Returns the cached local-player ID.
+    pub fn local_player_id(self) -> Result<u16, RakSampResult> {
+        self.local_player().map(|player| player.id)
+    }
+
+    /// Returns owned local-player nickname bytes without assuming text encoding.
+    pub fn local_player_nickname(self) -> Result<Vec<u8>, RakSampResult> {
+        self.local_player().map(|player| player.nickname)
+    }
+
+    /// Returns the cached local-player ARGB colour.
+    pub fn local_player_colour(self) -> Result<u32, RakSampResult> {
+        self.local_player().map(|player| player.colour)
+    }
+
+    /// Returns whether the cached local player is spawned.
+    pub fn is_local_player_spawned(self) -> Result<bool, RakSampResult> {
+        self.local_player().map(|player| player.spawned)
+    }
+
+    /// Returns the cached local-player health.
+    pub fn local_player_health(self) -> Result<f32, RakSampResult> {
+        self.local_player().map(|player| player.health)
+    }
+
+    /// Returns the cached local-player armour.
+    pub fn local_player_armour(self) -> Result<f32, RakSampResult> {
+        self.local_player().map(|player| player.armour)
+    }
+
+    /// Returns the cached local-player special action.
+    pub fn local_player_special_action(self) -> Result<u8, RakSampResult> {
+        self.local_player().map(|player| player.special_action)
+    }
+
+    /// Returns the cached local-player animation ID.
+    pub fn local_player_animation_id(self) -> Result<u16, RakSampResult> {
+        self.local_player().map(|player| player.animation_id)
+    }
+
     /// Returns the cached native `CNetGame` state for the verified R1 client.
     ///
     /// The value is deliberately an opaque scalar: SA-MP has no stable public
@@ -1290,6 +1330,19 @@ mod tests {
             test_support::test_api().samp_version(),
             Ok(RakSampClientVersion::R1)
         );
+    }
+
+    #[test]
+    fn local_player_query_conveniences_reuse_the_safe_snapshot() {
+        let api = test_support::test_api();
+        assert_eq!(api.local_player_id(), Ok(42));
+        assert_eq!(api.local_player_nickname(), Ok(b"fixture".to_vec()));
+        assert_eq!(api.local_player_colour(), Ok(0xFF00_00FF));
+        assert_eq!(api.is_local_player_spawned(), Ok(true));
+        assert_eq!(api.local_player_health(), Ok(99.0));
+        assert_eq!(api.local_player_armour(), Ok(50.0));
+        assert_eq!(api.local_player_special_action(), Ok(3));
+        assert_eq!(api.local_player_animation_id(), Ok(12));
     }
 
     #[test]

@@ -113,9 +113,9 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `sampGetLocalPlayerId`, `sampGetLocalPlayerNickname`,
   `sampGetLocalPlayerColor`, `sampIsLocalPlayerSpawned`,
   `sampGetPlayerArmor`, `sampGetPlayerHealth`, `sampGetPlayerSpecialAction`,
-  `sampGetPlayerAnimationId` — available for the local player through the
-  single cached `HostApi::local_player` snapshot; remote-player calls remain
-  pending.
+  `sampGetPlayerAnimationId` — explicit safe local-player query methods reuse
+  the single cached `HostApi::local_player` snapshot; remote-player calls
+  remain pending.
 - [ ] `sampIsPlayerDefined`, `sampSetPlayerColor`
 
 ### RakNet and network actions (`raknet.lua`)

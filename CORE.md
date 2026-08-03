@@ -34,6 +34,10 @@ local-player ID on two game-thread refreshes, then refreshes from the verified
 R1 player pool. It returns `NotReady` rather than publishing a provisional zero
 or SA-MP's `0xFFFF` sentinel.
 
+The local-player ID, nickname, colour, spawned, health, armour, special-action,
+and animation convenience methods are projections of that same snapshot. They
+never add a native call or make remote-player data available.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

@@ -47,6 +47,9 @@ host accepted one of its 32 queued requests, not that it was displayed. Neither
 helper emulates RPC traffic or exposes client pointers. `local_player` returns
 `NotReady` until the server's R1 `INIT_GAME` assignment matches the pool's
 local-player ID across two game-thread refreshes.
+`HostApi` also exposes individual cached local-player ID, nickname, colour,
+spawned, health, armour, special-action, and animation-ID queries for the
+corresponding SF.lua local-player helpers.
 
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
