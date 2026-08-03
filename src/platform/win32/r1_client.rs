@@ -28,6 +28,7 @@ const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 const CHAT_SINGLETON_RVA: usize = 0x21A0E4;
 const CHAT_ADD_ENTRY_RVA: usize = 0x64010;
+const CHAT_GET_MODE_RVA: usize = 0x5D7A0;
 const DEATH_WINDOW_SINGLETON_RVA: usize = 0x21A0EC;
 const DEATH_WINDOW_ADD_ENTRY_RVA: usize = 0x66930;
 const DEATH_WINDOW_ADD_MESSAGE_RVA: usize = 0x66A10;
@@ -65,6 +66,11 @@ const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
 const CHAT_ADD_ENTRY_SIGNATURE: [u8; 16] = [
     0x55, 0x56, 0x8B, 0xE9, 0x57, 0x8D, 0xBD, 0x32, 0x01, 0x00, 0x00, 0x8D, 0xB5, 0x2E, 0x02, 0x00,
 ];
+
+// `CChat::GetMode` is a leaf R1 accessor: `mov eax, [ecx + 8]; ret`. Keep
+// the exact code signature rather than reading the field directly so the
+// private layout remains behind the fingerprinted native profile.
+const CHAT_GET_MODE_SIGNATURE: [u8; 4] = [0x8B, 0x41, 0x08, 0xC3];
 
 // `CDeathWindow::AddMessage` is an R1 thunk to `AddEntry`; verify both its
 // five-byte relative jump and the start of the final target before enabling
@@ -184,6 +190,16 @@ impl R1ClientProfile {
 
     pub(super) fn chat_is_ready(self) -> bool {
         self.chat().is_some()
+    }
+
+    pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
+        let chat = self.chat().ok_or(DirectClientError::NotReady)?;
+        let get_mode: ChatGetModeFn =
+            unsafe { mem::transmute(self.module_base + CHAT_GET_MODE_RVA) };
+        let mode = unsafe { get_mode(chat) };
+        matches!(mode, 0..=2)
+            .then_some(mode)
+            .ok_or(DirectClientError::NotReady)
     }
 
     pub(super) fn death_window_is_ready(self) -> bool {
@@ -395,6 +411,7 @@ type DialogShowFn = unsafe extern "thiscall" fn(
     i32,
 );
 type ChatAddEntryFn = unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
+type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type DeathWindowAddMessageFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
 type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
@@ -441,6 +458,7 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     let show = module_base + DIALOG_SHOW_RVA;
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
         && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
+        && code_matches(module_base + CHAT_GET_MODE_RVA, &CHAT_GET_MODE_SIGNATURE)
         && code_matches(
             module_base + DEATH_WINDOW_ADD_MESSAGE_RVA,
             &DEATH_WINDOW_ADD_MESSAGE_SIGNATURE,
@@ -563,7 +581,7 @@ unsafe fn plausible_code(address: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        CHAT_ADD_ENTRY_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
+        CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
         DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
         LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
@@ -690,6 +708,11 @@ mod tests {
                 0x02, 0x00,
             ]
         );
+    }
+
+    #[test]
+    fn chat_get_mode_signature_matches_the_fingerprinted_r1_target() {
+        assert_eq!(CHAT_GET_MODE_SIGNATURE, [0x8B, 0x41, 0x08, 0xC3]);
     }
 
     #[test]

@@ -24,6 +24,7 @@ type PluginLocalChatResult = unsafe extern "system" fn() -> u32;
 type PluginLocalDeathResult = unsafe extern "system" fn() -> u32;
 type PluginLocalPlayerId = unsafe extern "system" fn() -> u32;
 type PluginSampGameState = unsafe extern "system" fn() -> i32;
+type PluginLocalChatDisplayMode = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -111,6 +112,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalPlayerId")?) };
     let samp_game_state: PluginSampGameState =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampGameState")?) };
+    let local_chat_display_mode: PluginLocalChatDisplayMode =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalChatDisplayMode")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -135,6 +138,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { samp_game_state() } != 14 {
         return Err("plugin did not read the mock cached SA-MP game state".to_owned());
+    }
+    if unsafe { local_chat_display_mode() } != 2 {
+        return Err("plugin did not convert the mock local chat display mode".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

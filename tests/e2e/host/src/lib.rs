@@ -338,6 +338,14 @@ unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn local_chat_display_mode(output: *mut i32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 2;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -492,4 +500,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     server_info,
     show_local_chat_message,
     show_local_death_message,
+    local_chat_display_mode,
 };

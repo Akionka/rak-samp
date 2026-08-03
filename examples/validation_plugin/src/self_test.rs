@@ -7,8 +7,9 @@ use crate::{
     },
 };
 use rak_samp_plugin_api::{
-    HostApi, LocalChatMessage, LocalChatMessageStyle, LocalDeathMessage, LocalDialog,
-    LocalDialogStyle, LocalPlayer, RakSampHookAction, RakSampResult, RakSampSendOptions,
+    HostApi, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalDeathMessage,
+    LocalDialog, LocalDialogStyle, LocalPlayer, RakSampHookAction, RakSampResult,
+    RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -46,6 +47,27 @@ impl DirectSnapshotChanges {
 
     fn complete(self) -> bool {
         self.position && self.health && self.armour && self.vehicle
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DirectChatDisplayModes {
+    off: bool,
+    no_shadow: bool,
+    normal: bool,
+}
+
+impl DirectChatDisplayModes {
+    fn observe(&mut self, mode: LocalChatDisplayMode) {
+        match mode {
+            LocalChatDisplayMode::Off => self.off = true,
+            LocalChatDisplayMode::NoShadow => self.no_shadow = true,
+            LocalChatDisplayMode::Normal => self.normal = true,
+        }
+    }
+
+    fn complete(self) -> bool {
+        self.off && self.no_shadow && self.normal
     }
 }
 
@@ -346,11 +368,30 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+                match api.local_chat_display_mode() {
+                    Ok(_) => {}
+                    Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test chat-display-mode returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);
@@ -411,17 +452,11 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
     ));
     let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
     let mut changes = DirectSnapshotChanges::default();
+    let mut chat_modes = DirectChatDisplayModes::default();
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
             Ok(snapshot) if snapshot.id == expected_id => {
                 changes.observe(&baseline, &snapshot);
-                if changes.complete() {
-                    SELF_TESTS
-                        .direct_snapshot_state
-                        .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
-                    log_direct_snapshot_state("passed", expected_id, changes);
-                    return;
-                }
             }
             Ok(_) => {
                 SELF_TESTS
@@ -443,20 +478,51 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
                 return;
             }
         }
+        match api.local_chat_display_mode() {
+            Ok(mode) => chat_modes.observe(mode),
+            Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation chat-display-mode returned {error:?}"
+                ));
+                return;
+            }
+        }
+        if changes.complete() && chat_modes.complete() {
+            SELF_TESTS
+                .direct_snapshot_state
+                .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+            log_direct_snapshot_state("passed", expected_id, changes, chat_modes);
+            return;
+        }
         std::thread::sleep(Duration::from_millis(25));
     }
     if !STOP.load(Ordering::Acquire) {
         SELF_TESTS
             .direct_snapshot_state
             .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
-        log_direct_snapshot_state("timed-out", expected_id, changes);
+        log_direct_snapshot_state("timed-out", expected_id, changes, chat_modes);
     }
 }
 
-fn log_direct_snapshot_state(outcome: &str, id: u16, changes: DirectSnapshotChanges) {
+fn log_direct_snapshot_state(
+    outcome: &str,
+    id: u16,
+    changes: DirectSnapshotChanges,
+    chat_modes: DirectChatDisplayModes,
+) {
     logging::write(&format!(
-        "direct-client state validation {outcome}: local_player_id={id} position_changed={} health_changed={} armour_changed={} vehicle_changed={}",
-        changes.position, changes.health, changes.armour, changes.vehicle,
+        "direct-client state validation {outcome}: local_player_id={id} position_changed={} health_changed={} armour_changed={} vehicle_changed={} chat_mode_off={} chat_mode_no_shadow={} chat_mode_normal={}",
+        changes.position,
+        changes.health,
+        changes.armour,
+        changes.vehicle,
+        chat_modes.off,
+        chat_modes.no_shadow,
+        chat_modes.normal,
     ));
 }
 
@@ -601,8 +667,8 @@ fn mark_timeout(status: &AtomicU8) {
 
 #[cfg(test)]
 mod tests {
-    use super::DirectSnapshotChanges;
-    use rak_samp_plugin_api::{LocalPlayer, Vector3};
+    use super::{DirectChatDisplayModes, DirectSnapshotChanges};
+    use rak_samp_plugin_api::{LocalChatDisplayMode, LocalPlayer, Vector3};
 
     fn snapshot() -> LocalPlayer {
         LocalPlayer {
@@ -647,5 +713,15 @@ mod tests {
         let mut changes = DirectSnapshotChanges::default();
         changes.observe(&baseline, &changed);
         assert!(!changes.complete());
+    }
+
+    #[test]
+    fn direct_chat_mode_monitor_requires_all_three_r1_modes() {
+        let mut modes = DirectChatDisplayModes::default();
+        modes.observe(LocalChatDisplayMode::Normal);
+        modes.observe(LocalChatDisplayMode::Off);
+        assert!(!modes.complete());
+        modes.observe(LocalChatDisplayMode::NoShadow);
+        assert!(modes.complete());
     }
 }

@@ -64,6 +64,12 @@ SA-MP ABI.
 from the same fingerprinted R1 game-thread pump. It returns `NotReady` before
 the host has a valid address and port, and never exposes a client pointer.
 
+`HostApi::local_chat_display_mode()` returns the latest game-thread-cached R1
+chat display mode as `Off`, `NoShadow`, or `Normal`; the derived
+`HostApi::is_local_chat_visible()` treats every mode except `Off` as visible.
+Both return `NotReady` before their first valid publication and never call the
+client from a plugin thread.
+
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
 host's RakClient hooks are ready. `HostApi::is_samp_loaded()` instead reports

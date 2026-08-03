@@ -53,6 +53,10 @@ or another client build supplies an offset.
   data without a crash.
 - [ ] Verify `server_info` against the selected server's displayed address,
   hostname, and port, then exit normally.
+- [ ] With the direct-client marker enabled, cycle the R1 chat display mode
+  through off, no-shadow, and normal (F7) while the validator is observing.
+  Confirm its outcome line records all three cached modes, that no packet/RPC
+  traffic was generated, and that normal shutdown remains stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -113,8 +117,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 
-- [ ] `sampGetChatInfoPtr`, `sampGetChatDisplayMode`, `sampSetChatDisplayMode`,
-  `sampGetChatString`, `sampSetChatString`, `sampIsChatVisible`
+- [ ] `sampGetChatInfoPtr`, `sampSetChatDisplayMode`, `sampGetChatString`,
+  `sampSetChatString`
+- [~] `sampGetChatDisplayMode`, `sampIsChatVisible` —
+  `HostApi::local_chat_display_mode` and its derived
+  `HostApi::is_local_chat_visible` return a game-thread-cached R1 enum only.
+  Keep provisional until the dedicated three-mode and shutdown live check.
 - [~] `sampAddChatMessage`, `sampAddChatMessageEx` —
   `HostApi::show_local_chat_message` copies one bounded R1 chat/info/debug
   entry for the game-thread pump without sending any packet or RPC. Keep this

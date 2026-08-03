@@ -23,6 +23,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   is fail-closed behind the R1 PE/GTA checks and both `CDeathWindow` target
   signatures. A legal R1 run must confirm a visible entry, no generated
   packet/RPC traffic, and stable normal shutdown.
+- **Cached R1 chat-display-mode live gate:** `HostApi::local_chat_display_mode`
+  is fail-closed behind the same R1 profile and the exact `CChat::GetMode`
+  leaf-accessor signature. A legal R1 run must cycle off, no-shadow, and
+  normal modes, compare the cached enum with the visible chat state, confirm
+  no generated packet/RPC traffic, and exit normally.
 
 ## Windows x86 evidence
 
@@ -68,6 +73,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   and readable-pointer gates. The host copies and terminates its own strings
   on the game-thread call; no client pointer or packet/RPC emulation reaches
   the ABI.
+- **Cached R1 chat display mode:** static analysis of the same fingerprinted
+  R1 DLL found `CChat::GetMode` at `samp.dll + 0x5D7A0` beginning
+  `8B 41 08 C3` (`mov eax, [ecx + 8]; ret`). The profile verifies all four
+  bytes, acquires the already-verified `CChat` singleton at `+0x21A0E4`, and
+  calls the accessor only from the incoming-packet game-thread pump. It
+  accepts only the three R1 values `0` (off), `1` (no-shadow), and `2`
+  (normal), then atomically caches the scalar. Plugins receive only the
+  converted enum or `NotReady`; no client layout, pointer, synchronous native
+  call, packet, or RPC crosses the ABI.
 - **Direct R1 death-window signatures:** static analysis of the installed
   fingerprinted R1 DLL found `CDeathWindow::AddMessage` at `samp.dll + 0x66A10`
   as `E9 1B FF FF FF`, a thunk to `CDeathWindow::AddEntry` at `+0x66930`, which

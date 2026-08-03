@@ -115,6 +115,25 @@ impl LocalChatMessageStyle {
     }
 }
 
+/// The three R1 chat-window display modes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalChatDisplayMode {
+    Off,
+    NoShadow,
+    Normal,
+}
+
+impl LocalChatDisplayMode {
+    const fn from_raw(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(Self::Off),
+            1 => Some(Self::NoShadow),
+            2 => Some(Self::Normal),
+            _ => None,
+        }
+    }
+}
+
 /// A copied-and-queued local chat message.
 ///
 /// The host copies both borrowed byte strings before this call returns. They
@@ -513,6 +532,8 @@ pub struct RakSampApiV1 {
         u32,
         u8,
     ) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 chat display mode into `output`.
+    pub local_chat_display_mode: unsafe extern "system" fn(*mut i32) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1484,6 +1505,23 @@ impl HostApi {
         }
     }
 
+    /// Returns the cached R1 local chat-window display mode.
+    pub fn local_chat_display_mode(self) -> Result<LocalChatDisplayMode, RakSampResult> {
+        let mut raw = 0;
+        match unsafe { (self.raw.local_chat_display_mode)(&mut raw) } {
+            RakSampResult::Ok => {
+                LocalChatDisplayMode::from_raw(raw).ok_or(RakSampResult::NativeCallFailed)
+            }
+            result => Err(result),
+        }
+    }
+
+    /// Returns whether the cached R1 local chat window is visible.
+    pub fn is_local_chat_visible(self) -> Result<bool, RakSampResult> {
+        self.local_chat_display_mode()
+            .map(|mode| mode != LocalChatDisplayMode::Off)
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1855,8 +1893,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, show_local_chat_message) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_chat_display_mode),
             mem::offset_of!(RakSampApiV1, show_local_death_message) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_chat_display_mode) + function_size
         );
     }
 
@@ -1985,6 +2027,17 @@ mod tests {
     #[test]
     fn samp_game_state_is_returned_from_the_scalar_abi_output() {
         assert_eq!(test_support::test_api().samp_game_state(), Ok(14));
+    }
+
+    #[test]
+    fn local_chat_display_mode_is_converted_from_the_scalar_abi_output() {
+        let api = test_support::test_api();
+        assert_eq!(
+            api.local_chat_display_mode(),
+            Ok(LocalChatDisplayMode::Normal)
+        );
+        assert_eq!(api.is_local_chat_visible(), Ok(true));
+        assert_eq!(LocalChatDisplayMode::from_raw(3), None);
     }
 
     #[test]

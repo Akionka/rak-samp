@@ -146,6 +146,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     server_info,
     show_local_chat_message,
     show_local_death_message,
+    local_chat_display_mode,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -763,6 +764,22 @@ unsafe extern "system" fn server_info(output: *mut RakSampServerInfoV1) -> RakSa
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn local_chat_display_mode(output: *mut i32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.local_chat_display_mode() {
+        Ok(mode) => {
+            *output = mode;
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1115,6 +1132,15 @@ mod tests {
         assert_eq!(
             unsafe { samp_game_state(&mut game_state) },
             RakSampResult::NotReady
+        );
+        let mut chat_display_mode = 0;
+        assert_eq!(
+            unsafe { local_chat_display_mode(&mut chat_display_mode) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { local_chat_display_mode(std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();
         assert_eq!(unsafe { server_info(&mut server) }, RakSampResult::NotReady);

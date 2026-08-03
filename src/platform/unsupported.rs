@@ -102,5 +102,9 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn local_chat_display_mode(&self) -> Result<i32, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn shutdown(&mut self) {}
 }

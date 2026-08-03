@@ -57,8 +57,9 @@ before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
 begins refreshing an owned local-player snapshot only after its `INIT_GAME`
 server assignment matches the pool ID on two game-thread refreshes, then keeps
 it fresh from the verified player pool. The same entry caches R1's opaque
-`CNetGame` state scalar and copied current-server metadata, neither of which
-drives snapshot readiness. It releases the dialog, chat, and death-window
+`CNetGame` state scalar, copied current-server metadata, and the validated
+three-value local chat display mode, none of which drives snapshot readiness.
+It releases the dialog, chat, and death-window
 queue locks, then calls `CDialog::Show`, `CChat::AddEntry`, and
 `CDeathWindow::AddMessage` for no more than four copied requests from each
 queue. It clears the cache

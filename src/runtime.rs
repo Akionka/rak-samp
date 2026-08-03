@@ -400,6 +400,10 @@ impl Runtime {
     pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
         self.backend.samp_game_state()
     }
+
+    pub(crate) fn local_chat_display_mode(&self) -> Result<i32, DirectClientError> {
+        self.backend.local_chat_display_mode()
+    }
 }
 
 fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {
