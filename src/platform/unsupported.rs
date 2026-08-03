@@ -2,8 +2,8 @@ use crate::{
     AttachError, BitStream, SampVersion, SendError, SendOptions,
     event::Registry,
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
-        ServerInfoSnapshot,
+        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
+        LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot,
     },
 };
 use std::sync::Arc;
@@ -77,6 +77,13 @@ impl Backend {
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn show_local_chat_message(
+        &self,
+        _request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

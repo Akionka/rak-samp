@@ -17,6 +17,17 @@ pub(crate) struct LocalDialogRequest {
     pub(crate) button2: Vec<u8>,
 }
 
+/// A copied chat entry that is safe to retain until the game-thread pump can
+/// call the private R1 chat backend.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalChatMessageRequest {
+    pub(crate) style: LocalChatMessageStyle,
+    pub(crate) text: Vec<u8>,
+    pub(crate) prefix: Vec<u8>,
+    pub(crate) text_colour: u32,
+    pub(crate) prefix_colour: u32,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalDialogStyle {
     MessageBox,
@@ -68,6 +79,32 @@ pub(crate) struct LocalPlayerSnapshot {
     pub(crate) vehicle_id: Option<u16>,
     pub(crate) score: i32,
     pub(crate) ping: u32,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LocalChatMessageStyle {
+    Chat,
+    Info,
+    Debug,
+}
+
+impl LocalChatMessageStyle {
+    pub(crate) const fn from_raw(value: u32) -> Option<Self> {
+        match value {
+            2 => Some(Self::Chat),
+            4 => Some(Self::Info),
+            8 => Some(Self::Debug),
+            _ => None,
+        }
+    }
+
+    pub(crate) const fn as_raw(self) -> i32 {
+        match self {
+            Self::Chat => 2,
+            Self::Info => 4,
+            Self::Debug => 8,
+        }
+    }
 }
 
 /// Host-owned current-server metadata copied from the verified R1 game thread.
@@ -327,6 +364,13 @@ impl Runtime {
         self.backend.show_local_dialog(request)
     }
 
+    pub(crate) fn show_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        self.backend.show_local_chat_message(request)
+    }
+
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.backend.local_player()
     }
@@ -357,8 +401,8 @@ impl Drop for Runtime {
 #[cfg(test)]
 mod tests {
     use super::{
-        LocalDialogStyle, PacketPriority, PacketReliability, SendError, SendOptions,
-        validate_packet_options,
+        LocalChatMessageStyle, LocalDialogStyle, PacketPriority, PacketReliability, SendError,
+        SendOptions, validate_packet_options,
     };
 
     #[test]
@@ -387,5 +431,18 @@ mod tests {
             Some(LocalDialogStyle::HeadersList)
         );
         assert_eq!(LocalDialogStyle::from_raw(6), None);
+    }
+
+    #[test]
+    fn direct_chat_style_accepts_only_the_three_native_values() {
+        assert_eq!(
+            LocalChatMessageStyle::from_raw(2),
+            Some(LocalChatMessageStyle::Chat)
+        );
+        assert_eq!(
+            LocalChatMessageStyle::from_raw(8),
+            Some(LocalChatMessageStyle::Debug)
+        );
+        assert_eq!(LocalChatMessageStyle::from_raw(1), None);
     }
 }

@@ -97,6 +97,50 @@ impl LocalDialog<'_> {
     }
 }
 
+/// The three local chat entry styles accepted by SA-MP's R1 chat window.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalChatMessageStyle {
+    Chat,
+    Info,
+    Debug,
+}
+
+impl LocalChatMessageStyle {
+    const fn as_raw(self) -> u32 {
+        match self {
+            Self::Chat => 2,
+            Self::Info => 4,
+            Self::Debug => 8,
+        }
+    }
+}
+
+/// A copied-and-queued local chat message.
+///
+/// The host copies both borrowed byte strings before this call returns. They
+/// must not contain NUL bytes. R1 chat entries retain at most 143 text bytes
+/// and 27 prefix bytes, excluding their native terminators.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LocalChatMessage<'a> {
+    pub style: LocalChatMessageStyle,
+    pub text: &'a [u8],
+    pub prefix: &'a [u8],
+    pub text_colour: u32,
+    pub prefix_colour: u32,
+}
+
+impl LocalChatMessage<'_> {
+    const MAX_TEXT_BYTES: usize = 143;
+    const MAX_PREFIX_BYTES: usize = 27;
+
+    fn is_valid(self) -> bool {
+        !self.text.contains(&0)
+            && !self.prefix.contains(&0)
+            && self.text.len() <= Self::MAX_TEXT_BYTES
+            && self.prefix.len() <= Self::MAX_PREFIX_BYTES
+    }
+}
+
 /// A three-dimensional value copied from the client snapshot.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -425,6 +469,16 @@ pub struct RakSampApiV1 {
     ) -> RakSampResult,
     /// Copies the latest host-owned R1 current-server snapshot into `output`.
     pub server_info: unsafe extern "system" fn(*mut RakSampServerInfoV1) -> RakSampResult,
+    /// Copies and queues a local R1 chat entry for the verified game-thread pump.
+    pub show_local_chat_message: unsafe extern "system" fn(
+        u32,
+        *const u8,
+        usize,
+        *const u8,
+        usize,
+        u32,
+        u32,
+    ) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1354,6 +1408,27 @@ impl HostApi {
         }
     }
 
+    /// Copies and queues a direct local R1 chat entry on the game thread.
+    ///
+    /// [`RakSampResult::Ok`] confirms only that the host copied and queued the
+    /// entry. It does not send a chat RPC or mean the player has seen it.
+    pub fn show_local_chat_message(self, message: LocalChatMessage<'_>) -> RakSampResult {
+        if !message.is_valid() {
+            return RakSampResult::InvalidArgument;
+        }
+        unsafe {
+            (self.raw.show_local_chat_message)(
+                message.style.as_raw(),
+                message.text.as_ptr(),
+                message.text.len(),
+                message.prefix.as_ptr(),
+                message.prefix.len(),
+                message.text_colour,
+                message.prefix_colour,
+            )
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1717,8 +1792,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, decode_string) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, show_local_chat_message),
             mem::offset_of!(RakSampApiV1, server_info) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, show_local_chat_message) + function_size
         );
     }
 
@@ -1748,6 +1827,42 @@ mod tests {
         };
         assert_eq!(
             api.show_local_dialog(long_title),
+            RakSampResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn direct_chat_rejects_nuls_and_native_entry_overflows_before_the_abi_call() {
+        let api = test_support::test_api();
+        let valid = LocalChatMessage {
+            style: LocalChatMessageStyle::Debug,
+            text: b"local message",
+            prefix: b"[rak-samp]",
+            text_colour: 0xFF_A9_C4_E4,
+            prefix_colour: u32::MAX,
+        };
+        assert_eq!(api.show_local_chat_message(valid), RakSampResult::Ok);
+        assert_eq!(
+            api.show_local_chat_message(LocalChatMessage {
+                text: b"bad\0text",
+                ..valid
+            }),
+            RakSampResult::InvalidArgument
+        );
+        let too_long_text = [b'x'; 144];
+        assert_eq!(
+            api.show_local_chat_message(LocalChatMessage {
+                text: &too_long_text,
+                ..valid
+            }),
+            RakSampResult::InvalidArgument
+        );
+        let too_long_prefix = [b'x'; 28];
+        assert_eq!(
+            api.show_local_chat_message(LocalChatMessage {
+                prefix: &too_long_prefix,
+                ..valid
+            }),
             RakSampResult::InvalidArgument
         );
     }

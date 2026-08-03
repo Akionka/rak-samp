@@ -58,9 +58,9 @@ begins refreshing an owned local-player snapshot only after its `INIT_GAME`
 server assignment matches the pool ID on two game-thread refreshes, then keeps
 it fresh from the verified player pool. The same entry caches R1's opaque
 `CNetGame` state scalar and copied current-server metadata, neither of which
-drives snapshot readiness. It releases the
-dialog queue lock, then calls `CDialog::Show` for no more than four copied
-requests. It clears the cache
+drives snapshot readiness. It releases the dialog and chat queue locks, then
+calls `CDialog::Show` and `CChat::AddEntry` for no more than four copied
+requests from each queue. It clears the cache
 while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`
 sentinel. It neither consumes, creates, nor redispatches
 packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference

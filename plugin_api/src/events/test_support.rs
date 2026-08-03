@@ -500,6 +500,41 @@ unsafe extern "system" fn test_show_local_dialog(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_show_local_chat_message(
+    style: u32,
+    text: *const u8,
+    text_len: usize,
+    prefix: *const u8,
+    prefix_len: usize,
+    text_colour: u32,
+    prefix_colour: u32,
+) -> RakSampResult {
+    let text = if text_len == 0 {
+        &[]
+    } else if text.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(text, text_len) }
+    };
+    let prefix = if prefix_len == 0 {
+        &[]
+    } else if prefix.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(prefix, prefix_len) }
+    };
+    if style == 8
+        && text == b"local message"
+        && prefix == b"[rak-samp]"
+        && text_colour == 0xFF_A9_C4_E4
+        && prefix_colour == u32::MAX
+    {
+        RakSampResult::Ok
+    } else {
+        RakSampResult::NativeCallFailed
+    }
+}
+
 unsafe extern "system" fn test_local_player(
     output: *mut crate::RakSampLocalPlayerV1,
 ) -> RakSampResult {
@@ -639,6 +674,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     samp_version: test_samp_version,
     decode_string: test_decode_string,
     server_info: test_server_info,
+    show_local_chat_message: test_show_local_chat_message,
 };
 
 pub(crate) fn test_api() -> HostApi {

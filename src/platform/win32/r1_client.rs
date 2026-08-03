@@ -5,7 +5,8 @@
 //! calls are safe only for the one fingerprinted R1 profile below.
 
 use crate::runtime::{
-    DirectClientError, LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot, Vector3,
+    DirectClientError, LocalChatMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
+    ServerInfoSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -25,6 +26,8 @@ const GTA_SA_10_US_ENTRY_POINT: u32 = 0x0042_4570;
 
 const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
+const CHAT_SINGLETON_RVA: usize = 0x21A0E4;
+const CHAT_ADD_ENTRY_RVA: usize = 0x64010;
 const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
 const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
@@ -51,6 +54,13 @@ const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 // `55 8B EC` prologue here, or the valid R1 profile will be rejected.
 const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
     0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB, 0x8B, 0xF1,
+];
+
+// First 16 bytes of SA-MP 0.3.7 R1's `CChat::AddEntry` at
+// `CHAT_ADD_ENTRY_RVA`. The target's x86 prologue moves `this` from ECX into
+// EBP, slides the 100-entry ring, and then consumes the five stack arguments.
+const CHAT_ADD_ENTRY_SIGNATURE: [u8; 16] = [
+    0x55, 0x56, 0x8B, 0xE9, 0x57, 0x8D, 0xBD, 0x32, 0x01, 0x00, 0x00, 0x8D, 0xB5, 0x2E, 0x02, 0x00,
 ];
 
 // `CNetGame::GetGameState` returns the client's native state enum by value.
@@ -113,8 +123,34 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    pub(super) fn show_chat_message(
+        self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        let chat = self.chat().ok_or(DirectClientError::NotReady)?;
+        let text = nul_terminated(request.text);
+        let prefix = nul_terminated(request.prefix);
+        let add_entry: ChatAddEntryFn =
+            unsafe { mem::transmute(self.module_base + CHAT_ADD_ENTRY_RVA) };
+        unsafe {
+            add_entry(
+                chat,
+                request.style.as_raw(),
+                text.as_ptr().cast(),
+                prefix.as_ptr().cast(),
+                request.text_colour,
+                request.prefix_colour,
+            );
+        }
+        Ok(())
+    }
+
     pub(super) fn dialog_is_ready(self) -> bool {
         self.dialog().is_some()
+    }
+
+    pub(super) fn chat_is_ready(self) -> bool {
+        self.chat().is_some()
     }
 
     pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
@@ -158,6 +194,12 @@ impl R1ClientProfile {
         let dialog: *mut c_void =
             unsafe { read_pointer(self.module_base + DIALOG_SINGLETON_RVA) }?.cast();
         (!dialog.is_null() && readable_range(dialog.cast(), 1)).then_some(dialog)
+    }
+
+    fn chat(self) -> Option<*mut c_void> {
+        let chat: *mut c_void =
+            unsafe { read_pointer(self.module_base + CHAT_SINGLETON_RVA) }?.cast();
+        (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
     }
 
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
@@ -309,6 +351,7 @@ type DialogShowFn = unsafe extern "thiscall" fn(
     *const i8,
     i32,
 );
+type ChatAddEntryFn = unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
 type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -352,6 +395,7 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     // publishing the profile. A mismatch leaves direct helpers unsupported.
     let show = module_base + DIALOG_SHOW_RVA;
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
+        && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
         && code_matches(
             module_base + NET_GAME_GET_STATE_RVA,
             &NET_GAME_GET_STATE_SIGNATURE,
@@ -466,14 +510,14 @@ unsafe fn plausible_code(address: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET,
-        LOCAL_PLAYER_INCAR_OFFSET, LOCAL_PLAYER_INCAR_POSITION_OFFSET,
-        LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
-        NET_GAME_GET_STATE_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
-        NET_GAME_PORT_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
-        assigned_player_id, nul_terminated,
+        CHAT_ADD_ENTRY_SIGNATURE, DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
+        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
+        LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
+        LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
+        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_STATE_SIGNATURE,
+        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
+        PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET, assigned_player_id, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -579,6 +623,17 @@ mod tests {
             [
                 0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB,
                 0x8B, 0xF1,
+            ]
+        );
+    }
+
+    #[test]
+    fn chat_add_entry_signature_matches_the_fingerprinted_r1_target() {
+        assert_eq!(
+            CHAT_ADD_ENTRY_SIGNATURE,
+            [
+                0x55, 0x56, 0x8B, 0xE9, 0x57, 0x8D, 0xBD, 0x32, 0x01, 0x00, 0x00, 0x8D, 0xB5, 0x2E,
+                0x02, 0x00,
             ]
         );
     }

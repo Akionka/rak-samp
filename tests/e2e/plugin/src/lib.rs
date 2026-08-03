@@ -4,8 +4,8 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    LocalDialog, LocalDialogStyle, RakSampDirection, RakSampHookAction, Subscription,
-    raknet::BitStream, wait_for_default_host,
+    LocalChatMessage, LocalChatMessageStyle, LocalDialog, LocalDialogStyle, RakSampDirection,
+    RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -28,6 +28,7 @@ static READY: AtomicBool = AtomicBool::new(false);
 static STOP: AtomicBool = AtomicBool::new(false);
 static CALLBACKS: AtomicU32 = AtomicU32::new(0);
 static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
+static LOCAL_CHAT_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -70,6 +71,14 @@ fn initialize() {
         button2: b"",
     });
     DIALOG_RESULT.store(dialog_result as u32, Ordering::Release);
+    let local_chat_result = api.show_local_chat_message(LocalChatMessage {
+        style: LocalChatMessageStyle::Debug,
+        text: b"e2e local chat",
+        prefix: b"[e2e]",
+        text_colour: 0xFF_A9_C4_E4,
+        prefix_colour: u32::MAX,
+    });
+    LOCAL_CHAT_RESULT.store(local_chat_result as u32, Ordering::Release);
     if let Ok(local_player) = api.local_player() {
         LOCAL_PLAYER_ID.store(u32::from(local_player.id), Ordering::Release);
     }
@@ -131,6 +140,11 @@ pub extern "system" fn RakSampE2ePlugin_CallbackCount() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_DialogResult() -> u32 {
     DIALOG_RESULT.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalChatResult() -> u32 {
+    LOCAL_CHAT_RESULT.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

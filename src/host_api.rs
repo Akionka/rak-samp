@@ -2,8 +2,9 @@ use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
     PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalDialogStyle,
-        LocalPlayerSnapshot, ServerInfoSnapshot,
+        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
+        LocalChatMessageStyle, LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot,
+        ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
@@ -143,6 +144,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     samp_version,
     decode_string,
     server_info,
+    show_local_chat_message,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -620,16 +622,16 @@ unsafe extern "system" fn show_local_dialog(
     let Some(style) = LocalDialogStyle::from_raw(style) else {
         return RakSampResult::InvalidArgument;
     };
-    let Ok(title) = (unsafe { copied_dialog_string(title, title_len, 255) }) else {
+    let Ok(title) = (unsafe { copied_nul_free_string(title, title_len, 255) }) else {
         return RakSampResult::InvalidArgument;
     };
-    let Ok(text) = (unsafe { copied_dialog_string(text, text_len, 4_095) }) else {
+    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 4_095) }) else {
         return RakSampResult::InvalidArgument;
     };
-    let Ok(button1) = (unsafe { copied_dialog_string(button1, button1_len, 255) }) else {
+    let Ok(button1) = (unsafe { copied_nul_free_string(button1, button1_len, 255) }) else {
         return RakSampResult::InvalidArgument;
     };
-    let Ok(button2) = (unsafe { copied_dialog_string(button2, button2_len, 255) }) else {
+    let Ok(button2) = (unsafe { copied_nul_free_string(button2, button2_len, 255) }) else {
         return RakSampResult::InvalidArgument;
     };
     let Some(runtime) = clone_initialized(&host().runtime) else {
@@ -643,6 +645,38 @@ unsafe extern "system" fn show_local_dialog(
             text,
             button1,
             button2,
+        })
+        .map_or_else(direct_client_result, |_| RakSampResult::Ok)
+}
+
+unsafe extern "system" fn show_local_chat_message(
+    style: u32,
+    text: *const u8,
+    text_len: usize,
+    prefix: *const u8,
+    prefix_len: usize,
+    text_colour: u32,
+    prefix_colour: u32,
+) -> RakSampResult {
+    let Some(style) = LocalChatMessageStyle::from_raw(style) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 143) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(prefix) = (unsafe { copied_nul_free_string(prefix, prefix_len, 27) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    runtime
+        .show_local_chat_message(LocalChatMessageRequest {
+            style,
+            text,
+            prefix,
+            text_colour,
+            prefix_colour,
         })
         .map_or_else(direct_client_result, |_| RakSampResult::Ok)
 }
@@ -902,7 +936,7 @@ fn direct_client_result(error: DirectClientError) -> RakSampResult {
     }
 }
 
-unsafe fn copied_dialog_string(
+unsafe fn copied_nul_free_string(
     value: *const u8,
     value_len: usize,
     maximum: usize,

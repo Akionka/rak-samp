@@ -15,6 +15,10 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   independent packed fixture and an R1 code anchor, but still needs a legal
   R1 run that compares its copied address, hostname, and port with the selected
   server and confirms normal shutdown.
+- **Queued R1 local-chat live gate:** `HostApi::show_local_chat_message` is
+  fail-closed behind the R1 PE/GTA checks and a `CChat::AddEntry` code
+  signature. A legal R1 run still must confirm a visible chat/info/debug entry,
+  no generated RPC 61/62 traffic, and stable normal shutdown.
 
 ## Windows x86 evidence
 
@@ -50,6 +54,16 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `83 EC 10 53 56 57 8B 7C 24 20 33 DB 3B FB 8B F1`; this exact signature is
   the profile gate. The earlier `55 8B EC` check rejected this valid target
   and made direct helpers return `UnsupportedVersion`.
+- **Direct R1 chat signature:** static analysis of the installed fingerprinted
+  R1 DLL found `CChat::AddEntry` at `samp.dll + 0x64010` beginning
+  `55 56 8B E9 57 8D BD 32 01 00 00 8D B5 2E 02 00`. Its debug-entry wrapper at
+  `+0x645A0` calls that target with entry type `8`; the target uses x86
+  `thiscall` (`ECX` is `CChat`) and five scalar/pointer arguments. The
+  `CChat` singleton pointer at `+0x21A0E4` and internal capacities of 143 text
+  bytes plus 27 prefix bytes are used only after the same R1 PE, GTA, code,
+  and readable-pointer gates. The host copies and terminates its own strings
+  on the game-thread call; no client pointer or packet/RPC emulation reaches
+  the ABI.
 - **Cached R1 game state:** `CNetGame::GetGameState` at `samp.dll + 0x2E20`
   begins `8B 81 BD 03 00 00 C3` (`mov eax, [ecx + 0x3BD]; ret`) in the
   fingerprinted R1 target. The profile verifies that exact seven-byte signature

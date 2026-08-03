@@ -7,8 +7,8 @@ use crate::{
     },
 };
 use rak_samp_plugin_api::{
-    HostApi, LocalDialog, LocalDialogStyle, LocalPlayer, RakSampHookAction, RakSampResult,
-    RakSampSendOptions,
+    HostApi, LocalChatMessage, LocalChatMessageStyle, LocalDialog, LocalDialogStyle, LocalPlayer,
+    RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -264,6 +264,26 @@ fn run_direct_client(api: HostApi) {
         return;
     }
 
+    let chat_result = api.show_local_chat_message(LocalChatMessage {
+        style: LocalChatMessageStyle::Debug,
+        text: b"Direct local chat validation request.",
+        prefix: b"[rak-samp]",
+        text_colour: 0xFF_A9_C4_E4,
+        prefix_colour: u32::MAX,
+    });
+    if chat_result != RakSampResult::Ok {
+        SELF_TESTS
+            .direct_client
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        SELF_TESTS
+            .direct_snapshot_state
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        logging::write(&format!(
+            "direct-client self-test chat request returned {chat_result:?}"
+        ));
+        return;
+    }
+
     let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
@@ -310,7 +330,7 @@ fn run_direct_client(api: HostApi) {
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok game_state=Ok server_info=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok game_state=Ok server_info=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

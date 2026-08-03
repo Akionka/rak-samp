@@ -20,6 +20,7 @@ type ListenerCount = unsafe extern "system" fn() -> u32;
 type PluginReady = unsafe extern "system" fn() -> i32;
 type PluginCallbackCount = unsafe extern "system" fn() -> u32;
 type PluginDialogResult = unsafe extern "system" fn() -> u32;
+type PluginLocalChatResult = unsafe extern "system" fn() -> u32;
 type PluginLocalPlayerId = unsafe extern "system" fn() -> u32;
 type PluginSampGameState = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
@@ -101,6 +102,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_CallbackCount")?) };
     let dialog_result: PluginDialogResult =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_DialogResult")?) };
+    let local_chat_result: PluginLocalChatResult =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalChatResult")?) };
     let local_player_id: PluginLocalPlayerId =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalPlayerId")?) };
     let samp_game_state: PluginSampGameState =
@@ -117,6 +120,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     wait_until("plugin registration", || unsafe { ready() != 0 })?;
     if unsafe { dialog_result() } != 0 {
         return Err("plugin could not queue the mock direct dialog".to_owned());
+    }
+    if unsafe { local_chat_result() } != 0 {
+        return Err("plugin could not queue the mock direct local chat entry".to_owned());
     }
     if unsafe { local_player_id() } != 77 {
         return Err("plugin did not convert the mock local-player snapshot".to_owned());

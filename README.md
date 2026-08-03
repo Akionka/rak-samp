@@ -41,10 +41,12 @@ registrations. Callbacks can inspect, block, or replace payloads; replacement
 and send/emulation calls use an exact bit length. Callback events must not be retained.
 
 R1 plugins can queue a copied direct local dialog with
-`HostApi::show_local_dialog(LocalDialog { .. })` and retrieve an owned cached
-snapshot with `HostApi::local_player()`. A successful dialog call means the
-host accepted one of its 32 queued requests, not that it was displayed. Neither
-helper emulates RPC traffic or exposes client pointers. `local_player` returns
+`HostApi::show_local_dialog(LocalDialog { .. })`, a local chat entry with
+`HostApi::show_local_chat_message(LocalChatMessage { .. })`, and retrieve an
+owned cached snapshot with `HostApi::local_player()`. A successful UI call
+means the host accepted one of its 32 queued requests, not that it was
+displayed. Neither UI helper emulates RPC traffic or exposes client pointers.
+`local_player` returns
 `NotReady` until the server's R1 `INIT_GAME` assignment matches the pool's
 local-player ID across two game-thread refreshes.
 `HostApi` also exposes individual cached local-player ID, nickname, colour,

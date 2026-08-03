@@ -49,11 +49,14 @@ The complete typed `send_*_sync` helpers serialize the eight outgoing local
 sync packet layouts. They send only the supplied packet; they do not force,
 store, or mutate the client-side sync state.
 
-`HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
-32-request host queue. `HostApi::local_player` returns an owned clone of a
-host-owned cache and never waits for the game thread. Both APIs return
-`UnsupportedVersion` unless the R1 SA-MP and GTA SA 1.0 US fingerprints pass;
-they never expose client pointers or use RPC emulation. Snapshot publication
+`HostApi::show_local_dialog` and `HostApi::show_local_chat_message` copy
+NUL-free R1 UI requests into separate bounded 32-request host queues.
+Chat messages accept only R1's chat, info, and debug entry styles, with the
+native 143-byte text and 27-byte prefix limits. `HostApi::local_player` returns
+an owned clone of a host-owned cache and never waits for the game thread. These
+APIs return `UnsupportedVersion` unless the R1 SA-MP and GTA SA 1.0 US
+fingerprints pass; they never expose client pointers or use RPC emulation.
+Snapshot publication
 begins only after the server's R1 `INIT_GAME` assignment matches the
 local-player ID on two game-thread refreshes, then refreshes from the verified
 R1 player pool. It returns `NotReady` rather than publishing a provisional zero

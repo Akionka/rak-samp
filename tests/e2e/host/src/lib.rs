@@ -338,6 +338,41 @@ unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn show_local_chat_message(
+    style: u32,
+    text: *const u8,
+    text_len: usize,
+    prefix: *const u8,
+    prefix_len: usize,
+    text_colour: u32,
+    prefix_colour: u32,
+) -> RakSampResult {
+    let text = if text_len == 0 {
+        &[]
+    } else if text.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(text, text_len) }
+    };
+    let prefix = if prefix_len == 0 {
+        &[]
+    } else if prefix.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(prefix, prefix_len) }
+    };
+    if style == 8
+        && text == b"e2e local chat"
+        && prefix == b"[e2e]"
+        && text_colour == 0xFF_A9_C4_E4
+        && prefix_colour == u32::MAX
+    {
+        RakSampResult::Ok
+    } else {
+        RakSampResult::NativeCallFailed
+    }
+}
+
 unsafe extern "system" fn server_info(output: *mut RakSampServerInfoV1) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -420,4 +455,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     samp_version,
     decode_string,
     server_info,
+    show_local_chat_message,
 };

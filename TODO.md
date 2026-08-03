@@ -41,9 +41,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 
-- [ ] `sampGetChatInfoPtr`, `sampAddChatMessage`, `sampGetChatDisplayMode`,
-  `sampSetChatDisplayMode`, `sampGetChatString`, `sampSetChatString`,
-  `sampIsChatVisible`, `sampAddChatMessageEx`
+- [ ] `sampGetChatInfoPtr`, `sampGetChatDisplayMode`, `sampSetChatDisplayMode`,
+  `sampGetChatString`, `sampSetChatString`, `sampIsChatVisible`
+- [~] `sampAddChatMessage`, `sampAddChatMessageEx` —
+  `HostApi::show_local_chat_message` copies one bounded R1 chat/info/debug
+  entry for the game-thread pump without sending any packet or RPC. Keep this
+  provisional until the dedicated live R1 UI and shutdown scenario runs.
 - [ ] `sampGetKillInfoPtr`, `sampAddDeathMessage`
 
 ### Dialog, cursor, and input (`dialog.lua`, `game.lua`, `input.lua`)

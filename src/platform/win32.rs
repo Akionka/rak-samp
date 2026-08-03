@@ -9,8 +9,9 @@ use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
     event::{HookAction, Registry},
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
-        PacketPriority, PacketReliability, ServerInfoSnapshot,
+        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
+        LocalDialogRequest, LocalPlayerSnapshot, PacketPriority, PacketReliability,
+        ServerInfoSnapshot,
     },
 };
 use minhook::MinHook;
@@ -39,6 +40,8 @@ const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
 const LOCAL_DIALOG_QUEUE_CAPACITY: usize = 32;
 const LOCAL_DIALOGS_PER_PUMP: usize = 4;
+const LOCAL_CHAT_QUEUE_CAPACITY: usize = 32;
+const LOCAL_CHAT_MESSAGES_PER_PUMP: usize = 4;
 const R1_INIT_GAME_RPC_ID: u8 = 139;
 const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
 
@@ -98,6 +101,7 @@ struct BackendState {
     incoming_packet_diagnostic_logged: AtomicBool,
     string_codec: Mutex<()>,
     local_dialogs: Mutex<VecDeque<LocalDialogRequest>>,
+    local_chat_messages: Mutex<VecDeque<LocalChatMessageRequest>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
     server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
@@ -157,6 +161,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
         local_dialogs: Mutex::new(VecDeque::with_capacity(LOCAL_DIALOG_QUEUE_CAPACITY)),
+        local_chat_messages: Mutex::new(VecDeque::with_capacity(LOCAL_CHAT_QUEUE_CAPACITY)),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
         server_info_snapshot: Mutex::new(None),
@@ -236,6 +241,13 @@ impl Backend {
         request: LocalDialogRequest,
     ) -> Result<(), DirectClientError> {
         self.state.show_local_dialog(request)
+    }
+
+    pub(crate) fn show_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        self.state.show_local_chat_message(request)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
@@ -562,12 +574,40 @@ impl BackendState {
         self.queue_local_dialog(request)
     }
 
+    fn show_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_local_chat_message(request)
+    }
+
     fn queue_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
         let mut queue = self
             .local_dialogs
             .try_lock()
             .map_err(|_| DirectClientError::QueueFull)?;
         if queue.len() == LOCAL_DIALOG_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        queue.push_back(request);
+        Ok(())
+    }
+
+    fn queue_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        let mut queue = self
+            .local_chat_messages
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if queue.len() == LOCAL_CHAT_QUEUE_CAPACITY {
             return Err(DirectClientError::QueueFull);
         }
         queue.push_back(request);
@@ -622,18 +662,29 @@ impl BackendState {
         self.refresh_samp_game_state(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
-        if !profile.dialog_is_ready() {
-            return;
+        if profile.dialog_is_ready() {
+            let dialogs = self.take_local_dialogs();
+            for dialog in dialogs {
+                let dialog_id = dialog.id;
+                if let Err(error) = profile.show_dialog(dialog) {
+                    // The request is already copied and this is a game-thread-only
+                    // call; never log any user-provided dialog text.
+                    log::debug!(
+                        "direct local dialog pump call failed for id {dialog_id}: {error:?}"
+                    );
+                } else {
+                    log::debug!("direct local dialog pump invoked for id {dialog_id}");
+                }
+            }
         }
-        let dialogs = self.take_local_dialogs();
-        for dialog in dialogs {
-            let dialog_id = dialog.id;
-            if let Err(error) = profile.show_dialog(dialog) {
-                // The request is already copied and this is a game-thread-only
-                // call; never log any user-provided dialog text.
-                log::debug!("direct local dialog pump call failed for id {dialog_id}: {error:?}");
-            } else {
-                log::debug!("direct local dialog pump invoked for id {dialog_id}");
+        if profile.chat_is_ready() {
+            for message in self.take_local_chat_messages() {
+                if let Err(error) = profile.show_chat_message(message) {
+                    // Never log plugin-provided chat text or prefixes.
+                    log::debug!("direct local chat pump call failed: {error:?}");
+                } else {
+                    log::debug!("direct local chat pump invoked");
+                }
             }
         }
     }
@@ -643,6 +694,16 @@ impl BackendState {
             .try_lock()
             .map(|mut queue| {
                 let count = queue.len().min(LOCAL_DIALOGS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_local_chat_messages(&self) -> Vec<LocalChatMessageRequest> {
+        self.local_chat_messages
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(LOCAL_CHAT_MESSAGES_PER_PUMP);
                 queue.drain(..count).collect()
             })
             .unwrap_or_default()
@@ -762,6 +823,9 @@ impl BackendState {
         self.rak_client.store(0, Ordering::Release);
         if let Ok(mut dialogs) = self.local_dialogs.try_lock() {
             dialogs.clear();
+        }
+        if let Ok(mut messages) = self.local_chat_messages.try_lock() {
+            messages.clear();
         }
         if let Ok(mut snapshot) = self.local_player_snapshot.try_lock() {
             *snapshot = None;
@@ -1122,6 +1186,7 @@ mod vtable_tests {
             incoming_packet_diagnostic_logged: AtomicBool::new(false),
             string_codec: Mutex::new(()),
             local_dialogs: Mutex::new(VecDeque::new()),
+            local_chat_messages: Mutex::new(VecDeque::new()),
             local_player_snapshot: Mutex::new(None),
             local_player_candidate: Mutex::new(None),
             server_info_snapshot: Mutex::new(None),
@@ -1140,6 +1205,16 @@ mod vtable_tests {
             text: b"text".to_vec(),
             button1: b"ok".to_vec(),
             button2: Vec::new(),
+        }
+    }
+
+    fn test_chat_message() -> LocalChatMessageRequest {
+        LocalChatMessageRequest {
+            style: crate::runtime::LocalChatMessageStyle::Debug,
+            text: b"text".to_vec(),
+            prefix: b"prefix".to_vec(),
+            text_colour: 0,
+            prefix_colour: 0,
         }
     }
 
@@ -1166,6 +1241,10 @@ mod vtable_tests {
         let state = test_backend_state();
         assert_eq!(
             state.show_local_dialog(test_dialog(1)),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.show_local_chat_message(test_chat_message()),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
@@ -1215,6 +1294,22 @@ mod vtable_tests {
         assert_eq!(drained.first().map(|dialog| dialog.id), Some(0));
         assert_eq!(drained.last().map(|dialog| dialog.id), Some(3));
         assert_eq!(state.local_dialogs.lock().unwrap().len(), 28);
+    }
+
+    #[test]
+    fn game_pump_drains_only_four_chat_messages_per_entry() {
+        let state = test_backend_state();
+        for _ in 0..LOCAL_CHAT_QUEUE_CAPACITY {
+            state.queue_local_chat_message(test_chat_message()).unwrap();
+        }
+        assert_eq!(
+            state.queue_local_chat_message(test_chat_message()),
+            Err(DirectClientError::QueueFull)
+        );
+
+        let drained = state.take_local_chat_messages();
+        assert_eq!(drained.len(), LOCAL_CHAT_MESSAGES_PER_PUMP);
+        assert_eq!(state.local_chat_messages.lock().unwrap().len(), 28);
     }
 
     #[test]
