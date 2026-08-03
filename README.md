@@ -81,6 +81,10 @@ send traffic, or expose a client pointer.
 visibility state for the local dialog and chat input. Closing dialogs or
 opening/processing chat input remains outside the safe ABI.
 
+`HostApi::local_animation()` and `HostApi::local_animation_id()` expose owned
+lookups over R1's fingerprinted fixed animation table. The table is copied on
+the game-thread pump; plugin calls never receive the client table pointer.
+
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
 host's RakClient hooks are ready. `HostApi::is_samp_loaded()` instead reports

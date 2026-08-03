@@ -4,8 +4,8 @@
 compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
-    RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
+    ABI_VERSION_V1, RakSampAnimationV1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1,
+    RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
     RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
@@ -378,6 +378,54 @@ unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> RakSampRes
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn local_animation(
+    id: u16,
+    output: *mut RakSampAnimationV1,
+) -> RakSampResult {
+    if id != 0 {
+        return RakSampResult::NotReady;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.name[..7].copy_from_slice(b"AIRPORT");
+    output.name_len = 7;
+    output.file[..14].copy_from_slice(b"THRW_BARL_THRW");
+    output.file_len = 14;
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn local_animation_id(
+    name: *const u8,
+    name_len: usize,
+    file: *const u8,
+    file_len: usize,
+    output: *mut i32,
+) -> RakSampResult {
+    if (name.is_null() && name_len != 0) || (file.is_null() && file_len != 0) {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let name = if name_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(name, name_len) }
+    };
+    let file = if file_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(file, file_len) }
+    };
+    *output = if name == b"AIRPORT" && file == b"THRW_BARL_THRW" {
+        0
+    } else {
+        -1
+    };
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -537,4 +585,6 @@ static API: RakSampApiV1 = RakSampApiV1 {
     local_scoreboard_open,
     local_dialog_active,
     local_chat_input_active,
+    local_animation,
+    local_animation_id,
 };

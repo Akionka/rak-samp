@@ -2,8 +2,9 @@ use crate::{
     AttachError, BitStream, SampVersion, SendError, SendOptions,
     event::Registry,
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
-        LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
+        ServerInfoSnapshot,
     },
 };
 use std::sync::Arc;
@@ -119,6 +120,18 @@ impl Backend {
     }
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn local_animation(&self, _id: u16) -> Result<AnimationSnapshot, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn local_animation_id(
+        &self,
+        _name: &[u8],
+        _file: &[u8],
+    ) -> Result<Option<u16>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

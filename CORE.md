@@ -93,6 +93,11 @@ state without a client pointer or packet/RPC action.
 respective native flags. They do not close dialogs, edit UI text, register
 commands, or process input; such actions remain explicit native-mutation work.
 
+`HostApi::local_animation` and `HostApi::local_animation_id` query an owned
+copy of R1's fixed animation table. The profile fingerprints and parses that
+table only on the game-thread pump, validates each bounded `name:file` entry,
+then exposes copied byte strings and IDs without a client pointer.
+
 `HostApi::samp_version` exposes the recognized `samp.dll` build identity that
 the host already verified during attach. `HostApi::is_samp_available` reports
 host/hook readiness. Both are safe across every recognized build and need no

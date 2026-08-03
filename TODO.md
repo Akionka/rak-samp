@@ -65,6 +65,10 @@ or another client build supplies an offset.
   dismiss it; open and close chat input as well. Confirm both cached dialog
   and chat-input active/inactive state pairs appear in the outcome line with
   no packet/RPC emission or shutdown instability.
+- [ ] Confirm the direct-client validator reads R1 animation entry zero as
+  `AIRPORT:THRW_BARL_THRW` and resolves those byte strings back to zero. It is
+  an automatic static-table check, but must still be recorded with the normal
+  R1 lifecycle and shutdown evidence.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -196,8 +200,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 - [ ] `sampGetSampInfoPtr`, `sampGetSampPoolsPtr`,
   `sampGetServerSettingsPtr`, `sampSetGamestate`,
-  `sampGetAnimationNameAndFile`, `sampFindAnimationIdByNameAndFile`,
   `sampSetSendrate`
+- [~] `sampGetAnimationNameAndFile`, `sampFindAnimationIdByNameAndFile` —
+  `HostApi::local_animation` and `HostApi::local_animation_id` read an owned
+  cached copy of the fingerprinted fixed R1 table. Keep provisional until the
+  automatic known-entry lookup and normal shutdown live check are recorded.
 - [~] `sampGetCurrentServerName`, `sampGetCurrentServerAddress` —
   `HostApi::server_info` provides an owned cached R1 address, hostname, and
   port. Keep this status until its dedicated live R1 scenario records a match

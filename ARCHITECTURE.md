@@ -60,7 +60,8 @@ it fresh from the verified player pool. The same entry caches R1's opaque
 `CNetGame` state scalar, copied current-server metadata, and the validated
 three-value local chat display mode, five-value local cursor mode, and
 scoreboard-open, dialog-active, and chat-input-active flags, none of which
-drives snapshot readiness. It releases the dialog, chat, and death-window
+drives snapshot readiness. It also makes one owned copy of the fingerprinted
+R1 animation table. It releases the dialog, chat, and death-window
 queue locks, then calls `CDialog::Show`, `CChat::AddEntry`, and
 `CDeathWindow::AddMessage` for no more than four copied requests from each
 queue. It clears the cache

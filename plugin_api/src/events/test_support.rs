@@ -657,6 +657,54 @@ unsafe extern "system" fn test_local_chat_input_active(output: *mut u8) -> RakSa
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_local_animation(
+    id: u16,
+    output: *mut crate::RakSampAnimationV1,
+) -> RakSampResult {
+    if id != 0 {
+        return RakSampResult::NotReady;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.name[..7].copy_from_slice(b"AIRPORT");
+    output.name_len = 7;
+    output.file[..14].copy_from_slice(b"THRW_BARL_THRW");
+    output.file_len = 14;
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn test_local_animation_id(
+    name: *const u8,
+    name_len: usize,
+    file: *const u8,
+    file_len: usize,
+    output: *mut i32,
+) -> RakSampResult {
+    if (name.is_null() && name_len != 0) || (file.is_null() && file_len != 0) {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let name = if name_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(name, name_len) }
+    };
+    let file = if file_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(file, file_len) }
+    };
+    *output = if name == b"AIRPORT" && file == b"THRW_BARL_THRW" {
+        0
+    } else {
+        -1
+    };
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -756,6 +804,8 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     local_scoreboard_open: test_local_scoreboard_open,
     local_dialog_active: test_local_dialog_active,
     local_chat_input_active: test_local_chat_input_active,
+    local_animation: test_local_animation,
+    local_animation_id: test_local_animation_id,
 };
 
 pub(crate) fn test_api() -> HostApi {

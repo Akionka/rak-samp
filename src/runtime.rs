@@ -126,6 +126,13 @@ pub(crate) struct ServerInfoSnapshot {
     pub(crate) port: u16,
 }
 
+/// One owned entry from R1's fixed animation-name table.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct AnimationSnapshot {
+    pub(crate) name: Vec<u8>,
+    pub(crate) file: Vec<u8>,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Vector3 {
     pub(crate) x: f32,
@@ -419,6 +426,18 @@ impl Runtime {
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         self.backend.local_chat_input_active()
+    }
+
+    pub(crate) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
+        self.backend.local_animation(id)
+    }
+
+    pub(crate) fn local_animation_id(
+        &self,
+        name: &[u8],
+        file: &[u8],
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.backend.local_animation_id(name, file)
     }
 }
 

@@ -250,6 +250,16 @@ pub struct ServerInfo {
     pub port: u16,
 }
 
+/// An owned R1 animation-table entry.
+///
+/// The bytes before the `:` separator are `name`; the bytes after it are
+/// `file`. They remain bytes because the client does not guarantee Unicode.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalAnimation {
+    pub name: Vec<u8>,
+    pub file: Vec<u8>,
+}
+
 /// C-compatible storage for [`LocalPlayer`].
 ///
 /// This is output-only. `nickname_len` selects the initialized prefix of
@@ -320,6 +330,27 @@ impl Default for RakSampServerInfoV1 {
             address: [0; 257],
             hostname: [0; 257],
             port: 0,
+        }
+    }
+}
+
+/// C-compatible storage for [`LocalAnimation`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RakSampAnimationV1 {
+    pub name_len: u8,
+    pub file_len: u8,
+    pub name: [u8; 36],
+    pub file: [u8; 36],
+}
+
+impl Default for RakSampAnimationV1 {
+    fn default() -> Self {
+        Self {
+            name_len: 0,
+            file_len: 0,
+            name: [0; 36],
+            file: [0; 36],
         }
     }
 }
@@ -565,6 +596,11 @@ pub struct RakSampApiV1 {
     pub local_dialog_active: unsafe extern "system" fn(*mut u8) -> RakSampResult,
     /// Copies the latest game-thread-cached R1 chat-input-active flag into `output`.
     pub local_chat_input_active: unsafe extern "system" fn(*mut u8) -> RakSampResult,
+    /// Copies one entry from the cached R1 animation table into `output`.
+    pub local_animation: unsafe extern "system" fn(u16, *mut RakSampAnimationV1) -> RakSampResult,
+    /// Finds an R1 animation-table entry by copied name and file bytes.
+    pub local_animation_id:
+        unsafe extern "system" fn(*const u8, usize, *const u8, usize, *mut i32) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1600,6 +1636,47 @@ impl HostApi {
         }
     }
 
+    /// Returns an owned entry from the cached R1 animation table.
+    pub fn local_animation(self, id: u16) -> Result<LocalAnimation, RakSampResult> {
+        let mut raw = RakSampAnimationV1::default();
+        match unsafe { (self.raw.local_animation)(id, &mut raw) } {
+            RakSampResult::Ok => {
+                local_animation_from_abi(raw).ok_or(RakSampResult::NativeCallFailed)
+            }
+            result => Err(result),
+        }
+    }
+
+    /// Finds a cached R1 animation-table entry by its name and file bytes.
+    ///
+    /// Returns `Ok(None)` when no entry matches either byte string.
+    pub fn local_animation_id(
+        self,
+        name: &[u8],
+        file: &[u8],
+    ) -> Result<Option<u16>, RakSampResult> {
+        if !valid_bounded_bytes(name, 35) || !valid_bounded_bytes(file, 35) {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut id = -1;
+        match unsafe {
+            (self.raw.local_animation_id)(
+                name.as_ptr(),
+                name.len(),
+                file.as_ptr(),
+                file.len(),
+                &mut id,
+            )
+        } {
+            RakSampResult::Ok => match id {
+                -1 => Ok(None),
+                0..=65_535 => Ok(Some(id as u16)),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1773,6 +1850,28 @@ impl HostApi {
             RakSampSendOptions::default(),
         )
     }
+}
+
+fn valid_bounded_bytes(value: &[u8], maximum: usize) -> bool {
+    !value.is_empty() && value.len() <= maximum && !value.contains(&0)
+}
+
+fn local_animation_from_abi(raw: RakSampAnimationV1) -> Option<LocalAnimation> {
+    let name_len = usize::from(raw.name_len);
+    let file_len = usize::from(raw.file_len);
+    if name_len == 0
+        || file_len == 0
+        || name_len > raw.name.len()
+        || file_len > raw.file.len()
+        || raw.name[..name_len].contains(&0)
+        || raw.file[..file_len].contains(&0)
+    {
+        return None;
+    }
+    Some(LocalAnimation {
+        name: raw.name[..name_len].to_vec(),
+        file: raw.file[..file_len].to_vec(),
+    })
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -1991,8 +2090,16 @@ mod tests {
             mem::offset_of!(RakSampApiV1, local_dialog_active) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_animation),
             mem::offset_of!(RakSampApiV1, local_chat_input_active) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakSampApiV1, local_animation_id),
+            mem::offset_of!(RakSampApiV1, local_animation) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_animation_id) + function_size
         );
     }
 
@@ -2143,6 +2250,31 @@ mod tests {
         assert_eq!(api.is_local_dialog_active(), Ok(false));
         assert_eq!(api.is_local_chat_input_active(), Ok(false));
         assert_eq!(LocalCursorMode::from_raw(5), None);
+    }
+
+    #[test]
+    fn local_animation_table_uses_owned_bounded_abi_storage() {
+        let api = test_support::test_api();
+        assert_eq!(
+            api.local_animation(0),
+            Ok(LocalAnimation {
+                name: b"AIRPORT".to_vec(),
+                file: b"THRW_BARL_THRW".to_vec(),
+            })
+        );
+        assert_eq!(
+            api.local_animation_id(b"AIRPORT", b"THRW_BARL_THRW"),
+            Ok(Some(0))
+        );
+        assert_eq!(api.local_animation_id(b"missing", b"entry"), Ok(None));
+        assert_eq!(
+            api.local_animation_id(b"", b"entry"),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(
+            api.local_animation_id(&[b'x'; 36], b"entry"),
+            Err(RakSampResult::InvalidArgument)
+        );
     }
 
     #[test]

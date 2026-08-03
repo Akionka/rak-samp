@@ -2,16 +2,16 @@ use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
     PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
-        LocalChatMessageStyle, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogStyle,
-        LocalPlayerSnapshot, ServerInfoSnapshot,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
+        LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot, ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
-    RakSampHookAction, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
-    RakSampServerInfoV1, RakSampSubscription, Vector3,
+    ABI_VERSION_V1, RakSampAnimationV1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1,
+    RakSampEventV1, RakSampHookAction, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -151,6 +151,8 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     local_scoreboard_open,
     local_dialog_active,
     local_chat_input_active,
+    local_animation,
+    local_animation_id,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -848,6 +850,62 @@ unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> RakSampRes
     }
 }
 
+unsafe extern "system" fn local_animation(
+    id: u16,
+    output: *mut RakSampAnimationV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    let snapshot = match runtime.local_animation(id) {
+        Ok(snapshot) => snapshot,
+        Err(error) => return direct_client_result(error),
+    };
+    let Ok(snapshot) = animation_to_abi(snapshot) else {
+        return RakSampResult::NativeCallFailed;
+    };
+    *output = snapshot;
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn local_animation_id(
+    name: *const u8,
+    name_len: usize,
+    file: *const u8,
+    file_len: usize,
+    output: *mut i32,
+) -> RakSampResult {
+    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, 35) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(file) = (unsafe { copied_nul_free_string(file, file_len, 35) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if name.is_empty() || file.is_empty() {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.local_animation_id(&name, &file) {
+        Ok(Some(id)) => {
+            *output = i32::from(id);
+            RakSampResult::Ok
+        }
+        Ok(None) => {
+            *output = -1;
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1128,6 +1186,30 @@ fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV
     })
 }
 
+fn animation_to_abi(snapshot: AnimationSnapshot) -> Result<RakSampAnimationV1, ()> {
+    let name_len = u8::try_from(snapshot.name.len()).map_err(|_| ())?;
+    let file_len = u8::try_from(snapshot.file.len()).map_err(|_| ())?;
+    if snapshot.name.is_empty()
+        || snapshot.file.is_empty()
+        || snapshot.name.len() > 35
+        || snapshot.file.len() > 35
+        || snapshot.name.contains(&0)
+        || snapshot.file.contains(&0)
+    {
+        return Err(());
+    }
+    let mut name = [0; 36];
+    name[..snapshot.name.len()].copy_from_slice(&snapshot.name);
+    let mut file = [0; 36];
+    file[..snapshot.file.len()].copy_from_slice(&snapshot.file);
+    Ok(RakSampAnimationV1 {
+        name_len,
+        file_len,
+        name,
+        file,
+    })
+}
+
 fn send_options(options: RakSampSendOptions) -> Result<SendOptions, ()> {
     let priority = match options.priority {
         0 => PacketPriority::System,
@@ -1244,6 +1326,40 @@ mod tests {
         );
         assert_eq!(
             unsafe { local_chat_input_active(std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut animation = RakSampAnimationV1::default();
+        assert_eq!(
+            unsafe { local_animation(0, &mut animation) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { local_animation(0, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut animation_id = 0;
+        assert_eq!(
+            unsafe {
+                local_animation_id(
+                    b"AIRPORT".as_ptr(),
+                    b"AIRPORT".len(),
+                    b"THRW_BARL_THRW".as_ptr(),
+                    b"THRW_BARL_THRW".len(),
+                    &mut animation_id,
+                )
+            },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe {
+                local_animation_id(
+                    std::ptr::null(),
+                    1,
+                    b"THRW_BARL_THRW".as_ptr(),
+                    b"THRW_BARL_THRW".len(),
+                    &mut animation_id,
+                )
+            },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

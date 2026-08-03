@@ -4,7 +4,7 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
+    LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
     LocalDeathMessage, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampHookAction,
     Subscription, raknet::BitStream, wait_for_default_host,
 };
@@ -38,6 +38,7 @@ static LOCAL_CURSOR_MODE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_SCOREBOARD_OPEN: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_DIALOG_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_CHAT_INPUT_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
+static LOCAL_ANIMATION_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -118,6 +119,15 @@ fn initialize() {
     }
     if api.is_local_chat_input_active() == Ok(false) {
         LOCAL_CHAT_INPUT_ACTIVE.store(0, Ordering::Release);
+    }
+    if api.local_animation(0)
+        == Ok(LocalAnimation {
+            name: b"AIRPORT".to_vec(),
+            file: b"THRW_BARL_THRW".to_vec(),
+        })
+        && api.local_animation_id(b"AIRPORT", b"THRW_BARL_THRW") == Ok(Some(0))
+    {
+        LOCAL_ANIMATION_ID.store(0, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -219,6 +229,11 @@ pub extern "system" fn RakSampE2ePlugin_LocalDialogActive() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalChatInputActive() -> i32 {
     LOCAL_CHAT_INPUT_ACTIVE.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalAnimationId() -> i32 {
+    LOCAL_ANIMATION_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

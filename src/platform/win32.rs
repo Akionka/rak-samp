@@ -9,9 +9,9 @@ use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
     event::{HookAction, Registry},
     runtime::{
-        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
-        LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot, PacketPriority,
-        PacketReliability, ServerInfoSnapshot,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
+        PacketPriority, PacketReliability, ServerInfoSnapshot,
     },
 };
 use minhook::MinHook;
@@ -121,6 +121,7 @@ struct BackendState {
     local_dialog_active_ready: AtomicBool,
     local_chat_input_active: AtomicBool,
     local_chat_input_active_ready: AtomicBool,
+    animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
     hooks: Mutex<HookStorage>,
 }
 
@@ -194,6 +195,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_dialog_active_ready: AtomicBool::new(false),
         local_chat_input_active: AtomicBool::new(false),
         local_chat_input_active_ready: AtomicBool::new(false),
+        animation_catalog: Mutex::new(None),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
@@ -313,6 +315,18 @@ impl Backend {
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         self.state.local_chat_input_active()
+    }
+
+    pub(crate) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
+        self.state.local_animation(id)
+    }
+
+    pub(crate) fn local_animation_id(
+        &self,
+        name: &[u8],
+        file: &[u8],
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.state.local_animation_id(name, file)
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -783,6 +797,41 @@ impl BackendState {
         )
     }
 
+    fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
+        self.animation_catalog().and_then(|catalog| {
+            catalog
+                .get(usize::from(id))
+                .cloned()
+                .ok_or(DirectClientError::NotReady)
+        })
+    }
+
+    fn local_animation_id(
+        &self,
+        name: &[u8],
+        file: &[u8],
+    ) -> Result<Option<u16>, DirectClientError> {
+        let catalog = self.animation_catalog()?;
+        Ok(catalog
+            .iter()
+            .position(|entry| entry.name == name && entry.file == file)
+            .and_then(|index| u16::try_from(index).ok()))
+    }
+
+    fn animation_catalog(&self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.animation_catalog
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone()
+            .ok_or(DirectClientError::NotReady)
+    }
+
     fn pump_local_client(&self) {
         let Some(profile) = self.r1_client else {
             return;
@@ -796,6 +845,7 @@ impl BackendState {
         self.refresh_local_scoreboard_open(profile);
         self.refresh_local_dialog_active(profile);
         self.refresh_local_chat_input_active(profile);
+        self.refresh_animation_catalog(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         if profile.dialog_is_ready() {
@@ -1002,6 +1052,15 @@ impl BackendState {
         }
     }
 
+    fn refresh_animation_catalog(&self, profile: R1ClientProfile) {
+        let Ok(mut catalog) = self.animation_catalog.try_lock() else {
+            return;
+        };
+        if catalog.is_none() {
+            *catalog = profile.animation_catalog().ok();
+        }
+    }
+
     fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
         if self.r1_client.is_some()
             && let Some(player_id) = player_id
@@ -1076,6 +1135,9 @@ impl BackendState {
             .store(false, Ordering::Release);
         self.local_chat_input_active_ready
             .store(false, Ordering::Release);
+        if let Ok(mut catalog) = self.animation_catalog.try_lock() {
+            *catalog = None;
+        }
     }
 }
 
@@ -1441,6 +1503,7 @@ mod vtable_tests {
             local_dialog_active_ready: AtomicBool::new(false),
             local_chat_input_active: AtomicBool::new(false),
             local_chat_input_active_ready: AtomicBool::new(false),
+            animation_catalog: Mutex::new(None),
             hooks: Mutex::new(HookStorage::default()),
         }
     }
@@ -1535,6 +1598,14 @@ mod vtable_tests {
         );
         assert_eq!(
             state.local_chat_input_active(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_animation(0),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_animation_id(b"AIRPORT", b"THRW_BARL_THRW"),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(

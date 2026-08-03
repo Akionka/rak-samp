@@ -430,9 +430,21 @@ fn run_direct_client(api: HostApi) {
                 }
                 match api.server_info() {
                     Ok(info) if !info.address.is_empty() && info.port != 0 => {}
-                    Ok(_) | Err(RakSampResult::NotReady) => {
+                    Err(RakSampResult::NotReady) => {
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
+                    }
+                    Ok(_) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(
+                            "direct-client self-test animation-table entry did not match the R1 fingerprint",
+                        );
+                        return;
                     }
                     Err(error) => {
                         SELF_TESTS
@@ -542,11 +554,34 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+                match api.local_animation(0) {
+                    Ok(animation)
+                        if animation.name == b"AIRPORT"
+                            && animation.file == b"THRW_BARL_THRW"
+                            && api.local_animation_id(&animation.name, &animation.file)
+                                == Ok(Some(0)) => {}
+                    Ok(_) | Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test animation-table returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok animation_table=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

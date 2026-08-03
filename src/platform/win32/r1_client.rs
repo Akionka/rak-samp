@@ -5,8 +5,8 @@
 //! calls are safe only for the one fingerprinted R1 profile below.
 
 use crate::runtime::{
-    DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
-    LocalPlayerSnapshot, ServerInfoSnapshot, Vector3,
+    AnimationSnapshot, DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest,
+    LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -51,6 +51,9 @@ const PED_GET_HEALTH_RVA: usize = 0xA6610;
 const PED_GET_ARMOUR_RVA: usize = 0xA6650;
 const GAME_SINGLETON_RVA: usize = 0x21A10C;
 const GAME_PROCESS_INPUT_ENABLING_RVA: usize = 0x9BC10;
+const ANIMATION_TABLE_RVA: usize = 0xF15B0;
+const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
+const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 // These packed CNetGame fields are cross-checked by the independently written
@@ -117,6 +120,15 @@ const SCOREBOARD_ENABLE_SIGNATURE: [u8; 16] = [
 // the narrow copied cursor-mode field below.
 const GAME_PROCESS_INPUT_ENABLING_SIGNATURE: [u8; 16] = [
     0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x55, 0x57, 0x33, 0xFF, 0x3B, 0xC7, 0x0F, 0x85, 0x07, 0x01, 0x00,
+];
+
+// R1 stores 1,812 fixed 36-byte `group:name` animation entries in a static
+// table. Its complete first entry fingerprints the data format before the
+// game-thread pump makes an owned copy.
+const ANIMATION_TABLE_SIGNATURE: [u8; 36] = [
+    0x41, 0x49, 0x52, 0x50, 0x4F, 0x52, 0x54, 0x3A, 0x54, 0x48, 0x52, 0x57, 0x5F, 0x42, 0x41, 0x52,
+    0x4C, 0x5F, 0x54, 0x48, 0x52, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00,
 ];
 
 // `CDeathWindow::AddMessage` is an R1 thunk to `AddEntry`; verify both its
@@ -275,6 +287,19 @@ impl R1ClientProfile {
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         read_r1_bool(input as usize + INPUT_ENABLED_OFFSET)
+    }
+
+    pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
+        let table = self.module_base + ANIMATION_TABLE_RVA;
+        let length = ANIMATION_TABLE_ENTRY_COUNT * ANIMATION_TABLE_ENTRY_SIZE;
+        if !readable_range(table as *const u8, length) {
+            return Err(DirectClientError::NotReady);
+        }
+        let entries = unsafe { std::slice::from_raw_parts(table as *const u8, length) };
+        entries
+            .chunks_exact(ANIMATION_TABLE_ENTRY_SIZE)
+            .map(parse_animation_entry)
+            .collect()
     }
 
     pub(super) fn death_window_is_ready(self) -> bool {
@@ -569,6 +594,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             module_base + GAME_PROCESS_INPUT_ENABLING_RVA,
             &GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
         )
+        && bytes_match(
+            module_base + ANIMATION_TABLE_RVA,
+            &ANIMATION_TABLE_SIGNATURE,
+        )
         && code_matches(
             module_base + DEATH_WINDOW_ADD_MESSAGE_RVA,
             &DEATH_WINDOW_ADD_MESSAGE_SIGNATURE,
@@ -597,6 +626,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
 }
 
 fn code_matches(address: usize, signature: &[u8]) -> bool {
+    bytes_match(address, signature)
+}
+
+fn bytes_match(address: usize, signature: &[u8]) -> bool {
     readable_range(address as *const u8, signature.len())
         && unsafe { std::slice::from_raw_parts(address as *const u8, signature.len()) } == signature
 }
@@ -639,6 +672,24 @@ fn read_r1_bool(address: usize) -> Result<bool, DirectClientError> {
         Some(1) => Ok(true),
         _ => Err(DirectClientError::NotReady),
     }
+}
+
+fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
+    let length = entry
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(entry.len());
+    let Some(separator) = entry[..length].iter().position(|byte| *byte == b':') else {
+        return Err(DirectClientError::NotReady);
+    };
+    let (name, file) = (&entry[..separator], &entry[separator + 1..length]);
+    if name.is_empty() || file.is_empty() || file.contains(&b':') {
+        return Err(DirectClientError::NotReady);
+    }
+    Ok(AnimationSnapshot {
+        name: name.to_vec(),
+        file: file.to_vec(),
+    })
 }
 
 unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
@@ -699,18 +750,19 @@ unsafe fn plausible_code(address: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
-        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_ACTIVE_OFFSET, DIALOG_SHOW_ACTIVE_SIGNATURE,
-        DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
-        INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET, INPUT_OPEN_SIGNATURE,
-        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
-        LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
-        LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
-        LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_STATE_SIGNATURE,
-        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
-        PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE,
-        SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET, assigned_player_id, nul_terminated,
+        ANIMATION_TABLE_SIGNATURE, CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE,
+        DEATH_WINDOW_ADD_ENTRY_SIGNATURE, DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_ACTIVE_OFFSET,
+        DIALOG_SHOW_ACTIVE_SIGNATURE, DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET,
+        GAME_PROCESS_INPUT_ENABLING_SIGNATURE, INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET,
+        INPUT_OPEN_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET,
+        LOCAL_PLAYER_INCAR_OFFSET, LOCAL_PLAYER_INCAR_POSITION_OFFSET,
+        LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
+        LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
+        LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
+        NET_GAME_GET_STATE_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
+        NET_GAME_PORT_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
+        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
+        assigned_player_id, nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -862,6 +914,25 @@ mod tests {
                 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xE0, 0x14, 0x00, 0x00, 0x85, 0xC0, 0x74, 0x39, 0x8B,
                 0x4E, 0x08,
             ]
+        );
+    }
+
+    #[test]
+    fn animation_table_signature_and_parser_match_the_fingerprinted_r1_data() {
+        assert_eq!(
+            ANIMATION_TABLE_SIGNATURE,
+            [
+                0x41, 0x49, 0x52, 0x50, 0x4F, 0x52, 0x54, 0x3A, 0x54, 0x48, 0x52, 0x57, 0x5F, 0x42,
+                0x41, 0x52, 0x4C, 0x5F, 0x54, 0x48, 0x52, 0x57, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            ]
+        );
+        assert_eq!(
+            parse_animation_entry(&ANIMATION_TABLE_SIGNATURE),
+            Ok(crate::runtime::AnimationSnapshot {
+                name: b"AIRPORT".to_vec(),
+                file: b"THRW_BARL_THRW".to_vec(),
+            })
         );
     }
 

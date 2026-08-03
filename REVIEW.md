@@ -40,6 +40,10 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   observe active/inactive transitions for the queued direct dialog and normal
   chat input, confirm the cache agrees with the UI, produces no traffic, and
   exits normally.
+- **Cached R1 animation-table live gate:** `HostApi::local_animation` and
+  `HostApi::local_animation_id` are fail-closed behind the exact R1 table
+  fingerprint. A legal R1 lifecycle run must record the validator's known
+  entry/round-trip lookup, no generated traffic, and normal shutdown.
 
 ## Windows x86 evidence
 
@@ -123,6 +127,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   copies only canonical `0/1` values from the game-thread pump into atomic
   caches. The ABI returns flags only; it does not expose a client pointer,
   close a dialog, mutate input, or send packet/RPC traffic.
+- **Cached R1 animation table:** static analysis of the installed fingerprinted
+  R1 DLL found 1,812 fixed 36-byte `name:file` entries at
+  `samp.dll + 0xF15B0`. The exact first padded entry is
+  `AIRPORT:THRW_BARL_THRW`; every installed entry was bounded, nonempty,
+  colon-separated, and unique during the static audit. The profile verifies
+  that first complete 36-byte entry before copying and parsing the whole table
+  only on the game-thread pump. It accepts only bounded one-colon entries,
+  retains owned name/file bytes, and exposes a fixed-buffer ABI lookup by ID
+  or byte pair. Neither client memory nor a table pointer reaches a plugin.
 - **Direct R1 death-window signatures:** static analysis of the installed
   fingerprinted R1 DLL found `CDeathWindow::AddMessage` at `samp.dll + 0x66A10`
   as `E9 1B FF FF FF`, a thunk to `CDeathWindow::AddEntry` at `+0x66930`, which
