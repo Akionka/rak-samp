@@ -51,6 +51,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   run with a second player must show initial nonblocking `NotReady`, a copied
   entry, disconnected refresh to `None`, no generated traffic, and stable
   shutdown before release.
+- **Cached R1 player-count live gate:** `HostApi::player_count` calls the two
+  `CPlayerPool::GetCount` accessor modes only from the game-thread pump and
+  publishes bounded scalar values. A legal R1 run must confirm a sensible
+  nonzero count, no generated traffic, and stable shutdown; streamed GTA-ped
+  counting is intentionally not claimed.
 
 ## Windows x86 evidence
 
@@ -63,6 +68,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   lead, not authority. These are accessor calls only—this batch introduces no
   native field layout, so no new C++ layout fixture is claimed. The profile
   still requires the existing strict SA-MP and GTA SA 1.0 US fingerprints.
+- **R1 player-count accessor target:** the installed SA-MP 0.3.7 R1 `samp.dll`
+  audit confirms `CPlayerPool::GetCount(BOOL)` at RVA `0x10520`, with leading
+  bytes `8B 54 24 04 56 33 C0 85 D2 57 74 71 33 D2 8B FF`. The profile verifies
+  this exact signature before enabling any direct R1 helper. It is a native
+  accessor call, not a new native-memory layout, so no C++ layout fixture is
+  claimed.
 
 - **RakNet packet layout:** `RawPacket` and its embedded `PacketPlayerId` use
   packed offsets. The by-value incoming-RPC `RpcPlayerId` is a distinct aligned

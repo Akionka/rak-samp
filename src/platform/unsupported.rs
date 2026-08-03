@@ -88,6 +88,10 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn player_count(&self, _include_npcs: bool) -> Result<u16, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn show_local_chat_message(
         &self,
         _request: LocalChatMessageRequest,

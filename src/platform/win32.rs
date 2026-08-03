@@ -112,6 +112,9 @@ struct BackendState {
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
     player_info_cache: Mutex<Vec<PlayerInfoCacheEntry>>,
     player_info_requests: Mutex<VecDeque<u16>>,
+    player_count_including_npcs: AtomicI32,
+    player_count_excluding_npcs: AtomicI32,
+    player_count_ready: AtomicBool,
     server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
     assigned_local_player_id: AtomicU16,
     samp_game_state: AtomicI32,
@@ -196,6 +199,9 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         player_info_requests: Mutex::new(VecDeque::with_capacity(
             PLAYER_INFO_REQUEST_QUEUE_CAPACITY,
         )),
+        player_count_including_npcs: AtomicI32::new(0),
+        player_count_excluding_npcs: AtomicI32::new(0),
+        player_count_ready: AtomicBool::new(false),
         server_info_snapshot: Mutex::new(None),
         assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         samp_game_state: AtomicI32::new(0),
@@ -309,6 +315,10 @@ impl Backend {
         id: u16,
     ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
         self.state.player_info(id)
+    }
+
+    pub(crate) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
+        self.state.player_count(include_npcs)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -804,6 +814,23 @@ impl BackendState {
         }
     }
 
+    fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.player_count_ready.load(Ordering::Acquire)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let count = if include_npcs {
+            self.player_count_including_npcs.load(Ordering::Acquire)
+        } else {
+            self.player_count_excluding_npcs.load(Ordering::Acquire)
+        };
+        u16::try_from(count).map_err(|_| DirectClientError::NotReady)
+    }
+
     fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -930,6 +957,7 @@ impl BackendState {
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
+        self.refresh_player_count(profile);
         if profile.dialog_is_ready() {
             let dialogs = self.take_local_dialogs();
             for dialog in dialogs {
@@ -1070,6 +1098,19 @@ impl BackendState {
             if let Some(entry) = cache.get_mut(usize::from(id)) {
                 *entry = PlayerInfoCacheEntry::Known(snapshot);
             }
+        }
+    }
+
+    fn refresh_player_count(&self, profile: R1ClientProfile) {
+        match profile.player_counts() {
+            Ok((including_npcs, excluding_npcs)) => {
+                self.player_count_including_npcs
+                    .store(i32::from(including_npcs), Ordering::Release);
+                self.player_count_excluding_npcs
+                    .store(i32::from(excluding_npcs), Ordering::Release);
+                self.player_count_ready.store(true, Ordering::Release);
+            }
+            Err(_) => self.player_count_ready.store(false, Ordering::Release),
         }
     }
 
@@ -1252,6 +1293,7 @@ impl BackendState {
             .store(false, Ordering::Release);
         self.local_chat_input_active_ready
             .store(false, Ordering::Release);
+        self.player_count_ready.store(false, Ordering::Release);
         if let Ok(mut catalog) = self.animation_catalog.try_lock() {
             *catalog = None;
         }
@@ -1620,6 +1662,9 @@ mod vtable_tests {
             local_player_candidate: Mutex::new(None),
             player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
             player_info_requests: Mutex::new(VecDeque::new()),
+            player_count_including_npcs: AtomicI32::new(0),
+            player_count_excluding_npcs: AtomicI32::new(0),
+            player_count_ready: AtomicBool::new(false),
             server_info_snapshot: Mutex::new(None),
             assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             samp_game_state: AtomicI32::new(0),
@@ -1709,6 +1754,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.player_info(7),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.player_count(true),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(

@@ -76,6 +76,9 @@ are projections of this one host-owned cache; they do not create additional
 native reads. `HostApi::player_info` is the separate bounded directory cache:
 local IDs project that snapshot, remote IDs are demand-refreshed, and no native
 player/ped/pool/GTA handle reaches a plugin.
+`HostApi::player_count` is a second scalar cache populated by the exact R1
+`CPlayerPool::GetCount` accessor in both NPC modes; it does not inspect the
+GTA world or expose streamed-ped counting.
 
 ## Native and ABI boundaries
 

@@ -451,6 +451,18 @@ unsafe extern "system" fn player_info(id: u16, output: *mut RakSampPlayerInfoV1)
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn player_count(include_npcs: u8, output: *mut u16) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    match include_npcs {
+        0 => *output = 1,
+        1 => *output = 2,
+        _ => return RakSampResult::InvalidArgument,
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -613,4 +625,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     local_animation,
     local_animation_id,
     player_info,
+    player_count,
 };

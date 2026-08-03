@@ -750,6 +750,18 @@ unsafe extern "system" fn test_player_info(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_player_count(include_npcs: u8, output: *mut u16) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    match include_npcs {
+        0 => *output = 2,
+        1 => *output = 3,
+        _ => return RakSampResult::InvalidArgument,
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -852,6 +864,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     local_animation: test_local_animation,
     local_animation_id: test_local_animation_id,
     player_info: test_player_info,
+    player_count: test_player_count,
 };
 
 pub(crate) fn test_api() -> HostApi {

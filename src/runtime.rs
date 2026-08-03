@@ -420,6 +420,10 @@ impl Runtime {
         self.backend.player_info(id)
     }
 
+    pub(crate) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
+        self.backend.player_count(include_npcs)
+    }
+
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         self.backend.server_info()
     }

@@ -664,11 +664,30 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+                match api.player_count(true) {
+                    Ok(count) if count > 0 => {}
+                    Ok(_) | Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test player-count returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok animation_table=Ok player_directory=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok animation_table=Ok player_directory=Ok player_count=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

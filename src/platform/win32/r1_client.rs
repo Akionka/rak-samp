@@ -51,6 +51,7 @@ const PLAYER_POOL_IS_NPC_RVA: usize = 0xB680;
 const PLAYER_POOL_GET_NAME_RVA: usize = 0x13CE0;
 const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
 const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
+const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
@@ -175,6 +176,9 @@ const PLAYER_POOL_GET_SCORE_SIGNATURE: [u8; 16] = [
 ];
 const PLAYER_POOL_GET_PING_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x77, 0x0B, 0x0F, 0xB7, 0xC0, 0x8B, 0x44,
+];
+const PLAYER_POOL_GET_COUNT_SIGNATURE: [u8; 16] = [
+    0x8B, 0x54, 0x24, 0x04, 0x56, 0x33, 0xC0, 0x85, 0xD2, 0x57, 0x74, 0x71, 0x33, 0xD2, 0x8B, 0xFF,
 ];
 const REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE: [u8; 16] = [
     0x0F, 0xB7, 0x81, 0xAB, 0x00, 0x00, 0x00, 0x50, 0xE8, 0x63, 0xAB, 0x09, 0x00, 0xC1, 0xE8, 0x08,
@@ -472,6 +476,32 @@ impl R1ClientProfile {
         }))
     }
 
+    /// Reads both R1 `CPlayerPool::GetCount` modes on the game-thread pump.
+    /// The resulting scalar pair is published by the host; no pool layout or
+    /// pointer crosses this private profile boundary.
+    pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let get_count: PlayerPoolGetCountFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_COUNT_RVA) };
+        let including_npcs = unsafe { get_count(pool, 1) };
+        let excluding_npcs = unsafe { get_count(pool, 0) };
+        let including_npcs = u16::try_from(including_npcs)
+            .ok()
+            .filter(|count| *count <= MAX_SAMP_PLAYERS)
+            .ok_or(DirectClientError::NotReady)?;
+        let excluding_npcs = u16::try_from(excluding_npcs)
+            .ok()
+            .filter(|count| *count <= including_npcs)
+            .ok_or(DirectClientError::NotReady)?;
+        Ok((including_npcs, excluding_npcs))
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -642,6 +672,7 @@ type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -
 type PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
 type PlayerPoolGetPlayerNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
 type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
 type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
@@ -740,6 +771,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         && code_matches(
             module_base + PLAYER_POOL_GET_PING_RVA,
             &PLAYER_POOL_GET_PING_SIGNATURE,
+        )
+        && code_matches(
+            module_base + PLAYER_POOL_GET_COUNT_RVA,
+            &PLAYER_POOL_GET_COUNT_SIGNATURE,
         )
         && code_matches(
             module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA,
@@ -895,12 +930,13 @@ mod tests {
         LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
         NET_GAME_GET_PLAYER_POOL_SIGNATURE, NET_GAME_GET_STATE_SIGNATURE,
         NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
-        PLAYER_POOL_GET_NAME_SIGNATURE, PLAYER_POOL_GET_PING_SIGNATURE,
-        PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE, PLAYER_POOL_GET_SCORE_SIGNATURE,
-        PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
-        PLAYER_POOL_LOCAL_ID_OFFSET, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
-        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, assigned_player_id, nul_terminated, parse_animation_entry,
+        PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
+        PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
+        PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
+        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LOCAL_ID_OFFSET,
+        REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, SAMP_PED_GAME_PED_OFFSET,
+        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
+        assigned_player_id, nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -1184,6 +1220,13 @@ mod tests {
             [
                 0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x77, 0x0B, 0x0F, 0xB7, 0xC0,
                 0x8B, 0x44,
+            ]
+        );
+        assert_eq!(
+            PLAYER_POOL_GET_COUNT_SIGNATURE,
+            [
+                0x8B, 0x54, 0x24, 0x04, 0x56, 0x33, 0xC0, 0x85, 0xD2, 0x57, 0x74, 0x71, 0x33, 0xD2,
+                0x8B, 0xFF,
             ]
         );
         assert_eq!(

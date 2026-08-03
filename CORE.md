@@ -78,6 +78,12 @@ player, ped, or GTA pointer. The R1 accessor targets are fingerprinted before
 profile enablement; this surface remains provisional pending its second-player
 live lifecycle test.
 
+`HostApi::player_count(include_npcs)` is a separate cached scalar pair from
+the exact R1 `CPlayerPool::GetCount` accessor. The pump calls its two boolean
+modes, bounds each result to the R1 player capacity, and publishes them
+atomically. It represents the non-streamed player-pool count only; it does not
+walk GTA peds to approximate SF.lua's streamed-count branch.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

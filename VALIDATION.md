@@ -42,7 +42,7 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, and known animation-table results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, known animation-table, player-directory, and non-streamed player-count results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
@@ -68,6 +68,11 @@ with only a player ID in the log; then have that player disconnect and issue a
 fresh directory read during a follow-up run to confirm it becomes `None` after
 refresh. The first remote read may be `NotReady`; it must never block a plugin
 thread or generate packet/RPC traffic. Exit normally and remove the marker.
+
+The direct R1 helper scenario also reports `player_count=Ok` once the cached
+including-NPC player-pool count is nonzero. Check that it is sensible for the
+server's visible player list; it is not a streamed-GTA-ped count and does not
+send traffic.
 
 For the separate runtime-unload check, close GTA and run:
 
