@@ -109,6 +109,32 @@ struct FixtureR1PlayerPoolPrefix {
     unsigned short local_id;
 };
 
+struct FixtureR1VehicleInfo {
+    unsigned short id;
+    int type;
+    float position[3];
+    float rotation;
+    unsigned char primary_colour;
+    unsigned char secondary_colour;
+    float health;
+    char interior;
+    int door_damage;
+    int panel_damage;
+    char light_damage;
+    bool doors_locked;
+    bool has_siren;
+};
+
+struct FixtureR1VehiclePoolExistsPrefix {
+    int count;
+    struct {
+        FixtureR1VehicleInfo entry[100];
+        int not_empty[100];
+    } waiting;
+    void* objects[2000];
+    int not_empty[2000];
+};
+
 struct FixtureR1NetGamePrefix {
     unsigned char pad_0[32];
     char host_address[257];
@@ -156,6 +182,8 @@ static_assert(sizeof(FixtureR1IncarData) == 63);
 static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
 static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
+static_assert(sizeof(FixtureR1VehicleInfo) == 40);
+static_assert(offsetof(FixtureR1VehiclePoolExistsPrefix, not_empty) == 0x3074);
 static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
 static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
 static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
@@ -277,6 +305,10 @@ std::size_t rak_samp_fixture_r1_player_pool_local_id_offset() {
 
 std::size_t rak_samp_fixture_r1_player_pool_largest_id_offset() {
     return offsetof(FixtureR1PlayerPoolPrefix, largest_id);
+}
+
+std::size_t rak_samp_fixture_r1_vehicle_pool_not_empty_offset() {
+    return offsetof(FixtureR1VehiclePoolExistsPrefix, not_empty);
 }
 
 std::size_t rak_samp_fixture_r1_net_game_host_address_offset() {

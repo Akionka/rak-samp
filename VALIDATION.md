@@ -42,8 +42,9 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, known animation-table, player-directory, and non-streamed player-count results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
+| R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
@@ -77,6 +78,12 @@ send traffic.
 The same outcome line reports `player_max_id=Ok`. Confirm its non-streamed
 player-pool value is at least the assigned local-player ID; it is not the
 separate streamed-GTA-ped maximum and does not send traffic.
+
+For the vehicle-existence check, create the vehicle marker before launching
+the validator and remain connected for up to two minutes. Confirm
+`vehicle-exists self-test passed` with only one vehicle ID in the log. Initial
+lookups may be `NotReady` while the game-thread pump fills the cache; the scan
+must not send packet/RPC traffic and must survive normal shutdown.
 
 For the separate runtime-unload check, close GTA and run:
 

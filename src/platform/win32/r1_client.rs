@@ -41,6 +41,7 @@ const DEATH_WINDOW_ADD_MESSAGE_RVA: usize = 0x66A10;
 const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
 const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
+const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -53,6 +54,7 @@ const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
 const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
 const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
 const PLAYER_POOL_UPDATE_LARGEST_ID_RVA: usize = 0x102B0;
+const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
@@ -64,9 +66,11 @@ const ANIMATION_TABLE_RVA: usize = 0xF15B0;
 const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
 const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const MAX_SAMP_PLAYERS: u16 = 1004;
+const MAX_SAMP_VEHICLES: u16 = 2000;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
+const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -161,6 +165,8 @@ const NET_GAME_GET_STATE_SIGNATURE: [u8; 7] = [0x8B, 0x81, 0xBD, 0x03, 0x00, 0x0
 // outputs, and never exports a pool or remote-player pointer.
 const NET_GAME_GET_PLAYER_POOL_SIGNATURE: [u8; 9] =
     [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x18];
+const NET_GAME_GET_VEHICLE_POOL_SIGNATURE: [u8; 10] =
+    [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x1C, 0xC3];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
 ];
@@ -184,6 +190,14 @@ const PLAYER_POOL_GET_COUNT_SIGNATURE: [u8; 16] = [
 ];
 const PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE: [u8; 16] = [
     0x56, 0x57, 0x33, 0xF6, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x8D, 0x91, 0xE2, 0x0F, 0x00, 0x00, 0x90,
+];
+// `CVehiclePool::DoesExist` first rejects IDs >= 2,000, then returns the
+// packed `m_bNotEmpty[id]` BOOL at offset 0x3074. The independent fixture
+// below anchors the array offset; this exact target signature prevents the
+// profile from accepting a same-shaped pointer accessor from another build.
+const VEHICLE_POOL_DOES_EXIST_SIGNATURE: [u8; 29] = [
+    0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xD0, 0x07, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
+    0x0F, 0xB7, 0xC0, 0x8B, 0x84, 0x81, 0x74, 0x30, 0x00, 0x00, 0xC2, 0x04, 0x00,
 ];
 const REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE: [u8; 16] = [
     0x0F, 0xB7, 0x81, 0xAB, 0x00, 0x00, 0x00, 0x50, 0xE8, 0x63, 0xAB, 0x09, 0x00, 0xC1, 0xE8, 0x08,
@@ -528,6 +542,30 @@ impl R1ClientProfile {
         Ok(largest_id)
     }
 
+    /// Reads one R1 vehicle-pool existence flag on the game-thread pump.
+    /// Only the copied boolean crosses the private profile boundary.
+    pub(super) fn vehicle_exists(self, id: u16) -> Result<bool, DirectClientError> {
+        if id >= MAX_SAMP_VEHICLES {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_vehicle_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_VEHICLE_POOL_RVA) };
+        let pool = unsafe { get_vehicle_pool(net_game) };
+        let checked_len =
+            VEHICLE_POOL_NOT_EMPTY_OFFSET + (usize::from(id) + 1) * mem::size_of::<i32>();
+        if pool.is_null() || !readable_range(pool.cast(), checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        let does_exist: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + VEHICLE_POOL_DOES_EXIST_RVA) };
+        match unsafe { does_exist(pool, id) } {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -775,6 +813,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &NET_GAME_GET_PLAYER_POOL_SIGNATURE,
         )
         && code_matches(
+            module_base + NET_GAME_GET_VEHICLE_POOL_RVA,
+            &NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
+        )
+        && code_matches(
             module_base + PLAYER_POOL_IS_CONNECTED_RVA,
             &PLAYER_POOL_IS_CONNECTED_SIGNATURE,
         )
@@ -805,6 +847,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         && code_matches(
             module_base + PLAYER_POOL_UPDATE_LARGEST_ID_RVA,
             &PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE,
+        )
+        && code_matches(
+            module_base + VEHICLE_POOL_DOES_EXIST_RVA,
+            &VEHICLE_POOL_DOES_EXIST_SIGNATURE,
         )
         && code_matches(
             module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA,
@@ -959,14 +1005,16 @@ mod tests {
         LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
         NET_GAME_GET_PLAYER_POOL_SIGNATURE, NET_GAME_GET_STATE_SIGNATURE,
-        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
-        PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
-        PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
-        PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
-        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+        NET_GAME_GET_VEHICLE_POOL_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET,
+        NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET, PLAYER_POOL_GET_COUNT_SIGNATURE,
+        PLAYER_POOL_GET_NAME_SIGNATURE, PLAYER_POOL_GET_PING_SIGNATURE,
+        PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE, PLAYER_POOL_GET_SCORE_SIGNATURE,
+        PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
+        PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, assigned_player_id, nul_terminated, parse_animation_entry,
+        SCOREBOARD_ENABLED_OFFSET, VEHICLE_POOL_DOES_EXIST_SIGNATURE,
+        VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id, nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -985,6 +1033,7 @@ mod tests {
         fn rak_samp_fixture_r1_ped_game_ped_offset() -> usize;
         fn rak_samp_fixture_r1_player_pool_local_id_offset() -> usize;
         fn rak_samp_fixture_r1_player_pool_largest_id_offset() -> usize;
+        fn rak_samp_fixture_r1_vehicle_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_host_address_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_hostname_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_port_offset() -> usize;
@@ -1052,6 +1101,10 @@ mod tests {
             assert_eq!(
                 rak_samp_fixture_r1_player_pool_largest_id_offset(),
                 PLAYER_POOL_LARGEST_ID_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_vehicle_pool_not_empty_offset(),
+                VEHICLE_POOL_NOT_EMPTY_OFFSET
             );
             assert_eq!(
                 rak_samp_fixture_r1_net_game_host_address_offset(),
@@ -1269,6 +1322,18 @@ mod tests {
             [
                 0x56, 0x57, 0x33, 0xF6, 0xB8, 0x02, 0x00, 0x00, 0x00, 0x8D, 0x91, 0xE2, 0x0F, 0x00,
                 0x00, 0x90,
+            ]
+        );
+        assert_eq!(
+            NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
+            [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x1C, 0xC3]
+        );
+        assert_eq!(
+            VEHICLE_POOL_DOES_EXIST_SIGNATURE,
+            [
+                0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xD0, 0x07, 0x72, 0x05, 0x33, 0xC0, 0xC2,
+                0x04, 0x00, 0x0F, 0xB7, 0xC0, 0x8B, 0x84, 0x81, 0x74, 0x30, 0x00, 0x00, 0xC2, 0x04,
+                0x00,
             ]
         );
         assert_eq!(

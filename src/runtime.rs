@@ -428,6 +428,10 @@ impl Runtime {
         self.backend.player_max_id()
     }
 
+    pub(crate) fn vehicle_exists(&self, id: u16) -> Result<bool, DirectClientError> {
+        self.backend.vehicle_exists(id)
+    }
+
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         self.backend.server_info()
     }

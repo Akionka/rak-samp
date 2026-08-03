@@ -61,6 +61,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   A legal R1 run must confirm it is at least the assigned local ID, produces
   no generated traffic, and exits normally; streamed GTA-ped maximum-ID
   semantics are intentionally not claimed.
+- **Cached R1 vehicle-existence live gate:** `HostApi::is_vehicle_defined`
+  demand-refreshes a bounded `CVehiclePool::DoesExist` boolean only from the
+  game-thread pump. A legal R1 run must observe a defined ID through the
+  opt-in scan, no generated traffic, and stable shutdown; no pool/vehicle/GTA
+  pointer is exposed.
 
 ## Windows x86 evidence
 
@@ -87,6 +92,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   profile requires that exact target signature before its game-thread pump
   copies the signed field. Values outside the R1 player-ID range are rejected,
   and neither the pool pointer nor a GTA ped reaches the ABI.
+- **R1 vehicle-pool existence targets and layout:** the installed SA-MP 0.3.7
+  R1 `samp.dll` audit confirms `CNetGame::GetVehiclePool` at RVA `0x1170` with
+  bytes `8B 81 CD 03 00 00 8B 40 1C C3`, and
+  `CVehiclePool::DoesExist(ID)` at `0x1140` with its complete 29-byte bounds
+  check and `m_bNotEmpty[id]` load signature. The independent packed C++
+  fixture derives the 40-byte R1 `VehicleInfo` and 100-entry waiting list,
+  placing `m_bNotEmpty` at offset `0x3074`, matching the accessor target.
+  The profile validates both signatures, checks the addressed boolean range
+  before calling, and copies only a bounded BOOL.
 
 - **RakNet packet layout:** `RawPacket` and its embedded `PacketPlayerId` use
   packed offsets. The by-value incoming-RPC `RpcPlayerId` is a distinct aligned

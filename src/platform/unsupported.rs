@@ -96,6 +96,10 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn vehicle_exists(&self, _id: u16) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn show_local_chat_message(
         &self,
         _request: LocalChatMessageRequest,

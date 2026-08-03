@@ -471,6 +471,14 @@ unsafe extern "system" fn player_max_id(output: *mut u16) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn vehicle_exists(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 7);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -635,4 +643,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     player_info,
     player_count,
     player_max_id,
+    vehicle_exists,
 };

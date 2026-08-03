@@ -74,6 +74,11 @@ non-streamed player-pool maximum ID. It intentionally does not inspect GTA
 peds for SF.lua's streamed alternative, and remains provisional until its
 direct live validation is recorded.
 
+`HostApi::is_vehicle_defined(id)` demand-refreshes a bounded, cached R1
+vehicle-pool existence flag. A first lookup may return `NotReady` until the
+game-thread pump completes it; it never exposes a vehicle, pool, or GTA handle
+and remains provisional pending its opt-in live scan.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

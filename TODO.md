@@ -66,23 +66,30 @@ fixtures, disassembly, or the E2E mock alone.
    only SF.lua's non-streamed branch; the streamed GTA-ped form remains out of
    scope. Keep provisional until the direct validator records a maximum ID at
    least as large as the assigned local ID and normal shutdown.
-4. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
+4. [~] Cache R1 `CVehiclePool::DoesExist` through
+   `HostApi::is_vehicle_defined(id)`. The static implementation has exact R1
+   `CNetGame::GetVehiclePool` and `DoesExist` signatures, an independent
+   packed vehicle-pool fixture for the touched boolean-array offset, and a
+   32-ID demand queue drained at four copied booleans per pump. It exposes no
+   vehicle or GTA handle. Keep provisional until the opt-in vehicle scan finds
+   a defined ID without traffic and normal shutdown.
+5. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
    Do not begin either until the exact R1 string-buffer ownership, sizes,
    active-state interaction, and update lifecycle are independently proven.
    Candidate outputs are copied dialog ID/style/title/text/buttons/list
    selection and copied chat draft text only; close/select/edit/open/command
    registration remain mutations and are excluded.
-5. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
-   state first, then vehicle existence, labels, textdraws, objects, and
-   pickups. Each needs a bounded copied model, independent native-layout
+6. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
+   state first, then labels, textdraws, objects, and pickups. Each needs a
+   bounded copied model, independent native-layout
    fixture, direct target/field fingerprint, pump refresh budget, and a
    dedicated opt-in validator. Do not group unrelated pool layouts into one
    profile change.
-6. [ ] Reconcile the remaining typed protocol names below against the existing
+7. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
    client-side native action merely because it sends the same RPC.
-7. [ ] When the static-only list is exhausted, prepare release artifacts and
+8. [ ] When the static-only list is exhausted, prepare release artifacts and
    validation instructions, then wait for the live R1 scenarios below. Do not
    start mutations, force-sync, reconnection, raw pointer, or raw callback
    APIs without a new explicit experimental/unsafe design.
@@ -134,6 +141,10 @@ fixtures, disassembly, or the E2E mock alone.
   server and that the non-streamed maximum ID is at least the assigned local
   ID. It must generate no packet/RPC traffic and leave normal shutdown stable;
   the streamed-GTA-ped branch remains out of scope pending separate evidence.
+- [ ] With the vehicle-exists marker enabled, confirm the validator records
+  only `vehicle-exists self-test passed` and one defined vehicle ID. It must
+  tolerate initial `NotReady` while the bounded queue is pumped, generate no
+  packet/RPC traffic, and leave normal shutdown stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -198,7 +209,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   safe ABI. `sampSetChatDisplayMode` and `sampSetChatString` are client UI
   mutations; excluded pending an explicit experimental policy. `sampGetChatString`
   is a future copied read only after the R1 chat-ring layout, string capacity,
-  and lifecycle are independently proven; it belongs to static-first step 3.
+  and lifecycle are independently proven; it belongs to static-first step 5.
 - [~] `sampGetChatDisplayMode`, `sampIsChatVisible` —
   `HostApi::local_chat_display_mode` and its derived
   `HostApi::is_local_chat_visible` return a game-thread-cached R1 enum only.
@@ -224,7 +235,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampGetCurrentDialogType`, `sampGetCurrentDialogId`, `sampGetDialogCaption`,
   `sampGetDialogText`, `sampIsDialogClientside`, `sampGetListboxItemsCount`,
   and `sampGetListboxItemText` are one future bounded dialog snapshot from
-  static-first step 2; no field is to be read before its exact R1 layout and
+  static-first step 5; no field is to be read before its exact R1 layout and
   every string/list bound are proven.
 - [~] `sampIsDialogActive` — `HostApi::is_local_dialog_active` is a cached
   R1 game-thread read only. Keep provisional until direct-dialog active and
@@ -239,7 +250,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampSetChatInputEnabled`,
   and `sampProcessChatInput` mutate client state or retain a foreign callback;
   excluded. `sampGetChatInputText` is the copied bounded read candidate in
-  static-first step 2. `sampIsChatCommandDefined` requires an owned command
+  static-first step 5. `sampIsChatCommandDefined` requires an owned command
   registry design and verified native ownership rules; do not infer it from a
   raw map or a plugin callback pointer.
 - [~] `sampIsChatInputActive` — `HostApi::is_local_chat_input_active` is a
@@ -254,7 +265,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
   `sampCreate3dTextEx` mutate the native label pool; excluded. The read-only
   `sampIs3dTextDefined` and `sampGet3dTextInfoById` may become a bounded
-  copied label snapshot in static-first step 3 after its own R1 fixture and
+  copied label snapshot in static-first step 6 after its own R1 fixture and
   lifecycle proof.
 - [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
   `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
@@ -263,8 +274,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampGetPickupSampIdByHandle` expose native/GTA pointers or handles; excluded.
 - [ ] `sampGetVehiclePoolPtr`, `sampGetCarHandleBySampVehicleId`, and
   `sampGetVehicleIdByCarHandle` expose native/GTA pointers or handles; excluded.
-  `sampIsVehicleDefined` is a possible copied boolean in static-first step 3,
-  contingent on a separate R1 vehicle-pool fixture and a bounded cache.
+- [~] `sampIsVehicleDefined` — `HostApi::is_vehicle_defined(id)` uses a
+  bounded, demand-refreshed R1 `CVehiclePool::DoesExist` boolean cache. It
+  never exposes the pool, vehicle, or GTA handle. Keep provisional until the
+  opt-in vehicle scan records a defined ID, no traffic, and normal shutdown.
 - [ ] `sampGetTextdrawPoolPtr` — raw pointer API; excluded. `sampTextdrawCreate`,
   `sampTextdrawSetBoxColorAndSize`, `sampTextdrawDelete`,
   `sampTextdrawSetLetterSizeAndColor`, `sampTextdrawSetPos`,
@@ -277,7 +290,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
   `sampTextdrawGetBoxEnabledColorAndSize`, and
   `sampTextdrawGetModelRotationZoomVehColor` form a future copied textdraw
-  snapshot in static-first step 3. Keep IDs, strings, and fields bounded and
+  snapshot in static-first step 6. Keep IDs, strings, and fields bounded and
   do not expose a pool pointer.
 
 ### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
@@ -312,7 +325,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampIsPlayerPaused`,
   `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
   own remote-player layout or accessor evidence and a copied snapshot in
-  static-first step 3. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
+  static-first step 6. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
   `sampStorePlayerAimData` may only become owned typed sync copies after exact
   source-field/layout proof; they must never write to a plugin-supplied pointer.

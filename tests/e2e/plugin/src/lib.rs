@@ -42,6 +42,7 @@ static LOCAL_ANIMATION_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_INFO_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_COUNT: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_MAX_ID: AtomicI32 = AtomicI32::new(i32::MIN);
+static VEHICLE_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -152,6 +153,9 @@ fn initialize() {
     }
     if api.player_max_id() == Ok(77) {
         PLAYER_MAX_ID.store(77, Ordering::Release);
+    }
+    if api.is_vehicle_defined(7) == Ok(true) && api.is_vehicle_defined(8) == Ok(false) {
+        VEHICLE_EXISTS.store(7, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -273,6 +277,11 @@ pub extern "system" fn RakSampE2ePlugin_PlayerCount() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_PlayerMaxId() -> i32 {
     PLAYER_MAX_ID.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_VehicleExists() -> i32 {
+    VEHICLE_EXISTS.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

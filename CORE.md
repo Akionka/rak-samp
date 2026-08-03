@@ -89,6 +89,11 @@ fixture-checked R1 `CPlayerPool` prefix. The pump reads it only after the
 exact `UpdateLargestId` target passes profile verification; it exposes the
 non-streamed maximum ID only and does not walk GTA peds.
 
+`HostApi::is_vehicle_defined` is a bounded demand-refreshed cache of the exact
+R1 `CVehiclePool::DoesExist` boolean accessor. Queries enqueue an ID for the
+game-thread pump and return `NotReady` until its first owned result; neither a
+vehicle pool pointer nor a GTA vehicle handle can cross the ABI.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

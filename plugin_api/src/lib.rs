@@ -28,6 +28,8 @@ pub const DEFAULT_HOST_MODULE: &[u8] = b"rak_samp.asi\0";
 pub const MAX_RAKNET_DECODED_STRING_BYTES: usize = 4_095;
 /// Number of addressable SA-MP player IDs in the R1 player pool.
 pub const MAX_SAMP_PLAYERS: u16 = 1_004;
+/// Number of addressable SA-MP vehicle IDs in the R1 vehicle pool.
+pub const MAX_SAMP_VEHICLES: u16 = 2_000;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -663,6 +665,8 @@ pub struct RakSampApiV1 {
     pub player_count: unsafe extern "system" fn(u8, *mut u16) -> RakSampResult,
     /// Copies the latest game-thread-cached R1 non-streamed player maximum ID into `output`.
     pub player_max_id: unsafe extern "system" fn(*mut u16) -> RakSampResult,
+    /// Copies a cached R1 vehicle-pool existence flag into `output`.
+    pub vehicle_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1817,6 +1821,26 @@ impl HostApi {
         }
     }
 
+    /// Returns whether the latest cached R1 vehicle-pool result has `id` defined.
+    ///
+    /// The first lookup returns [`RakSampResult::NotReady`] while the verified
+    /// game-thread pump copies the bounded `CVehiclePool::DoesExist` result.
+    /// Retry from ordinary plugin work instead of blocking a callback.
+    pub fn is_vehicle_defined(self, id: u16) -> Result<bool, RakSampResult> {
+        if id >= MAX_SAMP_VEHICLES {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut exists = 0;
+        match unsafe { (self.raw.vehicle_exists)(id, &mut exists) } {
+            RakSampResult::Ok => match exists {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -2283,8 +2307,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, player_count) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, vehicle_exists),
             mem::offset_of!(RakSampApiV1, player_max_id) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, vehicle_exists) + function_size
         );
     }
 
@@ -2426,6 +2454,12 @@ mod tests {
         assert_eq!(api.player_count(true), Ok(3));
         assert_eq!(api.player_count(false), Ok(2));
         assert_eq!(api.player_max_id(), Ok(42));
+        assert_eq!(api.is_vehicle_defined(7), Ok(true));
+        assert_eq!(api.is_vehicle_defined(8), Ok(false));
+        assert_eq!(
+            api.is_vehicle_defined(MAX_SAMP_VEHICLES),
+            Err(RakSampResult::InvalidArgument)
+        );
         assert_eq!(
             api.player_info(MAX_SAMP_PLAYERS),
             Err(RakSampResult::InvalidArgument)

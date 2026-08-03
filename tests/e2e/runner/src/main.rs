@@ -33,6 +33,7 @@ type PluginLocalAnimationId = unsafe extern "system" fn() -> i32;
 type PluginPlayerInfoId = unsafe extern "system" fn() -> i32;
 type PluginPlayerCount = unsafe extern "system" fn() -> i32;
 type PluginPlayerMaxId = unsafe extern "system" fn() -> i32;
+type PluginVehicleExists = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -138,6 +139,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_PlayerCount")?) };
     let player_max_id: PluginPlayerMaxId =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_PlayerMaxId")?) };
+    let vehicle_exists: PluginVehicleExists =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_VehicleExists")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -189,6 +192,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { player_max_id() } != 77 {
         return Err("plugin did not convert the mock player-pool maximum ID".to_owned());
+    }
+    if unsafe { vehicle_exists() } != 7 {
+        return Err("plugin did not convert the mock vehicle-pool existence result".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

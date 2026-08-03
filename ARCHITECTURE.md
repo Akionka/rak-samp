@@ -83,6 +83,10 @@ GTA world or expose streamed-ped counting.
 non-streamed player-pool maximum ID, refreshed by the same game-thread pump
 after the profile's `UpdateLargestId` signature and fixture-backed field offset
 have passed. It likewise does not inspect GTA peds.
+`HostApi::is_vehicle_defined` is a separate 2,000-slot boolean cache. Plugin
+threads enqueue unknown vehicle IDs; the pump drains at most four R1 accessor
+calls per entry and publishes only owned booleans, never a vehicle/pool/GTA
+pointer.
 
 ## Native and ABI boundaries
 
