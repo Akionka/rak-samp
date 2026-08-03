@@ -37,6 +37,42 @@ or another client build supplies an offset.
   `cargo build --workspace --release --target i686-pc-windows-msvc`, and
   `git diff --check`; commit the passing batch separately.
 
+### Static-first resumption order
+
+This is the concrete order for autonomous work while live GTA evidence is
+unavailable. A completed static batch stays `[~]` until its matching item in
+the live-evidence section is recorded; it must not be promoted to `[x]` from
+fixtures, disassembly, or the E2E mock alone.
+
+1. [ ] Build a bounded, demand-refreshed R1 remote-player directory from
+   verified `CPlayerPool` accessors. It may expose only copied ID, connection,
+   nickname bytes, NPC flag, score, ping, and ARGB colour. Requests must be
+   queued to the existing game-thread pump, return `NotReady` until the first
+   copy, refresh cached requested IDs incrementally, and never expose a ped,
+   pool, or player pointer. Before code: audit each R1 target/signature,
+   document the accessor-only design in `REVIEW.md`, and add fixture/mock/E2E
+   and a validator scenario with a second connected player.
+2. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
+   Do not begin either until the exact R1 string-buffer ownership, sizes,
+   active-state interaction, and update lifecycle are independently proven.
+   Candidate outputs are copied dialog ID/style/title/text/buttons/list
+   selection and copied chat draft text only; close/select/edit/open/command
+   registration remain mutations and are excluded.
+3. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
+   state first, then vehicle existence, labels, textdraws, objects, and
+   pickups. Each needs a bounded copied model, independent native-layout
+   fixture, direct target/field fingerprint, pump refresh budget, and a
+   dedicated opt-in validator. Do not group unrelated pool layouts into one
+   profile change.
+4. [ ] Reconcile the remaining typed protocol names below against the existing
+   event codecs. Add a named safe convenience only when its exact R1 wire
+   vector already exists or can be independently tested. Do not emulate a
+   client-side native action merely because it sends the same RPC.
+5. [ ] When the static-only list is exhausted, prepare release artifacts and
+   validation instructions, then wait for the live R1 scenarios below. Do not
+   start mutations, force-sync, reconnection, raw pointer, or raw callback
+   APIs without a new explicit experimental/unsafe design.
+
 ### Pending live R1 evidence
 
 - [ ] Deploy the current validation plugin to the fingerprinted GTA SA 1.0 US
@@ -129,8 +165,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 
-- [ ] `sampGetChatInfoPtr`, `sampSetChatDisplayMode`, `sampGetChatString`,
-  `sampSetChatString`
+- [ ] `sampGetChatInfoPtr` — raw pointer API; permanently excluded from the
+  safe ABI. `sampSetChatDisplayMode` and `sampSetChatString` are client UI
+  mutations; excluded pending an explicit experimental policy. `sampGetChatString`
+  is a future copied read only after the R1 chat-ring layout, string capacity,
+  and lifecycle are independently proven; it belongs to static-first step 3.
 - [~] `sampGetChatDisplayMode`, `sampIsChatVisible` —
   `HostApi::local_chat_display_mode` and its derived
   `HostApi::is_local_chat_visible` return a game-thread-cached R1 enum only.
@@ -139,7 +178,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `HostApi::show_local_chat_message` copies one bounded R1 chat/info/debug
   entry for the game-thread pump without sending any packet or RPC. Keep this
   provisional until the dedicated live R1 UI and shutdown scenario runs.
-- [ ] `sampGetKillInfoPtr`
+- [ ] `sampGetKillInfoPtr` — raw death-window pointer; permanently excluded
+  from the safe ABI.
 - [~] `sampAddDeathMessage` — `HostApi::show_local_death_message` copies one
   bounded R1 death-window entry for the game-thread pump without packet/RPC
   emulation. Keep this provisional until its dedicated live UI/shutdown check.
@@ -148,12 +188,15 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 - [x] `sampShowDialog` — represented by safe queued
   `HostApi::show_local_dialog`.
-- [ ] `sampGetDialogInfoPtr`, `sampCloseCurrentDialogWithButton`,
-  `sampGetCurrentDialogListItem`, `sampSetCurrentDialogListItem`,
-  `sampGetCurrentDialogEditboxText`, `sampSetCurrentDialogEditboxText`,
-  `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
-  `sampGetDialogCaption`, `sampGetDialogText`, `sampIsDialogClientside`,
-  `sampSetDialogClientside`, `sampGetListboxItemsCount`, `sampGetListboxItemText`
+- [ ] `sampGetDialogInfoPtr` — raw pointer API; excluded. `sampCloseCurrentDialogWithButton`,
+  `sampSetCurrentDialogListItem`, `sampSetCurrentDialogEditboxText`, and
+  `sampSetDialogClientside` mutate client UI; excluded. The read-only
+  `sampGetCurrentDialogListItem`, `sampGetCurrentDialogEditboxText`,
+  `sampGetCurrentDialogType`, `sampGetCurrentDialogId`, `sampGetDialogCaption`,
+  `sampGetDialogText`, `sampIsDialogClientside`, `sampGetListboxItemsCount`,
+  and `sampGetListboxItemText` are one future bounded dialog snapshot from
+  static-first step 2; no field is to be read before its exact R1 layout and
+  every string/list bound are proven.
 - [~] `sampIsDialogActive` — `HostApi::is_local_dialog_active` is a cached
   R1 game-thread read only. Keep provisional until direct-dialog active and
   dismissal states are observed in the live lifecycle test.
@@ -163,44 +206,57 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `HostApi::local_cursor_mode` and its derived
   `HostApi::is_local_cursor_active` copy a cached R1 cursor state only. Keep
   provisional until the dedicated cursor transition and shutdown live check.
-- [ ] `sampGetInputInfoPtr`, `sampRegisterChatCommand`,
-  `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampGetChatInputText`,
-  `sampSetChatInputEnabled`,
-  `sampIsChatCommandDefined`, `sampProcessChatInput`
+- [ ] `sampGetInputInfoPtr` — raw pointer API; excluded. `sampRegisterChatCommand`,
+  `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampSetChatInputEnabled`,
+  and `sampProcessChatInput` mutate client state or retain a foreign callback;
+  excluded. `sampGetChatInputText` is the copied bounded read candidate in
+  static-first step 2. `sampIsChatCommandDefined` requires an owned command
+  registry design and verified native ownership rules; do not infer it from a
+  raw map or a plugin callback pointer.
 - [~] `sampIsChatInputActive` — `HostApi::is_local_chat_input_active` is a
   cached R1 game-thread read only. Keep provisional until normal chat-input
   open/close and shutdown live evidence is recorded.
 
 ### Pools, labels, objects, pickups, vehicles, textdraws (`gangzone.lua`, `label.lua`, `object.lua`, `pickup.lua`, `vehicle.lua`, `textdraw.lua`)
 
-- [ ] `sampGetGangzonePoolPtr`
-- [ ] `sampGetTextlabelPoolPtr`, `sampCreate3dText`, `sampIs3dTextDefined`,
-  `sampGet3dTextInfoById`, `sampSet3dTextString`, `sampDestroy3dText`,
-  `sampCreate3dTextEx`
-- [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`,
-  `sampGetObjectSampIdByHandle`
-- [ ] `sampGetPickupPoolPtr`, `sampGetPickupHandleBySampId`,
-  `sampGetPickupSampIdByHandle`
-- [ ] `sampGetVehiclePoolPtr`, `sampGetCarHandleBySampVehicleId`,
-  `sampGetVehicleIdByCarHandle`, `sampIsVehicleDefined`
-- [ ] `sampGetTextdrawPoolPtr`, `sampTextdrawIsExists`, `sampTextdrawCreate`,
-  `sampTextdrawSetBoxColorAndSize`, `sampTextdrawGetString`,
-  `sampTextdrawDelete`, `sampTextdrawGetLetterSizeAndColor`,
-  `sampTextdrawGetPos`, `sampTextdrawGetShadowColor`,
-  `sampTextdrawGetOutlineColor`, `sampTextdrawGetStyle`,
-  `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
-  `sampTextdrawGetBoxEnabledColorAndSize`,
-  `sampTextdrawGetModelRotationZoomVehColor`,
+- [ ] `sampGetGangzonePoolPtr` — raw pointer API; excluded. No gangzone
+  replacement is planned until a useful copied query is separately specified.
+- [ ] `sampGetTextlabelPoolPtr` — raw pointer API; excluded.
+  `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
+  `sampCreate3dTextEx` mutate the native label pool; excluded. The read-only
+  `sampIs3dTextDefined` and `sampGet3dTextInfoById` may become a bounded
+  copied label snapshot in static-first step 3 after its own R1 fixture and
+  lifecycle proof.
+- [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
+  `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
+  from the safe ABI rather than wrapped as integer addresses.
+- [ ] `sampGetPickupPoolPtr`, `sampGetPickupHandleBySampId`, and
+  `sampGetPickupSampIdByHandle` expose native/GTA pointers or handles; excluded.
+- [ ] `sampGetVehiclePoolPtr`, `sampGetCarHandleBySampVehicleId`, and
+  `sampGetVehicleIdByCarHandle` expose native/GTA pointers or handles; excluded.
+  `sampIsVehicleDefined` is a possible copied boolean in static-first step 3,
+  contingent on a separate R1 vehicle-pool fixture and a bounded cache.
+- [ ] `sampGetTextdrawPoolPtr` — raw pointer API; excluded. `sampTextdrawCreate`,
+  `sampTextdrawSetBoxColorAndSize`, `sampTextdrawDelete`,
   `sampTextdrawSetLetterSizeAndColor`, `sampTextdrawSetPos`,
   `sampTextdrawSetString`, `sampTextdrawSetModelRotationZoomVehColor`,
-  `sampTextdrawSetOutlineColor`, `sampTextdrawSetShadow`,
-  `sampTextdrawSetStyle`, `sampTextdrawSetProportional`, `sampTextdrawSetAlign`
+  `sampTextdrawSetOutlineColor`, `sampTextdrawSetShadow`, `sampTextdrawSetStyle`,
+  `sampTextdrawSetProportional`, and `sampTextdrawSetAlign` mutate native UI;
+  excluded. The remaining `sampTextdrawIsExists`, `sampTextdrawGetString`,
+  `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
+  `sampTextdrawGetShadowColor`, `sampTextdrawGetOutlineColor`,
+  `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
+  `sampTextdrawGetBoxEnabledColorAndSize`, and
+  `sampTextdrawGetModelRotationZoomVehColor` form a future copied textdraw
+  snapshot in static-first step 3. Keep IDs, strings, and fields bounded and
+  do not expose a pool pointer.
 
 ### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
 
-- [ ] `sampGetSampInfoPtr`, `sampGetSampPoolsPtr`,
-  `sampGetServerSettingsPtr`, `sampSetGamestate`,
-  `sampSetSendrate`
+- [ ] `sampGetSampInfoPtr`, `sampGetSampPoolsPtr`, and
+  `sampGetServerSettingsPtr` are raw pointers; excluded. `sampSetGamestate`
+  and `sampSetSendrate` directly mutate client state/timing; excluded pending
+  an explicit unsafe experimental design.
 - [~] `sampGetAnimationNameAndFile`, `sampFindAnimationIdByNameAndFile` —
   `HostApi::local_animation` and `HostApi::local_animation_id` read an owned
   cached copy of the fingerprinted fixed R1 table. Keep provisional until the
@@ -217,19 +273,23 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Players (`player.lua`)
 
-- [ ] `sampGetPlayerPoolPtr`, `sampIsPlayerConnected`, `sampGetPlayerNickname`,
-  `sampSpawnPlayer`, `sampIsPlayerNpc`,
-  `sampForceUnoccupiedSyncSeatId`, `sampGetCharHandleBySampPlayerId`,
-  `sampGetPlayerIdByCharHandle`, `sampGetPlayerArmor`, `sampGetPlayerHealth`,
-  `sampIsPlayerPaused`, `sampSetSpecialAction`, `sampGetPlayerCount`,
-  `sampGetMaxPlayerId`, `sampGetPlayerSpecialAction`,
-  `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
-  `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`,
-  `sampStorePlayerAimData`, `sampGetPlayerAnimationId`,
-  `sampSetLocalPlayerName`, `sampGetPlayerStructPtr`,
-  `sampIsLocalPlayerSpawned`, `sampGetPlayerColor`,
+- [ ] `sampGetPlayerPoolPtr`, `sampGetCharHandleBySampPlayerId`,
+  `sampGetPlayerIdByCharHandle`, and `sampGetPlayerStructPtr` expose native or
+  GTA pointers/handles; excluded. `sampSpawnPlayer`, `sampSetSpecialAction`,
+  `sampSetLocalPlayerName`, `sampForceUnoccupiedSyncSeatId`,
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
-  `sampForceTrailerSync`, `sampForceVehicleSync`
+  `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
+  force-sync APIs; excluded. `sampIsPlayerConnected`, `sampGetPlayerNickname`,
+  `sampIsPlayerNpc`, remote forms of `sampGetPlayerScore`, `sampGetPlayerPing`,
+  and `sampGetPlayerColor` are the accessor-only remote directory in
+  static-first step 1. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
+  `sampIsPlayerPaused`, `sampGetPlayerCount`, `sampGetMaxPlayerId`,
+  `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
+  own remote-player layout or accessor evidence and a copied snapshot in
+  static-first step 3. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
+  `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
+  `sampStorePlayerAimData` may only become owned typed sync copies after exact
+  source-field/layout proof; they must never write to a plugin-supplied pointer.
 - [x] `sampGetLocalPlayerId`, `sampGetLocalPlayerNickname`,
   `sampGetLocalPlayerColor`, `sampIsLocalPlayerSpawned`,
   `sampGetPlayerArmor`, `sampGetPlayerHealth`, `sampGetPlayerSpecialAction`,
@@ -246,7 +306,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
   server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
   the original RakClient send path.
-- [ ] `sampIsPlayerDefined`, `sampSetPlayerColor`
+- [ ] `sampIsPlayerDefined` can be derived from the future remote directory
+  after an R1 game-thread copy has observed a remote player object; do not
+  equate it with an arbitrary connected ID. `sampSetPlayerColor` mutates a
+  remote client entity and is excluded.
 
 ### RakNet and network actions (`raknet.lua`)
 
@@ -281,8 +344,9 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `raknetSendBitStreamEx`, `raknetSendBitStream` — represented by
   `HostApi::send_packet_stream` and `HostApi::send_packet` with the packet ID
   explicit rather than embedded in an unchecked native bitstream.
-- [ ] `sampGetRakclientInterface`, `sampGetRakpeer`,
-  `sampDisconnectWithReason`, `sampConnectToServer`
+- [ ] `sampGetRakclientInterface` and `sampGetRakpeer` are raw client pointers;
+  excluded. `sampDisconnectWithReason` and `sampConnectToServer` change
+  connection state and are excluded from this in-process host policy.
 - [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
   empty, server-bound RPC 129 without invoking native local-player methods.
 - [x] `sampSendDialogResponse`, `sampSendClickPlayer`,
@@ -306,9 +370,16 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### SF.lua’s explicit future items (`init.lua`)
 
-- [ ] `sampHasDialogRespond`, `sampForcePassengerSyncSeatId`,
-  `sampForceWeaponsSync`, `sampGetRakclientFuncAddressByIndex`,
-  `sampGetRpcCallbackByRpcId`, `sampGetRpcNodeByRpcId`,
-  `raknetEmulRpcReceiveBitStream`, `raknetEmulPacketReceiveBitStream`,
-  `sampSetClientCommandDescription`, `sampGetStreamedOutPlayerPos`,
-  `onSendRpc`, `onSendPacket`, `onReceiveRpc`, `onReceivePacket`
+- [ ] `sampHasDialogRespond` requires a response-lifecycle model and remains a
+  future copied-state candidate only after a dedicated dialog profile. The
+  force-sync functions `sampForcePassengerSyncSeatId` and
+  `sampForceWeaponsSync` are excluded. `sampGetRakclientFuncAddressByIndex`,
+  `sampGetRpcCallbackByRpcId`, and `sampGetRpcNodeByRpcId` expose raw code or
+  callback pointers; excluded. `raknetEmulRpcReceiveBitStream` and
+  `raknetEmulPacketReceiveBitStream` require an explicit event-emulation design
+  and cannot bypass the host's exactly-once listener path. `sampSetClientCommandDescription`
+  mutates native command state; excluded. `sampGetStreamedOutPlayerPos` is a
+  future copied remote-player query only after a separate R1 layout proof.
+  `onSendRpc`, `onSendPacket`, `onReceiveRpc`, and `onReceivePacket` are
+  already represented by the owned, scoped host subscription API; no Lua-style
+  global callback or raw event pointer will be added.
