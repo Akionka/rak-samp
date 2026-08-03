@@ -18,7 +18,7 @@ plugins use the versioned ABI client crate.
 | --- | --- | --- |
 | Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish attached-versus-ready host state, and log lifecycle events. |
 | Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events, enforce bounded exact-bit payloads, and send exact typed protocol actions (including SCM events) and sync actions through original RakClient calls. |
-| Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect and retain the recognized SA-MP version, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local helpers. |
+| Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect and retain the recognized SA-MP version, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local and cached CNetGame helpers. |
 | Plugin API | `plugin_api/src/lib.rs`, `plugin_api/src/raknet.rs` | Define the versioned C-compatible ABI, safe filtered/typed callbacks, static protocol-name catalogs, owned bounded BitStreams, bounded native StringCompressor copies, and grouped subscription shutdown. Alpha releases may make explicit compatibility breaks. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
 | Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
@@ -57,7 +57,8 @@ before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
 begins refreshing an owned local-player snapshot only after its `INIT_GAME`
 server assignment matches the pool ID on two game-thread refreshes, then keeps
 it fresh from the verified player pool. The same entry caches R1's opaque
-`CNetGame` state scalar, which never drives snapshot readiness. It releases the
+`CNetGame` state scalar and copied current-server metadata, neither of which
+drives snapshot readiness. It releases the
 dialog queue lock, then calls `CDialog::Show` for no more than four copied
 requests. It clears the cache
 while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`

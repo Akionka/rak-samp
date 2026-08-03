@@ -8,7 +8,7 @@ send, and emulate RakNet packets and RPCs through a stable C-compatible API.
 
 - Windows GTA: San Andreas with an ASI loader.
 - SA-MP 0.3.7 R1 is the supported typed-event target. Direct local dialogs,
-  local-player snapshots, and cached game-state reads additionally require the
+  local-player snapshots, and cached CNetGame reads additionally require the
   fingerprinted GTA San Andreas 1.0 US executable; unsupported fingerprints return
   `UnsupportedVersion`.
 - R2, R3.1, R4.2, R5.1, and DL are detected, but are experimental and intended
@@ -56,6 +56,10 @@ corresponding SF.lua local-player helpers, plus local score and ping.
 thread and returns `NotReady` before its first publication. The numeric state
 is intentionally not mapped to a public enum because that enum is not a stable
 SA-MP ABI.
+
+`HostApi::server_info()` returns copied address bytes, hostname bytes, and port
+from the same fingerprinted R1 game-thread pump. It returns `NotReady` before
+the host has a valid address and port, and never exposes a client pointer.
 
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the

@@ -11,6 +11,10 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   run still must record stable dialog dismissal, walking/damage/vehicle
   snapshot changes, zero direct-dialog RPC 61/62 observations, and normal
   shutdown before release.
+- **Cached R1 server metadata live gate:** `HostApi::server_info` has an
+  independent packed fixture and an R1 code anchor, but still needs a legal
+  R1 run that compares its copied address, hostname, and port with the selected
+  server and confirms normal shutdown.
 
 ## Windows x86 evidence
 
@@ -53,6 +57,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   thread and copies its `i32` return into an atomic cache. The ABI deliberately
   exposes the result as an opaque scalar: no R1 enum naming, native pointer,
   or synchronous client call crosses the boundary.
+- **Cached R1 server metadata:** the pinned R1 `CNetGame` lead uses packed
+  `m_szHostAddress[257]` at `0x20`, `m_szHostname[257]` at `0x121`, and
+  `m_nPort` at `0x225`. The independent x86 fixture asserts all three offsets
+  and its `m_nGameState` at `0x3BD`, independently matching the fingerprinted
+  `GetGameState` code signature above. The host copies at most 256 bytes from
+  each NUL-terminated string and accepts only a nonempty address and nonzero
+  `u16` port, on the incoming-packet game thread. The profile and readable
+  pointer checks remain mandatory; only owned copied bytes and the scalar port
+  reach the ABI.
 - **Direct snapshot layout:** the independent C++ fixture asserts R1 packed
   on-foot (68-byte), in-car (63-byte), and local-player-prefix (92-byte)
   boundaries used to obtain sync position/velocity, special action, animation,

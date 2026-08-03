@@ -4,7 +4,9 @@
 //! are supported across several clients, while these object layouts and native
 //! calls are safe only for the one fingerprinted R1 profile below.
 
-use crate::runtime::{DirectClientError, LocalDialogRequest, LocalPlayerSnapshot, Vector3};
+use crate::runtime::{
+    DirectClientError, LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot, Vector3,
+};
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
     LibraryLoader::GetModuleHandleA,
@@ -36,6 +38,13 @@ const PED_GET_HEALTH_RVA: usize = 0xA6610;
 const PED_GET_ARMOUR_RVA: usize = 0xA6650;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
+// These packed CNetGame fields are cross-checked by the independently written
+// fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
+// layout, which anchors the packed field sequence.
+const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x20;
+const NET_GAME_HOSTNAME_OFFSET: usize = 0x121;
+const NET_GAME_PORT_OFFSET: usize = 0x225;
+const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CDialog::Show` at `DIALOG_SHOW_RVA`.
 // The function uses a frame-less prologue; do not substitute the common
@@ -113,6 +122,36 @@ impl R1ClientProfile {
         let get_state: NetGameGetStateFn =
             unsafe { mem::transmute(self.module_base + NET_GAME_GET_STATE_RVA) };
         Ok(unsafe { get_state(net_game) })
+    }
+
+    pub(super) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let address = unsafe {
+            bounded_c_string(
+                net_game
+                    .cast::<u8>()
+                    .wrapping_add(NET_GAME_HOST_ADDRESS_OFFSET),
+                NET_GAME_HOST_STRING_CAPACITY,
+            )
+        }
+        .filter(|address| !address.is_empty())
+        .ok_or(DirectClientError::NotReady)?;
+        let hostname = unsafe {
+            bounded_c_string(
+                net_game.cast::<u8>().wrapping_add(NET_GAME_HOSTNAME_OFFSET),
+                NET_GAME_HOST_STRING_CAPACITY,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        let port = unsafe { read_unaligned::<i32>(net_game as usize + NET_GAME_PORT_OFFSET) }
+            .and_then(|port| u16::try_from(port).ok())
+            .filter(|port| *port != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(ServerInfoSnapshot {
+            address,
+            hostname,
+            port,
+        })
     }
 
     fn dialog(self) -> Option<*mut c_void> {
@@ -432,7 +471,8 @@ mod tests {
         LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
         LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
-        NET_GAME_GET_STATE_SIGNATURE, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
+        NET_GAME_GET_STATE_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
+        NET_GAME_PORT_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
         assigned_player_id, nul_terminated,
     };
 
@@ -451,6 +491,10 @@ mod tests {
         fn rak_samp_fixture_r1_incar_speed_offset() -> usize;
         fn rak_samp_fixture_r1_ped_game_ped_offset() -> usize;
         fn rak_samp_fixture_r1_player_pool_local_id_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_host_address_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_hostname_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_port_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_game_state_offset() -> usize;
     }
 
     #[test]
@@ -507,6 +551,19 @@ mod tests {
                 rak_samp_fixture_r1_player_pool_local_id_offset(),
                 PLAYER_POOL_LOCAL_ID_OFFSET
             );
+            assert_eq!(
+                rak_samp_fixture_r1_net_game_host_address_offset(),
+                NET_GAME_HOST_ADDRESS_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_net_game_hostname_offset(),
+                NET_GAME_HOSTNAME_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_net_game_port_offset(),
+                NET_GAME_PORT_OFFSET
+            );
+            assert_eq!(rak_samp_fixture_r1_net_game_game_state_offset(), 0x3BD);
         }
     }
 

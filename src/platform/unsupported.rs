@@ -3,6 +3,7 @@ use crate::{
     event::Registry,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
+        ServerInfoSnapshot,
     },
 };
 use std::sync::Arc;
@@ -76,6 +77,10 @@ impl Backend {
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

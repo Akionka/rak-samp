@@ -63,6 +63,10 @@ snapshot. They never add a native call or make remote-player data available.
 the native state may change during normal play. It instead reports `NotReady`
 until a state has been published and keeps no client pointer in the ABI.
 
+`HostApi::server_info` returns a cloned cached R1 address, hostname, and port.
+The host requires a NUL-terminated address and a nonzero valid port before
+publication; byte strings remain owned and do not assume a text encoding.
+
 `HostApi::samp_version` exposes the recognized `samp.dll` build identity that
 the host already verified during attach. `HostApi::is_samp_available` reports
 host/hook readiness. Both are safe across every recognized build and need no
@@ -101,7 +105,7 @@ recorded.
 The Windows backend owns client addresses, detours, vtable changes, native
 string-codec calls, and the private R1 client profile. Its incoming-packet
 detour is also the game-thread pump: it refreshes the local snapshot and cached
-game-state scalar, then drains at most four copied dialog requests after
+CNetGame state/server metadata, then drains at most four copied dialog requests after
 releasing queue locks, without touching packet or RPC dispatch. It restores
 only hooks it owns and keeps captured
 backend state valid for in-flight original calls. Native layouts are covered by

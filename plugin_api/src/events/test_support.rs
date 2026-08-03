@@ -550,6 +550,20 @@ unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_server_info(
+    output: *mut crate::RakSampServerInfoV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.address[..9].copy_from_slice(b"127.0.0.1");
+    output.address_len = 9;
+    output.hostname[..7].copy_from_slice(b"fixture");
+    output.hostname_len = 7;
+    output.port = 7777;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_decode_string(
     input: *const u8,
     input_len: usize,
@@ -619,6 +633,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     samp_game_state: test_samp_game_state,
     samp_version: test_samp_version,
     decode_string: test_decode_string,
+    server_info: test_server_info,
 };
 
 pub(crate) fn test_api() -> HostApi {

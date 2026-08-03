@@ -6,7 +6,7 @@ compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
     RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
-    RakSampSubscription, Vector3,
+    RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -338,6 +338,18 @@ unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn server_info(output: *mut RakSampServerInfoV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.address[..9].copy_from_slice(b"127.0.0.1");
+    output.address_len = 9;
+    output.hostname[..3].copy_from_slice(b"e2e");
+    output.hostname_len = 3;
+    output.port = 7777;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn decode_string(
     input: *const u8,
     input_len: usize,
@@ -407,4 +419,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     samp_game_state,
     samp_version,
     decode_string,
+    server_info,
 };

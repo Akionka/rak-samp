@@ -108,6 +108,19 @@ struct FixtureR1PlayerPoolPrefix {
     int largest_id;
     unsigned short local_id;
 };
+
+struct FixtureR1NetGamePrefix {
+    unsigned char pad_0[32];
+    char host_address[257];
+    char hostname[257];
+    bool disable_collision;
+    bool update_camera_target;
+    bool nametag_status;
+    int port;
+    int lan_mode;
+    int map_icons[100];
+    int game_state;
+};
 #pragma pack(pop)
 
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
@@ -121,6 +134,10 @@ static_assert(sizeof(FixtureR1IncarData) == 63);
 static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
 static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
+static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
+static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
+static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
+static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
 
 extern "C" {
 
@@ -230,6 +247,22 @@ std::size_t rak_samp_fixture_r1_ped_game_ped_offset() {
 
 std::size_t rak_samp_fixture_r1_player_pool_local_id_offset() {
     return offsetof(FixtureR1PlayerPoolPrefix, local_id);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_host_address_offset() {
+    return offsetof(FixtureR1NetGamePrefix, host_address);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_hostname_offset() {
+    return offsetof(FixtureR1NetGamePrefix, hostname);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_port_offset() {
+    return offsetof(FixtureR1NetGamePrefix, port);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_game_state_offset() {
+    return offsetof(FixtureR1NetGamePrefix, game_state);
 }
 
 }

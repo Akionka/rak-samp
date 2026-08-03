@@ -70,6 +70,14 @@ pub(crate) struct LocalPlayerSnapshot {
     pub(crate) ping: u32,
 }
 
+/// Host-owned current-server metadata copied from the verified R1 game thread.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ServerInfoSnapshot {
+    pub(crate) address: Vec<u8>,
+    pub(crate) hostname: Vec<u8>,
+    pub(crate) port: u16,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) struct Vector3 {
     pub(crate) x: f32,
@@ -321,6 +329,10 @@ impl Runtime {
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.backend.local_player()
+    }
+
+    pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
+        self.backend.server_info()
     }
 
     pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {

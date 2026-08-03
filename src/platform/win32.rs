@@ -10,7 +10,7 @@ use crate::{
     event::{HookAction, Registry},
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
-        PacketPriority, PacketReliability,
+        PacketPriority, PacketReliability, ServerInfoSnapshot,
     },
 };
 use minhook::MinHook;
@@ -100,6 +100,7 @@ struct BackendState {
     local_dialogs: Mutex<VecDeque<LocalDialogRequest>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
+    server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
     assigned_local_player_id: AtomicU16,
     samp_game_state: AtomicI32,
     samp_game_state_ready: AtomicBool,
@@ -158,6 +159,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_dialogs: Mutex::new(VecDeque::with_capacity(LOCAL_DIALOG_QUEUE_CAPACITY)),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
+        server_info_snapshot: Mutex::new(None),
         assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         samp_game_state: AtomicI32::new(0),
         samp_game_state_ready: AtomicBool::new(false),
@@ -238,6 +240,10 @@ impl Backend {
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.state.local_player()
+    }
+
+    pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
+        self.state.server_info()
     }
 
     pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
@@ -582,6 +588,20 @@ impl BackendState {
             .ok_or(DirectClientError::NotReady)
     }
 
+    fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.server_info_snapshot
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone()
+            .ok_or(DirectClientError::NotReady)
+    }
+
     fn samp_game_state(&self) -> Result<i32, DirectClientError> {
         cached_samp_game_state(
             self.r1_client.is_some(),
@@ -600,6 +620,7 @@ impl BackendState {
             return;
         }
         self.refresh_samp_game_state(profile);
+        self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         if !profile.dialog_is_ready() {
             return;
@@ -673,6 +694,13 @@ impl BackendState {
         ));
     }
 
+    fn refresh_server_info_snapshot(&self, profile: R1ClientProfile) {
+        let Ok(mut cached) = self.server_info_snapshot.try_lock() else {
+            return;
+        };
+        *cached = profile.server_info().ok();
+    }
+
     fn refresh_samp_game_state(&self, profile: R1ClientProfile) {
         match profile.game_state() {
             Ok(game_state) => {
@@ -740,6 +768,9 @@ impl BackendState {
         }
         if let Ok(mut candidate) = self.local_player_candidate.try_lock() {
             *candidate = None;
+        }
+        if let Ok(mut snapshot) = self.server_info_snapshot.try_lock() {
+            *snapshot = None;
         }
         self.assigned_local_player_id
             .store(UNASSIGNED_LOCAL_PLAYER_ID, Ordering::Release);
@@ -1093,6 +1124,7 @@ mod vtable_tests {
             local_dialogs: Mutex::new(VecDeque::new()),
             local_player_snapshot: Mutex::new(None),
             local_player_candidate: Mutex::new(None),
+            server_info_snapshot: Mutex::new(None),
             assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             samp_game_state: AtomicI32::new(0),
             samp_game_state_ready: AtomicBool::new(false),
@@ -1142,6 +1174,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.samp_game_state(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.server_info(),
             Err(DirectClientError::UnsupportedVersion)
         );
     }

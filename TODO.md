@@ -91,10 +91,13 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 ### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
 
 - [ ] `sampGetSampInfoPtr`, `sampGetSampPoolsPtr`,
-  `sampGetServerSettingsPtr`, `sampGetCurrentServerName`,
-  `sampGetCurrentServerAddress`, `sampSetGamestate`,
+  `sampGetServerSettingsPtr`, `sampSetGamestate`,
   `sampGetAnimationNameAndFile`, `sampFindAnimationIdByNameAndFile`,
   `sampSetSendrate`
+- [~] `sampGetCurrentServerName`, `sampGetCurrentServerAddress` —
+  `HostApi::server_info` provides an owned cached R1 address, hostname, and
+  port. Keep this status until its dedicated live R1 scenario records a match
+  with the selected server and stable normal shutdown.
 - [ ] `sampToggleScoreboard`, `sampIsScoreboardOpen`
 
 ### Players (`player.lua`)

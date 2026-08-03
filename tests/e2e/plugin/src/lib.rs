@@ -31,6 +31,7 @@ static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
+static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 
 #[unsafe(no_mangle)]
@@ -77,6 +78,12 @@ fn initialize() {
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
+    }
+    if let Ok(server) = api.server_info()
+        && server.address == b"127.0.0.1"
+        && server.hostname == b"e2e"
+    {
+        SERVER_PORT.store(u32::from(server.port), Ordering::Release);
     }
     let mut compressed = match BitStream::from_bits(vec![0b1010_0000], 3) {
         Ok(value) => value,
@@ -139,6 +146,11 @@ pub extern "system" fn RakSampE2ePlugin_SampGameState() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_SampVersion() -> u32 {
     SAMP_VERSION.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_ServerPort() -> u32 {
+    SERVER_PORT.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

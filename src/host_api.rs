@@ -3,14 +3,14 @@ use crate::{
     PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalDialogStyle,
-        LocalPlayerSnapshot,
+        LocalPlayerSnapshot, ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
     RakSampHookAction, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
-    RakSampSubscription, Vector3,
+    RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -142,6 +142,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     samp_game_state,
     samp_version,
     decode_string,
+    server_info,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -680,6 +681,24 @@ unsafe extern "system" fn samp_game_state(output: *mut i32) -> RakSampResult {
     }
 }
 
+unsafe extern "system" fn server_info(output: *mut RakSampServerInfoV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    let snapshot = match runtime.server_info() {
+        Ok(snapshot) => snapshot,
+        Err(error) => return direct_client_result(error),
+    };
+    let Ok(snapshot) = server_info_to_abi(snapshot) else {
+        return RakSampResult::NativeCallFailed;
+    };
+    *output = snapshot;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -937,6 +956,29 @@ fn local_player_to_abi(snapshot: LocalPlayerSnapshot) -> Result<RakSampLocalPlay
     })
 }
 
+fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV1, ()> {
+    let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
+    let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
+    if snapshot.address.is_empty()
+        || snapshot.port == 0
+        || snapshot.address.len() > 257
+        || snapshot.hostname.len() > 257
+    {
+        return Err(());
+    }
+    let mut address = [0; 257];
+    address[..snapshot.address.len()].copy_from_slice(&snapshot.address);
+    let mut hostname = [0; 257];
+    hostname[..snapshot.hostname.len()].copy_from_slice(&snapshot.hostname);
+    Ok(RakSampServerInfoV1 {
+        address_len,
+        hostname_len,
+        address,
+        hostname,
+        port: snapshot.port,
+    })
+}
+
 fn send_options(options: RakSampSendOptions) -> Result<SendOptions, ()> {
     let priority = match options.priority {
         0 => PacketPriority::System,
@@ -1010,6 +1052,8 @@ mod tests {
             unsafe { samp_game_state(&mut game_state) },
             RakSampResult::NotReady
         );
+        let mut server = RakSampServerInfoV1::default();
+        assert_eq!(unsafe { server_info(&mut server) }, RakSampResult::NotReady);
         let mut version = 0;
         assert_eq!(
             unsafe { samp_version(&mut version) },
@@ -1118,5 +1162,20 @@ mod tests {
                 z: 3.0
             }
         );
+    }
+
+    #[test]
+    fn server_snapshot_conversion_uses_only_fixed_abi_storage() {
+        let raw = server_info_to_abi(ServerInfoSnapshot {
+            address: b"127.0.0.1".to_vec(),
+            hostname: b"fixture".to_vec(),
+            port: 7777,
+        })
+        .expect("fixture server snapshot fits the ABI");
+        assert_eq!(raw.address_len, 9);
+        assert_eq!(&raw.address[..9], b"127.0.0.1");
+        assert_eq!(raw.hostname_len, 7);
+        assert_eq!(&raw.hostname[..7], b"fixture");
+        assert_eq!(raw.port, 7777);
     }
 }

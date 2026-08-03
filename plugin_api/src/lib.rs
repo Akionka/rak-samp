@@ -128,6 +128,18 @@ pub struct LocalPlayer {
     pub ping: u32,
 }
 
+/// An owned, read-only current-server snapshot.
+///
+/// The address and hostname remain bytes because SA-MP does not guarantee a
+/// Unicode encoding. The host refreshes this on its verified R1 game-thread
+/// packet pump, so retrieving it never waits for the game thread.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ServerInfo {
+    pub address: Vec<u8>,
+    pub hostname: Vec<u8>,
+    pub port: u16,
+}
+
 /// C-compatible storage for [`LocalPlayer`].
 ///
 /// This is output-only. `nickname_len` selects the initialized prefix of
@@ -172,6 +184,32 @@ impl Default for RakSampLocalPlayerV1 {
             vehicle_id: 0,
             score: 0,
             ping: 0,
+        }
+    }
+}
+
+/// C-compatible storage for [`ServerInfo`].
+///
+/// This is output-only. Each length selects the initialized prefix of its
+/// corresponding buffer; neither buffer requires a terminator.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RakSampServerInfoV1 {
+    pub address_len: u16,
+    pub hostname_len: u16,
+    pub address: [u8; 257],
+    pub hostname: [u8; 257],
+    pub port: u16,
+}
+
+impl Default for RakSampServerInfoV1 {
+    fn default() -> Self {
+        Self {
+            address_len: 0,
+            hostname_len: 0,
+            address: [0; 257],
+            hostname: [0; 257],
+            port: 0,
         }
     }
 }
@@ -385,6 +423,8 @@ pub struct RakSampApiV1 {
         *mut usize,
         *mut usize,
     ) -> RakSampResult,
+    /// Copies the latest host-owned R1 current-server snapshot into `output`.
+    pub server_info: unsafe extern "system" fn(*mut RakSampServerInfoV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1348,6 +1388,28 @@ impl HostApi {
         self.local_player().map(|player| player.ping)
     }
 
+    /// Returns a cloned, nonblocking current-server snapshot.
+    ///
+    /// This returns [`RakSampResult::NotReady`] until the verified R1 game
+    /// thread has published a valid address and port.
+    pub fn server_info(self) -> Result<ServerInfo, RakSampResult> {
+        let mut raw = RakSampServerInfoV1::default();
+        match unsafe { (self.raw.server_info)(&mut raw) } {
+            RakSampResult::Ok => {}
+            result => return Err(result),
+        }
+        let address_len = usize::from(raw.address_len);
+        let hostname_len = usize::from(raw.hostname_len);
+        if address_len > raw.address.len() || hostname_len > raw.hostname.len() || raw.port == 0 {
+            return Err(RakSampResult::NativeCallFailed);
+        }
+        Ok(ServerInfo {
+            address: raw.address[..address_len].to_vec(),
+            hostname: raw.hostname[..hostname_len].to_vec(),
+            port: raw.port,
+        })
+    }
+
     /// Returns the cached native `CNetGame` state for the verified R1 client.
     ///
     /// The value is deliberately an opaque scalar: SA-MP has no stable public
@@ -1604,8 +1666,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, samp_version) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, server_info),
             mem::offset_of!(RakSampApiV1, decode_string) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, server_info) + function_size
         );
     }
 
@@ -1655,6 +1721,16 @@ mod tests {
                 z: 3.0
             }
         );
+    }
+
+    #[test]
+    fn server_info_snapshot_is_owned_and_converted_from_the_abi_buffer() {
+        let info = test_support::test_api()
+            .server_info()
+            .expect("test host publishes server metadata");
+        assert_eq!(info.address, b"127.0.0.1");
+        assert_eq!(info.hostname, b"fixture");
+        assert_eq!(info.port, 7777);
     }
 
     #[test]
