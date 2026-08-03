@@ -894,6 +894,26 @@ impl HostApi {
         unsafe { (self.raw.send_rpc)(rpc_id, payload.as_ptr(), payload.len(), bit_len, options) }
     }
 
+    /// Sends a complete owned plugin-side bit stream as a packet payload.
+    pub fn send_packet_stream(
+        self,
+        packet_id: u8,
+        payload: &raknet::BitStream,
+        options: RakSampSendOptions,
+    ) -> RakSampResult {
+        self.send_packet(packet_id, payload.as_bytes(), payload.len_bits(), options)
+    }
+
+    /// Sends a complete owned plugin-side bit stream as an RPC payload.
+    pub fn send_rpc_stream(
+        self,
+        rpc_id: u8,
+        payload: &raknet::BitStream,
+        options: RakSampSendOptions,
+    ) -> RakSampResult {
+        self.send_rpc(rpc_id, payload.as_bytes(), payload.len_bits(), options)
+    }
+
     /// Queues an incoming packet for SA-MP after incoming plugin listeners run.
     ///
     /// `payload` excludes the packet ID. A listener may rewrite or block the event;
@@ -1269,6 +1289,22 @@ mod tests {
         assert_eq!(
             test_support::test_api().samp_version(),
             Ok(RakSampClientVersion::R1)
+        );
+    }
+
+    #[test]
+    fn owned_bit_stream_send_helpers_preserve_exact_partial_bit_lengths() {
+        let mut stream = raknet::BitStream::new();
+        stream.write_bits(&[0b0000_0101], 3).unwrap();
+
+        let api = test_support::test_api();
+        assert_eq!(
+            api.send_packet_stream(200, &stream, RakSampSendOptions::default()),
+            RakSampResult::NativeCallFailed
+        );
+        assert_eq!(
+            api.send_rpc_stream(62, &stream, RakSampSendOptions::default()),
+            RakSampResult::NativeCallFailed
         );
     }
 

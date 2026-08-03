@@ -122,7 +122,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 - [x] `raknetGetRpcName`, `raknetGetPacketName` — pure catalog lookups are
   available as `rak_samp_plugin_api::raknet::{rpc_name, packet_name}`.
-- [ ] `raknetBitStreamReadBool`, `raknetBitStreamReadBuffer`,
+- [x] `raknetNewBitStream`, `raknetDeleteBitStream`, `raknetResetBitStream`,
+  `raknetBitStreamReadBool`, `raknetBitStreamReadBuffer`,
   `raknetBitStreamReadInt8`, `raknetBitStreamReadInt16`,
   `raknetBitStreamReadInt32`, `raknetBitStreamReadFloat`,
   `raknetBitStreamReadString`, `raknetBitStreamResetReadPointer`,
@@ -130,15 +131,24 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `raknetBitStreamSetWriteOffset`, `raknetBitStreamSetReadOffset`,
   `raknetBitStreamGetNumberOfBitsUsed`, `raknetBitStreamGetNumberOfBytesUsed`,
   `raknetBitStreamGetNumberOfUnreadBits`, `raknetBitStreamGetWriteOffset`,
-  `raknetBitStreamGetReadOffset`, `raknetBitStreamGetDataPtr`,
-  `raknetNewBitStream`, `raknetDeleteBitStream`, `raknetResetBitStream`,
+  `raknetBitStreamGetReadOffset`,
   `raknetBitStreamWriteBool`, `raknetBitStreamWriteInt8`,
   `raknetBitStreamWriteInt16`, `raknetBitStreamWriteInt32`,
   `raknetBitStreamWriteFloat`, `raknetBitStreamWriteBuffer`,
-  `raknetBitStreamWriteString`, `raknetBitStreamDecodeString`,
-  `raknetBitStreamEncodeString`, `raknetBitStreamWriteBitStream`,
-  `raknetSendRpcEx`, `raknetSendBitStreamEx`, `raknetSendRpc`,
-  `raknetSendBitStream`
+  `raknetBitStreamWriteString`, `raknetBitStreamWriteBitStream` — safe owned
+  equivalents are in `rak_samp_plugin_api::raknet::BitStream`; raw data pointers
+  and invalid/uninitialized cursor states are intentionally unavailable.
+- [~] `raknetBitStreamEncodeString` — use `HostApi::encode_string` then
+  `BitStream::write_encoded_string`; `raknetBitStreamDecodeString` remains
+  callback-local until a safe owned decoder design exists.
+- [ ] `raknetBitStreamGetDataPtr` — raw client/plugin memory pointers remain
+  outside the safe ABI.
+- [x] `raknetSendRpcEx`, `raknetSendRpc` — safe stream convenience methods are
+  `HostApi::send_rpc_stream` and `HostApi::send_rpc`; timestamped sends remain
+  rejected by the host policy.
+- [x] `raknetSendBitStreamEx`, `raknetSendBitStream` — represented by
+  `HostApi::send_packet_stream` and `HostApi::send_packet` with the packet ID
+  explicit rather than embedded in an unchecked native bitstream.
 - [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendAimData`,
   `sampSendBulletData`, `sampSendIncarData`, `sampSendOnfootData`,
   `sampSendSpectatorData`, `sampSendTrailerData`, `sampSendPassengerData`,

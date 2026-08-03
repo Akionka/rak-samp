@@ -48,6 +48,11 @@ native-layout access or live gameplay validation.
 name catalogs. These helpers are available without resolving the host and do
 not interpret or inspect network payloads.
 
+The same module provides an owned, bounded `BitStream` with checked cursors and
+MSB-first RakNet bit order. Stream sends reuse the host's existing exact-bit
+packet/RPC ABI. It deliberately has no data-pointer escape hatch, no native
+allocation, and no generic StringCompressor decode outside a callback.
+
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
 retain the callbacks that need a retry. Waiting in `DllMain` or a callback is

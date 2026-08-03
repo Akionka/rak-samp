@@ -61,6 +61,12 @@ host's RakClient hooks are ready. Neither query reads client memory.
 `rak_samp_plugin_api::raknet::{rpc_name, packet_name}` supplies SF.lua's
 static RPC and packet labels without requiring host discovery or a client call.
 
+`rak_samp_plugin_api::raknet::BitStream` is an owned, bounded plugin-side
+replacement for SF.lua's native bitstream pointer. It supports checked bit,
+buffer, numeric, string, cursor, and stream operations; pass it directly to
+`HostApi::send_packet_stream` or `HostApi::send_rpc_stream`. Raw data-pointer
+access and generic native string decoding remain intentionally unavailable.
+
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
 perform that wait in `DllMain` or in a callback. The
