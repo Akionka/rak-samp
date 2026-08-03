@@ -412,6 +412,14 @@ impl Runtime {
     pub(crate) fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
         self.backend.local_scoreboard_open()
     }
+
+    pub(crate) fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
+        self.backend.local_dialog_active()
+    }
+
+    pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
+        self.backend.local_chat_input_active()
+    }
 }
 
 fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {

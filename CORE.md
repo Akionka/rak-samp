@@ -88,6 +88,11 @@ is a copied cached scoreboard flag. Their setters and toggles remain excluded:
 the game-thread pump performs only the verified read, then publishes scalar
 state without a client pointer or packet/RPC action.
 
+`HostApi::is_local_dialog_active` and
+`HostApi::is_local_chat_input_active` are cached R1 game-thread reads of their
+respective native flags. They do not close dialogs, edit UI text, register
+commands, or process input; such actions remain explicit native-mutation work.
+
 `HostApi::samp_version` exposes the recognized `samp.dll` build identity that
 the host already verified during attach. `HostApi::is_samp_available` reports
 host/hook readiness. Both are safe across every recognized build and need no

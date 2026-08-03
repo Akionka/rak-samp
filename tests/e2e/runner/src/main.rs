@@ -27,6 +27,8 @@ type PluginSampGameState = unsafe extern "system" fn() -> i32;
 type PluginLocalChatDisplayMode = unsafe extern "system" fn() -> i32;
 type PluginLocalCursorMode = unsafe extern "system" fn() -> i32;
 type PluginLocalScoreboardOpen = unsafe extern "system" fn() -> i32;
+type PluginLocalDialogActive = unsafe extern "system" fn() -> i32;
+type PluginLocalChatInputActive = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -120,6 +122,10 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalCursorMode")?) };
     let local_scoreboard_open: PluginLocalScoreboardOpen =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalScoreboardOpen")?) };
+    let local_dialog_active: PluginLocalDialogActive =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalDialogActive")?) };
+    let local_chat_input_active: PluginLocalChatInputActive =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalChatInputActive")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -153,6 +159,12 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { local_scoreboard_open() } != 0 {
         return Err("plugin did not convert the mock local scoreboard state".to_owned());
+    }
+    if unsafe { local_dialog_active() } != 0 {
+        return Err("plugin did not convert the mock local dialog state".to_owned());
+    }
+    if unsafe { local_chat_input_active() } != 0 {
+        return Err("plugin did not convert the mock local chat input state".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

@@ -61,6 +61,10 @@ or another client build supplies an offset.
   dismiss any normal local cursor state. Confirm the validator records both
   cached scoreboard states and both cursor categories without packet/RPC
   emission or an unstable shutdown.
+- [ ] Leave the validator's direct dialog open until it begins observing, then
+  dismiss it; open and close chat input as well. Confirm both cached dialog
+  and chat-input active/inactive state pairs appear in the outcome line with
+  no packet/RPC emission or shutdown instability.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -143,9 +147,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [ ] `sampGetDialogInfoPtr`, `sampCloseCurrentDialogWithButton`,
   `sampGetCurrentDialogListItem`, `sampSetCurrentDialogListItem`,
   `sampGetCurrentDialogEditboxText`, `sampSetCurrentDialogEditboxText`,
-  `sampIsDialogActive`, `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
+  `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
   `sampGetDialogCaption`, `sampGetDialogText`, `sampIsDialogClientside`,
   `sampSetDialogClientside`, `sampGetListboxItemsCount`, `sampGetListboxItemText`
+- [~] `sampIsDialogActive` — `HostApi::is_local_dialog_active` is a cached
+  R1 game-thread read only. Keep provisional until direct-dialog active and
+  dismissal states are observed in the live lifecycle test.
 - [ ] `sampGetMiscInfoPtr`, `sampToggleCursor`, `sampSetCursorMode` — pointer
   access and UI mutations remain outside the safe ABI.
 - [~] `sampIsCursorActive`, `sampGetCursorMode` —
@@ -154,8 +161,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   provisional until the dedicated cursor transition and shutdown live check.
 - [ ] `sampGetInputInfoPtr`, `sampRegisterChatCommand`,
   `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampGetChatInputText`,
-  `sampSetChatInputEnabled`, `sampIsChatInputActive`,
+  `sampSetChatInputEnabled`,
   `sampIsChatCommandDefined`, `sampProcessChatInput`
+- [~] `sampIsChatInputActive` — `HostApi::is_local_chat_input_active` is a
+  cached R1 game-thread read only. Keep provisional until normal chat-input
+  open/close and shutdown live evidence is recorded.
 
 ### Pools, labels, objects, pickups, vehicles, textdraws (`gangzone.lua`, `label.lua`, `object.lua`, `pickup.lua`, `vehicle.lua`, `textdraw.lua`)
 

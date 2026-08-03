@@ -36,6 +36,8 @@ static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_CHAT_DISPLAY_MODE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_CURSOR_MODE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_SCOREBOARD_OPEN: AtomicI32 = AtomicI32::new(i32::MIN);
+static LOCAL_DIALOG_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
+static LOCAL_CHAT_INPUT_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -110,6 +112,12 @@ fn initialize() {
     }
     if api.is_local_scoreboard_open() == Ok(false) {
         LOCAL_SCOREBOARD_OPEN.store(0, Ordering::Release);
+    }
+    if api.is_local_dialog_active() == Ok(false) {
+        LOCAL_DIALOG_ACTIVE.store(0, Ordering::Release);
+    }
+    if api.is_local_chat_input_active() == Ok(false) {
+        LOCAL_CHAT_INPUT_ACTIVE.store(0, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -201,6 +209,16 @@ pub extern "system" fn RakSampE2ePlugin_LocalCursorMode() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalScoreboardOpen() -> i32 {
     LOCAL_SCOREBOARD_OPEN.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalDialogActive() -> i32 {
+    LOCAL_DIALOG_ACTIVE.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalChatInputActive() -> i32 {
+    LOCAL_CHAT_INPUT_ACTIVE.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

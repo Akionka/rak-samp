@@ -114,5 +114,13 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn shutdown(&mut self) {}
 }

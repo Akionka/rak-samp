@@ -561,6 +561,10 @@ pub struct RakSampApiV1 {
     pub local_cursor_mode: unsafe extern "system" fn(*mut i32) -> RakSampResult,
     /// Copies the latest game-thread-cached R1 scoreboard-open flag into `output`.
     pub local_scoreboard_open: unsafe extern "system" fn(*mut u8) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 dialog-active flag into `output`.
+    pub local_dialog_active: unsafe extern "system" fn(*mut u8) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 chat-input-active flag into `output`.
+    pub local_chat_input_active: unsafe extern "system" fn(*mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1568,8 +1572,25 @@ impl HostApi {
 
     /// Returns whether the cached R1 local scoreboard is open.
     pub fn is_local_scoreboard_open(self) -> Result<bool, RakSampResult> {
+        self.cached_boolean(self.raw.local_scoreboard_open)
+    }
+
+    /// Returns whether the cached R1 local dialog is active.
+    pub fn is_local_dialog_active(self) -> Result<bool, RakSampResult> {
+        self.cached_boolean(self.raw.local_dialog_active)
+    }
+
+    /// Returns whether the cached R1 local chat input is active.
+    pub fn is_local_chat_input_active(self) -> Result<bool, RakSampResult> {
+        self.cached_boolean(self.raw.local_chat_input_active)
+    }
+
+    fn cached_boolean(
+        self,
+        callback: unsafe extern "system" fn(*mut u8) -> RakSampResult,
+    ) -> Result<bool, RakSampResult> {
         let mut raw = 0;
-        match unsafe { (self.raw.local_scoreboard_open)(&mut raw) } {
+        match unsafe { callback(&mut raw) } {
             RakSampResult::Ok => match raw {
                 0 => Ok(false),
                 1 => Ok(true),
@@ -1962,8 +1983,16 @@ mod tests {
             mem::offset_of!(RakSampApiV1, local_cursor_mode) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_dialog_active),
             mem::offset_of!(RakSampApiV1, local_scoreboard_open) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakSampApiV1, local_chat_input_active),
+            mem::offset_of!(RakSampApiV1, local_dialog_active) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_chat_input_active) + function_size
         );
     }
 
@@ -2111,6 +2140,8 @@ mod tests {
         assert_eq!(api.local_cursor_mode(), Ok(LocalCursorMode::LockCamera));
         assert_eq!(api.is_local_cursor_active(), Ok(true));
         assert_eq!(api.is_local_scoreboard_open(), Ok(false));
+        assert_eq!(api.is_local_dialog_active(), Ok(false));
+        assert_eq!(api.is_local_chat_input_active(), Ok(false));
         assert_eq!(LocalCursorMode::from_raw(5), None);
     }
 

@@ -97,6 +97,45 @@ struct DirectScoreboardStates {
     open: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DirectVisibilityStates {
+    inactive: bool,
+    active: bool,
+}
+
+impl DirectVisibilityStates {
+    fn observe(&mut self, active: bool) {
+        if active {
+            self.active = true;
+        } else {
+            self.inactive = true;
+        }
+    }
+
+    fn complete(self) -> bool {
+        self.inactive && self.active
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DirectUiStates {
+    chat_modes: DirectChatDisplayModes,
+    cursor: DirectCursorStates,
+    scoreboard: DirectScoreboardStates,
+    dialog: DirectVisibilityStates,
+    chat_input: DirectVisibilityStates,
+}
+
+impl DirectUiStates {
+    fn complete(self) -> bool {
+        self.chat_modes.complete()
+            && self.cursor.complete()
+            && self.scoreboard.complete()
+            && self.dialog.complete()
+            && self.chat_input.complete()
+    }
+}
+
 impl DirectScoreboardStates {
     fn observe(&mut self, open: bool) {
         if open {
@@ -465,11 +504,49 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+                match api.is_local_dialog_active() {
+                    Ok(_) => {}
+                    Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test dialog-state returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
+                match api.is_local_chat_input_active() {
+                    Ok(_) => {}
+                    Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test chat-input-state returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);
@@ -530,9 +607,7 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
     ));
     let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
     let mut changes = DirectSnapshotChanges::default();
-    let mut chat_modes = DirectChatDisplayModes::default();
-    let mut cursor_states = DirectCursorStates::default();
-    let mut scoreboard_states = DirectScoreboardStates::default();
+    let mut ui_states = DirectUiStates::default();
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
             Ok(snapshot) if snapshot.id == expected_id => {
@@ -559,7 +634,7 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
             }
         }
         match api.local_chat_display_mode() {
-            Ok(mode) => chat_modes.observe(mode),
+            Ok(mode) => ui_states.chat_modes.observe(mode),
             Err(RakSampResult::NotReady) => {}
             Err(error) => {
                 SELF_TESTS
@@ -572,7 +647,7 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
             }
         }
         match api.local_cursor_mode() {
-            Ok(mode) => cursor_states.observe(mode),
+            Ok(mode) => ui_states.cursor.observe(mode),
             Err(RakSampResult::NotReady) => {}
             Err(error) => {
                 SELF_TESTS
@@ -585,7 +660,7 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
             }
         }
         match api.is_local_scoreboard_open() {
-            Ok(open) => scoreboard_states.observe(open),
+            Ok(open) => ui_states.scoreboard.observe(open),
             Err(RakSampResult::NotReady) => {}
             Err(error) => {
                 SELF_TESTS
@@ -597,22 +672,37 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
                 return;
             }
         }
-        if changes.complete()
-            && chat_modes.complete()
-            && cursor_states.complete()
-            && scoreboard_states.complete()
-        {
+        match api.is_local_dialog_active() {
+            Ok(active) => ui_states.dialog.observe(active),
+            Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation dialog-state returned {error:?}"
+                ));
+                return;
+            }
+        }
+        match api.is_local_chat_input_active() {
+            Ok(active) => ui_states.chat_input.observe(active),
+            Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation chat-input-state returned {error:?}"
+                ));
+                return;
+            }
+        }
+        if changes.complete() && ui_states.complete() {
             SELF_TESTS
                 .direct_snapshot_state
                 .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
-            log_direct_snapshot_state(
-                "passed",
-                expected_id,
-                changes,
-                chat_modes,
-                cursor_states,
-                scoreboard_states,
-            );
+            log_direct_snapshot_state("passed", expected_id, changes, ui_states);
             return;
         }
         std::thread::sleep(Duration::from_millis(25));
@@ -621,14 +711,7 @@ fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
         SELF_TESTS
             .direct_snapshot_state
             .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
-        log_direct_snapshot_state(
-            "timed-out",
-            expected_id,
-            changes,
-            chat_modes,
-            cursor_states,
-            scoreboard_states,
-        );
+        log_direct_snapshot_state("timed-out", expected_id, changes, ui_states);
     }
 }
 
@@ -636,23 +719,25 @@ fn log_direct_snapshot_state(
     outcome: &str,
     id: u16,
     changes: DirectSnapshotChanges,
-    chat_modes: DirectChatDisplayModes,
-    cursor_states: DirectCursorStates,
-    scoreboard_states: DirectScoreboardStates,
+    ui_states: DirectUiStates,
 ) {
     logging::write(&format!(
-        "direct-client state validation {outcome}: local_player_id={id} position_changed={} health_changed={} armour_changed={} vehicle_changed={} chat_mode_off={} chat_mode_no_shadow={} chat_mode_normal={} cursor_none={} cursor_active={} scoreboard_closed={} scoreboard_open={}",
+        "direct-client state validation {outcome}: local_player_id={id} position_changed={} health_changed={} armour_changed={} vehicle_changed={} chat_mode_off={} chat_mode_no_shadow={} chat_mode_normal={} cursor_none={} cursor_active={} scoreboard_closed={} scoreboard_open={} dialog_inactive={} dialog_active={} chat_input_inactive={} chat_input_active={}",
         changes.position,
         changes.health,
         changes.armour,
         changes.vehicle,
-        chat_modes.off,
-        chat_modes.no_shadow,
-        chat_modes.normal,
-        cursor_states.none,
-        cursor_states.active,
-        scoreboard_states.closed,
-        scoreboard_states.open,
+        ui_states.chat_modes.off,
+        ui_states.chat_modes.no_shadow,
+        ui_states.chat_modes.normal,
+        ui_states.cursor.none,
+        ui_states.cursor.active,
+        ui_states.scoreboard.closed,
+        ui_states.scoreboard.open,
+        ui_states.dialog.inactive,
+        ui_states.dialog.active,
+        ui_states.chat_input.inactive,
+        ui_states.chat_input.active,
     ));
 }
 
@@ -799,6 +884,7 @@ fn mark_timeout(status: &AtomicU8) {
 mod tests {
     use super::{
         DirectChatDisplayModes, DirectCursorStates, DirectScoreboardStates, DirectSnapshotChanges,
+        DirectVisibilityStates,
     };
     use rak_samp_plugin_api::{LocalChatDisplayMode, LocalCursorMode, LocalPlayer, Vector3};
 
@@ -870,5 +956,11 @@ mod tests {
         assert!(!scoreboard.complete());
         scoreboard.observe(true);
         assert!(scoreboard.complete());
+
+        let mut visibility = DirectVisibilityStates::default();
+        visibility.observe(false);
+        assert!(!visibility.complete());
+        visibility.observe(true);
+        assert!(visibility.complete());
     }
 }

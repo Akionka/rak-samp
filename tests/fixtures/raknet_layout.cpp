@@ -133,6 +133,16 @@ struct FixtureR1GamePrefix {
 struct FixtureR1ScoreboardPrefix {
     int is_enabled;
 };
+
+struct FixtureR1DialogPrefix {
+    unsigned char pad_0[0x28];
+    int is_active;
+};
+
+struct FixtureR1InputPrefix {
+    unsigned char pad_0[0x14E0];
+    int is_enabled;
+};
 #pragma pack(pop)
 
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
@@ -152,6 +162,8 @@ static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
 static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
 static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
 static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
+static_assert(offsetof(FixtureR1DialogPrefix, is_active) == 0x28);
+static_assert(offsetof(FixtureR1InputPrefix, is_enabled) == 0x14E0);
 
 extern "C" {
 
@@ -285,6 +297,14 @@ std::size_t rak_samp_fixture_r1_game_cursor_mode_offset() {
 
 std::size_t rak_samp_fixture_r1_scoreboard_enabled_offset() {
     return offsetof(FixtureR1ScoreboardPrefix, is_enabled);
+}
+
+std::size_t rak_samp_fixture_r1_dialog_active_offset() {
+    return offsetof(FixtureR1DialogPrefix, is_active);
+}
+
+std::size_t rak_samp_fixture_r1_input_enabled_offset() {
+    return offsetof(FixtureR1InputPrefix, is_enabled);
 }
 
 }

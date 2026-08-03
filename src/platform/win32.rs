@@ -117,6 +117,10 @@ struct BackendState {
     local_cursor_mode_ready: AtomicBool,
     local_scoreboard_open: AtomicBool,
     local_scoreboard_open_ready: AtomicBool,
+    local_dialog_active: AtomicBool,
+    local_dialog_active_ready: AtomicBool,
+    local_chat_input_active: AtomicBool,
+    local_chat_input_active_ready: AtomicBool,
     hooks: Mutex<HookStorage>,
 }
 
@@ -186,6 +190,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_cursor_mode_ready: AtomicBool::new(false),
         local_scoreboard_open: AtomicBool::new(false),
         local_scoreboard_open_ready: AtomicBool::new(false),
+        local_dialog_active: AtomicBool::new(false),
+        local_dialog_active_ready: AtomicBool::new(false),
+        local_chat_input_active: AtomicBool::new(false),
+        local_chat_input_active_ready: AtomicBool::new(false),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
@@ -297,6 +305,14 @@ impl Backend {
 
     pub(crate) fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
         self.state.local_scoreboard_open()
+    }
+
+    pub(crate) fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
+        self.state.local_dialog_active()
+    }
+
+    pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
+        self.state.local_chat_input_active()
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -747,6 +763,26 @@ impl BackendState {
         )
     }
 
+    fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
+        cached_direct_client_value(
+            self.r1_client.is_some(),
+            self.rak_client.load(Ordering::Acquire) != 0,
+            self.local_dialog_active_ready
+                .load(Ordering::Acquire)
+                .then(|| self.local_dialog_active.load(Ordering::Acquire)),
+        )
+    }
+
+    fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
+        cached_direct_client_value(
+            self.r1_client.is_some(),
+            self.rak_client.load(Ordering::Acquire) != 0,
+            self.local_chat_input_active_ready
+                .load(Ordering::Acquire)
+                .then(|| self.local_chat_input_active.load(Ordering::Acquire)),
+        )
+    }
+
     fn pump_local_client(&self) {
         let Some(profile) = self.r1_client else {
             return;
@@ -758,6 +794,8 @@ impl BackendState {
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
         self.refresh_local_scoreboard_open(profile);
+        self.refresh_local_dialog_active(profile);
+        self.refresh_local_chat_input_active(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         if profile.dialog_is_ready() {
@@ -935,6 +973,35 @@ impl BackendState {
         }
     }
 
+    fn refresh_local_dialog_active(&self, profile: R1ClientProfile) {
+        match profile.dialog_is_active() {
+            Ok(active) => {
+                self.local_dialog_active.store(active, Ordering::Release);
+                self.local_dialog_active_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_dialog_active_ready
+                    .store(false, Ordering::Release);
+            }
+        }
+    }
+
+    fn refresh_local_chat_input_active(&self, profile: R1ClientProfile) {
+        match profile.chat_input_is_active() {
+            Ok(active) => {
+                self.local_chat_input_active
+                    .store(active, Ordering::Release);
+                self.local_chat_input_active_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_chat_input_active_ready
+                    .store(false, Ordering::Release);
+            }
+        }
+    }
+
     fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
         if self.r1_client.is_some()
             && let Some(player_id) = player_id
@@ -1004,6 +1071,10 @@ impl BackendState {
             .store(false, Ordering::Release);
         self.local_cursor_mode_ready.store(false, Ordering::Release);
         self.local_scoreboard_open_ready
+            .store(false, Ordering::Release);
+        self.local_dialog_active_ready
+            .store(false, Ordering::Release);
+        self.local_chat_input_active_ready
             .store(false, Ordering::Release);
     }
 }
@@ -1366,6 +1437,10 @@ mod vtable_tests {
             local_cursor_mode_ready: AtomicBool::new(false),
             local_scoreboard_open: AtomicBool::new(false),
             local_scoreboard_open_ready: AtomicBool::new(false),
+            local_dialog_active: AtomicBool::new(false),
+            local_dialog_active_ready: AtomicBool::new(false),
+            local_chat_input_active: AtomicBool::new(false),
+            local_chat_input_active_ready: AtomicBool::new(false),
             hooks: Mutex::new(HookStorage::default()),
         }
     }
@@ -1452,6 +1527,14 @@ mod vtable_tests {
         );
         assert_eq!(
             state.local_scoreboard_open(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_dialog_active(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_chat_input_active(),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(

@@ -76,6 +76,11 @@ client from a plugin thread.
 scoreboard flag. These are read-only R1 observations; they do not toggle UI,
 send traffic, or expose a client pointer.
 
+`HostApi::is_local_dialog_active()` and
+`HostApi::is_local_chat_input_active()` expose the same cached, read-only R1
+visibility state for the local dialog and chat input. Closing dialogs or
+opening/processing chat input remains outside the safe ABI.
+
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
 host's RakClient hooks are ready. `HostApi::is_samp_loaded()` instead reports

@@ -149,6 +149,8 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     local_chat_display_mode,
     local_cursor_mode,
     local_scoreboard_open,
+    local_dialog_active,
+    local_chat_input_active,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -814,6 +816,38 @@ unsafe extern "system" fn local_scoreboard_open(output: *mut u8) -> RakSampResul
     }
 }
 
+unsafe extern "system" fn local_dialog_active(output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.local_dialog_active() {
+        Ok(active) => {
+            *output = u8::from(active);
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.local_chat_input_active() {
+        Ok(active) => {
+            *output = u8::from(active);
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1192,6 +1226,24 @@ mod tests {
         );
         assert_eq!(
             unsafe { local_scoreboard_open(std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut dialog_active = 0;
+        assert_eq!(
+            unsafe { local_dialog_active(&mut dialog_active) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { local_dialog_active(std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut chat_input_active = 0;
+        assert_eq!(
+            unsafe { local_chat_input_active(&mut chat_input_active) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { local_chat_input_active(std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

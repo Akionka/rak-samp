@@ -641,6 +641,22 @@ unsafe extern "system" fn test_local_scoreboard_open(output: *mut u8) -> RakSamp
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_local_dialog_active(output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 0;
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn test_local_chat_input_active(output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 0;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -738,6 +754,8 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     local_chat_display_mode: test_local_chat_display_mode,
     local_cursor_mode: test_local_cursor_mode,
     local_scoreboard_open: test_local_scoreboard_open,
+    local_dialog_active: test_local_dialog_active,
+    local_chat_input_active: test_local_chat_input_active,
 };
 
 pub(crate) fn test_api() -> HostApi {

@@ -26,6 +26,9 @@ const GTA_SA_10_US_ENTRY_POINT: u32 = 0x0042_4570;
 
 const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
+const INPUT_SINGLETON_RVA: usize = 0x21A0E8;
+const INPUT_OPEN_RVA: usize = 0x657E0;
+const INPUT_CLOSE_RVA: usize = 0x658E0;
 const CHAT_SINGLETON_RVA: usize = 0x21A0E4;
 const CHAT_ADD_ENTRY_RVA: usize = 0x64010;
 const CHAT_GET_MODE_RVA: usize = 0x5D7A0;
@@ -59,12 +62,32 @@ const NET_GAME_PORT_OFFSET: usize = 0x225;
 const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
 const GAME_CURSOR_MODE_OFFSET: usize = 0x55;
+const DIALOG_ACTIVE_OFFSET: usize = 0x28;
+const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CDialog::Show` at `DIALOG_SHOW_RVA`.
 // The function uses a frame-less prologue; do not substitute the common
 // `55 8B EC` prologue here, or the valid R1 profile will be rejected.
 const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
     0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB, 0x8B, 0xF1,
+];
+
+// The `CDialog::Show` active-state comparison immediately follows the original
+// show-target signature. Verify it separately to pin the copied `m_bIsActive`
+// read without widening the existing show-call signature.
+const DIALOG_SHOW_ACTIVE_SIGNATURE: [u8; 22] = [
+    0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB, 0x8B, 0xF1,
+    0x7D, 0x17, 0x39, 0x5E, 0x28, 0x0F,
+];
+
+// `CInput::Open` and `Close` both read the packed `m_bEnabled` flag at
+// offset 0x14E0 before proceeding with their UI work. They are evidence only:
+// the safe helper below copies the flag and never invokes either mutation.
+const INPUT_OPEN_SIGNATURE: [u8; 16] = [
+    0x83, 0xEC, 0x10, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xE0, 0x14, 0x00, 0x00, 0x85, 0xC0, 0x0F, 0x85,
+];
+const INPUT_CLOSE_SIGNATURE: [u8; 16] = [
+    0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xE0, 0x14, 0x00, 0x00, 0x85, 0xC0, 0x74, 0x39, 0x8B, 0x4E, 0x08,
 ];
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CChat::AddEntry` at
@@ -244,6 +267,16 @@ impl R1ClientProfile {
         }
     }
 
+    pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        read_r1_bool(dialog as usize + DIALOG_ACTIVE_OFFSET)
+    }
+
+    pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        read_r1_bool(input as usize + INPUT_ENABLED_OFFSET)
+    }
+
     pub(super) fn death_window_is_ready(self) -> bool {
         self.death_window().is_some()
     }
@@ -301,6 +334,13 @@ impl R1ClientProfile {
         let scoreboard: *mut c_void =
             unsafe { read_pointer(self.module_base + SCOREBOARD_SINGLETON_RVA) }?.cast();
         (!scoreboard.is_null() && readable_range(scoreboard.cast(), 4)).then_some(scoreboard)
+    }
+
+    fn input(self) -> Option<*mut c_void> {
+        let input: *mut c_void =
+            unsafe { read_pointer(self.module_base + INPUT_SINGLETON_RVA) }?.cast();
+        (!input.is_null() && readable_range(input.cast(), INPUT_ENABLED_OFFSET + 4))
+            .then_some(input)
     }
 
     fn death_window(self) -> Option<*mut c_void> {
@@ -514,6 +554,9 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
         && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
         && code_matches(module_base + CHAT_GET_MODE_RVA, &CHAT_GET_MODE_SIGNATURE)
+        && code_matches(module_base + DIALOG_SHOW_RVA, &DIALOG_SHOW_ACTIVE_SIGNATURE)
+        && code_matches(module_base + INPUT_OPEN_RVA, &INPUT_OPEN_SIGNATURE)
+        && code_matches(module_base + INPUT_CLOSE_RVA, &INPUT_CLOSE_SIGNATURE)
         && code_matches(
             module_base + SCOREBOARD_CLOSE_RVA,
             &SCOREBOARD_CLOSE_SIGNATURE,
@@ -590,6 +633,14 @@ unsafe fn read_vector3(address: usize) -> Option<Vector3> {
     })
 }
 
+fn read_r1_bool(address: usize) -> Result<bool, DirectClientError> {
+    match unsafe { read_unaligned::<i32>(address) } {
+        Some(0) => Ok(false),
+        Some(1) => Ok(true),
+        _ => Err(DirectClientError::NotReady),
+    }
+}
+
 unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
     if pointer.is_null() {
         return None;
@@ -649,9 +700,10 @@ unsafe fn plausible_code(address: usize) -> bool {
 mod tests {
     use super::{
         CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
-        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET,
-        GAME_PROCESS_INPUT_ENABLING_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
-        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_ACTIVE_OFFSET, DIALOG_SHOW_ACTIVE_SIGNATURE,
+        DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
+        INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET, INPUT_OPEN_SIGNATURE,
+        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
@@ -682,6 +734,8 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_game_state_offset() -> usize;
         fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
         fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
+        fn rak_samp_fixture_r1_dialog_active_offset() -> usize;
+        fn rak_samp_fixture_r1_input_enabled_offset() -> usize;
     }
 
     #[test]
@@ -759,6 +813,14 @@ mod tests {
                 rak_samp_fixture_r1_scoreboard_enabled_offset(),
                 SCOREBOARD_ENABLED_OFFSET
             );
+            assert_eq!(
+                rak_samp_fixture_r1_dialog_active_offset(),
+                DIALOG_ACTIVE_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_input_enabled_offset(),
+                INPUT_ENABLED_OFFSET
+            );
         }
     }
 
@@ -774,6 +836,31 @@ mod tests {
             [
                 0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB,
                 0x8B, 0xF1,
+            ]
+        );
+    }
+
+    #[test]
+    fn dialog_and_input_state_signatures_match_the_fingerprinted_r1_targets() {
+        assert_eq!(
+            DIALOG_SHOW_ACTIVE_SIGNATURE,
+            [
+                0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB,
+                0x8B, 0xF1, 0x7D, 0x17, 0x39, 0x5E, 0x28, 0x0F,
+            ]
+        );
+        assert_eq!(
+            INPUT_OPEN_SIGNATURE,
+            [
+                0x83, 0xEC, 0x10, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xE0, 0x14, 0x00, 0x00, 0x85, 0xC0,
+                0x0F, 0x85,
+            ]
+        );
+        assert_eq!(
+            INPUT_CLOSE_SIGNATURE,
+            [
+                0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xE0, 0x14, 0x00, 0x00, 0x85, 0xC0, 0x74, 0x39, 0x8B,
+                0x4E, 0x08,
             ]
         );
     }
