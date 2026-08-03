@@ -74,9 +74,11 @@ placed on a bounded 32-ID request queue and copied by at most four verified R1
 read returns `NotReady`, a copied disconnected result is `Ok(None)`, and later
 reads opportunistically refresh the same ID. The output contains only ID,
 nickname bytes, local/NPC flags, ARGB colour, score, and ping—never a pool,
-player, ped, or GTA pointer. The R1 accessor targets are fingerprinted before
-profile enablement; this surface remains provisional pending its second-player
-live lifecycle test.
+player, ped, or GTA pointer. Its `is_player_defined` projection uses the exact
+R1 `CRemotePlayer::DoesExist` accessor, retaining the distinction between a
+connected remote player and an in-world client object. The accessor targets are
+fingerprinted before profile enablement; this surface remains provisional
+pending its second-player live lifecycle test.
 
 `HostApi::player_count(include_npcs)` is a separate cached scalar pair from
 the exact R1 `CPlayerPool::GetCount` accessor. The pump calls its two boolean

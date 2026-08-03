@@ -368,6 +368,7 @@ fn run_player_directory(api: HostApi) {
         match api.player_info(id) {
             Ok(Some(player)) if !player.is_local && !player.nickname.is_empty() => {
                 if api.is_player_connected(id) == Ok(true)
+                    && api.is_player_defined(id) == Ok(true)
                     && api.player_nickname(id) == Ok(Some(player.nickname))
                     && api.is_player_npc(id) == Ok(Some(player.is_npc))
                     && api.player_colour(id) == Ok(Some(player.colour))

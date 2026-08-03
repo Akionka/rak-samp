@@ -466,11 +466,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
   server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
   the original RakClient send path.
-- [~] `sampIsPlayerDefined` is represented by a non-local `Some` from the
-  cached player directory after the R1 game-thread copy observes a remote
-  object; do not equate it with an arbitrary connected ID. Keep provisional
-  with the directory live gate. `sampSetPlayerColor` mutates a remote client
-  entity and is excluded.
+- [~] `sampIsPlayerDefined` — `HostApi::is_player_defined(id)` reuses the
+  bounded directory cache and the fingerprinted R1 `CRemotePlayer::DoesExist`
+  accessor. It distinguishes a connected remote player from a defined
+  client-world object without exposing either native object or ped. Keep
+  provisional with the second-player directory live gate. `sampSetPlayerColor`
+  mutates a remote client entity and is excluded.
 
 ### RakNet and network actions (`raknet.lua`)
 

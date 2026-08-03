@@ -89,6 +89,10 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn player_defined(&self, _id: u16) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn player_count(&self, _include_npcs: bool) -> Result<u16, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }

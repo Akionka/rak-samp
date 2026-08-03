@@ -65,6 +65,7 @@ const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
 const PLAYER_POOL_UPDATE_LARGEST_ID_RVA: usize = 0x102B0;
 const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
+const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 const PED_GET_HEALTH_RVA: usize = 0xA6610;
@@ -362,6 +363,13 @@ const VEHICLE_POOL_DOES_EXIST_SIGNATURE: [u8; 29] = [
 ];
 const REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE: [u8; 16] = [
     0x0F, 0xB7, 0x81, 0xAB, 0x00, 0x00, 0x00, 0x50, 0xE8, 0x63, 0xAB, 0x09, 0x00, 0xC1, 0xE8, 0x08,
+];
+// `CRemotePlayer::DoesExist` only checks the remote player's owned R1 state;
+// it does not dereference or export the GTA ped. Keep this exact target
+// fingerprinted before the directory cache exposes the copied boolean.
+const REMOTE_PLAYER_DOES_EXIST_SIGNATURE: [u8; 18] = [
+    0x83, 0x39, 0x00, 0x74, 0x0D, 0x8A, 0x41, 0x09, 0x84, 0xC0, 0x74, 0x06, 0xB8, 0x01, 0x00, 0x00,
+    0x00, 0xC3,
 ];
 
 const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
@@ -672,6 +680,8 @@ impl R1ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_PING_RVA) };
         let get_colour: RemotePlayerGetColourArgbFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA) };
+        let does_exist: RemotePlayerDoesExistFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         let is_npc = match unsafe { is_npc(pool, id) } {
             0 => false,
             1 => true,
@@ -683,6 +693,11 @@ impl R1ClientProfile {
 
         Ok(Some(PlayerInfoSnapshot {
             id,
+            defined: match unsafe { does_exist(remote) } {
+                0 => false,
+                1 => true,
+                _ => return Err(DirectClientError::NotReady),
+            },
             nickname,
             is_local: false,
             is_npc,
@@ -1276,6 +1291,7 @@ type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32
 type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
+type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 
 unsafe fn samp_r1_pe_matches(module_base: usize) -> bool {
@@ -1439,6 +1455,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         && code_matches(
             module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA,
             &REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
+        )
+        && code_matches(
+            module_base + REMOTE_PLAYER_DOES_EXIST_RVA,
+            &REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
         )
         && [
             PLAYER_POOL_GET_LOCAL_PLAYER_RVA,
@@ -1614,9 +1634,10 @@ mod tests {
         PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE, PLAYER_POOL_GET_SCORE_SIGNATURE,
         PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
         PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
-        PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
-        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+        PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
+        REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, SAMP_PED_GAME_PED_OFFSET,
+        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
+        TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_ALIGN_CENTER_OFFSET,
         TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
@@ -2300,6 +2321,13 @@ mod tests {
             [
                 0x0F, 0xB7, 0x81, 0xAB, 0x00, 0x00, 0x00, 0x50, 0xE8, 0x63, 0xAB, 0x09, 0x00, 0xC1,
                 0xE8, 0x08,
+            ]
+        );
+        assert_eq!(
+            REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
+            [
+                0x83, 0x39, 0x00, 0x74, 0x0D, 0x8A, 0x41, 0x09, 0x84, 0xC0, 0x74, 0x06, 0xB8, 0x01,
+                0x00, 0x00, 0x00, 0xC3,
             ]
         );
     }

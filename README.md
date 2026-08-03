@@ -58,10 +58,12 @@ corresponding SF.lua local-player helpers, plus local score and ping.
 player or a demand-refreshed remote R1 player: copied nickname bytes, NPC flag,
 ARGB colour, score, and ping. A first remote lookup may return `NotReady` while
 the existing game-thread pump copies it; `Ok(None)` is a cached disconnected
-result. `is_player_connected`, `player_nickname`, `is_player_npc`,
-`player_colour`, `player_score`, and `player_ping` are projections of that same
-cache. No player, ped, pool, or GTA handle crosses the ABI. This R1-only helper
-remains provisional until its opt-in second-player live validation is recorded.
+result. `is_player_connected`, `is_player_defined`, `player_nickname`,
+`is_player_npc`, `player_colour`, `player_score`, and `player_ping` are
+projections of that same cache. `is_player_defined` uses R1's exact remote
+world-state accessor, so it is stricter than a connection check. No player,
+ped, pool, or GTA handle crosses the ABI. This R1-only helper remains
+provisional until its opt-in second-player live validation is recorded.
 
 `HostApi::player_count(include_npcs)` returns the latest game-thread-cached R1
 player-pool scalar, including or excluding NPCs. It covers SF.lua's
