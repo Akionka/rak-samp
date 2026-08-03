@@ -3,7 +3,7 @@ use crate::{
     state::{HOST_WAIT_TIMEOUT, STOP},
 };
 use rak_samp_plugin_api::{
-    HostApi, RakSampDirection, RakSampHookAction, ResolveError, Subscription, events::Event,
+    HostApi, RakSampDirection, ResolveError, SubscriptionSet, register_handlers,
     wait_for_default_host,
 };
 use std::{
@@ -18,16 +18,8 @@ use windows_sys::{
 
 const HOST_POLL_INTERVAL: Duration = Duration::from_millis(100);
 
-#[derive(Clone, Copy)]
-enum ListenerKind {
-    Packet,
-    Rpc,
-}
-
-type EventHandler = for<'event> fn(&mut Event<'event>) -> RakSampHookAction;
-
 struct PluginState {
-    subscriptions: Vec<Subscription>,
+    subscriptions: SubscriptionSet,
     initialization_worker: Option<JoinHandle<()>>,
     reporter_worker: Option<JoinHandle<()>>,
     self_test_worker: Option<JoinHandle<()>>,
@@ -37,7 +29,7 @@ struct PluginState {
 impl PluginState {
     const fn new() -> Self {
         Self {
-            subscriptions: Vec::new(),
+            subscriptions: SubscriptionSet::new(),
             initialization_worker: None,
             reporter_worker: None,
             self_test_worker: None,
@@ -76,65 +68,30 @@ fn initialize(instance: usize) {
         return;
     }
 
-    let registrations: [(&str, ListenerKind, RakSampDirection, EventHandler); 6] = [
-        (
-            "incoming packet self-test rewriter",
-            ListenerKind::Packet,
-            RakSampDirection::Incoming,
-            self_test::rewrite_test_packet,
-        ),
-        (
-            "incoming RPC self-test rewriter",
-            ListenerKind::Rpc,
-            RakSampDirection::Incoming,
-            self_test::rewrite_test_rpc,
-        ),
-        (
-            "incoming packet",
-            ListenerKind::Packet,
-            RakSampDirection::Incoming,
-            callbacks::on_incoming_packet,
-        ),
-        (
-            "outgoing packet",
-            ListenerKind::Packet,
-            RakSampDirection::Outgoing,
-            callbacks::on_outgoing_packet,
-        ),
-        (
-            "incoming RPC",
-            ListenerKind::Rpc,
-            RakSampDirection::Incoming,
-            callbacks::on_incoming_rpc,
-        ),
-        (
-            "outgoing RPC",
-            ListenerKind::Rpc,
-            RakSampDirection::Outgoing,
-            callbacks::on_outgoing_rpc,
-        ),
-    ];
-    let mut subscriptions = Vec::with_capacity(registrations.len());
-    for (label, kind, direction, callback) in registrations {
-        let registration = match kind {
-            ListenerKind::Packet => api.on_packet(direction, callback),
-            ListenerKind::Rpc => api.on_rpc(direction, callback),
-        };
-        match registration {
-            Ok(subscription) => subscriptions.push(subscription),
-            Err(error) => {
-                logging::write(&format!("{label} registration failed: {error:?}"));
-                unregister_all(subscriptions);
-                return;
-            }
+    let subscriptions = match register_handlers!(api;
+        packet(RakSampDirection::Incoming, self_test::rewrite_test_packet),
+        rpc(RakSampDirection::Incoming, self_test::rewrite_test_rpc),
+        packet(RakSampDirection::Incoming, callbacks::on_incoming_packet),
+        packet(RakSampDirection::Outgoing, callbacks::on_outgoing_packet),
+        rpc(RakSampDirection::Incoming, callbacks::on_incoming_rpc),
+        rpc(RakSampDirection::Outgoing, callbacks::on_outgoing_rpc),
+    ) {
+        Ok(subscriptions) => subscriptions,
+        Err(error) => {
+            logging::write(&format!(
+                "callback registration failed: {:?}",
+                error.result()
+            ));
+            retain_failed_subscriptions(error.into_subscriptions());
+            return;
         }
-    }
+    };
 
     {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         if state.shutting_down {
             drop(state);
-            unregister_all(subscriptions);
+            retain_failed_subscriptions(subscriptions);
             return;
         }
         state.subscriptions = subscriptions;
@@ -158,7 +115,7 @@ fn initialize(instance: usize) {
                 let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
                 std::mem::take(&mut state.subscriptions)
             };
-            unregister_all(subscriptions);
+            retain_failed_subscriptions(subscriptions);
             return;
         }
     }
@@ -206,10 +163,24 @@ fn is_shutting_down() -> bool {
         .shutting_down
 }
 
-fn unregister_all(subscriptions: Vec<Subscription>) {
-    for subscription in subscriptions {
-        let _ = subscription.unregister_and_wait();
-    }
+fn retain_failed_subscriptions(subscriptions: SubscriptionSet) {
+    let subscriptions = match subscriptions.unregister_and_wait() {
+        Ok(()) => return,
+        Err(error) => {
+            for failure in error.failures() {
+                logging::write(&format!(
+                    "subscription {} failed to stop: {:?}",
+                    failure.id(),
+                    failure.result()
+                ));
+            }
+            error.into_subscriptions()
+        }
+    };
+    STATE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .subscriptions = subscriptions;
 }
 
 pub(crate) fn shutdown() -> BOOL {
@@ -250,26 +221,24 @@ pub(crate) fn shutdown() -> BOOL {
         return TRUE;
     };
 
-    let mut failed = Vec::new();
-    for subscription in subscriptions {
-        if let Err(error) = subscription.unregister_and_wait() {
-            let result = error.result();
-            let subscription = error.into_subscription();
-            logging::write(&format!(
-                "subscription {} failed to stop: {result:?}",
-                subscription.id()
-            ));
-            failed.push(subscription);
+    match subscriptions.unregister_and_wait() {
+        Ok(()) => {
+            logging::write("shutdown completed; all callbacks quiesced");
+            TRUE
         }
-    }
-    if failed.is_empty() {
-        logging::write("shutdown completed; all callbacks quiesced");
-        TRUE
-    } else {
-        STATE
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .subscriptions = failed;
-        0
+        Err(error) => {
+            for failure in error.failures() {
+                logging::write(&format!(
+                    "subscription {} failed to stop: {:?}",
+                    failure.id(),
+                    failure.result()
+                ));
+            }
+            STATE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .subscriptions = error.into_subscriptions();
+            0
+        }
     }
 }

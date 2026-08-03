@@ -3,8 +3,9 @@
 //! Depend on this crate from an independently loaded ASI plugin. Do **not**
 //! depend on the `rak_samp` host crate: that would embed a second hook engine in
 //! the process instead of communicating with `rak_samp.asi`. Register callbacks with
-//! [`HostApi::on_packet`] or [`HostApi::on_rpc`] and synchronize each [`Subscription`] before
-//! unloading the plugin.
+//! [`HostApi::on_packet`] or [`HostApi::on_rpc`]. Use their ID-filtered and typed variants when
+//! one handler owns one protocol message, and [`register_handlers!`] to keep a group in one
+//! [`SubscriptionSet`]. Synchronize subscriptions before unloading the plugin.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("rak_samp_plugin_api supports only 32-bit Windows x86 targets");
@@ -307,7 +308,6 @@ pub struct SubscriptionSet {
 
 impl SubscriptionSet {
     /// Creates an empty subscription group.
-    #[must_use]
     pub const fn new() -> Self {
         Self {
             subscriptions: Vec::new(),
@@ -610,7 +610,7 @@ impl HostApi {
     {
         self.on_packet_id(direction, packet.id(), move |event| {
             packet
-                .handle(event, |value| handler(value))
+                .handle(event, &handler)
                 .unwrap_or(RakSampHookAction::Continue)
         })
     }
@@ -630,7 +630,7 @@ impl HostApi {
         F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
     {
         self.on_rpc_id(direction, rpc.id(), move |event| {
-            rpc.handle(event, |value| handler(value))
+            rpc.handle(event, &handler)
                 .unwrap_or(RakSampHookAction::Continue)
         })
     }
@@ -848,7 +848,7 @@ fn resolve_host(_module_name: &[u8]) -> Result<HostApi, ResolveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::events::test_support;
+    use crate::events::{RpcAction, packet, rpc::incoming, test_support};
     use std::sync::{
         Arc, Mutex,
         atomic::{AtomicUsize, Ordering},
@@ -964,6 +964,179 @@ mod tests {
         subscription
             .unregister_and_wait()
             .expect("test shutdown must synchronize");
+    }
+
+    #[test]
+    fn id_filtered_callback_ignores_unrelated_events() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        let subscription = test_support::test_api()
+            .on_rpc_id(RakSampDirection::Incoming, 42, move |_| {
+                observed.fetch_add(1, Ordering::AcqRel);
+                RakSampHookAction::Block
+            })
+            .expect("test registration must succeed");
+
+        assert_eq!(
+            test_support::invoke_registered_callback(41),
+            Some(RakSampHookAction::Continue)
+        );
+        assert_eq!(
+            test_support::invoke_registered_callback(42),
+            Some(RakSampHookAction::Block)
+        );
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+
+        subscription
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize");
+    }
+
+    #[test]
+    fn typed_callback_decodes_matching_descriptor_and_fails_open() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        let api = test_support::test_api();
+        let subscription = api
+            .on_typed_rpc(
+                RakSampDirection::Incoming,
+                incoming::ENABLE_STUNT_BONUS,
+                move |enabled| {
+                    assert!(enabled);
+                    observed.fetch_add(1, Ordering::AcqRel);
+                    RpcAction::Block
+                },
+            )
+            .expect("test registration must succeed");
+
+        assert_eq!(
+            test_support::invoke_registered_callback(99),
+            Some(RakSampHookAction::Continue)
+        );
+        assert_eq!(
+            test_support::invoke_registered_callback_with_payload(
+                incoming::ENABLE_STUNT_BONUS.id(),
+                incoming::ENABLE_STUNT_BONUS
+                    .encode(api, true)
+                    .expect("the typed test payload must encode"),
+            ),
+            Some(RakSampHookAction::Block)
+        );
+        assert_eq!(
+            test_support::invoke_registered_callback(incoming::ENABLE_STUNT_BONUS.id()),
+            Some(RakSampHookAction::Continue)
+        );
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+
+        subscription
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize");
+    }
+
+    #[test]
+    fn register_handlers_collects_every_supported_handler_form() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+
+        let subscriptions = register_handlers!(test_support::test_api();
+            packet(RakSampDirection::Incoming, |_| RakSampHookAction::Continue),
+            rpc(RakSampDirection::Outgoing, |_| RakSampHookAction::Continue),
+            packet_id(RakSampDirection::Incoming, 1, |_| RakSampHookAction::Continue),
+            rpc_id(RakSampDirection::Outgoing, 2, |_| RakSampHookAction::Continue),
+            typed_packet(
+                RakSampDirection::Incoming,
+                packet::incoming::CONNECTION_ACCEPTED,
+                |_| RpcAction::Continue
+            ),
+            typed_rpc(
+                RakSampDirection::Outgoing,
+                incoming::ENABLE_STUNT_BONUS,
+                |_| RpcAction::Continue
+            ),
+        )
+        .expect("all test registrations must succeed");
+
+        assert_eq!(subscriptions.len(), 6);
+        assert_eq!(
+            test_support::registration_stats().registered_callbacks,
+            subscriptions.len()
+        );
+        subscriptions
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize every callback");
+        assert_eq!(test_support::registration_stats().registered_callbacks, 0);
+    }
+
+    #[test]
+    fn subscription_set_retains_each_failed_shutdown_for_retry() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let api = test_support::test_api();
+        let mut subscriptions = SubscriptionSet::new();
+        subscriptions.push(
+            api.on_packet(RakSampDirection::Incoming, |_| RakSampHookAction::Continue)
+                .expect("test registration must succeed"),
+        );
+        subscriptions.push(
+            api.on_rpc(RakSampDirection::Outgoing, |_| RakSampHookAction::Continue)
+                .expect("test registration must succeed"),
+        );
+        test_support::set_unregister_and_wait_result(RakSampResult::CallbackInProgress);
+
+        let error = subscriptions
+            .unregister_and_wait()
+            .expect_err("failed callbacks must remain available for retry");
+        assert_eq!(error.failures().len(), 2);
+        assert!(
+            error
+                .failures()
+                .iter()
+                .all(|failure| failure.result() == RakSampResult::CallbackInProgress)
+        );
+        assert_eq!(test_support::registration_stats().registered_callbacks, 2);
+
+        test_support::set_unregister_and_wait_result(RakSampResult::Ok);
+        error
+            .into_subscriptions()
+            .unregister_and_wait()
+            .expect("retry must synchronize every callback");
+        let stats = test_support::registration_stats();
+        assert_eq!(stats.unregister_and_wait_calls, 4);
+        assert_eq!(stats.registered_callbacks, 0);
+    }
+
+    #[test]
+    fn subscription_set_preserves_earlier_registrations_after_a_registration_failure() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let subscription = test_support::test_api()
+            .on_packet(RakSampDirection::Incoming, |_| RakSampHookAction::Continue)
+            .expect("test registration must succeed");
+
+        let error = SubscriptionSet::new()
+            .try_add(Ok(subscription))
+            .and_then(|subscriptions| subscriptions.try_add(Err(RakSampResult::NotReady)))
+            .expect_err("the synthetic second registration must fail");
+        assert_eq!(error.result(), RakSampResult::NotReady);
+        let subscriptions = error.into_subscriptions();
+        assert_eq!(subscriptions.len(), 1);
+        subscriptions
+            .unregister_and_wait()
+            .expect("retained subscription must remain cleanly removable");
     }
 
     #[test]

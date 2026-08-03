@@ -466,9 +466,8 @@ where
     T: Clone + ::core::fmt::Debug + PartialEq,
 {
     let api = test_api();
-    let id = descriptor.clone().id();
+    let id = descriptor.id();
     let encoded = descriptor
-        .clone()
         .encode(api, value.clone())
         .expect("test payload must encode");
     let mut raw = TestEvent::new(id, encoded.clone());

@@ -9,11 +9,13 @@ Bootstrap runs outside `DllMain`, waits for `samp.dll`, and exposes a ready or
 failed host state. Lifecycle and ABI diagnostics go to `rak-samp.log`; packet and
 RPC payloads are never logged.
 
-Plugins subscribe to incoming or outgoing packets and RPCs. A matching listener
-can continue, block, or atomically replace an exact-bit payload. Listeners run
-in registration order; nested dispatch on the same thread remains non-blocking.
-Events are callback-local. Explicit sends bypass outgoing listeners, while
-incoming emulation follows the normal incoming dispatch path exactly once.
+Plugins subscribe to incoming or outgoing packets and RPCs. ID-filtered and
+typed-descriptor helpers target one protocol message; `register_handlers!`
+groups related registrations. A matching listener can continue, block, or
+atomically replace an exact-bit payload. Listeners run in registration order;
+nested dispatch on the same thread remains non-blocking. Events are
+callback-local. Explicit sends bypass outgoing listeners, while incoming
+emulation follows the normal incoming dispatch path exactly once.
 
 ## ABI and plugin safety
 
@@ -21,9 +23,10 @@ incoming emulation follows the normal incoming dispatch path exactly once.
 allocations, and native pointers do not cross the DLL boundary. Payload sizes
 and bit counts are checked before they reach RakNet.
 
-A plugin must keep its `Subscription` values and, before runtime unload, call
-`Subscription::unregister_and_wait` for each one from a worker thread. Waiting in
-`DllMain` or a callback is invalid because callbacks may still be active.
+A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
+runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
+retain the callbacks that need a retry. Waiting in `DllMain` or a callback is
+invalid because callbacks may still be active.
 
 ## Typed events
 

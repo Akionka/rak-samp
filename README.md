@@ -31,14 +31,15 @@ cargo make deploy
 
 Plugins are 32-bit `cdylib`s that depend on `rak_samp_plugin_api`, not the host.
 Start a worker thread, wait for the host with `wait_for_default_host`, and
-register safe closures with `HostApi::on_packet` or `HostApi::on_rpc`. Callbacks
-can inspect, block, or replace packet and RPC payloads; replacement and
-send/emulation calls use an exact bit length. Callback events must not be
-retained.
+register safe closures with `HostApi::on_packet` or `HostApi::on_rpc`.
+`on_packet_id` and `on_rpc_id` target one protocol ID; `on_typed_packet` and
+`on_typed_rpc` decode a named descriptor. `register_handlers!` groups related
+registrations. Callbacks can inspect, block, or replace payloads; replacement
+and send/emulation calls use an exact bit length. Callback events must not be retained.
 
-Keep each `Subscription`. Before runtime unload, remove every subscription with
-`Subscription::unregister_and_wait` from a worker thread, then unload the ASI.
-Never perform that wait in `DllMain` or in a callback. See the
+Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
+`unregister_and_wait` method from a worker thread, then unload the ASI. Never
+perform that wait in `DllMain` or in a callback. See the
 [sample plugin](examples/sample_plugin) for a minimal integration.
 
 The [chat-command example](examples/chat_command_plugin) shows sending a real
