@@ -26,6 +26,24 @@ workspace = false
 command = "cargo"
 args = ["build", "--release", "-p", "rak_samp_chat_command_example"]
 
+[tasks.build-e2e-fixture]
+workspace = false
+command = "cargo"
+args = [
+    "build",
+    "--release",
+    "-p",
+    "rak_samp_e2e_host",
+    "-p",
+    "rak_samp_e2e_plugin",
+]
+
+[tasks.test-e2e]
+workspace = false
+dependencies = ["build-e2e-fixture"]
+command = "cargo"
+args = ["run", "--release", "-p", "rak_samp_e2e_runner"]
+
 [tasks.require-gta-dir]
 command = "powershell"
 args = [

@@ -1,0 +1,11 @@
+[package]
+name = "rak_samp_e2e_host"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+rak_samp_plugin_api = { path = "../../../plugin_api" }

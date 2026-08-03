@@ -43,5 +43,9 @@ string-codec calls. It restores only hooks it owns and keeps captured backend
 state valid for in-flight original calls. Native layouts are covered by the C++
 fixture and live evidence in [REVIEW.md](REVIEW.md).
 
+The Windows x86 end-to-end fixture loads a minimal ABI host and an independent
+plugin ASI, then verifies discovery, registration, callback delivery, shutdown,
+and unload. Run it with `cargo make test-e2e`.
+
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component ownership and
 [VALIDATION.md](VALIDATION.md) for the live check.

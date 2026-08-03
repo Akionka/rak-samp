@@ -118,6 +118,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "rak_samp_e2e_host"
+version = "0.0.0"
+dependencies = [
+ "rak_samp_plugin_api",
+]
+
+[[package]]
+name = "rak_samp_e2e_plugin"
+version = "0.0.0"
+dependencies = [
+ "rak_samp_plugin_api",
+ "windows-sys",
+]
+
+[[package]]
+name = "rak_samp_e2e_runner"
+version = "0.0.0"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
 name = "rak_samp_plugin_api"
 version = "0.1.0-alpha.2"
 dependencies = [

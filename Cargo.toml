@@ -31,6 +31,9 @@ members = [
     "examples/sample_plugin",
     "examples/validation_plugin",
     "examples/validation_unloader",
+    "tests/e2e/host",
+    "tests/e2e/plugin",
+    "tests/e2e/runner",
 ]
 default-members = ["."]
 resolver = "2"

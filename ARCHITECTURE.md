@@ -63,3 +63,8 @@ The packet layout fixture and live validation protect the Windows x86 boundary.
 R1 provides the authoritative typed layouts; detected non-R1 clients are raw
 event targets pending validation. See [REVIEW.md](REVIEW.md) for evidence and
 [VALIDATION.md](VALIDATION.md) for the test procedure.
+
+`tests/e2e/` provides a separate fixture host, plugin, and runner. The runner
+loads the host as `rak_samp.asi`, loads the plugin independently, dispatches a
+test RPC, then verifies that synchronized shutdown removes the callback before
+the plugin DLL is released. CI runs it after the release build.
