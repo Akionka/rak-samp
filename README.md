@@ -87,6 +87,12 @@ returns owned bytes (at most 4,095), advances only the supplied owned
 send real server-bound traffic, so only use them where that action is
 permitted.
 
+`HostApi::send_request_class`, `send_interior_change`, `send_spawn`,
+`send_enter_vehicle`, and `send_exit_vehicle` provide the matching exact R1
+protocol messages for SF.lua's local-player actions. Like every typed send,
+they are server-bound traffic only: they do not call the native methods or
+mutate local GTA or SA-MP state.
+
 The same typed-send layer provides `send_dialog_response`, `send_click_player`,
 `send_click_textdraw`, `send_death_by_player`, `send_menu_quit`,
 `send_menu_select_row`, `send_picked_up_pickup`, and

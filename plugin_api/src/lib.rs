@@ -990,6 +990,53 @@ impl HostApi {
         self.send_typed_rpc(events::rpc::outgoing::SEND_REQUEST_SPAWN, ())
     }
 
+    /// Sends SA-MP's request-class RPC (128).
+    ///
+    /// This carries the same server-bound protocol value as SF.lua's
+    /// `sampRequestClass`, but does not invoke the native local-player method
+    /// or update any local class-selection state.
+    pub fn send_request_class(self, class_id: i32) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_REQUEST_CLASS, class_id)
+    }
+
+    /// Sends SA-MP's interior-change RPC (118).
+    ///
+    /// This is protocol-only. It does not change the GTA interior or mutate
+    /// SA-MP's native local-player state.
+    pub fn send_interior_change(self, interior_id: u8) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_INTERIOR_CHANGE, interior_id)
+    }
+
+    /// Sends SA-MP's empty spawn RPC (52).
+    ///
+    /// This is protocol-only. It does not call the native local-player spawn
+    /// method or change local spawn state.
+    pub fn send_spawn(self) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_SPAWN, ())
+    }
+
+    /// Sends SA-MP's enter-vehicle RPC (26).
+    ///
+    /// This is protocol-only. It does not put the local GTA ped in a vehicle
+    /// or otherwise alter native local-player state.
+    pub fn send_enter_vehicle(self, vehicle_id: u16, passenger: bool) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_ENTER_VEHICLE,
+            events::rpc::outgoing::EnterVehicle {
+                vehicle_id,
+                passenger,
+            },
+        )
+    }
+
+    /// Sends SA-MP's exit-vehicle RPC (154).
+    ///
+    /// This is protocol-only. It does not make the local GTA ped leave a
+    /// vehicle or otherwise alter native local-player state.
+    pub fn send_exit_vehicle(self, vehicle_id: u16) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_EXIT_VEHICLE, vehicle_id)
+    }
+
     /// Sends a server-bound dialog response (RPC 62).
     pub fn send_dialog_response(
         self,
@@ -1803,6 +1850,16 @@ mod tests {
         assert_eq!(api.send_chat(b"/hi"), RakSampResult::Ok);
         assert_eq!(api.send_chat(&[b'x'; 256]), RakSampResult::InvalidArgument);
         assert_eq!(api.send_request_spawn(), RakSampResult::Ok);
+    }
+
+    #[test]
+    fn local_player_protocol_actions_preserve_their_wire_vectors() {
+        let api = test_support::test_api();
+        assert_eq!(api.send_request_class(9), RakSampResult::Ok);
+        assert_eq!(api.send_interior_change(7), RakSampResult::Ok);
+        assert_eq!(api.send_spawn(), RakSampResult::Ok);
+        assert_eq!(api.send_enter_vehicle(0x1234, true), RakSampResult::Ok);
+        assert_eq!(api.send_exit_vehicle(0x1234), RakSampResult::Ok);
     }
 
     #[test]

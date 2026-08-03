@@ -103,17 +103,16 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 ### Players (`player.lua`)
 
 - [ ] `sampGetPlayerPoolPtr`, `sampIsPlayerConnected`, `sampGetPlayerNickname`,
-  `sampSpawnPlayer`, `sampIsPlayerNpc`, `sampRequestClass`,
-  `sampSendInteriorChange`,
+  `sampSpawnPlayer`, `sampIsPlayerNpc`,
   `sampForceUnoccupiedSyncSeatId`, `sampGetCharHandleBySampPlayerId`,
   `sampGetPlayerIdByCharHandle`, `sampGetPlayerArmor`, `sampGetPlayerHealth`,
   `sampIsPlayerPaused`, `sampSetSpecialAction`, `sampGetPlayerCount`,
   `sampGetMaxPlayerId`, `sampGetPlayerSpecialAction`,
   `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`,
-  `sampStorePlayerAimData`, `sampSendSpawn`, `sampGetPlayerAnimationId`,
-  `sampSetLocalPlayerName`, `sampGetPlayerStructPtr`, `sampSendEnterVehicle`,
-  `sampSendExitVehicle`, `sampIsLocalPlayerSpawned`, `sampGetPlayerColor`,
+  `sampStorePlayerAimData`, `sampGetPlayerAnimationId`,
+  `sampSetLocalPlayerName`, `sampGetPlayerStructPtr`,
+  `sampIsLocalPlayerSpawned`, `sampGetPlayerColor`,
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
   `sampForceTrailerSync`, `sampForceVehicleSync`
 - [x] `sampGetLocalPlayerId`, `sampGetLocalPlayerNickname`,
@@ -125,6 +124,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::local_player_score`
   and `HostApi::local_player_ping` cover the local player; player-ID based
   remote queries remain pending.
+- [~] `sampRequestClass`, `sampSendInteriorChange`, `sampSendSpawn`,
+  `sampSendEnterVehicle`, `sampSendExitVehicle` — the corresponding
+  `HostApi::send_*` methods serialize the exact R1 outbound RPCs, but remain
+  protocol-only and do not invoke SF.lua's native local-player state changes.
 - [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
   server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
   the original RakClient send path.

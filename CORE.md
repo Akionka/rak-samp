@@ -33,6 +33,11 @@ for slash-prefixed commands), while `HostApi::send_request_spawn` serializes
 the empty RPC 129 request. They are explicit server-bound actions, not local UI
 or chat-history mutations.
 
+`send_request_class`, `send_interior_change`, `send_spawn`,
+`send_enter_vehicle`, and `send_exit_vehicle` likewise serialize their exact
+R1 server-bound actions. They deliberately do not claim the local state
+transitions of SF.lua's similarly named native local-player methods.
+
 Other typed protocol actions—dialog responses, player/textdraw clicks, death,
 menu, pickup, vehicle-damage, SCM events, give/take damage, object edits, RCON
 commands, and vehicle-destroyed notifications—reuse their exact R1 event codecs before

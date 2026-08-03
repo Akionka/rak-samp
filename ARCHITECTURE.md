@@ -78,6 +78,12 @@ and bit lengths, never Rust-owned values or client pointers. Owned string
 decoding also returns a scalar read cursor; the plugin API applies it to its
 own `BitStream` only after the host reports success.
 
+Typed local-player protocol actions (`send_request_class`,
+`send_interior_change`, `send_spawn`, `send_enter_vehicle`, and
+`send_exit_vehicle`) follow that same boundary: they serialize the exact R1
+outbound RPC and call the original RakClient path, but never invoke native
+local-player methods or mutate client state.
+
 The packet/local-profile layout fixture and live validation protect the Windows
 x86 boundary. R1 provides the authoritative typed layouts; detected non-R1
 clients are raw event targets pending validation. See [REVIEW.md](REVIEW.md)
