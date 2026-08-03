@@ -34,7 +34,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `isSampAvailable` — safe `HostApi::is_samp_available` reports that the
   host attached and its RakClient hooks are ready, without dereferencing
   `CNetGame` on the plugin thread.
-- [ ] `sampGetBase`, `isSampLoaded`
+- [ ] `sampGetBase` — the raw module base remains outside the safe ABI.
+- [x] `isSampLoaded` — `HostApi::is_samp_loaded` reports a recognized host
+  attachment before RakClient hook readiness; use `is_samp_available` when
+  ready hooks are required.
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 
@@ -97,7 +100,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 ### Players (`player.lua`)
 
 - [ ] `sampGetPlayerPoolPtr`, `sampIsPlayerConnected`, `sampGetPlayerNickname`,
-  `sampSpawnPlayer`, `sampSendChat`, `sampIsPlayerNpc`, `sampRequestClass`,
+  `sampSpawnPlayer`, `sampIsPlayerNpc`, `sampRequestClass`,
   `sampSendInteriorChange`,
   `sampForceUnoccupiedSyncSeatId`, `sampGetCharHandleBySampPlayerId`,
   `sampGetPlayerIdByCharHandle`, `sampGetPlayerArmor`, `sampGetPlayerHealth`,
@@ -119,6 +122,9 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::local_player_score`
   and `HostApi::local_player_ping` cover the local player; player-ID based
   remote queries remain pending.
+- [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
+  server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
+  the original RakClient send path.
 - [ ] `sampIsPlayerDefined`, `sampSetPlayerColor`
 
 ### RakNet and network actions (`raknet.lua`)
@@ -158,12 +164,16 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampSendBulletData`, `sampSendIncarData`, `sampSendOnfootData`,
   `sampSendSpectatorData`, `sampSendTrailerData`, `sampSendPassengerData`,
   `sampSendUnoccupiedData`, `sampSendDamageVehicle`, `sampSendScmEvent`,
-  `sampSendGiveDamage`, `sampSendTakeDamage`, `sampSendRequestSpawn`,
-  `sampSendClickPlayer`, `sampSendClickTextdraw`, `sampSendDeathByPlayer`,
-  `sampSendDialogResponse`, `sampSendEditAttachedObject`, `sampSendEditObject`,
-  `sampSendMenuQuit`, `sampSendMenuSelectRow`, `sampSendPickedUpPickup`,
-  `sampSendRconCommand`, `sampSendVehicleDestroyed`,
+  `sampSendGiveDamage`, `sampSendTakeDamage`,
+  `sampSendEditAttachedObject`, `sampSendEditObject`, `sampSendRconCommand`,
   `sampDisconnectWithReason`, `sampConnectToServer`
+- [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
+  empty, server-bound RPC 129 without invoking native local-player methods.
+- [x] `sampSendDialogResponse`, `sampSendClickPlayer`,
+  `sampSendClickTextdraw`, `sampSendDeathByPlayer`, `sampSendMenuQuit`,
+  `sampSendMenuSelectRow`, `sampSendPickedUpPickup`,
+  `sampSendVehicleDestroyed` — matching `HostApi::send_*` helpers serialize
+  the typed outgoing RPCs and send them through the original RakClient path.
 
 ### SF.lua’s explicit future items (`init.lua`)
 

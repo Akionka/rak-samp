@@ -5,7 +5,7 @@ compile_error!("rak_samp_chat_command_example supports only 32-bit Windows x86 t
 
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, HostApi, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampResult,
-    RakSampSendOptions, SubscriptionSet,
+    SubscriptionSet,
     events::{RpcAction, rpc::outgoing},
     register_handlers, wait_for_default_host,
 };
@@ -161,15 +161,7 @@ fn run_example(api: HostApi) {
 }
 
 fn send_chat(api: HostApi) -> RakSampResult {
-    let Ok(payload) = outgoing::SEND_CHAT.encode(api, CHAT_MESSAGE.to_vec()) else {
-        return RakSampResult::InvalidArgument;
-    };
-    api.send_rpc(
-        outgoing::SEND_CHAT.id(),
-        payload.as_bytes(),
-        payload.len_bits(),
-        RakSampSendOptions::default(),
-    )
+    api.send_chat(CHAT_MESSAGE)
 }
 
 fn show_local_dialog(api: HostApi, text: Vec<u8>) -> RakSampResult {

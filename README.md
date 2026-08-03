@@ -59,7 +59,9 @@ SA-MP ABI.
 
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
-host's RakClient hooks are ready. Neither query reads client memory.
+host's RakClient hooks are ready. `HostApi::is_samp_loaded()` instead reports
+that the host has attached to and recognized `samp.dll`, including the brief
+interval before hooks are ready. None of these queries reads client memory.
 
 `rak_samp_plugin_api::raknet::{rpc_name, packet_name}` supplies SF.lua's
 static RPC and packet labels without requiring host discovery or a client call.
@@ -74,6 +76,18 @@ access is intentionally unavailable.
 client's native RakNet StringCompressor without exposing its pointer. Decoding
 returns owned bytes (at most 4,095), advances only the supplied owned
 `BitStream` cursor on success, and leaves that cursor unchanged on failure.
+
+`HostApi::send_chat` is the typed, bounded RPC 101 equivalent of
+`sampSendChat`; slash-prefixed text uses the matching command RPC 50.
+`HostApi::send_request_spawn` is the exact empty request-spawn RPC 129. Both
+send real server-bound traffic, so only use them where that action is
+permitted.
+
+The same typed-send layer provides `send_dialog_response`, `send_click_player`,
+`send_click_textdraw`, `send_death_by_player`, `send_menu_quit`,
+`send_menu_select_row`, `send_picked_up_pickup`, and
+`send_vehicle_destroyed`. These are exact protocol actions; they do not invoke
+native UI or local-player mutation methods.
 
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never

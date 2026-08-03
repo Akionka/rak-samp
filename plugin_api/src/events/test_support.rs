@@ -406,13 +406,38 @@ fn unregister(subscription: crate::RakSampSubscription, wait: bool) -> RakSampRe
 }
 
 unsafe extern "system" fn test_send(
-    _id: u8,
-    _bytes: *const u8,
-    _byte_len: usize,
-    _bit_len: usize,
-    _options: crate::RakSampSendOptions,
+    id: u8,
+    bytes: *const u8,
+    byte_len: usize,
+    bit_len: usize,
+    options: crate::RakSampSendOptions,
 ) -> RakSampResult {
-    RakSampResult::NativeCallFailed
+    if options != crate::RakSampSendOptions::default() {
+        return RakSampResult::NativeCallFailed;
+    }
+    let bytes = if byte_len == 0 {
+        &[]
+    } else if bytes.is_null() {
+        return RakSampResult::NativeCallFailed;
+    } else {
+        unsafe { std::slice::from_raw_parts(bytes, byte_len) }
+    };
+    if (id, bit_len, bytes) == (101, 24, &[2, b'h', b'i'])
+        || (id, bit_len, bytes) == (50, 56, &[3, 0, 0, 0, b'/', b'h', b'i'])
+        || (id, bit_len, bytes) == (129, 0, &[])
+        || (id, bit_len, bytes) == (62, 64, &[0x34, 0x12, 1, 0x56, 0x34, 2, b'o', b'k'])
+        || (id, bit_len, bytes) == (23, 24, &[0x34, 0x12, 2])
+        || (id, bit_len, bytes) == (83, 16, &[0x34, 0x12])
+        || (id, bit_len, bytes) == (53, 24, &[9, 0x34, 0x12])
+        || (id, bit_len, bytes) == (140, 0, &[])
+        || (id, bit_len, bytes) == (132, 8, &[7])
+        || (id, bit_len, bytes) == (131, 32, &[9, 0, 0, 0])
+        || (id, bit_len, bytes) == (136, 16, &[0x34, 0x12])
+    {
+        RakSampResult::Ok
+    } else {
+        RakSampResult::NativeCallFailed
+    }
 }
 
 unsafe extern "system" fn test_emulate(

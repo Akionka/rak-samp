@@ -742,6 +742,17 @@ impl HostApi {
         self.status() == RakSampHostStatus::Ready
     }
 
+    /// Returns whether the host has attached to and recognized `samp.dll`.
+    ///
+    /// This is the safe equivalent of SF.lua's `isSampLoaded`. Unlike
+    /// [`Self::is_samp_available`], it can be true while the host is still
+    /// installing its RakClient hooks. It never returns a module base or reads
+    /// client memory from the plugin thread.
+    #[must_use]
+    pub fn is_samp_loaded(self) -> bool {
+        self.samp_version().is_ok()
+    }
+
     /// Registers a packet callback.
     ///
     /// The callback receives a view that is valid only for that invocation. Use typed packet
@@ -912,6 +923,94 @@ impl HostApi {
         options: RakSampSendOptions,
     ) -> RakSampResult {
         unsafe { (self.raw.send_rpc)(rpc_id, payload.as_ptr(), payload.len(), bit_len, options) }
+    }
+
+    /// Sends one server-bound SA-MP chat message (RPC 101).
+    ///
+    /// This is the safe equivalent of SF.lua's `sampSendChat`. The message is
+    /// serialized as the protocol's bounded `string8` payload; a
+    /// slash-prefixed value instead uses the command RPC (50), matching the
+    /// native helper. It is real network traffic, not a local chat display
+    /// action.
+    pub fn send_chat(self, text: &[u8]) -> RakSampResult {
+        let descriptor = if text.first() == Some(&b'/') {
+            events::rpc::outgoing::SEND_COMMAND
+        } else {
+            events::rpc::outgoing::SEND_CHAT
+        };
+        self.send_typed_rpc(descriptor, text.to_vec())
+    }
+
+    /// Sends SA-MP's empty request-spawn RPC (129).
+    ///
+    /// This is the protocol-level equivalent of SF.lua's
+    /// `sampSendRequestSpawn`; it does not call native local-player methods or
+    /// mutate client state.
+    pub fn send_request_spawn(self) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_REQUEST_SPAWN, ())
+    }
+
+    /// Sends a server-bound dialog response (RPC 62).
+    pub fn send_dialog_response(
+        self,
+        dialog_id: u16,
+        button: u8,
+        list_item: u16,
+        input: &[u8],
+    ) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_DIALOG_RESPONSE,
+            events::rpc::outgoing::DialogResponse {
+                dialog_id,
+                button,
+                list_item,
+                input: input.to_vec(),
+            },
+        )
+    }
+
+    /// Sends a server-bound player-click action (RPC 23).
+    pub fn send_click_player(self, player_id: u16, source: u8) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_CLICK_PLAYER,
+            events::rpc::outgoing::ClickPlayer { player_id, source },
+        )
+    }
+
+    /// Sends a server-bound textdraw-click action (RPC 83).
+    pub fn send_click_textdraw(self, textdraw_id: u16) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_CLICK_TEXT_DRAW, textdraw_id)
+    }
+
+    /// Sends a server-bound death notification naming another player (RPC 53).
+    pub fn send_death_by_player(self, player_id: u16, reason: u8) -> RakSampResult {
+        self.send_typed_rpc(
+            events::rpc::outgoing::SEND_DEATH_NOTIFICATION,
+            events::rpc::outgoing::DeathNotification {
+                reason,
+                killer_id: player_id,
+            },
+        )
+    }
+
+    /// Sends the empty menu-quit RPC (140).
+    pub fn send_menu_quit(self) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_QUIT_MENU, ())
+    }
+
+    /// Sends a server-bound menu-row selection (RPC 132).
+    pub fn send_menu_select_row(self, row: u8) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_MENU_SELECT, row)
+    }
+
+    /// Sends a server-bound pickup notification (RPC 131).
+    pub fn send_picked_up_pickup(self, pickup_id: i32) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_PICKED_UP_PICKUP, pickup_id)
+    }
+
+    /// Sends a server-bound vehicle-destroyed notification (RPC 136).
+    pub fn send_vehicle_destroyed(self, vehicle_id: u16) -> RakSampResult {
+        self.send_typed_rpc(events::rpc::outgoing::SEND_VEHICLE_DESTROYED, vehicle_id)
     }
 
     /// Sends a complete owned plugin-side bit stream as a packet payload.
@@ -1151,6 +1250,18 @@ impl HostApi {
             result => Err(result),
         }
     }
+
+    fn send_typed_rpc<T>(self, descriptor: events::Rpc<T>, value: T) -> RakSampResult {
+        let Ok(payload) = descriptor.encode(self, value) else {
+            return RakSampResult::InvalidArgument;
+        };
+        self.send_rpc(
+            descriptor.id(),
+            payload.as_bytes(),
+            payload.len_bits(),
+            RakSampSendOptions::default(),
+        )
+    }
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -1280,7 +1391,9 @@ mod tests {
 
     #[test]
     fn ready_fixture_host_reports_samp_available() {
-        assert!(test_support::test_api().is_samp_available());
+        let api = test_support::test_api();
+        assert!(api.is_samp_loaded());
+        assert!(api.is_samp_available());
     }
 
     #[test]
@@ -1448,6 +1561,35 @@ mod tests {
         assert_eq!(
             api.send_rpc_stream(62, &stream, RakSampSendOptions::default()),
             RakSampResult::NativeCallFailed
+        );
+    }
+
+    #[test]
+    fn send_chat_uses_the_typed_bounded_rpc_101_payload() {
+        let api = test_support::test_api();
+        assert_eq!(api.send_chat(b"hi"), RakSampResult::Ok);
+        assert_eq!(api.send_chat(b"/hi"), RakSampResult::Ok);
+        assert_eq!(api.send_chat(&[b'x'; 256]), RakSampResult::InvalidArgument);
+        assert_eq!(api.send_request_spawn(), RakSampResult::Ok);
+    }
+
+    #[test]
+    fn typed_protocol_action_conveniences_preserve_their_wire_vectors() {
+        let api = test_support::test_api();
+        assert_eq!(
+            api.send_dialog_response(0x1234, 1, 0x3456, b"ok"),
+            RakSampResult::Ok
+        );
+        assert_eq!(api.send_click_player(0x1234, 2), RakSampResult::Ok);
+        assert_eq!(api.send_click_textdraw(0x1234), RakSampResult::Ok);
+        assert_eq!(api.send_death_by_player(0x1234, 9), RakSampResult::Ok);
+        assert_eq!(api.send_menu_quit(), RakSampResult::Ok);
+        assert_eq!(api.send_menu_select_row(7), RakSampResult::Ok);
+        assert_eq!(api.send_picked_up_pickup(9), RakSampResult::Ok);
+        assert_eq!(api.send_vehicle_destroyed(0x1234), RakSampResult::Ok);
+        assert_eq!(
+            api.send_dialog_response(0, 0, 0, &[b'x'; 256]),
+            RakSampResult::InvalidArgument
         );
     }
 

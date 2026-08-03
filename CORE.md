@@ -24,6 +24,20 @@ allocations, and native pointers do not cross the DLL boundary. During the
 ALPHA stage its contract may intentionally break and does not have to remain
 append-only. Payload sizes and bit counts are checked before they reach RakNet.
 
+`HostApi::is_samp_loaded` reports that the host has attached to a recognized
+`samp.dll`; `HostApi::is_samp_available` is stricter and requires the RakClient
+hooks to be ready. Neither status query exposes the DLL base address.
+
+`HostApi::send_chat` serializes SA-MP's bounded RPC 101 chat payload (or RPC 50
+for slash-prefixed commands), while `HostApi::send_request_spawn` serializes
+the empty RPC 129 request. They are explicit server-bound actions, not local UI
+or chat-history mutations.
+
+Other typed protocol actions—dialog responses, player/textdraw clicks, death,
+menu, pickup, and vehicle-destroyed notifications—reuse their exact R1 event
+codecs before calling the original RakClient send path. They do not claim to
+perform the local state changes of similarly named native methods.
+
 `HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
 32-request host queue. `HostApi::local_player` returns an owned clone of a
 host-owned cache and never waits for the game thread. Both APIs return
