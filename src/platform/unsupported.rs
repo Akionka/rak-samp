@@ -104,6 +104,10 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn textdraw_exists(&self, _pool_index: u16) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn show_local_chat_message(
         &self,
         _request: LocalChatMessageRequest,

@@ -32,6 +32,8 @@ pub const MAX_SAMP_PLAYERS: u16 = 1_004;
 pub const MAX_SAMP_VEHICLES: u16 = 2_000;
 /// Number of addressable SA-MP 3D text-label IDs in the R1 label pool.
 pub const MAX_SAMP_TEXT_LABELS: u16 = 2_048;
+/// Number of raw global and local SA-MP textdraw-pool slots in R1.
+pub const MAX_SAMP_TEXTDRAWS: u16 = 2_304;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -730,6 +732,8 @@ pub struct RakSampApiV1 {
     pub active_local_dialog: unsafe extern "system" fn(*mut RakSampActiveDialogV1) -> RakSampResult,
     /// Copies a cached R1 3D text-label-pool existence flag into `output`.
     pub text_label_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies a cached R1 textdraw-pool existence flag into `output`.
+    pub textdraw_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1924,6 +1928,27 @@ impl HostApi {
         }
     }
 
+    /// Returns whether the latest cached R1 textdraw-pool result has `pool_index` defined.
+    ///
+    /// The R1 pool holds 2,048 global slots followed by 256 local slots; this
+    /// API deliberately uses that raw bounded pool index instead of guessing
+    /// which ID space a plugin meant. The first lookup returns
+    /// [`RakSampResult::NotReady`] while the game-thread pump copies the flag.
+    pub fn is_textdraw_defined(self, pool_index: u16) -> Result<bool, RakSampResult> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut exists = 0;
+        match unsafe { (self.raw.textdraw_exists)(pool_index, &mut exists) } {
+            RakSampResult::Ok => match exists {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns copied core metadata for the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
@@ -2439,8 +2464,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, active_local_dialog) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, textdraw_exists),
             mem::offset_of!(RakSampApiV1, text_label_exists) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, textdraw_exists) + function_size
         );
     }
 
@@ -2592,6 +2621,12 @@ mod tests {
         assert_eq!(api.is_text_label_defined(8), Ok(false));
         assert_eq!(
             api.is_text_label_defined(MAX_SAMP_TEXT_LABELS),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(api.is_textdraw_defined(7), Ok(true));
+        assert_eq!(api.is_textdraw_defined(8), Ok(false));
+        assert_eq!(
+            api.is_textdraw_defined(MAX_SAMP_TEXTDRAWS),
             Err(RakSampResult::InvalidArgument)
         );
         assert_eq!(

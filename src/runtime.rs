@@ -447,6 +447,10 @@ impl Runtime {
         self.backend.text_label_exists(id)
     }
 
+    pub(crate) fn textdraw_exists(&self, pool_index: u16) -> Result<bool, DirectClientError> {
+        self.backend.textdraw_exists(pool_index)
+    }
+
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         self.backend.server_info()
     }

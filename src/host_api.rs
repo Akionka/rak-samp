@@ -10,7 +10,7 @@ use crate::{
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_VEHICLES,
+    ABI_VERSION_V1, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
     RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
     RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction, RakSampHostStatus,
     RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions,
@@ -162,6 +162,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     vehicle_exists,
     active_local_dialog,
     text_label_exists,
+    textdraw_exists,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -1038,6 +1039,25 @@ unsafe extern "system" fn text_label_exists(id: u16, output: *mut u8) -> RakSamp
     }
 }
 
+unsafe extern "system" fn textdraw_exists(pool_index: u16, output: *mut u8) -> RakSampResult {
+    if pool_index >= MAX_SAMP_TEXTDRAWS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.textdraw_exists(pool_index) {
+        Ok(exists) => {
+            *output = u8::from(exists);
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1605,6 +1625,19 @@ mod tests {
         );
         assert_eq!(
             unsafe { text_label_exists(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut textdraw_exists_output = 0;
+        assert_eq!(
+            unsafe { textdraw_exists(7, &mut textdraw_exists_output) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { textdraw_exists(MAX_SAMP_TEXTDRAWS, &mut textdraw_exists_output) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { textdraw_exists(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

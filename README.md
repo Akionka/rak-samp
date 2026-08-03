@@ -83,6 +83,12 @@ and remains provisional pending its opt-in live scan.
 bounded R1 3D text-label existence flag. It never reads label text or returns a
 label/pool pointer, and remains provisional pending its opt-in live scan.
 
+`HostApi::is_textdraw_defined(pool_index)` similarly copies only the bounded
+R1 textdraw existence flag. Its raw 2,304-slot index covers 2,048 global then
+256 local slots without guessing an ID space; it never reads textdraw content
+or returns a textdraw/pool pointer, and remains provisional pending its opt-in
+live scan.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

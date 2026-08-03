@@ -801,6 +801,14 @@ unsafe extern "system" fn test_text_label_exists(id: u16, output: *mut u8) -> Ra
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_textdraw_exists(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 7);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -908,6 +916,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     vehicle_exists: test_vehicle_exists,
     active_local_dialog: test_active_local_dialog,
     text_label_exists: test_text_label_exists,
+    textdraw_exists: test_textdraw_exists,
 };
 
 pub(crate) fn test_api() -> HostApi {

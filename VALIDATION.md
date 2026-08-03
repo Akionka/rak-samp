@@ -46,6 +46,7 @@ starting GTA and remove them afterwards.
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
 | R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
+| R1 textdraw existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-textdraw-exists.enabled') -ItemType File -Force` | On a server with a visible textdraw, demand-refreshes bounded raw textdraw pool indexes through the R1 game-thread pump until a defined slot is copied. It logs only the outcome and pool index. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
@@ -77,6 +78,13 @@ create the text-label marker, and wait up to two minutes for
 `text-label-exists self-test passed`. The first query may return `NotReady`;
 the log must contain only the outcome and label ID. Confirm no packet/RPC
 traffic is generated, exit normally, and remove the marker.
+
+For the textdraw check, join a server that displays a textdraw, create the
+textdraw marker, and wait up to two minutes for `textdraw-exists self-test
+passed`. The raw pool index may be in the 2,048 global or 256 local slot range;
+the first query may return `NotReady`. Confirm the log contains only the outcome
+and pool index, no packet/RPC traffic is generated, then exit normally and
+remove the marker.
 
 The direct R1 helper scenario also reports `player_count=Ok` once the cached
 including-NPC player-pool count is nonzero. Check that it is sensible for the

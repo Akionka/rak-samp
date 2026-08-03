@@ -99,6 +99,11 @@ of R1 `CLabelPool::m_bNotEmpty`. It exposes only the copied existence boolean;
 label text, label/pool pointers, and every label mutation remain outside the
 safe ABI.
 
+`HostApi::is_textdraw_defined` is a separate bounded 2,304-slot cache of R1
+`CTextDrawPool::m_bNotEmpty`. It preserves the native raw order of 2,048 global
+followed by 256 local slots, exposes only the copied boolean, and keeps text,
+layout fields, and textdraw/pool pointers outside the safe ABI.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

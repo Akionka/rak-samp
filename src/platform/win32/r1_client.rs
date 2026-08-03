@@ -44,6 +44,7 @@ const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
 const NET_GAME_RESET_LABEL_POOL_RVA: usize = 0x8F00;
+const NET_GAME_RESET_TEXTDRAW_POOL_RVA: usize = 0x8C20;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -70,13 +71,16 @@ const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const MAX_SAMP_PLAYERS: u16 = 1004;
 const MAX_SAMP_VEHICLES: u16 = 2000;
 const MAX_SAMP_TEXT_LABELS: u16 = 2048;
+const MAX_SAMP_TEXTDRAWS: u16 = 2304;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
 const NET_GAME_POOLS_OFFSET: usize = 0x3CD;
 const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x0C;
+const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x10;
 const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
+const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -191,6 +195,13 @@ const NET_GAME_GET_VEHICLE_POOL_SIGNATURE: [u8; 10] =
 // signature does not depend on dynamic exception-chain storage.
 const NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE: [u8; 18] = [
     0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x0C, 0x85, 0xFF,
+    0x74, 0x10,
+];
+// R1's `CNetGame::ResetTextDrawPool` reads `m_pPools` at `0x3CD` then the
+// textdraw pool pointer at `0x10`. The pool starts with 2,304 packed BOOL
+// existence flags: 2,048 global slots followed by 256 local slots.
+const NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE: [u8; 18] = [
+    0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x10, 0x85, 0xFF,
     0x74, 0x10,
 ];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
@@ -655,6 +666,36 @@ impl R1ClientProfile {
         read_r1_bool(pool + LABEL_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>())
     }
 
+    /// Reads one R1 textdraw-pool existence flag on the game-thread pump.
+    /// The raw pool index covers the 2,048 global and 256 local slots. Only
+    /// the copied boolean crosses the private profile boundary.
+    pub(super) fn textdraw_exists(self, pool_index: u16) -> Result<bool, DirectClientError> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            TEXTDRAW_POOL_NOT_EMPTY_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        read_r1_bool(
+            pool + TEXTDRAW_POOL_NOT_EMPTY_OFFSET + usize::from(pool_index) * mem::size_of::<i32>(),
+        )
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -914,6 +955,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
         )
         && code_matches(
+            module_base + NET_GAME_RESET_TEXTDRAW_POOL_RVA + 0x15,
+            &NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
+        )
+        && code_matches(
             module_base + PLAYER_POOL_IS_CONNECTED_RVA,
             &PLAYER_POOL_IS_CONNECTED_SIGNATURE,
         )
@@ -1106,15 +1151,17 @@ mod tests {
         LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_PLAYER_POOL_SIGNATURE,
         NET_GAME_GET_STATE_SIGNATURE, NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
         NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
-        NET_GAME_POOLS_OFFSET, NET_GAME_PORT_OFFSET, NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
+        NET_GAME_POOLS_OFFSET, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET,
+        NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
         PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
         PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
         PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
         PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, VEHICLE_POOL_DOES_EXIST_SIGNATURE,
-        VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id, nul_terminated, parse_animation_entry,
+        SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
+        VEHICLE_POOL_DOES_EXIST_SIGNATURE, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id,
+        nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -1140,7 +1187,9 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_game_state_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_pools_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_pools_label_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_pools_text_draw_offset() -> usize;
         fn rak_samp_fixture_r1_label_pool_not_empty_offset() -> usize;
+        fn rak_samp_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
         fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
         fn rak_samp_fixture_r1_dialog_active_offset() -> usize;
@@ -1235,8 +1284,16 @@ mod tests {
                 NET_GAME_POOLS_LABEL_POOL_OFFSET
             );
             assert_eq!(
+                rak_samp_fixture_r1_net_game_pools_text_draw_offset(),
+                NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET
+            );
+            assert_eq!(
                 rak_samp_fixture_r1_label_pool_not_empty_offset(),
                 LABEL_POOL_NOT_EMPTY_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_textdraw_pool_not_empty_offset(),
+                TEXTDRAW_POOL_NOT_EMPTY_OFFSET
             );
             assert_eq!(
                 rak_samp_fixture_r1_game_cursor_mode_offset(),
@@ -1468,6 +1525,13 @@ mod tests {
             NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
             [
                 0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x0C,
+                0x85, 0xFF, 0x74, 0x10,
+            ]
+        );
+        assert_eq!(
+            NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
+            [
+                0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x10,
                 0x85, 0xFF, 0x74, 0x10,
             ]
         );

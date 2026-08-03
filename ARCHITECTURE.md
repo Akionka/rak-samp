@@ -94,6 +94,10 @@ pointer.
 Plugin threads enqueue unknown label IDs; the pump drains at most four bounded
 R1 pool-flag reads per entry and publishes only owned booleans, never label
 text or a label/pool pointer.
+`HostApi::is_textdraw_defined` is a separate 2,304-slot boolean cache, in the
+R1 raw order of 2,048 global followed by 256 local slots. Plugin threads enqueue
+unknown pool indexes; the pump drains at most four bounded pool-flag reads per
+entry and publishes only owned booleans, never textdraw data or a pool pointer.
 
 ## Native and ABI boundaries
 

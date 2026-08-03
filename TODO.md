@@ -98,6 +98,13 @@ fixtures, disassembly, or the E2E mock alone.
    Its fixture, `ResetLabelPool` field signature, four-per-pump budget, and
    opt-in scan are ready; retain `[~]` until a legal R1 run finds a defined
    label without traffic and exits normally.
+   The second bounded textdraw sub-batch is
+   `HostApi::is_textdraw_defined(pool_index)`, a 2,304-slot demand-refreshed
+   cache of only `CTextDrawPool::m_bNotEmpty[pool_index]`. It preserves the raw
+   2,048-global then 256-local R1 pool order. Its fixture,
+   `ResetTextDrawPool` field signature, four-per-pump budget, and opt-in scan
+   are ready; retain `[~]` until a legal R1 run finds a defined textdraw without
+   traffic and exits normally.
 8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
@@ -165,6 +172,11 @@ fixtures, disassembly, or the E2E mock alone.
   `text-label-exists self-test passed` and one defined label ID. It must
   tolerate initial `NotReady` while the bounded queue is pumped, generate no
   packet/RPC traffic, and leave normal shutdown stable.
+- [ ] With the textdraw-exists marker enabled on a server that displays a
+  textdraw, confirm the validator records only `textdraw-exists self-test
+  passed` and one defined raw pool index. It must tolerate initial `NotReady`
+  while the bounded queue is pumped, generate no packet/RPC traffic, and leave
+  normal shutdown stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -313,8 +325,13 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampTextdrawSetString`, `sampTextdrawSetModelRotationZoomVehColor`,
   `sampTextdrawSetOutlineColor`, `sampTextdrawSetShadow`, `sampTextdrawSetStyle`,
   `sampTextdrawSetProportional`, and `sampTextdrawSetAlign` mutate native UI;
-  excluded. The remaining `sampTextdrawIsExists`, `sampTextdrawGetString`,
-  `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
+  excluded.
+- [~] `sampTextdrawIsExists` — `HostApi::is_textdraw_defined(pool_index)` uses
+  a bounded demand-refreshed R1 `CTextDrawPool::m_bNotEmpty` cache. It preserves
+  the raw 2,048-global then 256-local slot order and exposes only the copied
+  boolean. Keep provisional until the opt-in textdraw scan records a defined
+  slot, no traffic, and normal shutdown.
+- [ ] `sampTextdrawGetString`, `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
   `sampTextdrawGetShadowColor`, `sampTextdrawGetOutlineColor`,
   `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
   `sampTextdrawGetBoxEnabledColorAndSize`, and

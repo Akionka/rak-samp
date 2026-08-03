@@ -73,6 +73,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   run on a server with a visible 3D label must observe a defined ID through the
   opt-in scan, no generated traffic, and stable shutdown; no label text or
   label/pool pointer is exposed.
+- **Cached R1 textdraw-existence live gate:** `HostApi::is_textdraw_defined`
+  demand-refreshes only the bounded `CTextDrawPool::m_bNotEmpty[pool_index]`
+  boolean from the game-thread pump. A legal R1 run on a server with a visible
+  textdraw must observe a defined raw pool index through the opt-in scan, no
+  generated traffic, and stable shutdown; no textdraw data or pool pointer is
+  exposed.
 
 ## Windows x86 evidence
 
@@ -116,6 +122,16 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   those two pool-pointer fields. The profile verifies this exact anchor, probes
   the bounded range, and copies only canonical `0/1` flags on the game-thread
   pump; dynamic label text is intentionally not read.
+- **R1 textdraw-pool existence layout:** the pinned R1 C++ lead defines the
+  packed `CTextDrawPool*` at `CNetGame::m_pPools + 0x10`; its 2,304-BOOL
+  `m_bNotEmpty` array starts at offset `0`, with 2,048 global slots followed by
+  256 local slots. The independent x86 fixture checks both offsets and the
+  0x4800-byte prefix. The installed fingerprinted R1 DLL's
+  `CNetGame::ResetTextDrawPool` at RVA `0x8C20 + 0x15` begins
+  `51 56 8B F1 8B 86 CD 03 00 00 57 8B 78 10 85 FF 74 10`, directly loading
+  those pool-pointer fields. The profile verifies this exact anchor, probes
+  the bounded range, and copies only canonical `0/1` flags on the game-thread
+  pump; textdraw content is intentionally not read.
   The profile validates both signatures, checks the addressed boolean range
   before calling, and copies only a bounded BOOL.
 

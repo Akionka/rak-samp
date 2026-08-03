@@ -36,6 +36,7 @@ type PluginPlayerMaxId = unsafe extern "system" fn() -> i32;
 type PluginVehicleExists = unsafe extern "system" fn() -> i32;
 type PluginActiveDialogState = unsafe extern "system" fn() -> i32;
 type PluginTextLabelExists = unsafe extern "system" fn() -> i32;
+type PluginTextdrawExists = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -147,6 +148,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_ActiveDialogState")?) };
     let text_label_exists: PluginTextLabelExists =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_TextLabelExists")?) };
+    let textdraw_exists: PluginTextdrawExists =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_TextdrawExists")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -207,6 +210,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { text_label_exists() } != 7 {
         return Err("plugin did not convert the mock 3D text-label existence result".to_owned());
+    }
+    if unsafe { textdraw_exists() } != 7 {
+        return Err("plugin did not convert the mock textdraw existence result".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

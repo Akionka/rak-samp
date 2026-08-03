@@ -9,8 +9,8 @@ use crate::{
 use rak_samp_plugin_api::{
     HostApi, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
     LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, LocalPlayer,
-    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_VEHICLES, RakSampHookAction, RakSampResult,
-    RakSampSendOptions,
+    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+    RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -27,6 +27,7 @@ pub(crate) const PLAYER_DIRECTORY_TEST_MARKER: &str =
 pub(crate) const VEHICLE_EXISTS_TEST_MARKER: &str = "rak-samp-validation-vehicle-exists.enabled";
 pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
+pub(crate) const TEXTDRAW_EXISTS_TEST_MARKER: &str = "rak-samp-validation-textdraw-exists.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 pub(crate) const TEST_PACKET_ID: u8 = 254;
 pub(crate) const TEST_RPC_ID: u8 = 255;
@@ -337,6 +338,7 @@ pub(crate) fn run(api: HostApi) {
     run_player_directory(api);
     run_vehicle_exists(api);
     run_text_label_exists(api);
+    run_textdraw_exists(api);
     run_send(api);
     schedule_shutdown();
 }
@@ -484,6 +486,50 @@ fn run_text_label_exists(api: HostApi) {
         .text_label_exists
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("text-label-exists self-test timed out without a defined label");
+}
+
+fn run_textdraw_exists(api: HostApi) {
+    if !logging::plugin_path(TEXTDRAW_EXISTS_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .textdraw_exists
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "textdraw-exists self-test disabled; opt in with rak-samp-validation-textdraw-exists.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut pool_index = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.is_textdraw_defined(pool_index) {
+            Ok(true) => {
+                SELF_TESTS
+                    .textdraw_exists
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "textdraw-exists self-test passed: pool_index={pool_index}"
+                ));
+                return;
+            }
+            Ok(false) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .textdraw_exists
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "textdraw-exists self-test returned {error:?}: pool_index={pool_index}"
+                ));
+                return;
+            }
+        }
+        pool_index = (pool_index + 1) % MAX_SAMP_TEXTDRAWS;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .textdraw_exists
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("textdraw-exists self-test timed out without a defined textdraw");
 }
 
 fn run_direct_client(api: HostApi) {
