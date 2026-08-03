@@ -43,6 +43,7 @@ const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
 const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
+const NET_GAME_RESET_LABEL_POOL_RVA: usize = 0x8F00;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -68,10 +69,14 @@ const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
 const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const MAX_SAMP_PLAYERS: u16 = 1004;
 const MAX_SAMP_VEHICLES: u16 = 2000;
+const MAX_SAMP_TEXT_LABELS: u16 = 2048;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
+const NET_GAME_POOLS_OFFSET: usize = 0x3CD;
+const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x0C;
+const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -181,6 +186,13 @@ const NET_GAME_GET_PLAYER_POOL_SIGNATURE: [u8; 9] =
     [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x18];
 const NET_GAME_GET_VEHICLE_POOL_SIGNATURE: [u8; 10] =
     [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x1C, 0xC3];
+// R1's `CNetGame::ResetLabelPool` reads `m_pPools` at `0x3CD` then the label
+// pool pointer at `0x0C`. Start after the compiler-generated SEH setup so the
+// signature does not depend on dynamic exception-chain storage.
+const NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE: [u8; 18] = [
+    0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x0C, 0x85, 0xFF,
+    0x74, 0x10,
+];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
 ];
@@ -616,6 +628,33 @@ impl R1ClientProfile {
         }
     }
 
+    /// Reads one R1 3D text-label-pool existence flag on the game-thread pump.
+    /// Only the copied boolean crosses the private profile boundary.
+    pub(super) fn text_label_exists(self, id: u16) -> Result<bool, DirectClientError> {
+        if id >= MAX_SAMP_TEXT_LABELS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_LABEL_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_LABEL_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            LABEL_POOL_NOT_EMPTY_OFFSET + (usize::from(id) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        read_r1_bool(pool + LABEL_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>())
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -871,6 +910,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
         )
         && code_matches(
+            module_base + NET_GAME_RESET_LABEL_POOL_RVA + 0x15,
+            &NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
+        )
+        && code_matches(
             module_base + PLAYER_POOL_IS_CONNECTED_RVA,
             &PLAYER_POOL_IS_CONNECTED_SIGNATURE,
         )
@@ -1055,13 +1098,15 @@ mod tests {
         DIALOG_SHOW_ACTIVE_SIGNATURE, DIALOG_SHOW_CORE_FIELDS_SIGNATURE, DIALOG_SHOW_SIGNATURE,
         DIALOG_TYPE_OFFSET, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
         INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET, INPUT_OPEN_SIGNATURE,
-        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        LABEL_POOL_NOT_EMPTY_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
+        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_PLAYER_POOL_SIGNATURE,
         NET_GAME_GET_STATE_SIGNATURE, NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
-        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
+        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
+        NET_GAME_POOLS_OFFSET, NET_GAME_PORT_OFFSET, NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
         PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
         PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
         PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
@@ -1093,6 +1138,9 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_hostname_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_port_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_game_state_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_pools_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_pools_label_offset() -> usize;
+        fn rak_samp_fixture_r1_label_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
         fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
         fn rak_samp_fixture_r1_dialog_active_offset() -> usize;
@@ -1178,6 +1226,18 @@ mod tests {
                 NET_GAME_PORT_OFFSET
             );
             assert_eq!(rak_samp_fixture_r1_net_game_game_state_offset(), 0x3BD);
+            assert_eq!(
+                rak_samp_fixture_r1_net_game_pools_offset(),
+                NET_GAME_POOLS_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_net_game_pools_label_offset(),
+                NET_GAME_POOLS_LABEL_POOL_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_label_pool_not_empty_offset(),
+                LABEL_POOL_NOT_EMPTY_OFFSET
+            );
             assert_eq!(
                 rak_samp_fixture_r1_game_cursor_mode_offset(),
                 GAME_CURSOR_MODE_OFFSET
@@ -1403,6 +1463,13 @@ mod tests {
         assert_eq!(
             NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
             [0x8B, 0x81, 0xCD, 0x03, 0x00, 0x00, 0x8B, 0x40, 0x1C, 0xC3]
+        );
+        assert_eq!(
+            NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
+            [
+                0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x0C,
+                0x85, 0xFF, 0x74, 0x10,
+            ]
         );
         assert_eq!(
             VEHICLE_POOL_DOES_EXIST_SIGNATURE,

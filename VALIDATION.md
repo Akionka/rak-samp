@@ -45,6 +45,7 @@ starting GTA and remove them afterwards.
 | Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
+| R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
@@ -70,6 +71,12 @@ with only a player ID in the log; then have that player disconnect and issue a
 fresh directory read during a follow-up run to confirm it becomes `None` after
 refresh. The first remote read may be `NotReady`; it must never block a plugin
 thread or generate packet/RPC traffic. Exit normally and remove the marker.
+
+For the text-label check, join a server that has at least one visible 3D label,
+create the text-label marker, and wait up to two minutes for
+`text-label-exists self-test passed`. The first query may return `NotReady`;
+the log must contain only the outcome and label ID. Confirm no packet/RPC
+traffic is generated, exit normally, and remove the marker.
 
 The direct R1 helper scenario also reports `player_count=Ok` once the cached
 including-NPC player-pool count is nonzero. Check that it is sensible for the

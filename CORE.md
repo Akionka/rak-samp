@@ -94,6 +94,11 @@ R1 `CVehiclePool::DoesExist` boolean accessor. Queries enqueue an ID for the
 game-thread pump and return `NotReady` until its first owned result; neither a
 vehicle pool pointer nor a GTA vehicle handle can cross the ABI.
 
+`HostApi::is_text_label_defined` is a separate bounded demand-refreshed cache
+of R1 `CLabelPool::m_bNotEmpty`. It exposes only the copied existence boolean;
+label text, label/pool pointers, and every label mutation remain outside the
+safe ABI.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

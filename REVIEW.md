@@ -67,6 +67,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   game-thread pump. A legal R1 run must observe a defined ID through the
   opt-in scan, no generated traffic, and stable shutdown; no pool/vehicle/GTA
   pointer is exposed.
+- **Cached R1 3D text-label-existence live gate:**
+  `HostApi::is_text_label_defined` demand-refreshes only the bounded
+  `CLabelPool::m_bNotEmpty[id]` boolean from the game-thread pump. A legal R1
+  run on a server with a visible 3D label must observe a defined ID through the
+  opt-in scan, no generated traffic, and stable shutdown; no label text or
+  label/pool pointer is exposed.
 
 ## Windows x86 evidence
 
@@ -100,6 +106,16 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   check and `m_bNotEmpty[id]` load signature. The independent packed C++
   fixture derives the 40-byte R1 `VehicleInfo` and 100-entry waiting list,
   placing `m_bNotEmpty` at offset `0x3074`, matching the accessor target.
+- **R1 3D text-label-pool existence layout:** the pinned R1 C++ lead defines
+  packed `CNetGame::m_pPools` at `0x3CD`, with the `CLabelPool*` at pools
+  offset `0x0C`. The independent x86 fixture derives the packed 29-byte
+  `TextLabel` and therefore `CLabelPool::m_bNotEmpty` at `0xE800` after 2,048
+  entries. The installed fingerprinted R1 DLL's `CNetGame::ResetLabelPool` at
+  RVA `0x8F00 + 0x15` begins
+  `51 56 8B F1 8B 86 CD 03 00 00 57 8B 78 0C 85 FF 74 10`, directly loading
+  those two pool-pointer fields. The profile verifies this exact anchor, probes
+  the bounded range, and copies only canonical `0/1` flags on the game-thread
+  pump; dynamic label text is intentionally not read.
   The profile validates both signatures, checks the addressed boolean range
   before calling, and copies only a bounded BOOL.
 

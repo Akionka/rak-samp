@@ -88,11 +88,16 @@ fixtures, disassembly, or the E2E mock alone.
    chat draft text only; close/select/edit/open/command registration remain
    mutations and are excluded.
 7. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
-   state first, then labels, textdraws, objects, and pickups. Each needs a
+    state first, then labels, textdraws, objects, and pickups. Each needs a
    bounded copied model, independent native-layout
    fixture, direct target/field fingerprint, pump refresh budget, and a
-   dedicated opt-in validator. Do not group unrelated pool layouts into one
-   profile change.
+    dedicated opt-in validator. Do not group unrelated pool layouts into one
+    profile change.
+   The first bounded label sub-batch is `HostApi::is_text_label_defined(id)`,
+   a 2,048-ID demand-refreshed cache of only `CLabelPool::m_bNotEmpty[id]`.
+   Its fixture, `ResetLabelPool` field signature, four-per-pump budget, and
+   opt-in scan are ready; retain `[~]` until a legal R1 run finds a defined
+   label without traffic and exits normally.
 8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
@@ -153,6 +158,11 @@ fixtures, disassembly, or the E2E mock alone.
   the streamed-GTA-ped branch remains out of scope pending separate evidence.
 - [ ] With the vehicle-exists marker enabled, confirm the validator records
   only `vehicle-exists self-test passed` and one defined vehicle ID. It must
+  tolerate initial `NotReady` while the bounded queue is pumped, generate no
+  packet/RPC traffic, and leave normal shutdown stable.
+- [ ] With the text-label-exists marker enabled on a server that displays a
+  3D label, confirm the validator records only
+  `text-label-exists self-test passed` and one defined label ID. It must
   tolerate initial `NotReady` while the bounded queue is pumped, generate no
   packet/RPC traffic, and leave normal shutdown stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
@@ -277,10 +287,15 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   replacement is planned until a useful copied query is separately specified.
 - [ ] `sampGetTextlabelPoolPtr` — raw pointer API; excluded.
   `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
-  `sampCreate3dTextEx` mutate the native label pool; excluded. The read-only
-  `sampIs3dTextDefined` and `sampGet3dTextInfoById` may become a bounded
-  copied label snapshot in static-first step 7 after its own R1 fixture and
-  lifecycle proof.
+  `sampCreate3dTextEx` mutate the native label pool; excluded.
+- [~] `sampIs3dTextDefined` — `HostApi::is_text_label_defined(id)` uses a
+  bounded demand-refreshed R1 `CLabelPool::m_bNotEmpty` cache. It exposes only
+  the copied boolean, never a label/pool pointer or label text. Keep provisional
+  until the opt-in label scan records a defined ID, no traffic, and normal
+  shutdown.
+- [ ] `sampGet3dTextInfoById` remains a separate copied-label snapshot. Its
+  dynamic text pointer needs an independently bounded ownership/lifecycle
+  design before it can expose any label fields.
 - [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
   `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
   from the safe ABI rather than wrapped as integer addresses.

@@ -79,6 +79,10 @@ vehicle-pool existence flag. A first lookup may return `NotReady` until the
 game-thread pump completes it; it never exposes a vehicle, pool, or GTA handle
 and remains provisional pending its opt-in live scan.
 
+`HostApi::is_text_label_defined(id)` similarly demand-refreshes only the
+bounded R1 3D text-label existence flag. It never reads label text or returns a
+label/pool pointer, and remains provisional pending its opt-in live scan.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

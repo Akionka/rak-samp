@@ -128,6 +128,7 @@ pub(crate) struct SelfTests {
     pub(crate) direct_snapshot_state: AtomicU8,
     pub(crate) player_directory: AtomicU8,
     pub(crate) vehicle_exists: AtomicU8,
+    pub(crate) text_label_exists: AtomicU8,
     pub(crate) send_packet: AtomicU8,
     pub(crate) send_rpc: AtomicU8,
 }
@@ -142,6 +143,7 @@ impl SelfTests {
             direct_snapshot_state: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             player_directory: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             vehicle_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
+            text_label_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             send_packet: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             send_rpc: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
         }

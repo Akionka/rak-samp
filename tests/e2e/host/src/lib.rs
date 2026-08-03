@@ -493,6 +493,14 @@ unsafe extern "system" fn active_local_dialog(output: *mut RakSampActiveDialogV1
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn text_label_exists(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 7);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -659,4 +667,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     player_max_id,
     vehicle_exists,
     active_local_dialog,
+    text_label_exists,
 };

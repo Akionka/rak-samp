@@ -84,6 +84,7 @@ pub extern "system" fn RakSampValidation_SelfTestsComplete() -> BOOL {
             .load(Ordering::Acquire),
         state::SELF_TESTS.player_directory.load(Ordering::Acquire),
         state::SELF_TESTS.vehicle_exists.load(Ordering::Acquire),
+        state::SELF_TESTS.text_label_exists.load(Ordering::Acquire),
         state::SELF_TESTS.send_packet.load(Ordering::Acquire),
         state::SELF_TESTS.send_rpc.load(Ordering::Acquire),
     ];

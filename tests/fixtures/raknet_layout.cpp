@@ -146,6 +146,37 @@ struct FixtureR1NetGamePrefix {
     int lan_mode;
     int map_icons[100];
     int game_state;
+    unsigned int last_connect_attempt;
+    void* settings;
+    void* rak_client;
+    void* pools;
+};
+
+struct FixtureR1NetGamePools {
+    void* actor;
+    void* object;
+    void* gang_zone;
+    void* label;
+    void* text_draw;
+    void* menu;
+    void* player;
+    void* vehicle;
+    void* pickup;
+};
+
+struct FixtureR1TextLabel {
+    char* text;
+    unsigned int colour;
+    FixtureVector3 position;
+    float draw_distance;
+    bool behind_walls;
+    unsigned short attached_player;
+    unsigned short attached_vehicle;
+};
+
+struct FixtureR1LabelPoolExistsPrefix {
+    FixtureR1TextLabel objects[2048];
+    int not_empty[2048];
 };
 
 // Independently recorded R1 UI-state prefixes. These are checked separately
@@ -200,6 +231,10 @@ static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
 static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
 static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
 static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
+static_assert(offsetof(FixtureR1NetGamePrefix, pools) == 0x3CD);
+static_assert(offsetof(FixtureR1NetGamePools, label) == 0x0C);
+static_assert(sizeof(FixtureR1TextLabel) == 29);
+static_assert(offsetof(FixtureR1LabelPoolExistsPrefix, not_empty) == 0xE800);
 static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
 static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
 static_assert(offsetof(FixtureR1DialogSnapshot, is_active) == 0x28);
@@ -341,6 +376,18 @@ std::size_t rak_samp_fixture_r1_net_game_port_offset() {
 
 std::size_t rak_samp_fixture_r1_net_game_game_state_offset() {
     return offsetof(FixtureR1NetGamePrefix, game_state);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_pools_offset() {
+    return offsetof(FixtureR1NetGamePrefix, pools);
+}
+
+std::size_t rak_samp_fixture_r1_net_game_pools_label_offset() {
+    return offsetof(FixtureR1NetGamePools, label);
+}
+
+std::size_t rak_samp_fixture_r1_label_pool_not_empty_offset() {
+    return offsetof(FixtureR1LabelPoolExistsPrefix, not_empty);
 }
 
 std::size_t rak_samp_fixture_r1_game_cursor_mode_offset() {

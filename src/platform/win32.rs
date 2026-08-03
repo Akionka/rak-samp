@@ -49,8 +49,11 @@ const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
 const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
 const VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const VEHICLE_EXISTS_REQUESTS_PER_PUMP: usize = 4;
+const TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
+const TEXT_LABEL_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const MAX_SAMP_PLAYERS: usize = 1004;
 const MAX_SAMP_VEHICLES: usize = 2000;
+const MAX_SAMP_TEXT_LABELS: usize = 2048;
 const R1_INIT_GAME_RPC_ID: u8 = 139;
 const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
 
@@ -118,6 +121,8 @@ struct BackendState {
     player_info_requests: Mutex<VecDeque<u16>>,
     vehicle_exists_cache: Mutex<Vec<VehicleExistsCacheEntry>>,
     vehicle_exists_requests: Mutex<VecDeque<u16>>,
+    text_label_exists_cache: Mutex<Vec<TextLabelExistsCacheEntry>>,
+    text_label_exists_requests: Mutex<VecDeque<u16>>,
     player_count_including_npcs: AtomicI32,
     player_count_excluding_npcs: AtomicI32,
     player_count_ready: AtomicBool,
@@ -151,6 +156,12 @@ enum PlayerInfoCacheEntry {
 
 #[derive(Clone, Copy)]
 enum VehicleExistsCacheEntry {
+    Unknown,
+    Known(bool),
+}
+
+#[derive(Clone, Copy)]
+enum TextLabelExistsCacheEntry {
     Unknown,
     Known(bool),
 }
@@ -218,6 +229,13 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::with_capacity(
             VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY,
+        )),
+        text_label_exists_cache: Mutex::new(vec![
+            TextLabelExistsCacheEntry::Unknown;
+            MAX_SAMP_TEXT_LABELS
+        ]),
+        text_label_exists_requests: Mutex::new(VecDeque::with_capacity(
+            TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY,
         )),
         player_count_including_npcs: AtomicI32::new(0),
         player_count_excluding_npcs: AtomicI32::new(0),
@@ -351,6 +369,10 @@ impl Backend {
 
     pub(crate) fn vehicle_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.vehicle_exists(id)
+    }
+
+    pub(crate) fn text_label_exists(&self, id: u16) -> Result<bool, DirectClientError> {
+        self.state.text_label_exists(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -809,6 +831,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_text_label_exists_request(&self, id: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .text_label_exists_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
     fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -923,6 +960,37 @@ impl BackendState {
             }
             VehicleExistsCacheEntry::Unknown => {
                 self.queue_vehicle_exists_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
+    fn text_label_exists(&self, id: u16) -> Result<bool, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        if usize::from(id) >= MAX_SAMP_TEXT_LABELS {
+            return Err(DirectClientError::NotReady);
+        }
+        match self
+            .text_label_exists_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(usize::from(id))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?
+        {
+            TextLabelExistsCacheEntry::Known(exists) => {
+                // Refresh opportunistically without making the cached read
+                // fail if a busy plugin filled the bounded request queue.
+                let _ = self.queue_text_label_exists_request(id);
+                Ok(exists)
+            }
+            TextLabelExistsCacheEntry::Unknown => {
+                self.queue_text_label_exists_request(id)?;
                 Err(DirectClientError::NotReady)
             }
         }
@@ -1074,6 +1142,7 @@ impl BackendState {
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
         self.refresh_vehicle_exists(profile);
+        self.refresh_text_label_exists(profile);
         if profile.dialog_is_ready() {
             let dialogs = self.take_local_dialogs();
             for dialog in dialogs {
@@ -1161,6 +1230,16 @@ impl BackendState {
             .unwrap_or_default()
     }
 
+    fn take_text_label_exists_requests(&self) -> Vec<u16> {
+        self.text_label_exists_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(TEXT_LABEL_EXISTS_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn cache_local_player_snapshot(&self, snapshot: Option<LocalPlayerSnapshot>) {
         let Ok(mut candidate) = self.local_player_candidate.try_lock() else {
             return;
@@ -1204,6 +1283,12 @@ impl BackendState {
     fn clear_vehicle_exists_cache(&self) {
         if let Ok(mut cache) = self.vehicle_exists_cache.try_lock() {
             cache.fill(VehicleExistsCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_text_label_exists_cache(&self) {
+        if let Ok(mut cache) = self.text_label_exists_cache.try_lock() {
+            cache.fill(TextLabelExistsCacheEntry::Unknown);
         }
     }
 
@@ -1266,6 +1351,20 @@ impl BackendState {
             };
             if let Some(entry) = cache.get_mut(usize::from(id)) {
                 *entry = VehicleExistsCacheEntry::Known(exists);
+            }
+        }
+    }
+
+    fn refresh_text_label_exists(&self, profile: R1ClientProfile) {
+        for id in self.take_text_label_exists_requests() {
+            let Ok(exists) = profile.text_label_exists(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.text_label_exists_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = TextLabelExistsCacheEntry::Known(exists);
             }
         }
     }
@@ -1452,6 +1551,10 @@ impl BackendState {
         }
         self.clear_vehicle_exists_cache();
         if let Ok(mut requests) = self.vehicle_exists_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_text_label_exists_cache();
+        if let Ok(mut requests) = self.text_label_exists_requests.try_lock() {
             requests.clear();
         }
         if let Ok(mut snapshot) = self.server_info_snapshot.try_lock() {
@@ -1849,6 +1952,11 @@ mod vtable_tests {
                 MAX_SAMP_VEHICLES
             ]),
             vehicle_exists_requests: Mutex::new(VecDeque::new()),
+            text_label_exists_cache: Mutex::new(vec![
+                TextLabelExistsCacheEntry::Unknown;
+                MAX_SAMP_TEXT_LABELS
+            ]),
+            text_label_exists_requests: Mutex::new(VecDeque::new()),
             player_count_including_npcs: AtomicI32::new(0),
             player_count_excluding_npcs: AtomicI32::new(0),
             player_count_ready: AtomicBool::new(false),
@@ -1957,6 +2065,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.vehicle_exists(7),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.text_label_exists(7),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
@@ -2127,6 +2239,27 @@ mod vtable_tests {
         assert_eq!(
             state.vehicle_exists_requests.lock().unwrap().len(),
             VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY - VEHICLE_EXISTS_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
+    fn text_label_exists_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_text_label_exists_request(7).unwrap();
+        state.queue_text_label_exists_request(7).unwrap();
+        assert_eq!(state.text_label_exists_requests.lock().unwrap().len(), 1);
+        for id in 8..(7 + TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_text_label_exists_request(id).unwrap();
+        }
+        assert_eq!(
+            state.queue_text_label_exists_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_text_label_exists_requests();
+        assert_eq!(drained, vec![7, 8, 9, 10]);
+        assert_eq!(
+            state.text_label_exists_requests.lock().unwrap().len(),
+            TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY - TEXT_LABEL_EXISTS_REQUESTS_PER_PUMP
         );
     }
 

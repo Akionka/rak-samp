@@ -90,6 +90,10 @@ have passed. It likewise does not inspect GTA peds.
 threads enqueue unknown vehicle IDs; the pump drains at most four R1 accessor
 calls per entry and publishes only owned booleans, never a vehicle/pool/GTA
 pointer.
+`HostApi::is_text_label_defined` is a separate 2,048-slot boolean cache.
+Plugin threads enqueue unknown label IDs; the pump drains at most four bounded
+R1 pool-flag reads per entry and publishes only owned booleans, never label
+text or a label/pool pointer.
 
 ## Native and ABI boundaries
 
