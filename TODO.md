@@ -53,6 +53,11 @@ fixtures, disassembly, or the E2E mock alone.
    pointer. Exact R1 code signatures, unit/mock/E2E coverage, and an opt-in
    second-player validator are present; retain `[~]` until its R1 lifecycle,
    cache-refresh, disconnect, and shutdown evidence is recorded.
+   The adjacent remote volatile-state batch is also statically complete:
+   `HostApi::remote_player_state` copies health, armour, special action, and
+   animation ID through a separate 32-ID/four-per-pump cache after complete
+   R1 update/process signatures and fixture offsets pass. It shares the same
+   second-client lifecycle gate but must exercise field transitions separately.
 2. [~] Cache the two accessor-only R1 `CPlayerPool::GetCount` modes through
    `HostApi::player_count(include_npcs)`. The static implementation has an
    exact target signature and publishes scalar counts only on the game-thread
