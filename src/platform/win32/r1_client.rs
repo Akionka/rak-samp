@@ -7,7 +7,7 @@
 use crate::runtime::{
     AnimationSnapshot, DirectClientError, GangzoneSnapshot, LocalChatMessageRequest,
     LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle,
-    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, Vector3,
+    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -48,6 +48,7 @@ const NET_GAME_RESET_TEXTDRAW_POOL_RVA: usize = 0x8C20;
 const NET_GAME_RESET_OBJECT_POOL_RVA: usize = 0x8CC0;
 const NET_GAME_RESET_GANGZONE_POOL_RVA: usize = 0x8D60;
 const GANG_ZONE_POOL_CREATE_RVA: usize = 0x2170;
+const TEXT_LABEL_POOL_CREATE_RVA: usize = 0x11C0;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -87,6 +88,15 @@ const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x10;
 const NET_GAME_POOLS_OBJECT_POOL_OFFSET: usize = 0x04;
 const NET_GAME_POOLS_GANGZONE_POOL_OFFSET: usize = 0x08;
 const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
+const LABEL_TEXT_OFFSET: usize = 0x00;
+const LABEL_COLOUR_OFFSET: usize = 0x04;
+const LABEL_POSITION_OFFSET: usize = 0x08;
+const LABEL_DRAW_DISTANCE_OFFSET: usize = 0x14;
+const LABEL_BEHIND_WALLS_OFFSET: usize = 0x18;
+const LABEL_ATTACHED_PLAYER_OFFSET: usize = 0x19;
+const LABEL_ATTACHED_VEHICLE_OFFSET: usize = 0x1B;
+const LABEL_SIZE: usize = 0x1D;
+const MAX_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
 const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
 const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;
@@ -244,6 +254,26 @@ const GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE: [u8; 37] = [
     0x8B, 0x4C, 0x24, 0x10, 0x8B, 0x54, 0x24, 0x1C, 0x89, 0x08, 0x8B, 0x4C, 0x24, 0x18, 0x89, 0x50,
     0x04, 0x8B, 0x54, 0x24, 0x14, 0x89, 0x48, 0x08, 0x8B, 0x4C, 0x24, 0x20, 0x89, 0x50, 0x0C, 0x89,
     0x48, 0x10, 0x89, 0x48, 0x14,
+];
+// `CLabelPool::Create` computes the exact source-string length plus its NUL
+// terminator, allocates that many bytes, stores the allocation at label offset
+// zero, then copies the complete terminated string. This anchors the bounded
+// copied read below; it does not make the allocation or native pointer public.
+const TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE: [u8; 18] = [
+    0x8D, 0x48, 0x01, 0x8B, 0xFF, 0x8A, 0x10, 0x40, 0x84, 0xD2, 0x75, 0xF9, 0x2B, 0xC1, 0x40, 0x50,
+    0x6A, 0x01,
+];
+const TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE: [u8; 25] = [
+    0x8B, 0xD3, 0x83, 0xC4, 0x08, 0x6B, 0xD2, 0x1D, 0x8D, 0x34, 0x2A, 0x89, 0x06, 0x8B, 0xCF, 0x8A,
+    0x11, 0x41, 0x88, 0x10, 0x40, 0x84, 0xD2, 0x75, 0xF6,
+];
+// The tail of that same R1 target writes the fixed label scalars at offsets
+// 0x04 through 0x1C. Together with the independent packed fixture, this pins
+// every non-pointer field exported by the copied snapshot.
+const TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE: [u8; 48] = [
+    0x89, 0x46, 0x04, 0x8B, 0x44, 0x24, 0x24, 0x89, 0x4E, 0x08, 0x8B, 0x4C, 0x24, 0x28, 0x89, 0x56,
+    0x0C, 0x8A, 0x54, 0x24, 0x2C, 0x89, 0x46, 0x10, 0x66, 0x8B, 0x44, 0x24, 0x30, 0x89, 0x4E, 0x14,
+    0x66, 0x8B, 0x4C, 0x24, 0x34, 0x88, 0x56, 0x18, 0x66, 0x89, 0x46, 0x19, 0x66, 0x89, 0x4E, 0x1B,
 ];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
@@ -707,6 +737,83 @@ impl R1ClientProfile {
         read_r1_bool(pool + LABEL_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>())
     }
 
+    /// Copies one R1 3D text-label record on the game-thread pump. The native
+    /// string allocation is read only after its matching pool flag is true,
+    /// bounded by the R1 encoded-string limit, and copied before this method
+    /// returns. No native pointer crosses the private profile boundary.
+    pub(super) fn text_label(
+        self,
+        id: u16,
+    ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_TEXT_LABELS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_LABEL_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_LABEL_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            LABEL_POOL_NOT_EMPTY_OFFSET + (usize::from(id) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !read_r1_bool(
+            pool + LABEL_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>(),
+        )? {
+            return Ok(None);
+        }
+        let label = pool + usize::from(id) * LABEL_SIZE;
+        if !readable_range(label as *const u8, LABEL_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let text = unsafe { read_unaligned::<usize>(label + LABEL_TEXT_OFFSET) }
+            .filter(|text| *text != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let text = unsafe { bounded_c_string(text as *const u8, MAX_TEXT_LABEL_TEXT_BYTES + 1) }
+            .ok_or(DirectClientError::NotReady)?;
+        let colour = unsafe { read_unaligned::<u32>(label + LABEL_COLOUR_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let position = unsafe { read_vector3(label + LABEL_POSITION_OFFSET) }
+            .filter(|position| {
+                position.x.is_finite() && position.y.is_finite() && position.z.is_finite()
+            })
+            .ok_or(DirectClientError::NotReady)?;
+        let draw_distance = unsafe { read_unaligned::<f32>(label + LABEL_DRAW_DISTANCE_OFFSET) }
+            .filter(|draw_distance| draw_distance.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let behind_walls = match unsafe { read_unaligned::<u8>(label + LABEL_BEHIND_WALLS_OFFSET) }
+        {
+            Some(0) => false,
+            Some(1) => true,
+            _ => return Err(DirectClientError::NotReady),
+        };
+        let attached_player =
+            unsafe { read_unaligned::<u16>(label + LABEL_ATTACHED_PLAYER_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let attached_vehicle =
+            unsafe { read_unaligned::<u16>(label + LABEL_ATTACHED_VEHICLE_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(TextLabelSnapshot {
+            id,
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id: (attached_player != u16::MAX).then_some(attached_player),
+            attached_vehicle_id: (attached_vehicle != u16::MAX).then_some(attached_vehicle),
+        }))
+    }
+
     /// Reads one R1 textdraw-pool existence flag on the game-thread pump.
     /// The raw pool index covers the 2,048 global and 256 local slots. Only
     /// the copied boolean crosses the private profile boundary.
@@ -1090,6 +1197,18 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
         )
         && code_matches(
+            module_base + TEXT_LABEL_POOL_CREATE_RVA + 0x6B,
+            &TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
+        )
+        && code_matches(
+            module_base + TEXT_LABEL_POOL_CREATE_RVA + 0x82,
+            &TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE,
+        )
+        && code_matches(
+            module_base + TEXT_LABEL_POOL_CREATE_RVA + 0xCD,
+            &TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+        )
+        && code_matches(
             module_base + NET_GAME_RESET_TEXTDRAW_POOL_RVA + 0x15,
             &NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
         )
@@ -1295,16 +1414,18 @@ mod tests {
         DIALOG_TYPE_OFFSET, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
         GANG_ZONE_POOL_CREATE_POOL_FIELDS_SIGNATURE, GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE,
         GANGZONE_POOL_NOT_EMPTY_OFFSET, INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET,
-        INPUT_OPEN_SIGNATURE, LABEL_POOL_NOT_EMPTY_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
-        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        INPUT_OPEN_SIGNATURE, LABEL_ATTACHED_PLAYER_OFFSET, LABEL_ATTACHED_VEHICLE_OFFSET,
+        LABEL_BEHIND_WALLS_OFFSET, LABEL_COLOUR_OFFSET, LABEL_DRAW_DISTANCE_OFFSET,
+        LABEL_POOL_NOT_EMPTY_OFFSET, LABEL_POSITION_OFFSET, LABEL_SIZE, LABEL_TEXT_OFFSET,
+        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_PLAYER_POOL_SIGNATURE,
-        NET_GAME_GET_STATE_SIGNATURE, NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
-        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
-        NET_GAME_POOLS_GANGZONE_POOL_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
-        NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
+        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, MAX_TEXT_LABEL_TEXT_BYTES,
+        NET_GAME_GET_PLAYER_POOL_SIGNATURE, NET_GAME_GET_STATE_SIGNATURE,
+        NET_GAME_GET_VEHICLE_POOL_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET,
+        NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_GANGZONE_POOL_OFFSET,
+        NET_GAME_POOLS_LABEL_POOL_OFFSET, NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
         NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET,
         NET_GAME_RESET_GANGZONE_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
         NET_GAME_RESET_OBJECT_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
@@ -1315,9 +1436,11 @@ mod tests {
         PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
-        SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
+        SCOREBOARD_ENABLED_OFFSET, TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+        TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
+        TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
         VEHICLE_POOL_DOES_EXIST_SIGNATURE, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id,
-        nul_terminated, parse_animation_entry,
+        bounded_c_string, nul_terminated, parse_animation_entry,
     };
 
     unsafe extern "C" {
@@ -1347,6 +1470,14 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_pools_object_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_pools_gang_zone_offset() -> usize;
         fn rak_samp_fixture_r1_label_pool_not_empty_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_size() -> usize;
+        fn rak_samp_fixture_r1_text_label_text_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_colour_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_position_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_draw_distance_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_behind_walls_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_attached_player_offset() -> usize;
+        fn rak_samp_fixture_r1_text_label_attached_vehicle_offset() -> usize;
         fn rak_samp_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_object_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_gangzone_pool_not_empty_offset() -> usize;
@@ -1460,6 +1591,35 @@ mod tests {
                 rak_samp_fixture_r1_label_pool_not_empty_offset(),
                 LABEL_POOL_NOT_EMPTY_OFFSET
             );
+            assert_eq!(rak_samp_fixture_r1_text_label_size(), LABEL_SIZE);
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_text_offset(),
+                LABEL_TEXT_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_colour_offset(),
+                LABEL_COLOUR_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_position_offset(),
+                LABEL_POSITION_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_draw_distance_offset(),
+                LABEL_DRAW_DISTANCE_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_behind_walls_offset(),
+                LABEL_BEHIND_WALLS_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_attached_player_offset(),
+                LABEL_ATTACHED_PLAYER_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_text_label_attached_vehicle_offset(),
+                LABEL_ATTACHED_VEHICLE_OFFSET
+            );
             assert_eq!(
                 rak_samp_fixture_r1_textdraw_pool_not_empty_offset(),
                 TEXTDRAW_POOL_NOT_EMPTY_OFFSET
@@ -1505,6 +1665,25 @@ mod tests {
     #[test]
     fn native_dialog_strings_are_terminated_only_after_copying() {
         assert_eq!(nul_terminated(b"dialog".to_vec()), b"dialog\0");
+    }
+
+    #[test]
+    fn bounded_label_copy_accepts_the_full_r1_text_limit() {
+        let mut text = vec![b'x'; MAX_TEXT_LABEL_TEXT_BYTES];
+        text.push(0);
+        assert_eq!(
+            unsafe { bounded_c_string(text.as_ptr(), MAX_TEXT_LABEL_TEXT_BYTES + 1) },
+            Some(vec![b'x'; MAX_TEXT_LABEL_TEXT_BYTES])
+        );
+        assert_eq!(
+            unsafe {
+                bounded_c_string(
+                    text[..MAX_TEXT_LABEL_TEXT_BYTES].as_ptr(),
+                    MAX_TEXT_LABEL_TEXT_BYTES,
+                )
+            },
+            None
+        );
     }
 
     #[test]
@@ -1740,6 +1919,29 @@ mod tests {
                 0x8B, 0x4C, 0x24, 0x10, 0x8B, 0x54, 0x24, 0x1C, 0x89, 0x08, 0x8B, 0x4C, 0x24, 0x18,
                 0x89, 0x50, 0x04, 0x8B, 0x54, 0x24, 0x14, 0x89, 0x48, 0x08, 0x8B, 0x4C, 0x24, 0x20,
                 0x89, 0x50, 0x0C, 0x89, 0x48, 0x10, 0x89, 0x48, 0x14,
+            ]
+        );
+        assert_eq!(
+            TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
+            [
+                0x8D, 0x48, 0x01, 0x8B, 0xFF, 0x8A, 0x10, 0x40, 0x84, 0xD2, 0x75, 0xF9, 0x2B, 0xC1,
+                0x40, 0x50, 0x6A, 0x01,
+            ]
+        );
+        assert_eq!(
+            TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE,
+            [
+                0x8B, 0xD3, 0x83, 0xC4, 0x08, 0x6B, 0xD2, 0x1D, 0x8D, 0x34, 0x2A, 0x89, 0x06, 0x8B,
+                0xCF, 0x8A, 0x11, 0x41, 0x88, 0x10, 0x40, 0x84, 0xD2, 0x75, 0xF6,
+            ]
+        );
+        assert_eq!(
+            TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+            [
+                0x89, 0x46, 0x04, 0x8B, 0x44, 0x24, 0x24, 0x89, 0x4E, 0x08, 0x8B, 0x4C, 0x24, 0x28,
+                0x89, 0x56, 0x0C, 0x8A, 0x54, 0x24, 0x2C, 0x89, 0x46, 0x10, 0x66, 0x8B, 0x44, 0x24,
+                0x30, 0x89, 0x4E, 0x14, 0x66, 0x8B, 0x4C, 0x24, 0x34, 0x88, 0x56, 0x18, 0x66, 0x89,
+                0x46, 0x19, 0x66, 0x89, 0x4E, 0x1B,
             ]
         );
         assert_eq!(

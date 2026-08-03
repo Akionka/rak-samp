@@ -128,6 +128,21 @@ pub(crate) struct GangzoneSnapshot {
     pub(crate) alternate_colour: u32,
 }
 
+/// Host-owned data copied from one R1 3D text-label record on the verified
+/// game thread. The dynamically allocated native text is copied within its
+/// protocol-bounded lifetime; no native pointer crosses this boundary.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct TextLabelSnapshot {
+    pub(crate) id: u16,
+    pub(crate) text: Vec<u8>,
+    pub(crate) colour: u32,
+    pub(crate) position: Vector3,
+    pub(crate) draw_distance: f32,
+    pub(crate) behind_walls: bool,
+    pub(crate) attached_player_id: Option<u16>,
+    pub(crate) attached_vehicle_id: Option<u16>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalChatMessageStyle {
     Chat,
@@ -469,6 +484,13 @@ impl Runtime {
 
     pub(crate) fn gangzone(&self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
         self.backend.gangzone(id)
+    }
+
+    pub(crate) fn text_label(
+        &self,
+        id: u16,
+    ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
+        self.backend.text_label(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {

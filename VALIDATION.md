@@ -46,6 +46,7 @@ starting GTA and remove them afterwards.
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
 | R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
+| R1 3D text-label snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until one owned label record is copied and agrees with the existence cache. It logs only the outcome and label ID. |
 | R1 textdraw existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-textdraw-exists.enabled') -ItemType File -Force` | On a server with a visible textdraw, demand-refreshes bounded raw textdraw pool indexes through the R1 game-thread pump until a defined slot is copied. It logs only the outcome and pool index. |
 | R1 object existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-object-exists.enabled') -ItemType File -Force` | On a server with a visible streamed object, demand-refreshes bounded object IDs through the R1 game-thread pump until a defined object is copied. It logs only the outcome and object ID. |
 | R1 gangzone snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-gangzone.enabled') -ItemType File -Force` | On a server with a visible gangzone, demand-refreshes bounded gangzone IDs through the R1 game-thread pump until a fixed rectangle-and-colour record is copied. It logs only the outcome and gangzone ID. |
@@ -80,6 +81,12 @@ create the text-label marker, and wait up to two minutes for
 `text-label-exists self-test passed`. The first query may return `NotReady`;
 the log must contain only the outcome and label ID. Confirm no packet/RPC
 traffic is generated, exit normally, and remove the marker.
+
+For the text-label snapshot check, join the same kind of server, create the
+text-label marker, and wait up to two minutes for `text-label self-test passed`.
+Confirm the copied record corresponds to the visible label without recording its
+text or fields, verify no packet/RPC traffic is generated, exit normally, and
+remove the marker.
 
 For the textdraw check, join a server that displays a textdraw, create the
 textdraw marker, and wait up to two minutes for `textdraw-exists self-test

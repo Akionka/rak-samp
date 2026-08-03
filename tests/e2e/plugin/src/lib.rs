@@ -6,7 +6,7 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 use rak_samp_plugin_api::{
     Gangzone, LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle,
-    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream,
+    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, TextLabel, raknet::BitStream,
     wait_for_default_host,
 };
 use std::{
@@ -49,6 +49,7 @@ static TEXT_LABEL_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXTDRAW_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static OBJECT_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static GANGZONE_ID: AtomicI32 = AtomicI32::new(i32::MIN);
+static TEXT_LABEL_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -195,6 +196,25 @@ fn initialize() {
         && api.gangzone(8) == Ok(None)
     {
         GANGZONE_ID.store(7, Ordering::Release);
+    }
+    if api.text_label(7)
+        == Ok(Some(TextLabel {
+            id: 7,
+            text: b"e2e".to_vec(),
+            colour: 0xFF11_2233,
+            position: rak_samp_plugin_api::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            draw_distance: 25.0,
+            behind_walls: true,
+            attached_player_id: Some(8),
+            attached_vehicle_id: None,
+        }))
+        && api.text_label(8) == Ok(None)
+    {
+        TEXT_LABEL_ID.store(7, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -346,6 +366,11 @@ pub extern "system" fn RakSampE2ePlugin_ObjectExists() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_GangzoneId() -> i32 {
     GANGZONE_ID.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_TextLabelId() -> i32 {
+    TEXT_LABEL_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

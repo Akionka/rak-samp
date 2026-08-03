@@ -94,6 +94,11 @@ pointer.
 Plugin threads enqueue unknown label IDs; the pump drains at most four bounded
 R1 pool-flag reads per entry and publishes only owned booleans, never label
 text or a label/pool pointer.
+`HostApi::text_label` uses its own 2,048-slot demand cache and drains at most
+four copied label records per pump entry. It checks the same existence flag,
+copies the protocol-bounded native text allocation and fixed scalar fields on
+the game thread, then publishes only owned bytes and scalars. No label/pool
+pointer crosses the ABI.
 `HostApi::is_textdraw_defined` is a separate 2,304-slot boolean cache, in the
 R1 raw order of 2,048 global followed by 256 local slots. Plugin threads enqueue
 unknown pool indexes; the pump drains at most four bounded pool-flag reads per

@@ -5,7 +5,7 @@ use crate::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
         LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-        PlayerInfoSnapshot, ServerInfoSnapshot,
+        PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
     },
 };
 use log::{debug, error, info};
@@ -14,7 +14,7 @@ use rak_samp_plugin_api::{
     MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1,
     RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampGangzoneV1, RakSampHookAction,
     RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
-    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, RakSampTextLabelV1, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -165,6 +165,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     textdraw_exists,
     object_exists,
     gangzone_info,
+    text_label_info,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -1105,6 +1106,35 @@ unsafe extern "system" fn gangzone_info(id: u16, output: *mut RakSampGangzoneV1)
     }
 }
 
+unsafe extern "system" fn text_label_info(
+    id: u16,
+    output: *mut RakSampTextLabelV1,
+) -> RakSampResult {
+    if id >= MAX_SAMP_TEXT_LABELS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.text_label(id) {
+        Ok(Some(snapshot)) => match text_label_to_abi(snapshot) {
+            Ok(snapshot) => {
+                *output = snapshot;
+                RakSampResult::Ok
+            }
+            Err(()) => RakSampResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            *output = RakSampTextLabelV1::default();
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1427,6 +1457,40 @@ fn gangzone_to_abi(snapshot: GangzoneSnapshot) -> Result<RakSampGangzoneV1, ()> 
     })
 }
 
+fn text_label_to_abi(snapshot: TextLabelSnapshot) -> Result<RakSampTextLabelV1, ()> {
+    let text_len = u16::try_from(snapshot.text.len()).map_err(|_| ())?;
+    if snapshot.text.len() > rak_samp_plugin_api::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+        || snapshot.text.contains(&0)
+        || !snapshot.position.x.is_finite()
+        || !snapshot.position.y.is_finite()
+        || !snapshot.position.z.is_finite()
+        || !snapshot.draw_distance.is_finite()
+    {
+        return Err(());
+    }
+    let mut text = [0; rak_samp_plugin_api::MAX_SAMP_TEXT_LABEL_TEXT_BYTES];
+    text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
+    Ok(RakSampTextLabelV1 {
+        exists: 1,
+        behind_walls: u8::from(snapshot.behind_walls),
+        _reserved: [0; 2],
+        id: snapshot.id,
+        attached_player_id: snapshot.attached_player_id.unwrap_or(u16::MAX),
+        attached_vehicle_id: snapshot.attached_vehicle_id.unwrap_or(u16::MAX),
+        _reserved2: 0,
+        colour: snapshot.colour,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
+        draw_distance: snapshot.draw_distance,
+        text_len,
+        _reserved3: [0; 2],
+        text,
+    })
+}
+
 fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV1, ()> {
     let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
     let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
@@ -1696,6 +1760,19 @@ mod tests {
             unsafe { text_label_exists(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
+        let mut text_label = RakSampTextLabelV1::default();
+        assert_eq!(
+            unsafe { text_label_info(7, &mut text_label) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { text_label_info(MAX_SAMP_TEXT_LABELS, &mut text_label) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { text_label_info(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
         let mut textdraw_exists_output = 0;
         assert_eq!(
             unsafe { textdraw_exists(7, &mut textdraw_exists_output) },
@@ -1860,5 +1937,29 @@ mod tests {
         assert_eq!(raw.hostname_len, 7);
         assert_eq!(&raw.hostname[..7], b"fixture");
         assert_eq!(raw.port, 7777);
+    }
+
+    #[test]
+    fn text_label_snapshot_conversion_uses_only_fixed_abi_storage() {
+        let raw = text_label_to_abi(TextLabelSnapshot {
+            id: 7,
+            text: b"fixture label".to_vec(),
+            colour: 0xFF11_2233,
+            position: crate::runtime::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            draw_distance: 25.0,
+            behind_walls: true,
+            attached_player_id: Some(8),
+            attached_vehicle_id: None,
+        })
+        .expect("fixture text label fits the ABI");
+        assert_eq!(raw.exists, 1);
+        assert_eq!(raw.text_len, 13);
+        assert_eq!(&raw.text[..13], b"fixture label");
+        assert_eq!(raw.attached_player_id, 8);
+        assert_eq!(raw.attached_vehicle_id, u16::MAX);
     }
 }

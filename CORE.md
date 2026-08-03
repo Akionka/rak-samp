@@ -99,6 +99,12 @@ of R1 `CLabelPool::m_bNotEmpty`. It exposes only the copied existence boolean;
 label text, label/pool pointers, and every label mutation remain outside the
 safe ABI.
 
+`HostApi::text_label` is a separate bounded 2,048-slot cache of owned R1
+label records. Its text copy is capped at the R1 protocol's 4,095-byte decoded
+limit and is made only after the profile verifies the native allocation, copy,
+and packed scalar-store path. It exposes bytes and scalar fields only; native
+label/pool pointers and mutations remain outside the safe ABI.
+
 `HostApi::is_textdraw_defined` is a separate bounded 2,304-slot cache of R1
 `CTextDrawPool::m_bNotEmpty`. It preserves the native raw order of 2,048 global
 followed by 256 local slots, exposes only the copied boolean, and keeps text,

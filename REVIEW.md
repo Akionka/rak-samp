@@ -73,6 +73,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   run on a server with a visible 3D label must observe a defined ID through the
   opt-in scan, no generated traffic, and stable shutdown; no label text or
   label/pool pointer is exposed.
+- **Cached R1 3D text-label snapshot live gate:** `HostApi::text_label`
+  demand-refreshes one bounded copied label record from the game-thread pump.
+  A legal R1 run on a server with a visible label must observe one record with
+  the matching ID and defined flag, no generated traffic, and stable shutdown;
+  logs must contain outcomes and IDs only, never label text or fields.
 - **Cached R1 textdraw-existence live gate:** `HostApi::is_textdraw_defined`
   demand-refreshes only the bounded `CTextDrawPool::m_bNotEmpty[pool_index]`
   boolean from the game-thread pump. A legal R1 run on a server with a visible
@@ -130,8 +135,20 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   RVA `0x8F00 + 0x15` begins
   `51 56 8B F1 8B 86 CD 03 00 00 57 8B 78 0C 85 FF 74 10`, directly loading
   those two pool-pointer fields. The profile verifies this exact anchor, probes
-  the bounded range, and copies only canonical `0/1` flags on the game-thread
-  pump; dynamic label text is intentionally not read.
+  the bounded range, and copies only canonical `0/1` flags for the separate
+  existence helper on the game-thread pump.
+- **R1 3D text-label snapshot layout and ownership:** the same independent
+  packed fixture places `TextLabel` at 29 bytes: text pointer `0x00`, ARGB
+  colour `0x04`, position `0x08`, draw distance `0x14`, LOS byte `0x18`, and
+  player/vehicle attachment IDs at `0x19`/`0x1B`. The installed fingerprinted
+  R1 DLL's `CLabelPool::Create` at RVA `0x11C0` has exact signatures at
+  `+0x6B` for source-length-plus-terminator allocation, `+0x82` for storing
+  the new pointer and copying its terminated bytes, and `+0xCD` for the fixed
+  scalar stores. The create RPC already bounds decoded label text to 4,095
+  bytes. The profile requires all anchors, checks the existence flag, probes
+  each range, copies at most 4,095 non-NUL bytes on the game-thread pump, and
+  treats any malformed or unavailable field as `NotReady`; no dynamic pointer
+  crosses the ABI.
 - **R1 textdraw-pool existence layout:** the pinned R1 C++ lead defines the
   packed `CTextDrawPool*` at `CNetGame::m_pPools + 0x10`; its 2,304-BOOL
   `m_bNotEmpty` array starts at offset `0`, with 2,048 global slots followed by

@@ -115,6 +115,12 @@ fixtures, disassembly, or the E2E mock alone.
    Its fixture, `ResetGangZonePool` and `CGangZonePool::Create` field signatures,
    four-per-pump budget, and opt-in scan are ready; retain `[~]` until a legal R1
    run finds a gangzone with correct copied fields, no traffic, and normal exit.
+   The fifth bounded label sub-batch is `HostApi::text_label(id)`, a 2,048-ID
+   demand-refreshed cache of copied text, colour, position, distance, LOS, and
+   attachment-ID fields. Its fixture, `CLabelPool::Create` allocation/copy/
+   scalar-store signatures, four-per-pump budget, and opt-in scan are ready;
+   retain `[~]` until a legal R1 run finds one visible record, no traffic, and
+   exits normally.
 8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
@@ -182,6 +188,12 @@ fixtures, disassembly, or the E2E mock alone.
   `text-label-exists self-test passed` and one defined label ID. It must
   tolerate initial `NotReady` while the bounded queue is pumped, generate no
   packet/RPC traffic, and leave normal shutdown stable.
+- [ ] With the text-label marker enabled on a server that displays a 3D label,
+  confirm the validator records only `text-label self-test passed` and one
+  label ID. Independently compare the copied content and scalar fields to the
+  visible label without logging any label text or fields. It must tolerate
+  initial `NotReady`, generate no packet/RPC traffic, and leave normal shutdown
+  stable.
 - [ ] With the textdraw-exists marker enabled on a server that displays a
   textdraw, confirm the validator records only `textdraw-exists self-test
   passed` and one defined raw pool index. It must tolerate initial `NotReady`
@@ -329,9 +341,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   the copied boolean, never a label/pool pointer or label text. Keep provisional
   until the opt-in label scan records a defined ID, no traffic, and normal
   shutdown.
-- [ ] `sampGet3dTextInfoById` remains a separate copied-label snapshot. Its
-  dynamic text pointer needs an independently bounded ownership/lifecycle
-  design before it can expose any label fields.
+- [~] `sampGet3dTextInfoById` — `HostApi::text_label(id)` demand-refreshes a
+  bounded copied R1 label snapshot (byte text, ARGB colour, position, distance,
+  LOS, and optional attachment IDs). The R1 `CLabelPool::Create` allocation,
+  copy, and scalar-store signatures plus an independent packed fixture prove
+  the narrow profile. Keep provisional until the opt-in visible-label scan,
+  no-traffic result, and normal shutdown are recorded.
 - [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
   `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
   from the safe ABI rather than wrapped as integer addresses.

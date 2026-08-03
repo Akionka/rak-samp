@@ -85,6 +85,7 @@ pub extern "system" fn RakSampValidation_SelfTestsComplete() -> BOOL {
         state::SELF_TESTS.player_directory.load(Ordering::Acquire),
         state::SELF_TESTS.vehicle_exists.load(Ordering::Acquire),
         state::SELF_TESTS.text_label_exists.load(Ordering::Acquire),
+        state::SELF_TESTS.text_label.load(Ordering::Acquire),
         state::SELF_TESTS.textdraw_exists.load(Ordering::Acquire),
         state::SELF_TESTS.object_exists.load(Ordering::Acquire),
         state::SELF_TESTS.gangzone.load(Ordering::Acquire),

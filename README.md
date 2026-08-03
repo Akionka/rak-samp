@@ -83,6 +83,12 @@ and remains provisional pending its opt-in live scan.
 bounded R1 3D text-label existence flag. It never reads label text or returns a
 label/pool pointer, and remains provisional pending its opt-in live scan.
 
+`HostApi::text_label(id)` demand-refreshes an owned R1 3D-label copy: byte
+text, ARGB colour, position, draw distance, LOS flag, and optional attachment
+IDs. Its 4,095-byte text copy is made only by the game-thread pump after the
+verified R1 allocation path and never exposes a label/pool pointer. It remains
+provisional pending its dedicated opt-in live scan.
+
 `HostApi::is_textdraw_defined(pool_index)` similarly copies only the bounded
 R1 textdraw existence flag. Its raw 2,304-slot index covers 2,048 global then
 256 local slots without guessing an ID space; it never reads textdraw content

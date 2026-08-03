@@ -7,7 +7,7 @@ use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
     RakSampEventCallbackV1, RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1,
     RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions, RakSampServerInfoV1,
-    RakSampSubscription, Vector3,
+    RakSampSubscription, RakSampTextLabelV1, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -543,6 +543,34 @@ unsafe extern "system" fn gangzone_info(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn text_label_info(
+    id: u16,
+    output: *mut RakSampTextLabelV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if id == 7 {
+        output.exists = 1;
+        output.behind_walls = 1;
+        output.id = id;
+        output.attached_player_id = 8;
+        output.attached_vehicle_id = u16::MAX;
+        output.colour = 0xFF11_2233;
+        output.position = Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        output.draw_distance = 25.0;
+        output.text[..3].copy_from_slice(b"e2e");
+        output.text_len = 3;
+    } else {
+        *output = RakSampTextLabelV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -713,4 +741,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     textdraw_exists,
     object_exists,
     gangzone_info,
+    text_label_info,
 };

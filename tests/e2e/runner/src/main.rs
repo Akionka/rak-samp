@@ -39,6 +39,7 @@ type PluginTextLabelExists = unsafe extern "system" fn() -> i32;
 type PluginTextdrawExists = unsafe extern "system" fn() -> i32;
 type PluginObjectExists = unsafe extern "system" fn() -> i32;
 type PluginGangzoneId = unsafe extern "system" fn() -> i32;
+type PluginTextLabelId = unsafe extern "system" fn() -> i32;
 type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginServerPort = unsafe extern "system" fn() -> u32;
 type PluginDecodeResult = unsafe extern "system" fn() -> u32;
@@ -156,6 +157,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_ObjectExists")?) };
     let gangzone_id: PluginGangzoneId =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_GangzoneId")?) };
+    let text_label_id: PluginTextLabelId =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_TextLabelId")?) };
     let samp_version: PluginSampVersion =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let server_port: PluginServerPort =
@@ -225,6 +228,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { gangzone_id() } != 7 {
         return Err("plugin did not convert the mock gangzone snapshot".to_owned());
+    }
+    if unsafe { text_label_id() } != 7 {
+        return Err("plugin did not convert the mock 3D text-label snapshot".to_owned());
     }
     if unsafe { samp_version() } != 1 {
         return Err("plugin did not convert the mock SA-MP version".to_owned());

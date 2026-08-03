@@ -27,6 +27,7 @@ pub(crate) const PLAYER_DIRECTORY_TEST_MARKER: &str =
 pub(crate) const VEHICLE_EXISTS_TEST_MARKER: &str = "rak-samp-validation-vehicle-exists.enabled";
 pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
+pub(crate) const TEXT_LABEL_TEST_MARKER: &str = "rak-samp-validation-text-label.enabled";
 pub(crate) const TEXTDRAW_EXISTS_TEST_MARKER: &str = "rak-samp-validation-textdraw-exists.enabled";
 pub(crate) const OBJECT_EXISTS_TEST_MARKER: &str = "rak-samp-validation-object-exists.enabled";
 pub(crate) const GANGZONE_TEST_MARKER: &str = "rak-samp-validation-gangzone.enabled";
@@ -340,6 +341,7 @@ pub(crate) fn run(api: HostApi) {
     run_player_directory(api);
     run_vehicle_exists(api);
     run_text_label_exists(api);
+    run_text_label(api);
     run_textdraw_exists(api);
     run_object_exists(api);
     run_gangzone(api);
@@ -490,6 +492,55 @@ fn run_text_label_exists(api: HostApi) {
         .text_label_exists
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("text-label-exists self-test timed out without a defined label");
+}
+
+fn run_text_label(api: HostApi) {
+    if !logging::plugin_path(TEXT_LABEL_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .text_label
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "text-label self-test disabled; opt in with rak-samp-validation-text-label.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut id = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.text_label(id) {
+            Ok(Some(label)) if label.id == id && api.is_text_label_defined(id) == Ok(true) => {
+                SELF_TESTS
+                    .text_label
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!("text-label self-test passed: label_id={id}"));
+                return;
+            }
+            Ok(Some(_)) => {
+                SELF_TESTS
+                    .text_label
+                    .store(SelfTestStatus::Failed.as_raw(), Ordering::Release);
+                logging::write(&format!("text-label self-test failed: label_id={id}"));
+                return;
+            }
+            Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .text_label
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "text-label self-test returned {error:?}: label_id={id}"
+                ));
+                return;
+            }
+        }
+        id = (id + 1) % MAX_SAMP_TEXT_LABELS;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .text_label
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("text-label self-test timed out without a copied label");
 }
 
 fn run_textdraw_exists(api: HostApi) {

@@ -843,6 +843,34 @@ unsafe extern "system" fn test_gangzone_info(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_text_label_info(
+    id: u16,
+    output: *mut crate::RakSampTextLabelV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if id == 7 {
+        output.exists = 1;
+        output.behind_walls = 1;
+        output.id = id;
+        output.attached_player_id = 8;
+        output.attached_vehicle_id = u16::MAX;
+        output.colour = 0xFF11_2233;
+        output.position = crate::Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        };
+        output.draw_distance = 25.0;
+        output.text[..7].copy_from_slice(b"fixture");
+        output.text_len = 7;
+    } else {
+        *output = crate::RakSampTextLabelV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -953,6 +981,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     textdraw_exists: test_textdraw_exists,
     object_exists: test_object_exists,
     gangzone_info: test_gangzone_info,
+    text_label_info: test_text_label_info,
 };
 
 pub(crate) fn test_api() -> HostApi {

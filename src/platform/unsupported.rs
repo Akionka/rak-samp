@@ -4,7 +4,7 @@ use crate::{
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-        LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot,
+        LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
     },
 };
 use std::sync::Arc;
@@ -113,6 +113,13 @@ impl Backend {
     }
 
     pub(crate) fn gangzone(&self, _id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn text_label(
+        &self,
+        _id: u16,
+    ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

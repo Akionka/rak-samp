@@ -38,6 +38,12 @@ pub const MAX_SAMP_TEXTDRAWS: u16 = 2_304;
 pub const MAX_SAMP_OBJECTS: u16 = 1_000;
 /// Number of addressable SA-MP gangzone IDs in the R1 gangzone pool.
 pub const MAX_SAMP_GANGZONES: u16 = 1_024;
+/// Maximum copied byte length of an R1 3D text-label string.
+///
+/// R1 receives label text through its bounded `encodedString4096` path; the
+/// native pool stores the resulting NUL-terminated allocation. The copied
+/// result excludes that native terminator.
+pub const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -309,6 +315,24 @@ pub struct Gangzone {
     pub alternate_colour: u32,
 }
 
+/// An owned R1 3D text-label record copied from the game-thread cache.
+///
+/// Text remains bytes because SA-MP does not guarantee a Unicode encoding.
+/// `attached_player_id` and `attached_vehicle_id` are `None` for R1's native
+/// `0xFFFF` sentinel. No label, pool, player, vehicle, or GTA pointer crosses
+/// this API.
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextLabel {
+    pub id: u16,
+    pub text: Vec<u8>,
+    pub colour: u32,
+    pub position: Vector3,
+    pub draw_distance: f32,
+    pub behind_walls: bool,
+    pub attached_player_id: Option<u16>,
+    pub attached_vehicle_id: Option<u16>,
+}
+
 /// An owned, read-only current-server snapshot.
 ///
 /// The address and hostname remain bytes because SA-MP does not guarantee a
@@ -465,6 +489,49 @@ pub struct RakSampGangzoneV1 {
     pub top: f32,
     pub colour: u32,
     pub alternate_colour: u32,
+}
+
+/// C-compatible storage for an owned [`TextLabel`] result.
+///
+/// `exists` is zero when the latest completed query found no label. When it
+/// is one, `text_len` selects the initialized prefix of `text`; the buffer has
+/// no required terminator. `0xFFFF` in either attachment field means `None`.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RakSampTextLabelV1 {
+    pub exists: u8,
+    pub behind_walls: u8,
+    pub _reserved: [u8; 2],
+    pub id: u16,
+    pub attached_player_id: u16,
+    pub attached_vehicle_id: u16,
+    pub _reserved2: u16,
+    pub colour: u32,
+    pub position: Vector3,
+    pub draw_distance: f32,
+    pub text_len: u16,
+    pub _reserved3: [u8; 2],
+    pub text: [u8; MAX_SAMP_TEXT_LABEL_TEXT_BYTES],
+}
+
+impl Default for RakSampTextLabelV1 {
+    fn default() -> Self {
+        Self {
+            exists: 0,
+            behind_walls: 0,
+            _reserved: [0; 2],
+            id: 0,
+            attached_player_id: 0,
+            attached_vehicle_id: 0,
+            _reserved2: 0,
+            colour: 0,
+            position: Vector3::default(),
+            draw_distance: 0.0,
+            text_len: 0,
+            _reserved3: [0; 2],
+            text: [0; MAX_SAMP_TEXT_LABEL_TEXT_BYTES],
+        }
+    }
 }
 
 /// C-compatible storage for [`ServerInfo`].
@@ -778,6 +845,8 @@ pub struct RakSampApiV1 {
     pub object_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
     /// Copies a cached R1 gangzone record into `output`.
     pub gangzone_info: unsafe extern "system" fn(u16, *mut RakSampGangzoneV1) -> RakSampResult,
+    /// Copies a cached R1 3D text-label record into `output`.
+    pub text_label_info: unsafe extern "system" fn(u16, *mut RakSampTextLabelV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -2031,6 +2100,23 @@ impl HostApi {
         }
     }
 
+    /// Returns the latest cached R1 3D text-label record for `id`.
+    ///
+    /// The first lookup returns [`RakSampResult::NotReady`] while the verified
+    /// game-thread pump copies a bounded record. `Ok(None)` means the latest
+    /// completed query found no label; retry normal plugin work instead of
+    /// blocking a callback. This never exposes native client pointers.
+    pub fn text_label(self, id: u16) -> Result<Option<TextLabel>, RakSampResult> {
+        if id >= MAX_SAMP_TEXT_LABELS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut raw = RakSampTextLabelV1::default();
+        match unsafe { (self.raw.text_label_info)(id, &mut raw) } {
+            RakSampResult::Ok => text_label_from_abi(raw),
+            result => Err(result),
+        }
+    }
+
     /// Returns copied core metadata for the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
@@ -2327,6 +2413,44 @@ fn gangzone_from_abi(raw: RakSampGangzoneV1) -> Result<Option<Gangzone>, RakSamp
     }
 }
 
+fn text_label_from_abi(raw: RakSampTextLabelV1) -> Result<Option<TextLabel>, RakSampResult> {
+    match raw.exists {
+        0 => {
+            if raw != RakSampTextLabelV1::default() {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(None)
+        }
+        1 if matches!(raw.behind_walls, 0 | 1)
+            && raw._reserved == [0; 2]
+            && raw._reserved2 == 0
+            && raw._reserved3 == [0; 2]
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite()
+            && raw.draw_distance.is_finite() =>
+        {
+            let text_len = usize::from(raw.text_len);
+            if text_len > raw.text.len() || raw.text[..text_len].contains(&0) {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(Some(TextLabel {
+                id: raw.id,
+                text: raw.text[..text_len].to_vec(),
+                colour: raw.colour,
+                position: raw.position,
+                draw_distance: raw.draw_distance,
+                behind_walls: raw.behind_walls != 0,
+                attached_player_id: (raw.attached_player_id != u16::MAX)
+                    .then_some(raw.attached_player_id),
+                attached_vehicle_id: (raw.attached_vehicle_id != u16::MAX)
+                    .then_some(raw.attached_vehicle_id),
+            }))
+        }
+        _ => Err(RakSampResult::NativeCallFailed),
+    }
+}
+
 unsafe extern "system" fn dispatch_callback(
     user_data: *mut c_void,
     raw: *mut RakSampEventV1,
@@ -2587,8 +2711,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, object_exists) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, text_label_info),
             mem::offset_of!(RakSampApiV1, gangzone_info) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, text_label_info) + function_size
         );
     }
 
@@ -2769,6 +2897,28 @@ mod tests {
         assert_eq!(api.gangzone(8), Ok(None));
         assert_eq!(
             api.gangzone(MAX_SAMP_GANGZONES),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(
+            api.text_label(7),
+            Ok(Some(TextLabel {
+                id: 7,
+                text: b"fixture".to_vec(),
+                colour: 0xFF11_2233,
+                position: Vector3 {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+                draw_distance: 25.0,
+                behind_walls: true,
+                attached_player_id: Some(8),
+                attached_vehicle_id: None,
+            }))
+        );
+        assert_eq!(api.text_label(8), Ok(None));
+        assert_eq!(
+            api.text_label(MAX_SAMP_TEXT_LABELS),
             Err(RakSampResult::InvalidArgument)
         );
         assert_eq!(

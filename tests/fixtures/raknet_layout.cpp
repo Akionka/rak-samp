@@ -262,6 +262,13 @@ static_assert(offsetof(FixtureR1NetGamePools, text_draw) == 0x10);
 static_assert(offsetof(FixtureR1NetGamePools, object) == 0x04);
 static_assert(offsetof(FixtureR1NetGamePools, gang_zone) == 0x08);
 static_assert(sizeof(FixtureR1TextLabel) == 29);
+static_assert(offsetof(FixtureR1TextLabel, text) == 0x00);
+static_assert(offsetof(FixtureR1TextLabel, colour) == 0x04);
+static_assert(offsetof(FixtureR1TextLabel, position) == 0x08);
+static_assert(offsetof(FixtureR1TextLabel, draw_distance) == 0x14);
+static_assert(offsetof(FixtureR1TextLabel, behind_walls) == 0x18);
+static_assert(offsetof(FixtureR1TextLabel, attached_player) == 0x19);
+static_assert(offsetof(FixtureR1TextLabel, attached_vehicle) == 0x1B);
 static_assert(offsetof(FixtureR1LabelPoolExistsPrefix, not_empty) == 0xE800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty) == 0);
 static_assert(sizeof(FixtureR1TextDrawPoolExistsPrefix) == 0x4800);
@@ -433,6 +440,38 @@ std::size_t rak_samp_fixture_r1_net_game_pools_gang_zone_offset() {
 
 std::size_t rak_samp_fixture_r1_label_pool_not_empty_offset() {
     return offsetof(FixtureR1LabelPoolExistsPrefix, not_empty);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_size() {
+    return sizeof(FixtureR1TextLabel);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_text_offset() {
+    return offsetof(FixtureR1TextLabel, text);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_colour_offset() {
+    return offsetof(FixtureR1TextLabel, colour);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_position_offset() {
+    return offsetof(FixtureR1TextLabel, position);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_draw_distance_offset() {
+    return offsetof(FixtureR1TextLabel, draw_distance);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_behind_walls_offset() {
+    return offsetof(FixtureR1TextLabel, behind_walls);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_attached_player_offset() {
+    return offsetof(FixtureR1TextLabel, attached_player);
+}
+
+std::size_t rak_samp_fixture_r1_text_label_attached_vehicle_offset() {
+    return offsetof(FixtureR1TextLabel, attached_vehicle);
 }
 
 std::size_t rak_samp_fixture_r1_textdraw_pool_not_empty_offset() {
