@@ -5,8 +5,8 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
     LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
-    LocalDeathMessage, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampHookAction,
-    Subscription, raknet::BitStream, wait_for_default_host,
+    LocalDeathMessage, LocalDialog, LocalDialogStyle, PlayerInfo, RakSampDirection,
+    RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -39,6 +39,7 @@ static LOCAL_SCOREBOARD_OPEN: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_DIALOG_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_CHAT_INPUT_ACTIVE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_ANIMATION_ID: AtomicI32 = AtomicI32::new(i32::MIN);
+static PLAYER_INFO_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -128,6 +129,21 @@ fn initialize() {
         && api.local_animation_id(b"AIRPORT", b"THRW_BARL_THRW") == Ok(Some(0))
     {
         LOCAL_ANIMATION_ID.store(0, Ordering::Release);
+    }
+    if api.player_info(7)
+        == Ok(Some(PlayerInfo {
+            id: 7,
+            nickname: b"bot".to_vec(),
+            is_local: false,
+            is_npc: true,
+            colour: 0xFF44_5566,
+            score: 12,
+            ping: 34,
+        }))
+        && api.is_player_connected(7) == Ok(true)
+        && api.is_player_connected(8) == Ok(false)
+    {
+        PLAYER_INFO_ID.store(7, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -234,6 +250,11 @@ pub extern "system" fn RakSampE2ePlugin_LocalChatInputActive() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalAnimationId() -> i32 {
     LOCAL_ANIMATION_ID.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_PlayerInfoId() -> i32 {
+    PLAYER_INFO_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

@@ -11,7 +11,7 @@ use crate::{
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
-        PacketPriority, PacketReliability, ServerInfoSnapshot,
+        PacketPriority, PacketReliability, PlayerInfoSnapshot, ServerInfoSnapshot,
     },
 };
 use minhook::MinHook;
@@ -44,6 +44,9 @@ const LOCAL_CHAT_QUEUE_CAPACITY: usize = 32;
 const LOCAL_CHAT_MESSAGES_PER_PUMP: usize = 4;
 const LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY: usize = 32;
 const LOCAL_DEATH_MESSAGES_PER_PUMP: usize = 4;
+const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
+const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
+const MAX_SAMP_PLAYERS: usize = 1004;
 const R1_INIT_GAME_RPC_ID: u8 = 139;
 const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
 
@@ -107,6 +110,8 @@ struct BackendState {
     local_death_messages: Mutex<VecDeque<LocalDeathMessageRequest>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
+    player_info_cache: Mutex<Vec<PlayerInfoCacheEntry>>,
+    player_info_requests: Mutex<VecDeque<u16>>,
     server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
     assigned_local_player_id: AtomicU16,
     samp_game_state: AtomicI32,
@@ -123,6 +128,12 @@ struct BackendState {
     local_chat_input_active_ready: AtomicBool,
     animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
     hooks: Mutex<HookStorage>,
+}
+
+#[derive(Clone)]
+enum PlayerInfoCacheEntry {
+    Unknown,
+    Known(Option<PlayerInfoSnapshot>),
 }
 
 #[derive(Default)]
@@ -181,6 +192,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         )),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
+        player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        player_info_requests: Mutex::new(VecDeque::with_capacity(
+            PLAYER_INFO_REQUEST_QUEUE_CAPACITY,
+        )),
         server_info_snapshot: Mutex::new(None),
         assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         samp_game_state: AtomicI32::new(0),
@@ -287,6 +302,13 @@ impl Backend {
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.state.local_player()
+    }
+
+    pub(crate) fn player_info(
+        &self,
+        id: u16,
+    ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+        self.state.player_info(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -709,6 +731,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_player_info_request(&self, id: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .player_info_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == PLAYER_INFO_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
     fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -721,6 +758,50 @@ impl BackendState {
             .map_err(|_| DirectClientError::NotReady)?
             .clone()
             .ok_or(DirectClientError::NotReady)
+    }
+
+    fn player_info(&self, id: u16) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        if usize::from(id) >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+
+        if let Some(local) = self
+            .local_player_snapshot
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .as_ref()
+            .filter(|player| player.id == id)
+            .map(player_info_from_local)
+        {
+            return Ok(Some(local));
+        }
+
+        let cached = self
+            .player_info_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(usize::from(id))
+            .cloned()
+            .ok_or(DirectClientError::NotReady)?;
+        match cached {
+            PlayerInfoCacheEntry::Known(snapshot) => {
+                // The cached result is immediately usable, including a recent
+                // disconnected result. Queue an opportunistic refresh without
+                // making the nonblocking read fail if that queue is busy.
+                let _ = self.queue_player_info_request(id);
+                Ok(snapshot)
+            }
+            PlayerInfoCacheEntry::Unknown => {
+                self.queue_player_info_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
     }
 
     fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -848,6 +929,7 @@ impl BackendState {
         self.refresh_animation_catalog(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
+        self.refresh_player_info(profile);
         if profile.dialog_is_ready() {
             let dialogs = self.take_local_dialogs();
             for dialog in dialogs {
@@ -915,6 +997,16 @@ impl BackendState {
             .unwrap_or_default()
     }
 
+    fn take_player_info_requests(&self) -> Vec<u16> {
+        self.player_info_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(PLAYER_INFO_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn cache_local_player_snapshot(&self, snapshot: Option<LocalPlayerSnapshot>) {
         let Ok(mut candidate) = self.local_player_candidate.try_lock() else {
             return;
@@ -949,6 +1041,12 @@ impl BackendState {
         }
     }
 
+    fn clear_player_info_cache(&self) {
+        if let Ok(mut cache) = self.player_info_cache.try_lock() {
+            cache.fill(PlayerInfoCacheEntry::Unknown);
+        }
+    }
+
     fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
         let assigned_id = self.assigned_local_player_id.load(Ordering::Acquire);
         if assigned_id == UNASSIGNED_LOCAL_PLAYER_ID {
@@ -959,6 +1057,20 @@ impl BackendState {
             profile.local_player().ok(),
             assigned_id,
         ));
+    }
+
+    fn refresh_player_info(&self, profile: R1ClientProfile) {
+        for id in self.take_player_info_requests() {
+            let Ok(snapshot) = profile.player_info(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.player_info_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = PlayerInfoCacheEntry::Known(snapshot);
+            }
+        }
     }
 
     fn refresh_server_info_snapshot(&self, profile: R1ClientProfile) {
@@ -1066,6 +1178,7 @@ impl BackendState {
             && let Some(player_id) = player_id
         {
             self.cache_local_player_snapshot(None);
+            self.clear_player_info_cache();
             self.assigned_local_player_id
                 .store(player_id, Ordering::Release);
         }
@@ -1120,6 +1233,10 @@ impl BackendState {
         if let Ok(mut candidate) = self.local_player_candidate.try_lock() {
             *candidate = None;
         }
+        self.clear_player_info_cache();
+        if let Ok(mut requests) = self.player_info_requests.try_lock() {
+            requests.clear();
+        }
         if let Ok(mut snapshot) = self.server_info_snapshot.try_lock() {
             *snapshot = None;
         }
@@ -1149,6 +1266,18 @@ fn assigned_snapshot(
         .then_some(snapshot)
         .flatten()
         .filter(|snapshot| snapshot.id == assigned_id)
+}
+
+fn player_info_from_local(player: &LocalPlayerSnapshot) -> PlayerInfoSnapshot {
+    PlayerInfoSnapshot {
+        id: player.id,
+        nickname: player.nickname.clone(),
+        is_local: true,
+        is_npc: false,
+        colour: player.colour,
+        score: player.score,
+        ping: player.ping,
+    }
 }
 
 fn cached_direct_client_value<T>(
@@ -1489,6 +1618,8 @@ mod vtable_tests {
             local_death_messages: Mutex::new(VecDeque::new()),
             local_player_snapshot: Mutex::new(None),
             local_player_candidate: Mutex::new(None),
+            player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+            player_info_requests: Mutex::new(VecDeque::new()),
             server_info_snapshot: Mutex::new(None),
             assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             samp_game_state: AtomicI32::new(0),
@@ -1574,6 +1705,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.local_player(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.player_info(7),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
@@ -1699,6 +1834,36 @@ mod vtable_tests {
         let drained = state.take_local_death_messages();
         assert_eq!(drained.len(), LOCAL_DEATH_MESSAGES_PER_PUMP);
         assert_eq!(state.local_death_messages.lock().unwrap().len(), 28);
+    }
+
+    #[test]
+    fn player_directory_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_player_info_request(7).unwrap();
+        state.queue_player_info_request(7).unwrap();
+        assert_eq!(state.player_info_requests.lock().unwrap().len(), 1);
+        for id in 8..(7 + PLAYER_INFO_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_player_info_request(id).unwrap();
+        }
+        assert_eq!(
+            state.queue_player_info_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_player_info_requests();
+        assert_eq!(drained, vec![7, 8, 9, 10]);
+        assert_eq!(
+            state.player_info_requests.lock().unwrap().len(),
+            PLAYER_INFO_REQUEST_QUEUE_CAPACITY - PLAYER_INFO_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
+    fn player_directory_reuses_the_owned_local_snapshot() {
+        let player = player_info_from_local(&test_snapshot(42));
+        assert_eq!(player.id, 42);
+        assert_eq!(player.nickname, b"fixture");
+        assert!(player.is_local);
+        assert!(!player.is_npc);
     }
 
     #[test]

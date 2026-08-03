@@ -44,8 +44,25 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `HostApi::local_animation_id` are fail-closed behind the exact R1 table
   fingerprint. A legal R1 lifecycle run must record the validator's known
   entry/round-trip lookup, no generated traffic, and normal shutdown.
+- **Cached R1 player-directory live gate:** `HostApi::player_info` keeps only
+  host-owned ID, nickname bytes, local/NPC flags, ARGB colour, score, and ping.
+  A remote lookup is demand-refreshed on the game-thread pump through exact
+  `CPlayerPool` accessors, never via a plugin-thread client call. A legal R1
+  run with a second player must show initial nonblocking `NotReady`, a copied
+  entry, disconnected refresh to `None`, no generated traffic, and stable
+  shutdown before release.
 
 ## Windows x86 evidence
+
+- **R1 player-directory accessor targets:** the installed SA-MP 0.3.7 R1
+  `samp.dll` audit confirms `CNetGame::GetPlayerPool` at RVA `0x1160`,
+  `CPlayerPool::{IsConnected,GetPlayer,IsNPC,GetName,GetScore,GetPing}` at
+  `0x10B0`, `0x10F0`, `0xB680`, `0x13CE0`, `0x6A190`, and `0x6A1C0`, and
+  `CRemotePlayer::GetColorAsARGB` at `0x12A00`. Their exact leading code bytes
+  are pinned in the R1 profile and unit-tested; the SAMP API R1 reference is a
+  lead, not authority. These are accessor calls only—this batch introduces no
+  native field layout, so no new C++ layout fixture is claimed. The profile
+  still requires the existing strict SA-MP and GTA SA 1.0 US fingerprints.
 
 - **RakNet packet layout:** `RawPacket` and its embedded `PacketPlayerId` use
   packed offsets. The by-value incoming-RPC `RpcPlayerId` is a distinct aligned

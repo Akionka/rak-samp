@@ -61,7 +61,9 @@ it fresh from the verified player pool. The same entry caches R1's opaque
 three-value local chat display mode, five-value local cursor mode, and
 scoreboard-open, dialog-active, and chat-input-active flags, none of which
 drives snapshot readiness. It also makes one owned copy of the fingerprinted
-R1 animation table. It releases the dialog, chat, and death-window
+R1 animation table. Demand-refreshed remote player-directory reads are drained
+from a separate bounded queue (at most four R1 accessor sequences per pump)
+and copied into a host-owned cache. It releases the dialog, chat, and death-window
 queue locks, then calls `CDialog::Show`, `CChat::AddEntry`, and
 `CDeathWindow::AddMessage` for no more than four copied requests from each
 queue. It clears the cache
@@ -71,7 +73,9 @@ packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference
 direct-client layouts and report `UnsupportedVersion` through the ABI.
 The plugin API's local-player convenience queries, including score and ping,
 are projections of this one host-owned cache; they do not create additional
-native reads.
+native reads. `HostApi::player_info` is the separate bounded directory cache:
+local IDs project that snapshot, remote IDs are demand-refreshed, and no native
+player/ped/pool/GTA handle reaches a plugin.
 
 ## Native and ABI boundaries
 

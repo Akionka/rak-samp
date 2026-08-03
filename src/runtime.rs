@@ -92,6 +92,19 @@ pub(crate) struct LocalPlayerSnapshot {
     pub(crate) ping: u32,
 }
 
+/// Host-owned directory data copied for either the local or one remote R1
+/// player. It deliberately omits every native and GTA pointer.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct PlayerInfoSnapshot {
+    pub(crate) id: u16,
+    pub(crate) nickname: Vec<u8>,
+    pub(crate) is_local: bool,
+    pub(crate) is_npc: bool,
+    pub(crate) colour: u32,
+    pub(crate) score: i32,
+    pub(crate) ping: u32,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalChatMessageStyle {
     Chat,
@@ -398,6 +411,13 @@ impl Runtime {
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.backend.local_player()
+    }
+
+    pub(crate) fn player_info(
+        &self,
+        id: u16,
+    ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+        self.backend.player_info(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {

@@ -8,8 +8,8 @@ use crate::{
 };
 use rak_samp_plugin_api::{
     HostApi, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
-    LocalDeathMessage, LocalDialog, LocalDialogStyle, LocalPlayer, RakSampHookAction,
-    RakSampResult, RakSampSendOptions,
+    LocalDeathMessage, LocalDialog, LocalDialogStyle, LocalPlayer, MAX_SAMP_PLAYERS,
+    RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -21,6 +21,8 @@ const SEND_TEST_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 const DIRECT_SNAPSHOT_STATE_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const SEND_TEST_MARKER: &str = "rak-samp-validation-send.enabled";
 pub(crate) const DIRECT_CLIENT_TEST_MARKER: &str = "rak-samp-validation-direct-client.enabled";
+pub(crate) const PLAYER_DIRECTORY_TEST_MARKER: &str =
+    "rak-samp-validation-player-directory.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 pub(crate) const TEST_PACKET_ID: u8 = 254;
 pub(crate) const TEST_RPC_ID: u8 = 255;
@@ -326,8 +328,68 @@ pub(crate) fn run(api: HostApi) {
         self_test_label(SELF_TESTS.dialog.load(Ordering::Acquire)),
     ));
     run_direct_client(api);
+    run_player_directory(api);
     run_send(api);
     schedule_shutdown();
+}
+
+fn run_player_directory(api: HostApi) {
+    if !logging::plugin_path(PLAYER_DIRECTORY_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .player_directory
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "player-directory self-test disabled; opt in with rak-samp-validation-player-directory.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut id = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.player_info(id) {
+            Ok(Some(player)) if !player.is_local && !player.nickname.is_empty() => {
+                if api.is_player_connected(id) == Ok(true)
+                    && api.player_nickname(id) == Ok(Some(player.nickname))
+                    && api.is_player_npc(id) == Ok(Some(player.is_npc))
+                    && api.player_colour(id) == Ok(Some(player.colour))
+                    && api.player_score(id) == Ok(Some(player.score))
+                    && api.player_ping(id) == Ok(Some(player.ping))
+                {
+                    SELF_TESTS
+                        .player_directory
+                        .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                    logging::write(&format!(
+                        "player-directory self-test passed: player_id={id}"
+                    ));
+                    return;
+                }
+                SELF_TESTS
+                    .player_directory
+                    .store(SelfTestStatus::Failed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "player-directory self-test failed: player_id={id}"
+                ));
+                return;
+            }
+            Ok(Some(_)) | Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .player_directory
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "player-directory self-test returned {error:?}: player_id={id}"
+                ));
+                return;
+            }
+        }
+        id = (id + 1) % MAX_SAMP_PLAYERS;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .player_directory
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("player-directory self-test timed out without a remote player");
 }
 
 fn run_direct_client(api: HostApi) {
@@ -577,11 +639,36 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+                match api.player_info(snapshot.id) {
+                    Ok(Some(player))
+                        if player.is_local
+                            && !player.is_npc
+                            && player.nickname == snapshot.nickname
+                            && player.colour == snapshot.colour
+                            && player.score == snapshot.score
+                            && player.ping == snapshot.ping => {}
+                    Ok(_) | Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test player-directory returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok animation_table=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok chat_display_mode=Ok cursor_mode=Ok scoreboard_state=Ok dialog_state=Ok chat_input_state=Ok animation_table=Ok player_directory=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

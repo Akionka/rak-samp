@@ -705,6 +705,51 @@ unsafe extern "system" fn test_local_animation_id(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_player_info(
+    id: u16,
+    output: *mut crate::RakSampPlayerInfoV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    match id {
+        42 => {
+            let mut nickname = [0; 256];
+            nickname[..7].copy_from_slice(b"fixture");
+            *output = crate::RakSampPlayerInfoV1 {
+                exists: 1,
+                is_local: 1,
+                is_npc: 0,
+                _reserved: 0,
+                id,
+                nickname_len: 7,
+                nickname,
+                colour: 0xFF00_00FF,
+                score: 123,
+                ping: 45,
+            };
+        }
+        7 => {
+            let mut nickname = [0; 256];
+            nickname[..6].copy_from_slice(b"remote");
+            *output = crate::RakSampPlayerInfoV1 {
+                exists: 1,
+                is_local: 0,
+                is_npc: 1,
+                _reserved: 0,
+                id,
+                nickname_len: 6,
+                nickname,
+                colour: 0xFF22_4466,
+                score: -10,
+                ping: 55,
+            };
+        }
+        _ => *output = crate::RakSampPlayerInfoV1::default(),
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -806,6 +851,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     local_chat_input_active: test_local_chat_input_active,
     local_animation: test_local_animation,
     local_animation_id: test_local_animation_id,
+    player_info: test_player_info,
 };
 
 pub(crate) fn test_api() -> HostApi {

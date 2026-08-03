@@ -26,6 +26,8 @@ pub const DEFAULT_HOST_MODULE: &[u8] = b"rak_samp.asi\0";
 /// The extra byte used by the host's native decoder is reserved for its NUL
 /// terminator and is not included in this limit.
 pub const MAX_RAKNET_DECODED_STRING_BYTES: usize = 4_095;
+/// Number of addressable SA-MP player IDs in the R1 player pool.
+pub const MAX_SAMP_PLAYERS: u16 = 1_004;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -238,6 +240,23 @@ pub struct LocalPlayer {
     pub ping: u32,
 }
 
+/// An owned player-directory entry copied from the verified R1 game thread.
+///
+/// [`HostApi::player_info`] returns a local entry immediately once the local
+/// snapshot exists. Remote IDs are demand-refreshed through the host's
+/// game-thread pump, so the first query can return [`RakSampResult::NotReady`]
+/// while the copy is pending. No client, ped, or GTA handle crosses this API.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PlayerInfo {
+    pub id: u16,
+    pub nickname: Vec<u8>,
+    pub is_local: bool,
+    pub is_npc: bool,
+    pub colour: u32,
+    pub score: i32,
+    pub ping: u32,
+}
+
 /// An owned, read-only current-server snapshot.
 ///
 /// The address and hostname remain bytes because SA-MP does not guarantee a
@@ -302,6 +321,43 @@ impl Default for RakSampLocalPlayerV1 {
             has_vehicle: 0,
             _reserved: 0,
             vehicle_id: 0,
+            score: 0,
+            ping: 0,
+        }
+    }
+}
+
+/// C-compatible storage for an owned [`PlayerInfo`] result.
+///
+/// `exists` is zero for a cached disconnected ID and one for a copied entry.
+/// The host always initializes the whole structure; `nickname_len` selects the
+/// initialized prefix of `nickname` when `exists` is one.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RakSampPlayerInfoV1 {
+    pub exists: u8,
+    pub is_local: u8,
+    pub is_npc: u8,
+    pub _reserved: u8,
+    pub id: u16,
+    pub nickname_len: u16,
+    pub nickname: [u8; 256],
+    pub colour: u32,
+    pub score: i32,
+    pub ping: u32,
+}
+
+impl Default for RakSampPlayerInfoV1 {
+    fn default() -> Self {
+        Self {
+            exists: 0,
+            is_local: 0,
+            is_npc: 0,
+            _reserved: 0,
+            id: 0,
+            nickname_len: 0,
+            nickname: [0; 256],
+            colour: 0,
             score: 0,
             ping: 0,
         }
@@ -601,6 +657,8 @@ pub struct RakSampApiV1 {
     /// Finds an R1 animation-table entry by copied name and file bytes.
     pub local_animation_id:
         unsafe extern "system" fn(*const u8, usize, *const u8, usize, *mut i32) -> RakSampResult,
+    /// Copies a cached local or demand-refreshed remote R1 player directory entry.
+    pub player_info: unsafe extern "system" fn(u16, *mut RakSampPlayerInfoV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1677,6 +1735,58 @@ impl HostApi {
         }
     }
 
+    /// Returns an owned player-directory entry for `id`.
+    ///
+    /// A result of `Ok(None)` means the host's latest completed R1 query found
+    /// the ID disconnected. The first remote query returns `NotReady` while it
+    /// waits for the verified game-thread pump; retry it from normal plugin
+    /// work rather than blocking a callback.
+    pub fn player_info(self, id: u16) -> Result<Option<PlayerInfo>, RakSampResult> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut raw = RakSampPlayerInfoV1::default();
+        match unsafe { (self.raw.player_info)(id, &mut raw) } {
+            RakSampResult::Ok => player_info_from_abi(raw),
+            result => Err(result),
+        }
+    }
+
+    /// Returns whether the latest cached player-directory result has `id` connected.
+    pub fn is_player_connected(self, id: u16) -> Result<bool, RakSampResult> {
+        self.player_info(id).map(|player| player.is_some())
+    }
+
+    /// Returns copied player nickname bytes without assuming a text encoding.
+    pub fn player_nickname(self, id: u16) -> Result<Option<Vec<u8>>, RakSampResult> {
+        self.player_info(id)
+            .map(|player| player.map(|player| player.nickname))
+    }
+
+    /// Returns the cached player NPC state when the ID is connected.
+    pub fn is_player_npc(self, id: u16) -> Result<Option<bool>, RakSampResult> {
+        self.player_info(id)
+            .map(|player| player.map(|player| player.is_npc))
+    }
+
+    /// Returns the cached player ARGB colour when the ID is connected.
+    pub fn player_colour(self, id: u16) -> Result<Option<u32>, RakSampResult> {
+        self.player_info(id)
+            .map(|player| player.map(|player| player.colour))
+    }
+
+    /// Returns the cached player score when the ID is connected.
+    pub fn player_score(self, id: u16) -> Result<Option<i32>, RakSampResult> {
+        self.player_info(id)
+            .map(|player| player.map(|player| player.score))
+    }
+
+    /// Returns the cached player ping in milliseconds when the ID is connected.
+    pub fn player_ping(self, id: u16) -> Result<Option<u32>, RakSampResult> {
+        self.player_info(id)
+            .map(|player| player.map(|player| player.ping))
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1872,6 +1982,39 @@ fn local_animation_from_abi(raw: RakSampAnimationV1) -> Option<LocalAnimation> {
         name: raw.name[..name_len].to_vec(),
         file: raw.file[..file_len].to_vec(),
     })
+}
+
+fn player_info_from_abi(raw: RakSampPlayerInfoV1) -> Result<Option<PlayerInfo>, RakSampResult> {
+    match raw.exists {
+        0 => {
+            if raw != RakSampPlayerInfoV1::default() {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(None)
+        }
+        1 => {
+            let nickname_len = usize::from(raw.nickname_len);
+            if nickname_len == 0
+                || nickname_len > raw.nickname.len()
+                || !matches!(raw.is_local, 0 | 1)
+                || !matches!(raw.is_npc, 0 | 1)
+                || raw._reserved != 0
+                || (raw.is_local != 0 && raw.is_npc != 0)
+            {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(Some(PlayerInfo {
+                id: raw.id,
+                nickname: raw.nickname[..nickname_len].to_vec(),
+                is_local: raw.is_local != 0,
+                is_npc: raw.is_npc != 0,
+                colour: raw.colour,
+                score: raw.score,
+                ping: raw.ping,
+            }))
+        }
+        _ => Err(RakSampResult::NativeCallFailed),
+    }
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -2098,8 +2241,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, local_animation) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_info),
             mem::offset_of!(RakSampApiV1, local_animation_id) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_info) + function_size
         );
     }
 
@@ -2212,6 +2359,35 @@ mod tests {
                 y: 2.0,
                 z: 3.0
             }
+        );
+    }
+
+    #[test]
+    fn player_directory_entry_is_owned_and_handles_a_cached_disconnect() {
+        let api = test_support::test_api();
+        assert_eq!(
+            api.player_info(7),
+            Ok(Some(PlayerInfo {
+                id: 7,
+                nickname: b"remote".to_vec(),
+                is_local: false,
+                is_npc: true,
+                colour: 0xFF22_4466,
+                score: -10,
+                ping: 55,
+            }))
+        );
+        assert_eq!(api.is_player_connected(7), Ok(true));
+        assert_eq!(api.player_nickname(7), Ok(Some(b"remote".to_vec())));
+        assert_eq!(api.is_player_npc(7), Ok(Some(true)));
+        assert_eq!(api.player_colour(7), Ok(Some(0xFF22_4466)));
+        assert_eq!(api.player_score(7), Ok(Some(-10)));
+        assert_eq!(api.player_ping(7), Ok(Some(55)));
+        assert_eq!(api.player_info(8), Ok(None));
+        assert_eq!(api.is_player_connected(8), Ok(false));
+        assert_eq!(
+            api.player_info(MAX_SAMP_PLAYERS),
+            Err(RakSampResult::InvalidArgument)
         );
     }
 

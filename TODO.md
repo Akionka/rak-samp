@@ -44,14 +44,15 @@ unavailable. A completed static batch stays `[~]` until its matching item in
 the live-evidence section is recorded; it must not be promoted to `[x]` from
 fixtures, disassembly, or the E2E mock alone.
 
-1. [ ] Build a bounded, demand-refreshed R1 remote-player directory from
-   verified `CPlayerPool` accessors. It may expose only copied ID, connection,
-   nickname bytes, NPC flag, score, ping, and ARGB colour. Requests must be
-   queued to the existing game-thread pump, return `NotReady` until the first
-   copy, refresh cached requested IDs incrementally, and never expose a ped,
-   pool, or player pointer. Before code: audit each R1 target/signature,
-   document the accessor-only design in `REVIEW.md`, and add fixture/mock/E2E
-   and a validator scenario with a second connected player.
+1. [~] Build a bounded, demand-refreshed R1 remote-player directory from
+   verified `CPlayerPool` accessors. The static implementation exposes only
+   copied ID, connection, nickname bytes, NPC flag, score, ping, and ARGB
+   colour through `HostApi::player_info` and projections. Requests are queued
+   to the game-thread pump, return `NotReady` until the first copy, refresh
+   cached requested IDs incrementally, and never expose a ped, pool, or player
+   pointer. Exact R1 code signatures, unit/mock/E2E coverage, and an opt-in
+   second-player validator are present; retain `[~]` until its R1 lifecycle,
+   cache-refresh, disconnect, and shutdown evidence is recorded.
 2. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
    Do not begin either until the exact R1 string-buffer ownership, sizes,
    active-state interaction, and update lifecycle are independently proven.
@@ -105,6 +106,12 @@ fixtures, disassembly, or the E2E mock alone.
   `AIRPORT:THRW_BARL_THRW` and resolves those byte strings back to zero. It is
   an automatic static-table check, but must still be recorded with the normal
   R1 lifecycle and shutdown evidence.
+- [ ] With a second player connected, enable the player-directory marker and
+  confirm the validator records only `player-directory self-test passed` and
+  that remote player ID. Verify the first read is nonblocking/possibly
+  `NotReady`, a later cached result has the observed connected nickname/NPC,
+  colour, score, and ping values, a disconnected result becomes `None` after
+  refresh, it generates no packet/RPC traffic, and shutdown is stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -279,10 +286,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampSetLocalPlayerName`, `sampForceUnoccupiedSyncSeatId`,
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
   `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
-  force-sync APIs; excluded. `sampIsPlayerConnected`, `sampGetPlayerNickname`,
-  `sampIsPlayerNpc`, remote forms of `sampGetPlayerScore`, `sampGetPlayerPing`,
-  and `sampGetPlayerColor` are the accessor-only remote directory in
-  static-first step 1. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
+  force-sync APIs; excluded. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
   `sampIsPlayerPaused`, `sampGetPlayerCount`, `sampGetMaxPlayerId`,
   `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
   own remote-player layout or accessor evidence and a copied snapshot in
@@ -290,15 +294,23 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
   `sampStorePlayerAimData` may only become owned typed sync copies after exact
   source-field/layout proof; they must never write to a plugin-supplied pointer.
+- [~] `sampIsPlayerConnected`, `sampGetPlayerNickname`, `sampIsPlayerNpc`,
+  remote forms of `sampGetPlayerScore`, `sampGetPlayerPing`, and
+  `sampGetPlayerColor` — `HostApi::player_info` plus its projections use a
+  bounded, demand-refreshed R1 accessor-only directory. The local-ID path is
+  derived from the existing local snapshot. Keep provisional until a second
+  connected player, refresh/disconnect transition, no-traffic result, and
+  shutdown are recorded by the opt-in validator.
 - [x] `sampGetLocalPlayerId`, `sampGetLocalPlayerNickname`,
   `sampGetLocalPlayerColor`, `sampIsLocalPlayerSpawned`,
   `sampGetPlayerArmor`, `sampGetPlayerHealth`, `sampGetPlayerSpecialAction`,
   `sampGetPlayerAnimationId` — explicit safe local-player query methods reuse
   the single cached `HostApi::local_player` snapshot; remote-player calls
   remain pending.
-- [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::local_player_score`
-  and `HostApi::local_player_ping` cover the local player; player-ID based
-  remote queries remain pending.
+- [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::player_score` and
+  `HostApi::player_ping` cover cached local and demand-refreshed remote IDs;
+  the existing `local_player_*` projections remain available. Keep provisional
+  with the player-directory live gate.
 - [~] `sampRequestClass`, `sampSendInteriorChange`, `sampSendSpawn`,
   `sampSendEnterVehicle`, `sampSendExitVehicle` — the corresponding
   `HostApi::send_*` methods serialize the exact R1 outbound RPCs, but remain
@@ -306,10 +318,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
   server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
   the original RakClient send path.
-- [ ] `sampIsPlayerDefined` can be derived from the future remote directory
-  after an R1 game-thread copy has observed a remote player object; do not
-  equate it with an arbitrary connected ID. `sampSetPlayerColor` mutates a
-  remote client entity and is excluded.
+- [~] `sampIsPlayerDefined` is represented by a non-local `Some` from the
+  cached player directory after the R1 game-thread copy observes a remote
+  object; do not equate it with an arbitrary connected ID. Keep provisional
+  with the directory live gate. `sampSetPlayerColor` mutates a remote client
+  entity and is excluded.
 
 ### RakNet and network actions (`raknet.lua`)
 

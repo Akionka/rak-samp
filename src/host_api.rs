@@ -4,14 +4,16 @@ use crate::{
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
-        LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot, ServerInfoSnapshot,
+        LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot, PlayerInfoSnapshot,
+        ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, RakSampAnimationV1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1,
-    RakSampEventV1, RakSampHookAction, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult,
-    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
+    ABI_VERSION_V1, MAX_SAMP_PLAYERS, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
+    RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction, RakSampHostStatus,
+    RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions,
+    RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -153,6 +155,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     local_chat_input_active,
     local_animation,
     local_animation_id,
+    player_info,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -906,6 +909,32 @@ unsafe extern "system" fn local_animation_id(
     }
 }
 
+unsafe extern "system" fn player_info(id: u16, output: *mut RakSampPlayerInfoV1) -> RakSampResult {
+    if id >= MAX_SAMP_PLAYERS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.player_info(id) {
+        Ok(Some(snapshot)) => match player_info_to_abi(snapshot) {
+            Ok(snapshot) => {
+                *output = snapshot;
+                RakSampResult::Ok
+            }
+            Err(()) => RakSampResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            *output = RakSampPlayerInfoV1::default();
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1163,6 +1192,31 @@ fn local_player_to_abi(snapshot: LocalPlayerSnapshot) -> Result<RakSampLocalPlay
     })
 }
 
+fn player_info_to_abi(snapshot: PlayerInfoSnapshot) -> Result<RakSampPlayerInfoV1, ()> {
+    let nickname_len = u16::try_from(snapshot.nickname.len()).map_err(|_| ())?;
+    if snapshot.nickname.is_empty()
+        || snapshot.nickname.len() > 256
+        || snapshot.nickname.contains(&0)
+        || (snapshot.is_local && snapshot.is_npc)
+    {
+        return Err(());
+    }
+    let mut nickname = [0; 256];
+    nickname[..snapshot.nickname.len()].copy_from_slice(&snapshot.nickname);
+    Ok(RakSampPlayerInfoV1 {
+        exists: 1,
+        is_local: u8::from(snapshot.is_local),
+        is_npc: u8::from(snapshot.is_npc),
+        _reserved: 0,
+        id: snapshot.id,
+        nickname_len,
+        nickname,
+        colour: snapshot.colour,
+        score: snapshot.score,
+        ping: snapshot.ping,
+    })
+}
+
 fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV1, ()> {
     let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
     let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
@@ -1360,6 +1414,19 @@ mod tests {
                     &mut animation_id,
                 )
             },
+            RakSampResult::InvalidArgument
+        );
+        let mut player = RakSampPlayerInfoV1::default();
+        assert_eq!(
+            unsafe { player_info(7, &mut player) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { player_info(MAX_SAMP_PLAYERS, &mut player) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { player_info(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

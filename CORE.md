@@ -67,6 +67,17 @@ The local-player ID, nickname, colour, spawned, health, armour, special-action,
 animation, score, and ping convenience methods are projections of that same
 snapshot. They never add a native call or make remote-player data available.
 
+`HostApi::player_info` extends that boundary with an owned player-directory
+entry. Its local result is projected from the local snapshot; a remote ID is
+placed on a bounded 32-ID request queue and copied by at most four verified R1
+`CPlayerPool` accessor sequences per incoming-packet pump. The first remote
+read returns `NotReady`, a copied disconnected result is `Ok(None)`, and later
+reads opportunistically refresh the same ID. The output contains only ID,
+nickname bytes, local/NPC flags, ARGB colour, score, and ping—never a pool,
+player, ped, or GTA pointer. The R1 accessor targets are fingerprinted before
+profile enablement; this surface remains provisional pending its second-player
+live lifecycle test.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

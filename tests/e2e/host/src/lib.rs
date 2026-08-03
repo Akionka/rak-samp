@@ -5,8 +5,8 @@ compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampAnimationV1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1,
-    RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
-    RakSampServerInfoV1, RakSampSubscription, Vector3,
+    RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -426,6 +426,31 @@ unsafe extern "system" fn local_animation_id(
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn player_info(id: u16, output: *mut RakSampPlayerInfoV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if id != 7 {
+        *output = RakSampPlayerInfoV1::default();
+        return RakSampResult::Ok;
+    }
+    let mut nickname = [0; 256];
+    nickname[..3].copy_from_slice(b"bot");
+    *output = RakSampPlayerInfoV1 {
+        exists: 1,
+        is_local: 0,
+        is_npc: 1,
+        _reserved: 0,
+        id,
+        nickname_len: 3,
+        nickname,
+        colour: 0xFF44_5566,
+        score: 12,
+        ping: 34,
+    };
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -587,4 +612,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     local_chat_input_active,
     local_animation,
     local_animation_id,
+    player_info,
 };

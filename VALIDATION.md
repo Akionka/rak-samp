@@ -43,6 +43,7 @@ starting GTA and remove them afterwards.
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
 | Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, and known animation-table results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
@@ -59,6 +60,14 @@ death-window entry, and cached UI reads must add no RPC 61 observation and no
 outgoing RPC 61 or 62. (The standard validator intentionally emulates one
 incoming RPC 61 before this direct check.)
 A release requires this scenario to remain stable through normal shutdown.
+
+For the player-directory check, connect a second player before launching the
+validator, create the player-directory marker, and let both clients remain
+connected for up to two minutes. Confirm `player-directory self-test passed`
+with only a player ID in the log; then have that player disconnect and issue a
+fresh directory read during a follow-up run to confirm it becomes `None` after
+refresh. The first remote read may be `NotReady`; it must never block a plugin
+thread or generate packet/RPC traffic. Exit normally and remove the marker.
 
 For the separate runtime-unload check, close GTA and run:
 
