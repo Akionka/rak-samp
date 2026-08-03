@@ -486,6 +486,14 @@ unsafe extern "system" fn test_samp_game_state(output: *mut i32) -> RakSampResul
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = crate::RakSampClientVersion::R1 as u32;
+    RakSampResult::Ok
+}
+
 static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     abi_version: crate::ABI_VERSION_V1,
     size: mem::size_of::<crate::RakSampApiV1>() as u32,
@@ -520,6 +528,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     show_local_dialog: test_show_local_dialog,
     local_player: test_local_player,
     samp_game_state: test_samp_game_state,
+    samp_version: test_samp_version,
 };
 
 pub(crate) fn test_api() -> HostApi {

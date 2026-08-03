@@ -22,6 +22,7 @@ type PluginCallbackCount = unsafe extern "system" fn() -> u32;
 type PluginDialogResult = unsafe extern "system" fn() -> u32;
 type PluginLocalPlayerId = unsafe extern "system" fn() -> u32;
 type PluginSampGameState = unsafe extern "system" fn() -> i32;
+type PluginSampVersion = unsafe extern "system" fn() -> u32;
 type PluginShutdown = unsafe extern "system" fn() -> i32;
 
 struct LoadedModule(HMODULE);
@@ -102,6 +103,8 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_LocalPlayerId")?) };
     let samp_game_state: PluginSampGameState =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampGameState")?) };
+    let samp_version: PluginSampVersion =
+        unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_SampVersion")?) };
     let shutdown: PluginShutdown =
         unsafe { mem::transmute(plugin.export(c"RakSampE2ePlugin_Shutdown")?) };
 
@@ -114,6 +117,9 @@ fn run(artifact_dir: &Path, fixture_dir: &Path) -> Result<(), String> {
     }
     if unsafe { samp_game_state() } != 14 {
         return Err("plugin did not read the mock cached SA-MP game state".to_owned());
+    }
+    if unsafe { samp_version() } != 1 {
+        return Err("plugin did not convert the mock SA-MP version".to_owned());
     }
     if unsafe { listener_count() } != 1 {
         return Err("plugin did not register exactly one incoming RPC listener".to_owned());

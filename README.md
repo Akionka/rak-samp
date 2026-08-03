@@ -54,6 +54,10 @@ thread and returns `NotReady` before its first publication. The numeric state
 is intentionally not mapped to a public enum because that enum is not a stable
 SA-MP ABI.
 
+For every recognized client build, `HostApi::samp_version()` returns the
+verified build identity and `HostApi::is_samp_available()` reports whether the
+host's RakClient hooks are ready. Neither query reads client memory.
+
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
 perform that wait in `DllMain` or in a callback. The

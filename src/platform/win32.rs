@@ -81,6 +81,7 @@ pub(crate) struct Backend {
 struct BackendState {
     registry: Arc<Registry>,
     module_base: usize,
+    version: SampVersion,
     addresses: AddressSet,
     r1_client: Option<R1ClientProfile>,
     rak_client: AtomicUsize,
@@ -138,6 +139,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let state = Arc::new(BackendState {
         registry,
         module_base,
+        version,
         addresses,
         r1_client,
         rak_client: AtomicUsize::new(0),
@@ -175,6 +177,10 @@ impl Backend {
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
         ClientHookInstallState::from_raw(self.state.client_hook_status.load(Ordering::Acquire))
             .as_public()
+    }
+
+    pub(crate) fn samp_version(&self) -> SampVersion {
+        self.state.version
     }
 
     pub(crate) fn encode_string(&self, value: &[u8]) -> Result<BitStream, CodecError> {
@@ -1067,6 +1073,7 @@ mod vtable_tests {
         BackendState {
             registry: Registry::new(),
             module_base: 0,
+            version: SampVersion::R1,
             addresses: AddressSet::for_version(SampVersion::R1),
             r1_client: None,
             rak_client: AtomicUsize::new(0),

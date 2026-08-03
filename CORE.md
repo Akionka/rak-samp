@@ -39,6 +39,11 @@ or SA-MP's `0xFFFF` sentinel.
 the native state may change during normal play. It instead reports `NotReady`
 until a state has been published and keeps no client pointer in the ABI.
 
+`HostApi::samp_version` exposes the recognized `samp.dll` build identity that
+the host already verified during attach. `HostApi::is_samp_available` reports
+host/hook readiness. Both are safe across every recognized build and need no
+native-layout access or live gameplay validation.
+
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
 retain the callbacks that need a retry. Waiting in `DllMain` or a callback is

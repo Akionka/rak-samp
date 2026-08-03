@@ -29,8 +29,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Basic (`basic.lua`)
 
-- [ ] `sampGetBase`, `sampGetVersion`, `isSampLoaded`,
-  `isSampfuncsLuaLoaded`, `isSampAvailable`
+- [x] `sampGetVersion` — safe `HostApi::samp_version` reports the host's
+  verified SA-MP build identity without a client-memory read.
+- [x] `isSampAvailable` — safe `HostApi::is_samp_available` reports that the
+  host attached and its RakClient hooks are ready, without dereferencing
+  `CNetGame` on the plugin thread.
+- [ ] `sampGetBase`, `isSampLoaded`, `isSampfuncsLuaLoaded`
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`)
 

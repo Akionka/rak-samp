@@ -178,6 +178,35 @@ pub enum RakSampHostStatus {
     Failed = 2,
 }
 
+/// A detected SA-MP client build.
+///
+/// Values are host-defined version identities, not PE entry-point RVAs. The
+/// host reports this only after it has recognized the loaded `samp.dll`.
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RakSampClientVersion {
+    R1 = 1,
+    R2 = 2,
+    R3_1 = 3,
+    R4_2 = 4,
+    R5_1 = 5,
+    Dl = 6,
+}
+
+impl RakSampClientVersion {
+    const fn from_raw(value: u32) -> Option<Self> {
+        match value {
+            1 => Some(Self::R1),
+            2 => Some(Self::R2),
+            3 => Some(Self::R3_1),
+            4 => Some(Self::R4_2),
+            5 => Some(Self::R5_1),
+            6 => Some(Self::Dl),
+            _ => None,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum RakSampDirection {
@@ -250,8 +279,10 @@ pub type RakSampEventCallbackV1 = unsafe extern "system" fn(
 
 /// The host-side ABI table exported by `rak_samp.asi`.
 ///
-/// Fields are append-only. Check `size` before accessing fields added by a
-/// newer ABI version. Normal plugins use [`HostApi`] instead of calling this table directly.
+/// Fields are currently appended to preserve the v1 layout; during the ALPHA
+/// stage the ABI may make an explicit compatibility break. Check `size` before
+/// accessing fields added by a newer ABI version. Normal plugins use
+/// [`HostApi`] instead of calling this table directly.
 #[repr(C)]
 pub struct RakSampApiV1 {
     pub abi_version: u32,
@@ -331,6 +362,8 @@ pub struct RakSampApiV1 {
     pub local_player: unsafe extern "system" fn(*mut RakSampLocalPlayerV1) -> RakSampResult,
     /// Copies the latest R1 `CNetGame` state scalar into `output`.
     pub samp_game_state: unsafe extern "system" fn(*mut i32) -> RakSampResult,
+    /// Copies the detected SA-MP client version identity into `output`.
+    pub samp_version: unsafe extern "system" fn(*mut u32) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -678,6 +711,16 @@ impl HostApi {
         (self.raw.host_status)()
     }
 
+    /// Returns whether the host attached to a recognized SA-MP client and its
+    /// RakClient hooks are ready.
+    ///
+    /// This is the safe host-level equivalent of SF.lua's
+    /// `isSampAvailable`; it does not dereference `CNetGame` on the plugin
+    /// thread.
+    pub fn is_samp_available(self) -> bool {
+        self.status() == RakSampHostStatus::Ready
+    }
+
     /// Registers a packet callback.
     ///
     /// The callback receives a view that is valid only for that invocation. Use typed packet
@@ -968,6 +1011,20 @@ impl HostApi {
             result => Err(result),
         }
     }
+
+    /// Returns the version identity obtained when the host attached to `samp.dll`.
+    ///
+    /// This is a detection result, not a client-memory read, so it is available
+    /// for every recognized client build once the host runtime is ready.
+    pub fn samp_version(self) -> Result<RakSampClientVersion, RakSampResult> {
+        let mut version = 0_u32;
+        match unsafe { (self.raw.samp_version)(&mut version) } {
+            RakSampResult::Ok => {
+                RakSampClientVersion::from_raw(version).ok_or(RakSampResult::NativeCallFailed)
+            }
+            result => Err(result),
+        }
+    }
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -1096,6 +1153,11 @@ mod tests {
     }
 
     #[test]
+    fn ready_fixture_host_reports_samp_available() {
+        assert!(test_support::test_api().is_samp_available());
+    }
+
+    #[test]
     fn newer_functions_are_appended_to_abi_v1() {
         let function_size = mem::size_of::<*const c_void>();
         assert_eq!(
@@ -1139,8 +1201,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, local_player) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, samp_version),
             mem::offset_of!(RakSampApiV1, samp_game_state) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, samp_version) + function_size
         );
     }
 
@@ -1195,6 +1261,14 @@ mod tests {
     #[test]
     fn samp_game_state_is_returned_from_the_scalar_abi_output() {
         assert_eq!(test_support::test_api().samp_game_state(), Ok(14));
+    }
+
+    #[test]
+    fn samp_version_is_converted_from_the_scalar_abi_output() {
+        assert_eq!(
+            test_support::test_api().samp_version(),
+            Ok(RakSampClientVersion::R1)
+        );
     }
 
     #[test]

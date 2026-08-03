@@ -30,6 +30,7 @@ static CALLBACKS: AtomicU32 = AtomicU32::new(0);
 static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
+static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 
 #[unsafe(no_mangle)]
 /// Windows invokes this with loader-owned arguments while the plugin module is loaded.
@@ -72,6 +73,9 @@ fn initialize() {
     }
     if let Ok(game_state) = api.samp_game_state() {
         SAMP_GAME_STATE.store(game_state, Ordering::Release);
+    }
+    if let Ok(version) = api.samp_version() {
+        SAMP_VERSION.store(version as u32, Ordering::Release);
     }
     let subscription = api.on_rpc_id(RakSampDirection::Incoming, TEST_RPC_ID, |_| {
         CALLBACKS.fetch_add(1, Ordering::AcqRel);
@@ -119,6 +123,11 @@ pub extern "system" fn RakSampE2ePlugin_LocalPlayerId() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_SampGameState() -> i32 {
     SAMP_GAME_STATE.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_SampVersion() -> u32 {
+    SAMP_VERSION.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

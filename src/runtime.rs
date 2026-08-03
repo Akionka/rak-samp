@@ -1,5 +1,6 @@
 use crate::{
-    BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, event::Registry, platform,
+    BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, SampVersion, event::Registry,
+    platform,
 };
 use core::fmt;
 use std::sync::Arc;
@@ -293,6 +294,10 @@ impl Runtime {
 
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
         self.backend.client_hook_status()
+    }
+
+    pub(crate) fn samp_version(&self) -> SampVersion {
+        self.backend.samp_version()
     }
 
     pub(crate) fn encode_string(&self, value: &[u8]) -> Result<BitStream, CodecError> {

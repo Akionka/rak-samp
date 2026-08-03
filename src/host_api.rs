@@ -1,6 +1,6 @@
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
-    PacketReliability, Runtime, SendError, SendOptions, logging,
+    PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalDialogStyle,
         LocalPlayerSnapshot,
@@ -140,6 +140,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     show_local_dialog,
     local_player,
     samp_game_state,
+    samp_version,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -620,6 +621,28 @@ unsafe extern "system" fn samp_game_state(output: *mut i32) -> RakSampResult {
     }
 }
 
+unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    *output = samp_version_to_abi(runtime.samp_version());
+    RakSampResult::Ok
+}
+
+const fn samp_version_to_abi(version: SampVersion) -> u32 {
+    match version {
+        SampVersion::R1 => 1,
+        SampVersion::R2 => 2,
+        SampVersion::R3_1 => 3,
+        SampVersion::R4_2 => 4,
+        SampVersion::R5_1 => 5,
+        SampVersion::Dl => 6,
+    }
+}
+
 fn register_listener(
     direction: RakSampDirection,
     callback: Option<RakSampEventCallbackV1>,
@@ -928,6 +951,18 @@ mod tests {
             unsafe { samp_game_state(&mut game_state) },
             RakSampResult::NotReady
         );
+        let mut version = 0;
+        assert_eq!(
+            unsafe { samp_version(&mut version) },
+            RakSampResult::NotReady
+        );
+    }
+
+    #[test]
+    fn client_version_uses_stable_abi_values() {
+        assert_eq!(samp_version_to_abi(SampVersion::R1), 1);
+        assert_eq!(samp_version_to_abi(SampVersion::R5_1), 5);
+        assert_eq!(samp_version_to_abi(SampVersion::Dl), 6);
     }
 
     #[test]

@@ -1,5 +1,5 @@
 use crate::{
-    AttachError, BitStream, SendError, SendOptions,
+    AttachError, BitStream, SampVersion, SendError, SendOptions,
     event::Registry,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
@@ -16,6 +16,10 @@ pub(crate) fn attach(_registry: Arc<Registry>) -> Result<Backend, AttachError> {
 impl Backend {
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
         ClientHookStatus::Failed
+    }
+
+    pub(crate) fn samp_version(&self) -> SampVersion {
+        unreachable!("the unsupported platform backend cannot be constructed")
     }
 
     pub(crate) fn encode_string(&self, _value: &[u8]) -> Result<BitStream, CodecError> {
