@@ -4,9 +4,10 @@
 compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, RakSampAnimationV1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1,
-    RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
-    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
+    ABI_VERSION_V1, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
+    RakSampEventCallbackV1, RakSampEventV1, RakSampHostStatus, RakSampLocalPlayerV1,
+    RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions, RakSampServerInfoV1,
+    RakSampSubscription, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -479,6 +480,19 @@ unsafe extern "system" fn vehicle_exists(id: u16, output: *mut u8) -> RakSampRes
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn active_local_dialog(output: *mut RakSampActiveDialogV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.active = 1;
+    output.style = 0;
+    output.server_side = 0;
+    output.id = 0x7000;
+    output.title[..3].copy_from_slice(b"e2e");
+    output.title_len = 3;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -644,4 +658,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     player_count,
     player_max_id,
     vehicle_exists,
+    active_local_dialog,
 };

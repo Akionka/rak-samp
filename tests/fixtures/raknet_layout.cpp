@@ -160,9 +160,21 @@ struct FixtureR1ScoreboardPrefix {
     int is_enabled;
 };
 
-struct FixtureR1DialogPrefix {
-    unsigned char pad_0[0x28];
+struct FixtureR1DialogSnapshot {
+    void* device;
+    unsigned int position[2];
+    unsigned int size[2];
+    unsigned int button_offset[2];
+    void* dialog;
+    void* listbox;
+    void* editbox;
     int is_active;
+    int type;
+    int id;
+    char* text;
+    int text_size[2];
+    char caption[65];
+    int server_side;
 };
 
 struct FixtureR1InputPrefix {
@@ -190,7 +202,11 @@ static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
 static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
 static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
 static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
-static_assert(offsetof(FixtureR1DialogPrefix, is_active) == 0x28);
+static_assert(offsetof(FixtureR1DialogSnapshot, is_active) == 0x28);
+static_assert(offsetof(FixtureR1DialogSnapshot, type) == 0x2C);
+static_assert(offsetof(FixtureR1DialogSnapshot, id) == 0x30);
+static_assert(offsetof(FixtureR1DialogSnapshot, caption) == 0x40);
+static_assert(offsetof(FixtureR1DialogSnapshot, server_side) == 0x81);
 static_assert(offsetof(FixtureR1InputPrefix, is_enabled) == 0x14E0);
 
 extern "C" {
@@ -336,7 +352,23 @@ std::size_t rak_samp_fixture_r1_scoreboard_enabled_offset() {
 }
 
 std::size_t rak_samp_fixture_r1_dialog_active_offset() {
-    return offsetof(FixtureR1DialogPrefix, is_active);
+    return offsetof(FixtureR1DialogSnapshot, is_active);
+}
+
+std::size_t rak_samp_fixture_r1_dialog_type_offset() {
+    return offsetof(FixtureR1DialogSnapshot, type);
+}
+
+std::size_t rak_samp_fixture_r1_dialog_id_offset() {
+    return offsetof(FixtureR1DialogSnapshot, id);
+}
+
+std::size_t rak_samp_fixture_r1_dialog_caption_offset() {
+    return offsetof(FixtureR1DialogSnapshot, caption);
+}
+
+std::size_t rak_samp_fixture_r1_dialog_server_side_offset() {
+    return offsetof(FixtureR1DialogSnapshot, server_side);
 }
 
 std::size_t rak_samp_fixture_r1_input_enabled_offset() {

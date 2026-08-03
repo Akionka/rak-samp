@@ -92,6 +92,17 @@ pub(crate) struct LocalPlayerSnapshot {
     pub(crate) ping: u32,
 }
 
+/// Host-owned metadata copied from one active R1 dialog. The dynamic dialog
+/// text and control contents intentionally remain outside this narrow first
+/// snapshot until their ownership and bounds have separate evidence.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalDialogSnapshot {
+    pub(crate) id: i32,
+    pub(crate) style: LocalDialogStyle,
+    pub(crate) title: Vec<u8>,
+    pub(crate) server_side: bool,
+}
+
 /// Host-owned directory data copied for either the local or one remote R1
 /// player. It deliberately omits every native and GTA pointer.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -454,6 +465,12 @@ impl Runtime {
 
     pub(crate) fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
         self.backend.local_dialog_active()
+    }
+
+    pub(crate) fn local_dialog_state(
+        &self,
+    ) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
+        self.backend.local_dialog_state()
     }
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {

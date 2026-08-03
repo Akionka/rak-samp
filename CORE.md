@@ -120,6 +120,12 @@ state without a client pointer or packet/RPC action.
 respective native flags. They do not close dialogs, edit UI text, register
 commands, or process input; such actions remain explicit native-mutation work.
 
+`HostApi::active_local_dialog` is the corresponding owned active-dialog core
+snapshot: ID, typed style, bounded fixed-caption bytes, and server-side flag.
+It returns `Ok(None)` after an inactive publication and deliberately omits
+dynamic text, buttons, edit-box, and list data until each has separate R1
+ownership and bounds evidence.
+
 `HostApi::local_animation` and `HostApi::local_animation_id` query an owned
 copy of R1's fixed animation table. The profile fingerprints and parses that
 table only on the game-thread pump, validates each bounded `name:file` entry,

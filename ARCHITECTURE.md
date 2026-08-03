@@ -59,9 +59,12 @@ server assignment matches the pool ID on two game-thread refreshes, then keeps
 it fresh from the verified player pool. The same entry caches R1's opaque
 `CNetGame` state scalar, copied current-server metadata, and the validated
 three-value local chat display mode, five-value local cursor mode, and
-scoreboard-open, dialog-active, and chat-input-active flags, none of which
-drives snapshot readiness. It also makes one owned copy of the fingerprinted
-R1 animation table. Demand-refreshed remote player-directory reads are drained
+scoreboard-open, dialog-active, and chat-input-active flags. It also copies the
+active dialog's fixed core—ID, typed style, bounded caption, and server-side
+flag—as an owned optional snapshot; it deliberately does not follow dynamic
+dialog text, button, edit-box, or list pointers. None of those caches drives
+snapshot readiness. It also makes one owned copy of the fingerprinted R1
+animation table. Demand-refreshed remote player-directory reads are drained
 from a separate bounded queue (at most four R1 accessor sequences per pump)
 and copied into a host-owned cache. It releases the dialog, chat, and death-window
 queue locks, then calls `CDialog::Show`, `CChat::AddEntry`, and

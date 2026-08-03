@@ -4,16 +4,16 @@ use crate::{
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
-        LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot, PlayerInfoSnapshot,
-        ServerInfoSnapshot,
+        LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
+        PlayerInfoSnapshot, ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, MAX_SAMP_PLAYERS, MAX_SAMP_VEHICLES, RakSampAnimationV1, RakSampApiV1,
-    RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction, RakSampHostStatus,
-    RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions,
-    RakSampServerInfoV1, RakSampSubscription, Vector3,
+    ABI_VERSION_V1, MAX_SAMP_PLAYERS, MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1,
+    RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction,
+    RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -159,6 +159,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     player_count,
     player_max_id,
     vehicle_exists,
+    active_local_dialog,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -840,6 +841,28 @@ unsafe extern "system" fn local_dialog_active(output: *mut u8) -> RakSampResult 
     }
 }
 
+unsafe extern "system" fn active_local_dialog(output: *mut RakSampActiveDialogV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    let snapshot = match runtime.local_dialog_state() {
+        Ok(snapshot) => snapshot,
+        Err(error) => return direct_client_result(error),
+    };
+    let snapshot = match snapshot {
+        Some(snapshot) => match local_dialog_state_to_abi(snapshot) {
+            Ok(snapshot) => snapshot,
+            Err(()) => return RakSampResult::NativeCallFailed,
+        },
+        None => RakSampActiveDialogV1::default(),
+    };
+    *output = snapshot;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1251,6 +1274,24 @@ fn local_player_to_abi(snapshot: LocalPlayerSnapshot) -> Result<RakSampLocalPlay
     })
 }
 
+fn local_dialog_state_to_abi(snapshot: LocalDialogSnapshot) -> Result<RakSampActiveDialogV1, ()> {
+    let title_len = u8::try_from(snapshot.title.len()).map_err(|_| ())?;
+    if snapshot.title.len() > 65 || snapshot.title.contains(&0) {
+        return Err(());
+    }
+    let mut title = [0; 65];
+    title[..snapshot.title.len()].copy_from_slice(&snapshot.title);
+    Ok(RakSampActiveDialogV1 {
+        active: 1,
+        style: snapshot.style.as_raw() as u8,
+        server_side: u8::from(snapshot.server_side),
+        _reserved: 0,
+        id: snapshot.id,
+        title_len,
+        title,
+    })
+}
+
 fn player_info_to_abi(snapshot: PlayerInfoSnapshot) -> Result<RakSampPlayerInfoV1, ()> {
     let nickname_len = u16::try_from(snapshot.nickname.len()).map_err(|_| ())?;
     if snapshot.nickname.is_empty()
@@ -1430,6 +1471,15 @@ mod tests {
         );
         assert_eq!(
             unsafe { local_dialog_active(std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut active_dialog = RakSampActiveDialogV1::default();
+        assert_eq!(
+            unsafe { active_local_dialog(&mut active_dialog) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { active_local_dialog(std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut chat_input_active = 0;

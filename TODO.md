@@ -73,23 +73,31 @@ fixtures, disassembly, or the E2E mock alone.
    32-ID demand queue drained at four copied booleans per pump. It exposes no
    vehicle or GTA handle. Keep provisional until the opt-in vehicle scan finds
    a defined ID without traffic and normal shutdown.
-5. [ ] Evaluate bounded read-only dialog and chat-input snapshots separately.
-   Do not begin either until the exact R1 string-buffer ownership, sizes,
+5. [~] Cache the bounded active R1 dialog core through
+   `HostApi::active_local_dialog()`: ID, six-way style, fixed 65-byte caption,
+   and server-side flag. The static implementation verifies the exact
+   `CDialog::Show` core-field stores and independent packed fixture offsets,
+   refreshes only on the game-thread pump, and exposes an owned copy or
+   `Ok(None)` when inactive. Keep provisional until the opt-in dialog lifecycle
+   validator records its matching active core, post-dismissal `None`, no
+   traffic, and normal shutdown.
+6. [ ] Evaluate dynamic bounded dialog and chat-input snapshots separately.
+   Do not begin until the exact R1 pointer ownership, string/list bounds,
    active-state interaction, and update lifecycle are independently proven.
-   Candidate outputs are copied dialog ID/style/title/text/buttons/list
-   selection and copied chat draft text only; close/select/edit/open/command
-   registration remain mutations and are excluded.
-6. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
+   Candidate outputs are copied dialog text/buttons/list selection and copied
+   chat draft text only; close/select/edit/open/command registration remain
+   mutations and are excluded.
+7. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
    state first, then labels, textdraws, objects, and pickups. Each needs a
    bounded copied model, independent native-layout
    fixture, direct target/field fingerprint, pump refresh budget, and a
    dedicated opt-in validator. Do not group unrelated pool layouts into one
    profile change.
-7. [ ] Reconcile the remaining typed protocol names below against the existing
+8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
    client-side native action merely because it sends the same RPC.
-8. [ ] When the static-only list is exhausted, prepare release artifacts and
+9. [ ] When the static-only list is exhausted, prepare release artifacts and
    validation instructions, then wait for the live R1 scenarios below. Do not
    start mutations, force-sync, reconnection, raw pointer, or raw callback
    APIs without a new explicit experimental/unsafe design.
@@ -119,9 +127,11 @@ fixtures, disassembly, or the E2E mock alone.
   cached scoreboard states and both cursor categories without packet/RPC
   emission or an unstable shutdown.
 - [ ] Leave the validator's direct dialog open until it begins observing, then
-  dismiss it; open and close chat input as well. Confirm both cached dialog
-  and chat-input active/inactive state pairs appear in the outcome line with
-  no packet/RPC emission or shutdown instability.
+  dismiss it; open and close chat input as well. Confirm its initial
+  `active_dialog=Ok` result matches the queued dialog core, its outcome records
+  both active-dialog-core `Some`/`None` states alongside cached dialog and
+  chat-input active/inactive pairs, with no packet/RPC emission or shutdown
+  instability.
 - [ ] Confirm the direct-client validator reads R1 animation entry zero as
   `AIRPORT:THRW_BARL_THRW` and resolves those byte strings back to zero. It is
   an automatic static-table check, but must still be recorded with the normal
@@ -209,7 +219,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   safe ABI. `sampSetChatDisplayMode` and `sampSetChatString` are client UI
   mutations; excluded pending an explicit experimental policy. `sampGetChatString`
   is a future copied read only after the R1 chat-ring layout, string capacity,
-  and lifecycle are independently proven; it belongs to static-first step 5.
+  and lifecycle are independently proven; it belongs to static-first step 6.
 - [~] `sampGetChatDisplayMode`, `sampIsChatVisible` —
   `HostApi::local_chat_display_mode` and its derived
   `HostApi::is_local_chat_visible` return a game-thread-cached R1 enum only.
@@ -228,15 +238,19 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 - [x] `sampShowDialog` — represented by safe queued
   `HostApi::show_local_dialog`.
-- [ ] `sampGetDialogInfoPtr` — raw pointer API; excluded. `sampCloseCurrentDialogWithButton`,
-  `sampSetCurrentDialogListItem`, `sampSetCurrentDialogEditboxText`, and
-  `sampSetDialogClientside` mutate client UI; excluded. The read-only
-  `sampGetCurrentDialogListItem`, `sampGetCurrentDialogEditboxText`,
-  `sampGetCurrentDialogType`, `sampGetCurrentDialogId`, `sampGetDialogCaption`,
-  `sampGetDialogText`, `sampIsDialogClientside`, `sampGetListboxItemsCount`,
-  and `sampGetListboxItemText` are one future bounded dialog snapshot from
-  static-first step 5; no field is to be read before its exact R1 layout and
-  every string/list bound are proven.
+- [ ] `sampGetDialogInfoPtr` — raw pointer API; excluded.
+  `sampCloseCurrentDialogWithButton`, `sampSetCurrentDialogListItem`,
+  `sampSetCurrentDialogEditboxText`, and `sampSetDialogClientside` mutate
+  client UI; excluded.
+- [~] `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
+  `sampGetDialogCaption`, and `sampIsDialogClientside` —
+  `HostApi::active_local_dialog` returns their bounded copied active-dialog
+  core only. Keep provisional until the exact active/dismissed lifecycle,
+  no-traffic, and shutdown live check is recorded.
+- [ ] `sampGetCurrentDialogListItem`, `sampGetCurrentDialogEditboxText`,
+  `sampGetDialogText`, `sampGetListboxItemsCount`, and
+  `sampGetListboxItemText` require dynamic pointer/string/list ownership and
+  bounds evidence before a separate copied snapshot in static-first step 6.
 - [~] `sampIsDialogActive` — `HostApi::is_local_dialog_active` is a cached
   R1 game-thread read only. Keep provisional until direct-dialog active and
   dismissal states are observed in the live lifecycle test.
@@ -250,7 +264,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampSetChatInputEnabled`,
   and `sampProcessChatInput` mutate client state or retain a foreign callback;
   excluded. `sampGetChatInputText` is the copied bounded read candidate in
-  static-first step 5. `sampIsChatCommandDefined` requires an owned command
+  static-first step 6. `sampIsChatCommandDefined` requires an owned command
   registry design and verified native ownership rules; do not infer it from a
   raw map or a plugin callback pointer.
 - [~] `sampIsChatInputActive` — `HostApi::is_local_chat_input_active` is a
@@ -265,7 +279,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
   `sampCreate3dTextEx` mutate the native label pool; excluded. The read-only
   `sampIs3dTextDefined` and `sampGet3dTextInfoById` may become a bounded
-  copied label snapshot in static-first step 6 after its own R1 fixture and
+  copied label snapshot in static-first step 7 after its own R1 fixture and
   lifecycle proof.
 - [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
   `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
@@ -290,7 +304,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
   `sampTextdrawGetBoxEnabledColorAndSize`, and
   `sampTextdrawGetModelRotationZoomVehColor` form a future copied textdraw
-  snapshot in static-first step 6. Keep IDs, strings, and fields bounded and
+  snapshot in static-first step 7. Keep IDs, strings, and fields bounded and
   do not expose a pool pointer.
 
 ### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
@@ -325,7 +339,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampIsPlayerPaused`,
   `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
   own remote-player layout or accessor evidence and a copied snapshot in
-  static-first step 6. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
+  static-first step 7. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
   `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
   `sampStorePlayerAimData` may only become owned typed sync copies after exact
   source-field/layout proof; they must never write to a plugin-supplied pointer.

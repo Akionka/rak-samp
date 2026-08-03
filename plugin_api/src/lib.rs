@@ -59,6 +59,19 @@ pub enum LocalDialogStyle {
 }
 
 impl LocalDialogStyle {
+    /// Converts the six native R1 dialog-style values to a typed style.
+    pub const fn from_raw(value: u8) -> Option<Self> {
+        match value {
+            0 => Some(Self::MessageBox),
+            1 => Some(Self::Input),
+            2 => Some(Self::List),
+            3 => Some(Self::Password),
+            4 => Some(Self::TabList),
+            5 => Some(Self::HeadersList),
+            _ => None,
+        }
+    }
+
     const fn as_raw(self) -> u32 {
         match self {
             Self::MessageBox => 0,
@@ -84,6 +97,19 @@ pub struct LocalDialog<'a> {
     pub text: &'a [u8],
     pub button1: &'a [u8],
     pub button2: &'a [u8],
+}
+
+/// Owned core metadata for the currently active local R1 dialog.
+///
+/// This deliberately excludes dynamically allocated dialog text and control
+/// contents. The title remains bytes because SA-MP does not guarantee a text
+/// encoding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalDialogState {
+    pub id: i32,
+    pub style: LocalDialogStyle,
+    pub title: Vec<u8>,
+    pub server_side: bool,
 }
 
 impl LocalDialog<'_> {
@@ -304,6 +330,37 @@ pub struct RakSampLocalPlayerV1 {
     pub vehicle_id: u16,
     pub score: i32,
     pub ping: u32,
+}
+
+/// C-compatible storage for an active R1 dialog core snapshot.
+///
+/// `active` is zero when no dialog is active. When it is one, `title_len`
+/// selects the initialized prefix of `title`; the buffer has no required
+/// terminator.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RakSampActiveDialogV1 {
+    pub active: u8,
+    pub style: u8,
+    pub server_side: u8,
+    pub _reserved: u8,
+    pub id: i32,
+    pub title_len: u8,
+    pub title: [u8; 65],
+}
+
+impl Default for RakSampActiveDialogV1 {
+    fn default() -> Self {
+        Self {
+            active: 0,
+            style: 0,
+            server_side: 0,
+            _reserved: 0,
+            id: 0,
+            title_len: 0,
+            title: [0; 65],
+        }
+    }
 }
 
 impl Default for RakSampLocalPlayerV1 {
@@ -667,6 +724,8 @@ pub struct RakSampApiV1 {
     pub player_max_id: unsafe extern "system" fn(*mut u16) -> RakSampResult,
     /// Copies a cached R1 vehicle-pool existence flag into `output`.
     pub vehicle_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies the latest game-thread-cached active R1 dialog core into `output`.
+    pub active_local_dialog: unsafe extern "system" fn(*mut RakSampActiveDialogV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1841,6 +1900,43 @@ impl HostApi {
         }
     }
 
+    /// Returns copied core metadata for the active local R1 dialog.
+    ///
+    /// This returns `Ok(None)` once the game-thread cache confirms that no
+    /// dialog is active, and `NotReady` before the first cache publication.
+    /// Dynamic dialog text, buttons, and controls are intentionally excluded.
+    pub fn active_local_dialog(self) -> Result<Option<LocalDialogState>, RakSampResult> {
+        let mut raw = RakSampActiveDialogV1::default();
+        match unsafe { (self.raw.active_local_dialog)(&mut raw) } {
+            RakSampResult::Ok => {}
+            result => return Err(result),
+        }
+        match raw.active {
+            0 => Ok(None),
+            1 => {
+                let Some(style) = LocalDialogStyle::from_raw(raw.style) else {
+                    return Err(RakSampResult::NativeCallFailed);
+                };
+                let server_side = match raw.server_side {
+                    0 => false,
+                    1 => true,
+                    _ => return Err(RakSampResult::NativeCallFailed),
+                };
+                let title_len = usize::from(raw.title_len);
+                if title_len > raw.title.len() {
+                    return Err(RakSampResult::NativeCallFailed);
+                }
+                Ok(Some(LocalDialogState {
+                    id: raw.id,
+                    style,
+                    title: raw.title[..title_len].to_vec(),
+                    server_side,
+                }))
+            }
+            _ => Err(RakSampResult::NativeCallFailed),
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -2311,8 +2407,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, player_max_id) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, active_local_dialog),
             mem::offset_of!(RakSampApiV1, vehicle_exists) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, active_local_dialog) + function_size
         );
     }
 
@@ -2459,6 +2559,15 @@ mod tests {
         assert_eq!(
             api.is_vehicle_defined(MAX_SAMP_VEHICLES),
             Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(
+            api.active_local_dialog(),
+            Ok(Some(LocalDialogState {
+                id: 7,
+                style: LocalDialogStyle::Input,
+                title: b"fixture".to_vec(),
+                server_side: false,
+            }))
         );
         assert_eq!(
             api.player_info(MAX_SAMP_PLAYERS),

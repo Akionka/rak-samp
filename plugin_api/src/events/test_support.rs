@@ -778,6 +778,21 @@ unsafe extern "system" fn test_vehicle_exists(id: u16, output: *mut u8) -> RakSa
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_active_local_dialog(
+    output: *mut crate::RakSampActiveDialogV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    output.active = 1;
+    output.style = 1;
+    output.server_side = 0;
+    output.id = 7;
+    output.title[..7].copy_from_slice(b"fixture");
+    output.title_len = 7;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -883,6 +898,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     player_count: test_player_count,
     player_max_id: test_player_max_id,
     vehicle_exists: test_vehicle_exists,
+    active_local_dialog: test_active_local_dialog,
 };
 
 pub(crate) fn test_api() -> HostApi {

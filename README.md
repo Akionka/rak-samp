@@ -106,6 +106,13 @@ send traffic, or expose a client pointer.
 visibility state for the local dialog and chat input. Closing dialogs or
 opening/processing chat input remains outside the safe ABI.
 
+`HostApi::active_local_dialog()` returns an owned active-dialog core snapshot:
+the ID, typed style, bounded caption bytes, and server-side flag. It returns
+`Ok(None)` when no dialog is active and deliberately omits dynamic text,
+buttons, edit-box, and list data until their pointer ownership and bounds have
+their own R1 evidence. Like the other direct reads, this R1-only helper remains
+provisional pending its opt-in live lifecycle validation.
+
 `HostApi::local_animation()` and `HostApi::local_animation_id()` expose owned
 lookups over R1's fingerprinted fixed animation table. The table is copied on
 the game-thread pump; plugin calls never receive the client table pointer.

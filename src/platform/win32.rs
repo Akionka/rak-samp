@@ -10,8 +10,9 @@ use crate::{
     event::{HookAction, Registry},
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
-        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
-        PacketPriority, PacketReliability, PlayerInfoSnapshot, ServerInfoSnapshot,
+        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
+        LocalPlayerSnapshot, PacketPriority, PacketReliability, PlayerInfoSnapshot,
+        ServerInfoSnapshot,
     },
 };
 use minhook::MinHook;
@@ -134,6 +135,8 @@ struct BackendState {
     local_scoreboard_open_ready: AtomicBool,
     local_dialog_active: AtomicBool,
     local_dialog_active_ready: AtomicBool,
+    local_dialog_snapshot: Mutex<Option<LocalDialogSnapshot>>,
+    local_dialog_snapshot_ready: AtomicBool,
     local_chat_input_active: AtomicBool,
     local_chat_input_active_ready: AtomicBool,
     animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
@@ -233,6 +236,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_scoreboard_open_ready: AtomicBool::new(false),
         local_dialog_active: AtomicBool::new(false),
         local_dialog_active_ready: AtomicBool::new(false),
+        local_dialog_snapshot: Mutex::new(None),
+        local_dialog_snapshot_ready: AtomicBool::new(false),
         local_chat_input_active: AtomicBool::new(false),
         local_chat_input_active_ready: AtomicBool::new(false),
         animation_catalog: Mutex::new(None),
@@ -370,6 +375,12 @@ impl Backend {
 
     pub(crate) fn local_dialog_active(&self) -> Result<bool, DirectClientError> {
         self.state.local_dialog_active()
+    }
+
+    pub(crate) fn local_dialog_state(
+        &self,
+    ) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
+        self.state.local_dialog_state()
     }
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
@@ -981,6 +992,22 @@ impl BackendState {
         )
     }
 
+    fn local_dialog_state(&self) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.local_dialog_snapshot_ready.load(Ordering::Acquire)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(self
+            .local_dialog_snapshot
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone())
+    }
+
     fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         cached_direct_client_value(
             self.r1_client.is_some(),
@@ -1038,6 +1065,7 @@ impl BackendState {
         self.refresh_local_cursor_mode(profile);
         self.refresh_local_scoreboard_open(profile);
         self.refresh_local_dialog_active(profile);
+        self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(profile);
         self.refresh_animation_catalog(profile);
         self.refresh_server_info_snapshot(profile);
@@ -1318,6 +1346,22 @@ impl BackendState {
         }
     }
 
+    fn refresh_local_dialog_state(&self, profile: R1ClientProfile) {
+        match profile.dialog_state() {
+            Ok(snapshot) => {
+                let Ok(mut cached) = self.local_dialog_snapshot.try_lock() else {
+                    return;
+                };
+                *cached = snapshot;
+                self.local_dialog_snapshot_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => self
+                .local_dialog_snapshot_ready
+                .store(false, Ordering::Release),
+        }
+    }
+
     fn refresh_local_chat_input_active(&self, profile: R1ClientProfile) {
         match profile.chat_input_is_active() {
             Ok(active) => {
@@ -1422,6 +1466,11 @@ impl BackendState {
         self.local_scoreboard_open_ready
             .store(false, Ordering::Release);
         self.local_dialog_active_ready
+            .store(false, Ordering::Release);
+        if let Ok(mut snapshot) = self.local_dialog_snapshot.try_lock() {
+            *snapshot = None;
+        }
+        self.local_dialog_snapshot_ready
             .store(false, Ordering::Release);
         self.local_chat_input_active_ready
             .store(false, Ordering::Release);
@@ -1817,6 +1866,8 @@ mod vtable_tests {
             local_scoreboard_open_ready: AtomicBool::new(false),
             local_dialog_active: AtomicBool::new(false),
             local_dialog_active_ready: AtomicBool::new(false),
+            local_dialog_snapshot: Mutex::new(None),
+            local_dialog_snapshot_ready: AtomicBool::new(false),
             local_chat_input_active: AtomicBool::new(false),
             local_chat_input_active_ready: AtomicBool::new(false),
             animation_catalog: Mutex::new(None),
@@ -1926,6 +1977,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.local_dialog_active(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_dialog_state(),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(

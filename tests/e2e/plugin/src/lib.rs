@@ -5,8 +5,8 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
     LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
-    LocalDeathMessage, LocalDialog, LocalDialogStyle, PlayerInfo, RakSampDirection,
-    RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
+    LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, PlayerInfo,
+    RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -43,6 +43,7 @@ static PLAYER_INFO_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_COUNT: AtomicI32 = AtomicI32::new(i32::MIN);
 static PLAYER_MAX_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static VEHICLE_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
+static ACTIVE_DIALOG_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -156,6 +157,16 @@ fn initialize() {
     }
     if api.is_vehicle_defined(7) == Ok(true) && api.is_vehicle_defined(8) == Ok(false) {
         VEHICLE_EXISTS.store(7, Ordering::Release);
+    }
+    if api.active_local_dialog()
+        == Ok(Some(LocalDialogState {
+            id: 0x7000,
+            style: LocalDialogStyle::MessageBox,
+            title: b"e2e".to_vec(),
+            server_side: false,
+        }))
+    {
+        ACTIVE_DIALOG_STATE.store(1, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -282,6 +293,11 @@ pub extern "system" fn RakSampE2ePlugin_PlayerMaxId() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_VehicleExists() -> i32 {
     VEHICLE_EXISTS.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_ActiveDialogState() -> i32 {
+    ACTIVE_DIALOG_STATE.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

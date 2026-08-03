@@ -6,7 +6,8 @@
 
 use crate::runtime::{
     AnimationSnapshot, DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest,
-    LocalDialogRequest, LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, Vector3,
+    LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
+    PlayerInfoSnapshot, ServerInfoSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -81,6 +82,11 @@ const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
 const GAME_CURSOR_MODE_OFFSET: usize = 0x55;
 const DIALOG_ACTIVE_OFFSET: usize = 0x28;
+const DIALOG_TYPE_OFFSET: usize = 0x2C;
+const DIALOG_ID_OFFSET: usize = 0x30;
+const DIALOG_CAPTION_OFFSET: usize = 0x40;
+const DIALOG_CAPTION_CAPACITY: usize = 65;
+const DIALOG_SERVER_SIDE_OFFSET: usize = 0x81;
 const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CDialog::Show` at `DIALOG_SHOW_RVA`.
@@ -96,6 +102,14 @@ const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
 const DIALOG_SHOW_ACTIVE_SIGNATURE: [u8; 22] = [
     0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB, 0x8B, 0xF1,
     0x7D, 0x17, 0x39, 0x5E, 0x28, 0x0F,
+];
+
+// The same fingerprinted R1 `CDialog::Show` target writes the copied core
+// snapshot fields after the active-state branch: ID at 0x30, type at 0x2C,
+// server-side flag at 0x81, and then addresses the fixed caption buffer at
+// 0x40. Dynamic text/control storage is intentionally not read here.
+const DIALOG_SHOW_CORE_FIELDS_SIGNATURE: [u8; 15] = [
+    0x89, 0x7E, 0x30, 0x89, 0x46, 0x2C, 0x89, 0x8E, 0x81, 0x00, 0x00, 0x00, 0x8D, 0x56, 0x40,
 ];
 
 // `CInput::Open` and `Close` both read the packed `m_bEnabled` flag at
@@ -340,6 +354,42 @@ impl R1ClientProfile {
     pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         read_r1_bool(dialog as usize + DIALOG_ACTIVE_OFFSET)
+    }
+
+    /// Copies bounded core metadata from an active R1 dialog on the game
+    /// thread. It deliberately excludes the dynamically allocated text and
+    /// DXUT control contents.
+    pub(super) fn dialog_state(self) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            dialog.cast(),
+            DIALOG_SERVER_SIDE_OFFSET + mem::size_of::<i32>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !read_r1_bool(dialog as usize + DIALOG_ACTIVE_OFFSET)? {
+            return Ok(None);
+        }
+        let style = unsafe { read_unaligned::<i32>(dialog as usize + DIALOG_TYPE_OFFSET) }
+            .and_then(|style| u32::try_from(style).ok())
+            .and_then(LocalDialogStyle::from_raw)
+            .ok_or(DirectClientError::NotReady)?;
+        let id = unsafe { read_unaligned::<i32>(dialog as usize + DIALOG_ID_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let title = unsafe {
+            bounded_c_string(
+                (dialog as usize + DIALOG_CAPTION_OFFSET) as *const u8,
+                DIALOG_CAPTION_CAPACITY,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        let server_side = read_r1_bool(dialog as usize + DIALOG_SERVER_SIDE_OFFSET)?;
+        Ok(Some(LocalDialogSnapshot {
+            id,
+            style,
+            title,
+            server_side,
+        }))
     }
 
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
@@ -778,6 +828,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
         && code_matches(module_base + CHAT_GET_MODE_RVA, &CHAT_GET_MODE_SIGNATURE)
         && code_matches(module_base + DIALOG_SHOW_RVA, &DIALOG_SHOW_ACTIVE_SIGNATURE)
+        && code_matches(
+            module_base + DIALOG_SHOW_RVA + 0x48,
+            &DIALOG_SHOW_CORE_FIELDS_SIGNATURE,
+        )
         && code_matches(module_base + INPUT_OPEN_RVA, &INPUT_OPEN_SIGNATURE)
         && code_matches(module_base + INPUT_CLOSE_RVA, &INPUT_CLOSE_SIGNATURE)
         && code_matches(
@@ -997,20 +1051,21 @@ mod tests {
     use super::{
         ANIMATION_TABLE_SIGNATURE, CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE,
         DEATH_WINDOW_ADD_ENTRY_SIGNATURE, DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_ACTIVE_OFFSET,
-        DIALOG_SHOW_ACTIVE_SIGNATURE, DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET,
-        GAME_PROCESS_INPUT_ENABLING_SIGNATURE, INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET,
-        INPUT_OPEN_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET,
-        LOCAL_PLAYER_INCAR_OFFSET, LOCAL_PLAYER_INCAR_POSITION_OFFSET,
-        LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
-        NET_GAME_GET_PLAYER_POOL_SIGNATURE, NET_GAME_GET_STATE_SIGNATURE,
-        NET_GAME_GET_VEHICLE_POOL_SIGNATURE, NET_GAME_HOST_ADDRESS_OFFSET,
-        NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET, PLAYER_POOL_GET_COUNT_SIGNATURE,
-        PLAYER_POOL_GET_NAME_SIGNATURE, PLAYER_POOL_GET_PING_SIGNATURE,
-        PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE, PLAYER_POOL_GET_SCORE_SIGNATURE,
-        PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
-        PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+        DIALOG_CAPTION_OFFSET, DIALOG_ID_OFFSET, DIALOG_SERVER_SIDE_OFFSET,
+        DIALOG_SHOW_ACTIVE_SIGNATURE, DIALOG_SHOW_CORE_FIELDS_SIGNATURE, DIALOG_SHOW_SIGNATURE,
+        DIALOG_TYPE_OFFSET, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
+        INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET, INPUT_OPEN_SIGNATURE,
+        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
+        LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
+        LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
+        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_PLAYER_POOL_SIGNATURE,
+        NET_GAME_GET_STATE_SIGNATURE, NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
+        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
+        PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
+        PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
+        PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
+        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
         SCOREBOARD_ENABLED_OFFSET, VEHICLE_POOL_DOES_EXIST_SIGNATURE,
@@ -1041,6 +1096,10 @@ mod tests {
         fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
         fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
         fn rak_samp_fixture_r1_dialog_active_offset() -> usize;
+        fn rak_samp_fixture_r1_dialog_type_offset() -> usize;
+        fn rak_samp_fixture_r1_dialog_id_offset() -> usize;
+        fn rak_samp_fixture_r1_dialog_caption_offset() -> usize;
+        fn rak_samp_fixture_r1_dialog_server_side_offset() -> usize;
         fn rak_samp_fixture_r1_input_enabled_offset() -> usize;
     }
 
@@ -1131,6 +1190,16 @@ mod tests {
                 rak_samp_fixture_r1_dialog_active_offset(),
                 DIALOG_ACTIVE_OFFSET
             );
+            assert_eq!(rak_samp_fixture_r1_dialog_type_offset(), DIALOG_TYPE_OFFSET);
+            assert_eq!(rak_samp_fixture_r1_dialog_id_offset(), DIALOG_ID_OFFSET);
+            assert_eq!(
+                rak_samp_fixture_r1_dialog_caption_offset(),
+                DIALOG_CAPTION_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_dialog_server_side_offset(),
+                DIALOG_SERVER_SIDE_OFFSET
+            );
             assert_eq!(
                 rak_samp_fixture_r1_input_enabled_offset(),
                 INPUT_ENABLED_OFFSET
@@ -1161,6 +1230,13 @@ mod tests {
             [
                 0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB,
                 0x8B, 0xF1, 0x7D, 0x17, 0x39, 0x5E, 0x28, 0x0F,
+            ]
+        );
+        assert_eq!(
+            DIALOG_SHOW_CORE_FIELDS_SIGNATURE,
+            [
+                0x89, 0x7E, 0x30, 0x89, 0x46, 0x2C, 0x89, 0x8E, 0x81, 0x00, 0x00, 0x00, 0x8D, 0x56,
+                0x40,
             ]
         );
         assert_eq!(

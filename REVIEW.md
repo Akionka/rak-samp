@@ -34,12 +34,13 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   observe cursor inactive/active and scoreboard closed/open transitions,
   confirm the cache agrees with the visible UI, produces no traffic, and exits
   normally.
-- **Cached R1 dialog/input live gate:** `HostApi::is_local_dialog_active` and
-  `HostApi::is_local_chat_input_active` are fail-closed behind exact R1 code
-  signatures plus independently checked packed offsets. A legal R1 run must
-  observe active/inactive transitions for the queued direct dialog and normal
-  chat input, confirm the cache agrees with the UI, produces no traffic, and
-  exits normally.
+- **Cached R1 dialog/input live gate:** `HostApi::is_local_dialog_active`,
+  `HostApi::active_local_dialog`, and `HostApi::is_local_chat_input_active`
+  are fail-closed behind exact R1 code signatures plus independently checked
+  packed offsets. A legal R1 run must observe the queued dialog core while it
+  is active, its `None` state after dismissal, active/inactive flag transitions
+  for the direct dialog and normal chat input, confirm the cache agrees with
+  the UI, produces no traffic, and exits normally.
 - **Cached R1 animation-table live gate:** `HostApi::local_animation` and
   `HostApi::local_animation_id` are fail-closed behind the exact R1 table
   fingerprint. A legal R1 lifecycle run must record the validator's known
@@ -169,9 +170,16 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   scoreboard values `0/1` from the game-thread pump into atomic caches. The
   ABI returns converted scalars only; it cannot toggle UI, expose a pointer,
   or synchronously call the client.
-- **Cached R1 dialog and chat-input state:** the pinned R1 C++ leads place
-  `CDialog::m_bIsActive` at packed offset `0x28` and
-  `CInput::m_bEnabled` at `0x14E0`; the independent x86 fixture asserts both.
+- **Cached R1 dialog core and chat-input state:** the pinned R1 C++ leads place
+  `CDialog::m_bIsActive` at packed offset `0x28`, `m_nType` at `0x2C`,
+  `m_nId` at `0x30`, fixed `m_szCaption[65]` at `0x40`, and
+  `m_bServerside` at `0x81`; `CInput::m_bEnabled` is at `0x14E0`. The
+  independent x86 fixture asserts every touched offset. The installed
+  fingerprinted R1 DLL stores the dialog core at `CDialog::Show + 0x48` as
+  `89 7E 30 89 46 2C 89 8E 81 00 00 00 8D 56 40`; the profile verifies this
+  exact field-store anchor before copying only the active dialog's ID, typed
+  style, fixed bounded caption, and server-side flag. It never follows dynamic
+  text, button, edit-box, or list pointers.
   The installed fingerprinted R1 DLL's `CDialog::Show` at `+0x6B9C0` begins
   `83 EC 10 53 56 57 8B 7C 24 20 33 DB 3B FB 8B F1 7D 17 39 5E 28 0F`,
   explicitly comparing the dialog flag. `CInput::Open` at `+0x657E0` begins

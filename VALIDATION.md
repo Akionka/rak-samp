@@ -42,7 +42,7 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections and logs only the outcome and remote player ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
@@ -54,9 +54,10 @@ off, no-shadow, and normal display modes. Open and close the scoreboard with
 Tab, then activate and dismiss an ordinary local cursor state (for example,
 open and close chat input). Leave the direct dialog visible until the validator
 starts observing, then dismiss it.
-Confirm its `direct-client state validation passed` line and separately inspect
-that its outcome records each chat mode, both cursor categories, and both
-scoreboard, dialog, and chat-input states; the direct dialog, local chat entry,
+Confirm its `direct-client self-test passed` line includes `active_dialog=Ok`,
+then confirm its `direct-client state validation passed` line records each chat
+mode, both cursor categories, both scoreboard, dialog, active-dialog-core, and
+chat-input states; the direct dialog, local chat entry,
 death-window entry, and cached UI reads must add no RPC 61 observation and no
 outgoing RPC 61 or 62. (The standard validator intentionally emulates one
 incoming RPC 61 before this direct check.)
