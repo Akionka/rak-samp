@@ -153,8 +153,10 @@ fn initialize() {
         }))
         && api.is_player_connected(7) == Ok(true)
         && api.is_player_defined(7) == Ok(true)
+        && api.is_player_paused(7) == Ok(false)
         && api.is_player_connected(8) == Ok(false)
         && api.is_player_defined(8) == Ok(false)
+        && api.is_player_paused(8) == Ok(false)
     {
         PLAYER_INFO_ID.store(7, Ordering::Release);
     }

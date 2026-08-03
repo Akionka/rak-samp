@@ -80,6 +80,10 @@ connected remote player and an in-world client object. The accessor targets are
 fingerprinted before profile enablement; this surface remains provisional
 pending its second-player live lifecycle test.
 
+`HostApi::is_player_paused` projects the same cache through the exact R1
+`CRemotePlayer::GetStatus` accessor. It maps only status zero to paused, as
+SF.lua does, and returns false for the local player without a remote call.
+
 `HostApi::player_count(include_npcs)` is a separate cached scalar pair from
 the exact R1 `CPlayerPool::GetCount` accessor. The pump calls its two boolean
 modes, bounds each result to the R1 player capacity, and publishes them

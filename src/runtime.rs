@@ -109,6 +109,7 @@ pub(crate) struct LocalDialogSnapshot {
 pub(crate) struct PlayerInfoSnapshot {
     pub(crate) id: u16,
     pub(crate) defined: bool,
+    pub(crate) paused: bool,
     pub(crate) nickname: Vec<u8>,
     pub(crate) is_local: bool,
     pub(crate) is_npc: bool,
@@ -491,6 +492,10 @@ impl Runtime {
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.backend.player_defined(id)
+    }
+
+    pub(crate) fn player_paused(&self, id: u16) -> Result<bool, DirectClientError> {
+        self.backend.player_paused(id)
     }
 
     pub(crate) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {

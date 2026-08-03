@@ -82,6 +82,9 @@ player/ped/pool/GTA handle reaches a plugin.
 `HostApi::is_player_defined` is a projection of that same directory cache. The
 profile calls the exact R1 remote-world-state accessor during a bounded refresh;
 it never exposes the remote object or ped used by that private call.
+`HostApi::is_player_paused` is another projection: the profile calls the exact
+R1 remote-status accessor during that same bounded refresh and retains only the
+status-zero boolean; local snapshots always publish false.
 `HostApi::player_count` is a second scalar cache populated by the exact R1
 `CPlayerPool::GetCount` accessor in both NPC modes; it does not inspect the
 GTA world or expose streamed-ped counting.

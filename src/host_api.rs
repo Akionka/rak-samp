@@ -169,6 +169,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     text_label_info,
     textdraw_info,
     player_defined,
+    player_paused,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -983,6 +984,25 @@ unsafe extern "system" fn player_defined(id: u16, output: *mut u8) -> RakSampRes
     match runtime.player_defined(id) {
         Ok(defined) => {
             *output = u8::from(defined);
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn player_paused(id: u16, output: *mut u8) -> RakSampResult {
+    if id >= MAX_SAMP_PLAYERS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.player_paused(id) {
+        Ok(paused) => {
+            *output = u8::from(paused);
             RakSampResult::Ok
         }
         Err(error) => direct_client_result(error),
@@ -1822,6 +1842,19 @@ mod tests {
         );
         assert_eq!(
             unsafe { player_defined(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut player_paused_output = 0;
+        assert_eq!(
+            unsafe { player_paused(7, &mut player_paused_output) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { player_paused(MAX_SAMP_PLAYERS, &mut player_paused_output) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { player_paused(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut count = 0;

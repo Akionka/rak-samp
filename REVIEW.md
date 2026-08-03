@@ -106,9 +106,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `samp.dll` audit confirms `CNetGame::GetPlayerPool` at RVA `0x1160`,
   `CPlayerPool::{IsConnected,GetPlayer,IsNPC,GetName,GetScore,GetPing}` at
   `0x10B0`, `0x10F0`, `0xB680`, `0x13CE0`, `0x6A190`, and `0x6A1C0`, and
-  `CRemotePlayer::{GetColorAsARGB,DoesExist}` at `0x12A00` and `0x1080`.
+  `CRemotePlayer::{GetColorAsARGB,DoesExist,GetStatus}` at `0x12A00`,
+  `0x1080`, and `0x12BA0`.
   `DoesExist` begins `83 39 00 74 0D 8A 41 09 84 C0 74 06 B8 01 00 00 00 C3`;
-  all exact leading code bytes are pinned in the R1 profile and unit-tested.
+  `GetStatus` has its complete 52-byte R1 body pinned before the profile maps
+  status zero to the safe paused boolean; all exact leading code bytes are
+  pinned in the R1 profile and unit-tested.
   The SAMP API R1 reference is a lead, not authority. These are accessor calls
   only—this batch introduces no native field layout, so no new C++ layout
   fixture is claimed. The profile still requires the existing strict SA-MP and

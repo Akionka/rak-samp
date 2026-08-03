@@ -433,6 +433,10 @@ impl Backend {
         self.state.player_defined(id)
     }
 
+    pub(crate) fn player_paused(&self, id: u16) -> Result<bool, DirectClientError> {
+        self.state.player_paused(id)
+    }
+
     pub(crate) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
         self.state.player_count(include_npcs)
     }
@@ -1082,6 +1086,11 @@ impl BackendState {
     fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.player_info(id)
             .map(|player| player.is_some_and(|player| player.defined))
+    }
+
+    fn player_paused(&self, id: u16) -> Result<bool, DirectClientError> {
+        self.player_info(id)
+            .map(|player| player.is_some_and(|player| player.paused))
     }
 
     fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
@@ -2101,6 +2110,7 @@ fn player_info_from_local(player: &LocalPlayerSnapshot) -> PlayerInfoSnapshot {
     PlayerInfoSnapshot {
         id: player.id,
         defined: true,
+        paused: false,
         nickname: player.nickname.clone(),
         is_local: true,
         is_npc: false,

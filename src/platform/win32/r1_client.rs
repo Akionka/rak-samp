@@ -66,6 +66,7 @@ const PLAYER_POOL_UPDATE_LARGEST_ID_RVA: usize = 0x102B0;
 const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
+const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x12BA0;
 const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 const PED_GET_HEALTH_RVA: usize = 0xA6610;
@@ -370,6 +371,12 @@ const REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE: [u8; 16] = [
 const REMOTE_PLAYER_DOES_EXIST_SIGNATURE: [u8; 18] = [
     0x83, 0x39, 0x00, 0x74, 0x0D, 0x8A, 0x41, 0x09, 0x84, 0xC0, 0x74, 0x06, 0xB8, 0x01, 0x00, 0x00,
     0x00, 0xC3,
+];
+const REMOTE_PLAYER_GET_STATUS_SIGNATURE: [u8; 52] = [
+    0x56, 0x8B, 0xF1, 0x8B, 0x0E, 0x85, 0xC9, 0x74, 0x27, 0xE8, 0x62, 0x7E, 0x08, 0x00, 0x85, 0xC0,
+    0x74, 0x1E, 0x8B, 0x0E, 0xE8, 0xD7, 0x42, 0x09, 0x00, 0x85, 0xC0, 0x75, 0x13, 0x8B, 0x0E, 0xE8,
+    0x3C, 0x43, 0x09, 0x00, 0x85, 0xC0, 0x75, 0x08, 0x8B, 0x86, 0xD1, 0x01, 0x00, 0x00, 0x5E, 0xC3,
+    0x33, 0xC0, 0x5E, 0xC3,
 ];
 
 const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
@@ -682,6 +689,8 @@ impl R1ClientProfile {
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
+        let get_status: RemotePlayerGetStatusFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_GET_STATUS_RVA) };
         let is_npc = match unsafe { is_npc(pool, id) } {
             0 => false,
             1 => true,
@@ -698,6 +707,7 @@ impl R1ClientProfile {
                 1 => true,
                 _ => return Err(DirectClientError::NotReady),
             },
+            paused: unsafe { get_status(remote) } == 0,
             nickname,
             is_local: false,
             is_npc,
@@ -1292,6 +1302,7 @@ type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_vo
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 
 unsafe fn samp_r1_pe_matches(module_base: usize) -> bool {
@@ -1459,6 +1470,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         && code_matches(
             module_base + REMOTE_PLAYER_DOES_EXIST_RVA,
             &REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
+        )
+        && code_matches(
+            module_base + REMOTE_PLAYER_GET_STATUS_RVA,
+            &REMOTE_PLAYER_GET_STATUS_SIGNATURE,
         )
         && [
             PLAYER_POOL_GET_LOCAL_PLAYER_RVA,
@@ -1635,9 +1650,9 @@ mod tests {
         PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
         PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_DOES_EXIST_SIGNATURE,
-        REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, SAMP_PED_GAME_PED_OFFSET,
-        SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET,
-        TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
+        REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE, REMOTE_PLAYER_GET_STATUS_SIGNATURE,
+        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
+        SCOREBOARD_ENABLED_OFFSET, TEXT_LABEL_POOL_CREATE_SCALAR_FIELDS_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_ALLOCATION_SIGNATURE,
         TEXT_LABEL_POOL_CREATE_TEXT_COPY_SIGNATURE, TEXTDRAW_ALIGN_CENTER_OFFSET,
         TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
@@ -2328,6 +2343,15 @@ mod tests {
             [
                 0x83, 0x39, 0x00, 0x74, 0x0D, 0x8A, 0x41, 0x09, 0x84, 0xC0, 0x74, 0x06, 0xB8, 0x01,
                 0x00, 0x00, 0x00, 0xC3,
+            ]
+        );
+        assert_eq!(
+            REMOTE_PLAYER_GET_STATUS_SIGNATURE,
+            [
+                0x56, 0x8B, 0xF1, 0x8B, 0x0E, 0x85, 0xC9, 0x74, 0x27, 0xE8, 0x62, 0x7E, 0x08, 0x00,
+                0x85, 0xC0, 0x74, 0x1E, 0x8B, 0x0E, 0xE8, 0xD7, 0x42, 0x09, 0x00, 0x85, 0xC0, 0x75,
+                0x13, 0x8B, 0x0E, 0xE8, 0x3C, 0x43, 0x09, 0x00, 0x85, 0xC0, 0x75, 0x08, 0x8B, 0x86,
+                0xD1, 0x01, 0x00, 0x00, 0x5E, 0xC3, 0x33, 0xC0, 0x5E, 0xC3,
             ]
         );
     }

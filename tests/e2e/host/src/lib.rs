@@ -472,6 +472,14 @@ unsafe extern "system" fn player_defined(id: u16, output: *mut u8) -> RakSampRes
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn player_paused(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 9);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn player_max_id(output: *mut u16) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -798,4 +806,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     text_label_info,
     textdraw_info,
     player_defined,
+    player_paused,
 };

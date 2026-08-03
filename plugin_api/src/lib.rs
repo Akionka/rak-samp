@@ -921,6 +921,8 @@ pub struct RakSampApiV1 {
     pub textdraw_info: unsafe extern "system" fn(u16, *mut RakSampTextDrawV1) -> RakSampResult,
     /// Copies a cached R1 player-world-defined flag into `output`.
     pub player_defined: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies a cached R1 player-paused flag into `output`.
+    pub player_paused: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -2039,6 +2041,26 @@ impl HostApi {
         }
     }
 
+    /// Returns whether the latest cached R1 player status is `PLAYER_STATE_NONE`.
+    ///
+    /// Local players are always `false`, matching SF.lua. Remote IDs are
+    /// refreshed through the existing bounded player-directory pump and may
+    /// initially return [`RakSampResult::NotReady`].
+    pub fn is_player_paused(self, id: u16) -> Result<bool, RakSampResult> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut paused = 0;
+        match unsafe { (self.raw.player_paused)(id, &mut paused) } {
+            RakSampResult::Ok => match paused {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns copied player nickname bytes without assuming a text encoding.
     pub fn player_nickname(self, id: u16) -> Result<Option<Vec<u8>>, RakSampResult> {
         self.player_info(id)
@@ -2891,8 +2913,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, textdraw_info) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_paused),
             mem::offset_of!(RakSampApiV1, player_defined) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, player_paused) + function_size
         );
     }
 
@@ -3025,6 +3051,7 @@ mod tests {
         );
         assert_eq!(api.is_player_connected(7), Ok(true));
         assert_eq!(api.is_player_defined(7), Ok(true));
+        assert_eq!(api.is_player_paused(7), Ok(false));
         assert_eq!(api.player_nickname(7), Ok(Some(b"remote".to_vec())));
         assert_eq!(api.is_player_npc(7), Ok(Some(true)));
         assert_eq!(api.player_colour(7), Ok(Some(0xFF22_4466)));
@@ -3033,6 +3060,8 @@ mod tests {
         assert_eq!(api.player_info(8), Ok(None));
         assert_eq!(api.is_player_connected(8), Ok(false));
         assert_eq!(api.is_player_defined(8), Ok(false));
+        assert_eq!(api.is_player_paused(8), Ok(false));
+        assert_eq!(api.is_player_paused(9), Ok(true));
         assert_eq!(api.player_count(true), Ok(3));
         assert_eq!(api.player_count(false), Ok(2));
         assert_eq!(api.player_max_id(), Ok(42));

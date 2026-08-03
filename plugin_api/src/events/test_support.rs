@@ -770,6 +770,14 @@ unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> RakSa
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_player_paused(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 9);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_player_max_id(output: *mut u16) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1038,6 +1046,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     text_label_info: test_text_label_info,
     textdraw_info: test_textdraw_info,
     player_defined: test_player_defined,
+    player_paused: test_player_paused,
 };
 
 pub(crate) fn test_api() -> HostApi {

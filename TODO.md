@@ -427,7 +427,6 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
   `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
   force-sync APIs; excluded. Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
-  `sampIsPlayerPaused`,
   `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` require their
   own remote-player layout or accessor evidence and a copied snapshot in
   static-first step 7. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
@@ -459,6 +458,10 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `HostApi::player_ping` cover cached local and demand-refreshed remote IDs;
   the existing `local_player_*` projections remain available. Keep provisional
   with the player-directory live gate.
+- [~] `sampIsPlayerPaused` — `HostApi::is_player_paused(id)` reuses the
+  bounded player directory and fingerprinted R1 `CRemotePlayer::GetStatus`
+  accessor; it maps only `PLAYER_STATE_NONE` to true and always returns false
+  for the local player. Keep provisional with the second-player live gate.
 - [~] `sampRequestClass`, `sampSendInteriorChange`, `sampSendSpawn`,
   `sampSendEnterVehicle`, `sampSendExitVehicle` — the corresponding
   `HostApi::send_*` methods serialize the exact R1 outbound RPCs, but remain
