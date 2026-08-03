@@ -1,5 +1,77 @@
 # Pending work
 
+## Completion checklist (preserve across context compaction)
+
+The module inventories below are the authoritative SF.lua function scope. Work
+them in this order; do not mark an item complete merely because a public header
+or another client build supplies an offset.
+
+- [ ] For every remaining `[ ]` function, classify it as one of: pure owned
+  Rust helper, exact existing R1 wire codec, copied R1 game-thread read, queued
+  R1 UI call, client-state mutation, force-sync, or raw-pointer API. Record
+  the chosen safe replacement or the reason it remains excluded from the safe
+  ABI beside its module entry.
+- [ ] For every copied R1 read or queued R1 UI call, obtain all of: R1 PE/GTA
+  fingerprint, exact target-code signature or independently verified field
+  layout, bounded owned ABI model, unavailable/teardown result, unit/mock/E2E
+  coverage, and an entry in `REVIEW.md`. Never access it from plugin threads,
+  callbacks, bootstrap workers, or `DllMain`.
+- [ ] For every existing R1 packet/RPC codec that corresponds to an SF.lua
+  helper, add a named `HostApi` convenience only when its behaviour is
+  accurately labelled protocol-only. Require exact byte/bit vectors and never
+  claim native local-state mutation or force-sync.
+- [ ] Keep raw client pointers, memory writes, client-state mutation,
+  reconnect/disconnect, and force-sync outside the safe ABI unless a separate
+  explicit unsafe/experimental design is approved. Do not silently turn them
+  into safe helpers.
+- [ ] Keep the independent C++ fixture limited to native-memory layouts. Add
+  or update it for every new field access; a serialized wire vector is not a
+  native-layout proof.
+- [ ] Keep the ABI mock host and independent E2E plugin current for every
+  appended safe wrapper. Check append offsets/size, copied-buffer validation,
+  queue back-pressure, unsupported/not-ready paths, and game-pump draining.
+- [ ] After each bounded implementation batch, run `cargo fmt --check`,
+  `cargo test --workspace --target i686-pc-windows-msvc`,
+  `cargo clippy --workspace --target i686-pc-windows-msvc -- -D warnings`,
+  `cargo make test-e2e`,
+  `cargo build --workspace --release --target i686-pc-windows-msvc`, and
+  `git diff --check`; commit the passing batch separately.
+
+### Pending live R1 evidence
+
+- [ ] Deploy the current validation plugin to the fingerprinted GTA SA 1.0 US
+  + SA-MP 0.3.7 R1 installation with the direct-client marker enabled. Confirm
+  that the queued dialog, chat entry, and death-window entry are all visible,
+  dismiss the dialog, and exit normally. Preserve only outcome/ID logs; never
+  record UI, packet, or RPC payloads.
+- [ ] During that run, prove the three direct UI calls cause no incoming or
+  outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
+  intentional incoming RPC 61 emulation from direct-helper activity.
+- [ ] Verify `local_player` after server assignment, then while walking,
+  taking armour and health damage, and entering/leaving a vehicle. Confirm the
+  ID remains stable, all required fields change, and teardown clears cached
+  data without a crash.
+- [ ] Verify `server_info` against the selected server's displayed address,
+  hostname, and port, then exit normally.
+- [ ] For every newly added direct native surface, add an opt-in validator
+  action before asking for its live run. Record the exact client identity,
+  observed outcome, shutdown result, and any RPC/packet absence evidence in
+  `REVIEW.md`; move only that helper from `[~]` to `[x]`.
+- [ ] Run the same full lifecycle separately on legal R2, R3.1, R4.2, R5.1,
+  and DL installations before enabling any direct helper for those builds.
+
+### Release audit
+
+- [ ] Reconcile every one of the 207 pinned SF.lua globals below with a safe
+  implementation, a documented protocol-only approximation, or an explicit
+  safe-ABI exclusion. Do not leave an unclassified function hidden in a
+  comma-separated list.
+- [ ] Re-read `README.md`, `CORE.md`, `ARCHITECTURE.md`, `VALIDATION.md`, and
+  `REVIEW.md` against the final API. Remove provisional language only when its
+  matching live evidence is recorded.
+- [ ] Perform the final Windows x86 build/E2E suite and the required live R1
+  scenarios on the exact release artifacts before declaring the backlog done.
+
 - [x] Record the GTA SA 1.0 US + SA-MP 0.3.7 R1 direct-client live gate:
   dialog display, populated snapshot, walking/damage/armour/vehicle field
   changes, no direct-dialog RPC 61/62 traffic, and stable normal shutdown.
