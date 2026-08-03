@@ -71,10 +71,12 @@ pub(crate) fn report_counts(elapsed_seconds: u64) {
         outgoing_rpc_name,
     );
     logging::write(&format!(
-        "self_test: packet={} RPC={} dialog={} send_packet={} send_RPC={}",
+        "self_test: packet={} RPC={} dialog={} direct_client={} direct_snapshot_state={} send_packet={} send_RPC={}",
         self_test_label(SELF_TESTS.packet.load(Ordering::Acquire)),
         self_test_label(SELF_TESTS.rpc.load(Ordering::Acquire)),
         self_test_label(SELF_TESTS.dialog.load(Ordering::Acquire)),
+        self_test_label(SELF_TESTS.direct_client.load(Ordering::Acquire)),
+        self_test_label(SELF_TESTS.direct_snapshot_state.load(Ordering::Acquire)),
         self_test_label(SELF_TESTS.send_packet.load(Ordering::Acquire)),
         self_test_label(SELF_TESTS.send_rpc.load(Ordering::Acquire)),
     ));

@@ -23,6 +23,16 @@ emulation follows the normal incoming dispatch path exactly once.
 allocations, and native pointers do not cross the DLL boundary. Payload sizes
 and bit counts are checked before they reach RakNet.
 
+`HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
+32-request host queue. `HostApi::local_player` returns an owned clone of a
+host-owned cache and never waits for the game thread. Both APIs return
+`UnsupportedVersion` unless the R1 SA-MP and GTA SA 1.0 US fingerprints pass;
+they never expose client pointers or use RPC emulation. Snapshot publication
+begins only after the server's R1 `INIT_GAME` assignment matches the
+local-player ID on two game-thread refreshes, then refreshes from the verified
+R1 player pool. It returns `NotReady` rather than publishing a provisional zero
+or SA-MP's `0xFFFF` sentinel.
+
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
 retain the callbacks that need a retry. Waiting in `DllMain` or a callback is
@@ -41,10 +51,13 @@ recorded.
 
 ## Native boundary
 
-The Windows backend owns client addresses, detours, vtable changes, and native
-string-codec calls. It restores only hooks it owns and keeps captured backend
-state valid for in-flight original calls. Native layouts are covered by the C++
-fixture and live evidence in [REVIEW.md](REVIEW.md).
+The Windows backend owns client addresses, detours, vtable changes, native
+string-codec calls, and the private R1 client profile. Its incoming-packet
+detour is also the game-thread pump: it refreshes the snapshot and drains at
+most four copied dialog requests after releasing queue locks, without touching
+packet or RPC dispatch. It restores only hooks it owns and keeps captured
+backend state valid for in-flight original calls. Native layouts are covered by
+the C++ fixture and live evidence in [REVIEW.md](REVIEW.md).
 
 The Windows x86 end-to-end fixture loads a minimal ABI host and an independent
 plugin ASI, then verifies discovery, registration, callback delivery, shutdown,

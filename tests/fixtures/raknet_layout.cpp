@@ -18,6 +18,96 @@ struct FixturePacket {
     unsigned char* data;
     bool delete_data;
 };
+
+// Independently recorded prefixes of the SA-MP 0.3.7 R1 synchronization
+// layouts used by the direct local-player profile. These are deliberately not
+// generated from the Rust implementation.
+struct FixtureVector3 {
+    float x;
+    float y;
+    float z;
+};
+
+struct FixtureControllerState {
+    short left_stick_x;
+    short left_stick_y;
+    short buttons;
+};
+
+struct FixtureR1OnfootData {
+    FixtureControllerState controller;
+    FixtureVector3 position;
+    float quaternion[4];
+    unsigned char health;
+    unsigned char armour;
+    unsigned char weapon;
+    unsigned char special_action;
+    FixtureVector3 speed;
+    FixtureVector3 surfing_offset;
+    unsigned short surfing_vehicle;
+    unsigned int animation;
+};
+
+struct FixtureR1IncarData {
+    unsigned short vehicle;
+    FixtureControllerState controller;
+    float quaternion[4];
+    FixtureVector3 position;
+    FixtureVector3 speed;
+    float health;
+    unsigned char driver_health;
+    unsigned char driver_armour;
+    unsigned char weapon;
+    bool siren;
+    bool landing_gear;
+    unsigned short trailer;
+    unsigned int hydra_or_train;
+};
+
+struct FixtureR1LocalPlayerPrefix {
+    void* ped;
+    unsigned int animation;
+    int field_8;
+    int active;
+    int wasted;
+    unsigned short current_vehicle;
+    unsigned short last_vehicle;
+    FixtureR1OnfootData onfoot;
+};
+
+// Independent packed equivalents of the R1 `CEntity` / `CPed` prefix. The
+// snapshot validates CPed's dedicated GTA-ped pointer before calling native
+// health and armour getters.
+struct FixtureR1Entity {
+    void* vtable;
+    unsigned char pad_4[60];
+    void* game_entity;
+    unsigned int handle;
+};
+
+struct FixtureR1Accessory {
+    int model;
+    int bone;
+    FixtureVector3 offset;
+    FixtureVector3 rotation;
+    FixtureVector3 scale;
+    unsigned int first_material_colour;
+    unsigned int second_material_colour;
+};
+
+struct FixtureR1Ped {
+    FixtureR1Entity entity;
+    unsigned int using_cellphone;
+    unsigned int accessory_not_empty[10];
+    FixtureR1Accessory accessories[10];
+    void* accessory_objects[10];
+    void* game_ped;
+};
+
+struct FixtureR1PlayerPoolPrefix {
+    int largest_id;
+    unsigned short local_id;
+};
 #pragma pack(pop)
 
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
@@ -25,6 +115,12 @@ static_assert(sizeof(FixturePlayerId) == 6);
 static_assert(alignof(FixturePlayerId) == 1);
 static_assert(sizeof(FixturePacket) == 21);
 static_assert(alignof(FixturePacket) == 1);
+static_assert(sizeof(FixtureVector3) == 12);
+static_assert(sizeof(FixtureR1OnfootData) == 68);
+static_assert(sizeof(FixtureR1IncarData) == 63);
+static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
+static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
+static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
 
 extern "C" {
 
@@ -78,6 +174,62 @@ void rak_samp_fixture_initialize_packet(void* memory, unsigned char* data) {
     packet->bit_size = 17;
     packet->data = data;
     packet->delete_data = true;
+}
+
+std::size_t rak_samp_fixture_r1_onfoot_size() {
+    return sizeof(FixtureR1OnfootData);
+}
+
+std::size_t rak_samp_fixture_r1_incar_size() {
+    return sizeof(FixtureR1IncarData);
+}
+
+std::size_t rak_samp_fixture_r1_local_player_prefix_size() {
+    return sizeof(FixtureR1LocalPlayerPrefix);
+}
+
+std::size_t rak_samp_fixture_r1_local_active_offset() {
+    return offsetof(FixtureR1LocalPlayerPrefix, active);
+}
+
+std::size_t rak_samp_fixture_r1_local_current_vehicle_offset() {
+    return offsetof(FixtureR1LocalPlayerPrefix, current_vehicle);
+}
+
+std::size_t rak_samp_fixture_r1_local_onfoot_offset() {
+    return offsetof(FixtureR1LocalPlayerPrefix, onfoot);
+}
+
+std::size_t rak_samp_fixture_r1_onfoot_position_offset() {
+    return offsetof(FixtureR1OnfootData, position);
+}
+
+std::size_t rak_samp_fixture_r1_onfoot_speed_offset() {
+    return offsetof(FixtureR1OnfootData, speed);
+}
+
+std::size_t rak_samp_fixture_r1_onfoot_special_action_offset() {
+    return offsetof(FixtureR1OnfootData, special_action);
+}
+
+std::size_t rak_samp_fixture_r1_onfoot_animation_offset() {
+    return offsetof(FixtureR1OnfootData, animation);
+}
+
+std::size_t rak_samp_fixture_r1_incar_position_offset() {
+    return offsetof(FixtureR1IncarData, position);
+}
+
+std::size_t rak_samp_fixture_r1_incar_speed_offset() {
+    return offsetof(FixtureR1IncarData, speed);
+}
+
+std::size_t rak_samp_fixture_r1_ped_game_ped_offset() {
+    return offsetof(FixtureR1Ped, game_ped);
+}
+
+std::size_t rak_samp_fixture_r1_player_pool_local_id_offset() {
+    return offsetof(FixtureR1PlayerPoolPrefix, local_id);
 }
 
 }

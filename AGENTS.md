@@ -31,8 +31,10 @@ Close GTA before deployment because Windows locks loaded ASIs.
   explicit errors over `unwrap()` or `expect()` outside tests.
 - Use the `log` facade; `src/logging.rs` owns setup. Never log packet or RPC
   payloads.
-- Keep the plugin ABI C-compatible, versioned, and append-only. No Rust
-  references, trait objects, or allocations may cross the DLL boundary.
+- Keep the plugin ABI C-compatible and versioned. During the ALPHA stage, its
+  contract may be broken and fields do not have to be append-only; treat any
+  such change as an explicit compatibility break. No Rust references, trait
+  objects, or allocations may cross the DLL boundary.
 - Preserve native layouts using fixture and live-client evidence; serialized
   sizes do not prove in-memory packing. Record authoritative offset evidence in
   [REVIEW.md](REVIEW.md).

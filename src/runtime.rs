@@ -4,6 +4,86 @@ use crate::{
 use core::fmt;
 use std::sync::Arc;
 
+/// A copied dialog request that is safe to retain until the game-thread pump
+/// can call the private native client backend.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalDialogRequest {
+    pub(crate) id: u16,
+    pub(crate) style: LocalDialogStyle,
+    pub(crate) title: Vec<u8>,
+    pub(crate) text: Vec<u8>,
+    pub(crate) button1: Vec<u8>,
+    pub(crate) button2: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum LocalDialogStyle {
+    MessageBox,
+    Input,
+    List,
+    Password,
+    TabList,
+    HeadersList,
+}
+
+impl LocalDialogStyle {
+    pub(crate) const fn from_raw(value: u32) -> Option<Self> {
+        match value {
+            0 => Some(Self::MessageBox),
+            1 => Some(Self::Input),
+            2 => Some(Self::List),
+            3 => Some(Self::Password),
+            4 => Some(Self::TabList),
+            5 => Some(Self::HeadersList),
+            _ => None,
+        }
+    }
+
+    pub(crate) const fn as_raw(self) -> u32 {
+        match self {
+            Self::MessageBox => 0,
+            Self::Input => 1,
+            Self::List => 2,
+            Self::Password => 3,
+            Self::TabList => 4,
+            Self::HeadersList => 5,
+        }
+    }
+}
+
+/// Host-owned data copied from the verified R1 game-thread client state.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LocalPlayerSnapshot {
+    pub(crate) id: u16,
+    pub(crate) nickname: Vec<u8>,
+    pub(crate) colour: u32,
+    pub(crate) spawned: bool,
+    pub(crate) health: f32,
+    pub(crate) armour: f32,
+    pub(crate) position: Vector3,
+    pub(crate) velocity: Vector3,
+    pub(crate) special_action: u8,
+    pub(crate) animation_id: u16,
+    pub(crate) vehicle_id: Option<u16>,
+    pub(crate) score: i32,
+    pub(crate) ping: u32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub(crate) struct Vector3 {
+    pub(crate) x: f32,
+    pub(crate) y: f32,
+    pub(crate) z: f32,
+}
+
+/// Failures specific to the direct, profile-gated client helpers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum DirectClientError {
+    NotReady,
+    UnsupportedVersion,
+    QueueFull,
+}
+
 /// Failure to attach the SDK to a compatible SA-MP client.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum AttachError {
@@ -226,6 +306,17 @@ impl Runtime {
     ) -> Result<usize, CodecError> {
         self.backend.decode_string(payload, output)
     }
+
+    pub(crate) fn show_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<(), DirectClientError> {
+        self.backend.show_local_dialog(request)
+    }
+
+    pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        self.backend.local_player()
+    }
 }
 
 fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {
@@ -245,7 +336,8 @@ impl Drop for Runtime {
 #[cfg(test)]
 mod tests {
     use super::{
-        PacketPriority, PacketReliability, SendError, SendOptions, validate_packet_options,
+        LocalDialogStyle, PacketPriority, PacketReliability, SendError, SendOptions,
+        validate_packet_options,
     };
 
     #[test]
@@ -261,5 +353,18 @@ mod tests {
             validate_packet_options(options),
             Err(SendError::TimestampedPacketUnsupported)
         );
+    }
+
+    #[test]
+    fn direct_dialog_style_accepts_only_the_six_native_values() {
+        assert_eq!(
+            LocalDialogStyle::from_raw(0),
+            Some(LocalDialogStyle::MessageBox)
+        );
+        assert_eq!(
+            LocalDialogStyle::from_raw(5),
+            Some(LocalDialogStyle::HeadersList)
+        );
+        assert_eq!(LocalDialogStyle::from_raw(6), None);
     }
 }

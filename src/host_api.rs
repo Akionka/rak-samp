@@ -1,12 +1,16 @@
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
     PacketReliability, Runtime, SendError, SendOptions, logging,
-    runtime::{ClientHookStatus, CodecError},
+    runtime::{
+        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalDialogStyle,
+        LocalPlayerSnapshot,
+    },
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
-    RakSampHookAction, RakSampHostStatus, RakSampResult, RakSampSendOptions, RakSampSubscription,
+    RakSampHookAction, RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
+    RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -133,6 +137,8 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     event_replace_bits,
     encode_string,
     event_read_encoded_string,
+    show_local_dialog,
+    local_player,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -537,6 +543,66 @@ unsafe extern "system" fn event_read_encoded_string(
     }
 }
 
+unsafe extern "system" fn show_local_dialog(
+    id: u16,
+    style: u32,
+    title: *const u8,
+    title_len: usize,
+    text: *const u8,
+    text_len: usize,
+    button1: *const u8,
+    button1_len: usize,
+    button2: *const u8,
+    button2_len: usize,
+) -> RakSampResult {
+    let Some(style) = LocalDialogStyle::from_raw(style) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(title) = (unsafe { copied_dialog_string(title, title_len, 255) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(text) = (unsafe { copied_dialog_string(text, text_len, 4_095) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(button1) = (unsafe { copied_dialog_string(button1, button1_len, 255) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(button2) = (unsafe { copied_dialog_string(button2, button2_len, 255) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    runtime
+        .show_local_dialog(LocalDialogRequest {
+            id,
+            style,
+            title,
+            text,
+            button1,
+            button2,
+        })
+        .map_or_else(direct_client_result, |_| RakSampResult::Ok)
+}
+
+unsafe extern "system" fn local_player(output: *mut RakSampLocalPlayerV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    let snapshot = match runtime.local_player() {
+        Ok(snapshot) => snapshot,
+        Err(error) => return direct_client_result(error),
+    };
+    let Ok(snapshot) = local_player_to_abi(snapshot) else {
+        return RakSampResult::NativeCallFailed;
+    };
+    *output = snapshot;
+    RakSampResult::Ok
+}
+
 fn register_listener(
     direction: RakSampDirection,
     callback: Option<RakSampEventCallbackV1>,
@@ -710,6 +776,68 @@ fn codec_result(error: CodecError) -> RakSampResult {
     }
 }
 
+fn direct_client_result(error: DirectClientError) -> RakSampResult {
+    match error {
+        DirectClientError::NotReady => RakSampResult::NotReady,
+        DirectClientError::UnsupportedVersion => RakSampResult::UnsupportedVersion,
+        DirectClientError::QueueFull => RakSampResult::QueueFull,
+    }
+}
+
+unsafe fn copied_dialog_string(
+    value: *const u8,
+    value_len: usize,
+    maximum: usize,
+) -> Result<Vec<u8>, ()> {
+    if value_len > maximum || (value.is_null() && value_len != 0) {
+        return Err(());
+    }
+    let value = if value_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(value, value_len) }
+    };
+    if value.contains(&0) {
+        return Err(());
+    }
+    Ok(value.to_vec())
+}
+
+fn local_player_to_abi(snapshot: LocalPlayerSnapshot) -> Result<RakSampLocalPlayerV1, ()> {
+    let nickname_len = u16::try_from(snapshot.nickname.len()).map_err(|_| ())?;
+    if snapshot.nickname.len() > 256 {
+        return Err(());
+    }
+    let mut nickname = [0; 256];
+    nickname[..snapshot.nickname.len()].copy_from_slice(&snapshot.nickname);
+    Ok(RakSampLocalPlayerV1 {
+        id: snapshot.id,
+        nickname_len,
+        nickname,
+        colour: snapshot.colour,
+        spawned: u8::from(snapshot.spawned),
+        special_action: snapshot.special_action,
+        animation_id: snapshot.animation_id,
+        health: snapshot.health,
+        armour: snapshot.armour,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
+        velocity: Vector3 {
+            x: snapshot.velocity.x,
+            y: snapshot.velocity.y,
+            z: snapshot.velocity.z,
+        },
+        has_vehicle: u8::from(snapshot.vehicle_id.is_some()),
+        _reserved: 0,
+        vehicle_id: snapshot.vehicle_id.unwrap_or_default(),
+        score: snapshot.score,
+        ping: snapshot.ping,
+    })
+}
+
 fn send_options(options: RakSampSendOptions) -> Result<SendOptions, ()> {
     let priority = match options.priority {
         0 => PacketPriority::System,
@@ -756,7 +884,7 @@ enum ListenerKind {
 
 #[cfg(test)]
 mod tests {
-    use super::clone_initialized;
+    use super::*;
     use std::sync::{Arc, OnceLock};
 
     #[test]
@@ -769,5 +897,55 @@ mod tests {
 
         assert_eq!((*outer, *nested), (7, 7));
         assert_eq!(Arc::strong_count(&outer), 3);
+    }
+
+    #[test]
+    fn direct_client_abi_is_not_ready_without_a_runtime() {
+        let mut output = RakSampLocalPlayerV1::default();
+        assert_eq!(
+            unsafe { local_player(&mut output) },
+            RakSampResult::NotReady
+        );
+    }
+
+    #[test]
+    fn local_snapshot_conversion_uses_only_fixed_abi_storage() {
+        let snapshot = LocalPlayerSnapshot {
+            id: 5,
+            nickname: b"player".to_vec(),
+            colour: 0xAABB_CCDD,
+            spawned: true,
+            health: 75.0,
+            armour: 25.0,
+            position: crate::runtime::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            velocity: crate::runtime::Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            special_action: 7,
+            animation_id: 8,
+            vehicle_id: Some(9),
+            score: 10,
+            ping: 11,
+        };
+
+        let raw = local_player_to_abi(snapshot).expect("fixture snapshot fits the ABI");
+        assert_eq!(raw.nickname_len, 6);
+        assert_eq!(&raw.nickname[..6], b"player");
+        assert_eq!(raw.has_vehicle, 1);
+        assert_eq!(raw.vehicle_id, 9);
+        assert_eq!(
+            raw.position,
+            Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0
+            }
+        );
     }
 }

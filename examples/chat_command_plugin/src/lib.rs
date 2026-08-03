@@ -4,11 +4,9 @@
 compile_error!("rak_samp_chat_command_example supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, HostApi, RakSampDirection, RakSampResult, RakSampSendOptions, SubscriptionSet,
-    events::{
-        RpcAction,
-        rpc::{incoming, outgoing},
-    },
+    ABI_VERSION_V1, HostApi, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampResult,
+    RakSampSendOptions, SubscriptionSet,
+    events::{RpcAction, rpc::outgoing},
     register_handlers, wait_for_default_host,
 };
 use std::{
@@ -31,7 +29,6 @@ use windows_sys::core::BOOL;
 const COMMAND: &[u8] = b"/raksamp";
 const CHAT_MESSAGE: &[u8] = b"rak-samp example: SEND_CHAT RPC works";
 const DIALOG_ID: u16 = 0x7F00;
-const DIALOG_STYLE_MESSAGE_BOX: u8 = 0;
 const NOT_RUN: u32 = u32::MAX;
 
 static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
@@ -137,17 +134,6 @@ fn initialize() {
                 }
             }
         ),
-        typed_rpc(
-            RakSampDirection::Outgoing,
-            outgoing::SEND_DIALOG_RESPONSE,
-            |response| {
-                if response.dialog_id == DIALOG_ID {
-                    RpcAction::Block
-                } else {
-                    RpcAction::Continue
-                }
-            }
-        ),
     ) {
         Ok(subscriptions) => subscriptions,
         Err(error) => {
@@ -165,7 +151,7 @@ fn run_example(api: HostApi) {
     LAST_CHAT_RESULT.store(chat_result as u32, Ordering::Release);
 
     let info = format!(
-        "rak-samp host status: {:?}\nABI version: {}\nSEND_CHAT result: {:?}\n\nThis dialog was generated locally through fake incoming RPC 61.",
+        "rak-samp host status: {:?}\nABI version: {}\nSEND_CHAT result: {:?}\n\nThis dialog is direct and local; it does not emulate RPC 61 or intercept a dialog response.",
         api.status(),
         ABI_VERSION_V1,
         chat_result,
@@ -187,22 +173,14 @@ fn send_chat(api: HostApi) -> RakSampResult {
 }
 
 fn show_local_dialog(api: HostApi, text: Vec<u8>) -> RakSampResult {
-    let dialog = incoming::ShowDialog {
-        dialog_id: DIALOG_ID,
-        style: DIALOG_STYLE_MESSAGE_BOX,
-        title: b"rak-samp example".to_vec(),
-        button1: b"Close".to_vec(),
-        button2: Vec::new(),
-        text,
-    };
-    let Ok(payload) = incoming::SHOW_DIALOG.encode(api, dialog) else {
-        return RakSampResult::NativeCallFailed;
-    };
-    api.emulate_incoming_rpc(
-        incoming::SHOW_DIALOG.id(),
-        payload.as_bytes(),
-        payload.len_bits(),
-    )
+    api.show_local_dialog(LocalDialog {
+        id: DIALOG_ID,
+        style: LocalDialogStyle::MessageBox,
+        title: b"rak-samp example",
+        text: &text,
+        button1: b"Close",
+        button2: b"",
+    })
 }
 
 fn is_raksamp_command(command: &[u8]) -> bool {
@@ -246,7 +224,7 @@ pub extern "system" fn RakSampChatCommand_LastChatResult() -> u32 {
     LAST_CHAT_RESULT.load(Ordering::Acquire)
 }
 
-/// Returns the numeric result of the most recent local dialog emulation, or `u32::MAX` if unused.
+/// Returns the numeric result of the most recent direct local-dialog request, or `u32::MAX` if unused.
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampChatCommand_LastDialogResult() -> u32 {
     LAST_DIALOG_RESULT.load(Ordering::Acquire)

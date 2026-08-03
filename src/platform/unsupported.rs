@@ -1,7 +1,9 @@
 use crate::{
     AttachError, BitStream, SendError, SendOptions,
     event::Registry,
-    runtime::{ClientHookStatus, CodecError},
+    runtime::{
+        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
+    },
 };
 use std::sync::Arc;
 
@@ -60,6 +62,17 @@ impl Backend {
         _payload: BitStream,
     ) -> Result<bool, SendError> {
         Err(SendError::ClientNotReady)
+    }
+
+    pub(crate) fn show_local_dialog(
+        &self,
+        _request: LocalDialogRequest,
+    ) -> Result<(), DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
     }
 
     pub(crate) fn shutdown(&mut self) {}

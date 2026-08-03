@@ -42,7 +42,17 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, waits for a populated local-player snapshot, then monitors position, health, armour, and vehicle-state changes for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
+
+For the direct-helper check, wait until the validator logs `observing`. Within
+the next two minutes, walk, take enough damage to change both armour and health,
+and enter or leave a vehicle.
+Confirm its `direct-client state validation passed` line and separately inspect
+that the direct dialog added no RPC 61 observation and no outgoing RPC 61 or 62
+was counted. (The standard validator intentionally emulates one incoming RPC
+61 before this direct check.)
+A release requires this scenario to remain stable through normal shutdown.
 
 For the separate runtime-unload check, close GTA and run:
 

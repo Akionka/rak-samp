@@ -7,7 +7,8 @@ use crate::{
     },
 };
 use rak_samp_plugin_api::{
-    HostApi, RakSampHookAction, RakSampResult, RakSampSendOptions,
+    HostApi, LocalDialog, LocalDialogStyle, LocalPlayer, RakSampHookAction, RakSampResult,
+    RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -16,7 +17,9 @@ use std::{
 };
 
 const SEND_TEST_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
+const DIRECT_SNAPSHOT_STATE_TIMEOUT: Duration = Duration::from_secs(120);
 pub(crate) const SEND_TEST_MARKER: &str = "rak-samp-validation-send.enabled";
+pub(crate) const DIRECT_CLIENT_TEST_MARKER: &str = "rak-samp-validation-direct-client.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 pub(crate) const TEST_PACKET_ID: u8 = 254;
 pub(crate) const TEST_RPC_ID: u8 = 255;
@@ -24,6 +27,27 @@ pub(crate) const TEST_PACKET_INPUT: [u8; 18] = *b"rak-samp-packet-in";
 pub(crate) const TEST_PACKET_REPLACEMENT: [u8; 18] = *b"rak-samp-packet-ok";
 pub(crate) const TEST_RPC_INPUT: [u8; 18] = *b"rak-samp-rpc-input";
 pub(crate) const TEST_RPC_REPLACEMENT: [u8; 18] = *b"rak-samp-rpc-pass!";
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+struct DirectSnapshotChanges {
+    position: bool,
+    health: bool,
+    armour: bool,
+    vehicle: bool,
+}
+
+impl DirectSnapshotChanges {
+    fn observe(&mut self, baseline: &LocalPlayer, snapshot: &LocalPlayer) {
+        self.position |= snapshot.position != baseline.position;
+        self.health |= snapshot.health != baseline.health;
+        self.armour |= snapshot.armour != baseline.armour;
+        self.vehicle |= snapshot.vehicle_id != baseline.vehicle_id;
+    }
+
+    fn complete(self) -> bool {
+        self.position && self.health && self.armour && self.vehicle
+    }
+}
 
 pub(crate) fn rewrite_test_packet(event: &mut Event<'_>) -> RakSampHookAction {
     rewrite_test_event(
@@ -200,8 +224,162 @@ pub(crate) fn run(api: HostApi) {
         self_test_label(SELF_TESTS.rpc.load(Ordering::Acquire)),
         self_test_label(SELF_TESTS.dialog.load(Ordering::Acquire)),
     ));
+    run_direct_client(api);
     run_send(api);
     schedule_shutdown();
+}
+
+fn run_direct_client(api: HostApi) {
+    if !logging::plugin_path(DIRECT_CLIENT_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .direct_client
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        SELF_TESTS
+            .direct_snapshot_state
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "direct-client self-test disabled; opt in with rak-samp-validation-direct-client.enabled",
+        );
+        return;
+    }
+
+    let dialog_result = api.show_local_dialog(LocalDialog {
+        id: 0x7FFC,
+        style: LocalDialogStyle::MessageBox,
+        title: b"rak-samp validation",
+        text: b"This is a direct local dialog validation request.",
+        button1: b"Close",
+        button2: b"",
+    });
+    if dialog_result != RakSampResult::Ok {
+        SELF_TESTS
+            .direct_client
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        SELF_TESTS
+            .direct_snapshot_state
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        logging::write(&format!(
+            "direct-client self-test dialog request returned {dialog_result:?}"
+        ));
+        return;
+    }
+
+    let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.local_player() {
+            Ok(snapshot) if !snapshot.nickname.is_empty() => {
+                SELF_TESTS
+                    .direct_client
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client self-test passed: dialog=Ok local_player_id={}",
+                    snapshot.id
+                ));
+                run_direct_snapshot_state(api, snapshot.id);
+                return;
+            }
+            Ok(_) | Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_client
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client self-test snapshot returned {error:?}"
+                ));
+                return;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    SELF_TESTS
+        .direct_client
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    SELF_TESTS
+        .direct_snapshot_state
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("direct-client self-test timed out before a populated snapshot");
+}
+
+fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
+    let spawn_deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let baseline = loop {
+        if STOP.load(Ordering::Acquire) || Instant::now() >= spawn_deadline {
+            SELF_TESTS
+                .direct_snapshot_state
+                .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+            logging::write(&format!(
+                "direct-client state validation timed out before a baseline snapshot: local_player_id={expected_id}"
+            ));
+            return;
+        }
+        match api.local_player() {
+            Ok(snapshot) if snapshot.id == expected_id => break snapshot,
+            Ok(_) | Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation snapshot returned {error:?}"
+                ));
+                return;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    };
+
+    logging::write(&format!(
+        "direct-client state validation observing local_player_id={expected_id}"
+    ));
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut changes = DirectSnapshotChanges::default();
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.local_player() {
+            Ok(snapshot) if snapshot.id == expected_id => {
+                changes.observe(&baseline, &snapshot);
+                if changes.complete() {
+                    SELF_TESTS
+                        .direct_snapshot_state
+                        .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                    log_direct_snapshot_state("passed", expected_id, changes);
+                    return;
+                }
+            }
+            Ok(_) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation changed local-player identity: local_player_id={expected_id}"
+                ));
+                return;
+            }
+            Err(RakSampResult::NotReady) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .direct_snapshot_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "direct-client state validation snapshot returned {error:?}"
+                ));
+                return;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+    if !STOP.load(Ordering::Acquire) {
+        SELF_TESTS
+            .direct_snapshot_state
+            .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+        log_direct_snapshot_state("timed-out", expected_id, changes);
+    }
+}
+
+fn log_direct_snapshot_state(outcome: &str, id: u16, changes: DirectSnapshotChanges) {
+    logging::write(&format!(
+        "direct-client state validation {outcome}: local_player_id={id} position_changed={} health_changed={} armour_changed={} vehicle_changed={}",
+        changes.position, changes.health, changes.armour, changes.vehicle,
+    ));
 }
 
 fn run_send(api: HostApi) {
@@ -341,4 +519,55 @@ fn mark_timeout(status: &AtomicU8) {
     let _ = status.fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
         (!self_test_finished(current)).then_some(SelfTestStatus::TimedOut.as_raw())
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::DirectSnapshotChanges;
+    use rak_samp_plugin_api::{LocalPlayer, Vector3};
+
+    fn snapshot() -> LocalPlayer {
+        LocalPlayer {
+            id: 7,
+            nickname: b"fixture".to_vec(),
+            colour: 0,
+            spawned: true,
+            health: 100.0,
+            armour: 50.0,
+            position: Vector3::default(),
+            velocity: Vector3::default(),
+            special_action: 0,
+            animation_id: 0,
+            vehicle_id: None,
+            score: 0,
+            ping: 0,
+        }
+    }
+
+    #[test]
+    fn direct_snapshot_monitor_requires_each_requested_state_change() {
+        let baseline = snapshot();
+        let mut changed = baseline.clone();
+        changed.position.x = 1.0;
+        changed.health = 90.0;
+        changed.armour = 40.0;
+        changed.vehicle_id = Some(12);
+
+        let mut changes = DirectSnapshotChanges::default();
+        changes.observe(&baseline, &changed);
+        assert!(changes.complete());
+    }
+
+    #[test]
+    fn direct_snapshot_monitor_does_not_pass_when_a_state_is_unchanged() {
+        let baseline = snapshot();
+        let mut changed = baseline.clone();
+        changed.position.x = 1.0;
+        changed.health = 90.0;
+        changed.vehicle_id = Some(12);
+
+        let mut changes = DirectSnapshotChanges::default();
+        changes.observe(&baseline, &changed);
+        assert!(!changes.complete());
+    }
 }

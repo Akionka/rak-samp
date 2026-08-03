@@ -3,13 +3,20 @@
 //! The module is intentionally unavailable for other targets. Its only public
 //! boundary is the safe `Runtime` API in the parent crate.
 
+mod r1_client;
+
 use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
     event::{HookAction, Registry},
-    runtime::{ClientHookStatus, CodecError, PacketPriority, PacketReliability},
+    runtime::{
+        ClientHookStatus, CodecError, DirectClientError, LocalDialogRequest, LocalPlayerSnapshot,
+        PacketPriority, PacketReliability,
+    },
 };
 use minhook::MinHook;
+use r1_client::R1ClientProfile;
 use std::{
+    collections::VecDeque,
     ffi::c_void,
     mem, ptr, slice,
     sync::{
@@ -30,6 +37,10 @@ const DEALLOCATE_PACKET_SLOT: usize = 9;
 const OUTGOING_RPC_SLOT: usize = 25;
 const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
+const LOCAL_DIALOG_QUEUE_CAPACITY: usize = 32;
+const LOCAL_DIALOGS_PER_PUMP: usize = 4;
+const R1_INIT_GAME_RPC_ID: u8 = 139;
+const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
@@ -71,6 +82,7 @@ struct BackendState {
     registry: Arc<Registry>,
     module_base: usize,
     addresses: AddressSet,
+    r1_client: Option<R1ClientProfile>,
     rak_client: AtomicUsize,
     rpc_receiver: AtomicUsize,
     player_address: AtomicU32,
@@ -84,6 +96,10 @@ struct BackendState {
     client_hook_status: AtomicU32,
     incoming_packet_diagnostic_logged: AtomicBool,
     string_codec: Mutex<()>,
+    local_dialogs: Mutex<VecDeque<LocalDialogRequest>>,
+    local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
+    local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
+    assigned_local_player_id: AtomicU16,
     hooks: Mutex<HookStorage>,
 }
 
@@ -102,6 +118,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let version = SampVersion::from_entry_point(entry_point)
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
+    let r1_client = R1ClientProfile::verify(module_base, entry_point);
+    if r1_client.is_some() {
+        log::info!("direct R1 client helpers are enabled");
+    } else if version == SampVersion::R1 {
+        log::warn!(
+            "direct R1 client helpers are disabled because the native fingerprint did not match"
+        );
+    }
 
     let active = ACTIVE_BACKEND.get_or_init(|| Mutex::new(None));
     let mut active = active.lock().unwrap_or_else(|error| error.into_inner());
@@ -113,6 +137,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         registry,
         module_base,
         addresses,
+        r1_client,
         rak_client: AtomicUsize::new(0),
         rpc_receiver: AtomicUsize::new(0),
         player_address: AtomicU32::new(0),
@@ -126,6 +151,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
+        local_dialogs: Mutex::new(VecDeque::with_capacity(LOCAL_DIALOG_QUEUE_CAPACITY)),
+        local_player_snapshot: Mutex::new(None),
+        local_player_candidate: Mutex::new(None),
+        assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
@@ -188,6 +217,17 @@ impl Backend {
         payload: BitStream,
     ) -> Result<bool, SendError> {
         self.state.emulate_incoming_rpc(rpc_id, payload)
+    }
+
+    pub(crate) fn show_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<(), DirectClientError> {
+        self.state.show_local_dialog(request)
+    }
+
+    pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        self.state.local_player()
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -491,6 +531,132 @@ impl BackendState {
         })
     }
 
+    fn show_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_local_dialog(request)
+    }
+
+    fn queue_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
+        let mut queue = self
+            .local_dialogs
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if queue.len() == LOCAL_DIALOG_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        queue.push_back(request);
+        Ok(())
+    }
+
+    fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.local_player_snapshot
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone()
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    fn pump_local_client(&self) {
+        let Some(profile) = self.r1_client else {
+            return;
+        };
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return;
+        }
+        self.refresh_local_player_snapshot(profile);
+        if !profile.dialog_is_ready() {
+            return;
+        }
+        let dialogs = self.take_local_dialogs();
+        for dialog in dialogs {
+            let dialog_id = dialog.id;
+            if let Err(error) = profile.show_dialog(dialog) {
+                // The request is already copied and this is a game-thread-only
+                // call; never log any user-provided dialog text.
+                log::debug!("direct local dialog pump call failed for id {dialog_id}: {error:?}");
+            } else {
+                log::debug!("direct local dialog pump invoked for id {dialog_id}");
+            }
+        }
+    }
+
+    fn take_local_dialogs(&self) -> Vec<LocalDialogRequest> {
+        self.local_dialogs
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(LOCAL_DIALOGS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn cache_local_player_snapshot(&self, snapshot: Option<LocalPlayerSnapshot>) {
+        let Ok(mut candidate) = self.local_player_candidate.try_lock() else {
+            return;
+        };
+        let Ok(mut cached) = self.local_player_snapshot.try_lock() else {
+            return;
+        };
+
+        let Some(snapshot) = snapshot else {
+            *candidate = None;
+            *cached = None;
+            return;
+        };
+
+        match cached.as_ref() {
+            Some(current) if current.id == snapshot.id => {
+                *cached = Some(snapshot);
+                *candidate = None;
+            }
+            Some(_) => {
+                *cached = None;
+                *candidate = Some(snapshot);
+            }
+            None if candidate
+                .as_ref()
+                .is_some_and(|prior| prior.id == snapshot.id) =>
+            {
+                *cached = Some(snapshot);
+                *candidate = None;
+            }
+            None => *candidate = Some(snapshot),
+        }
+    }
+
+    fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
+        let assigned_id = self.assigned_local_player_id.load(Ordering::Acquire);
+        if assigned_id == UNASSIGNED_LOCAL_PLAYER_ID {
+            self.cache_local_player_snapshot(None);
+            return;
+        }
+        self.cache_local_player_snapshot(assigned_snapshot(
+            profile.local_player().ok(),
+            assigned_id,
+        ));
+    }
+
+    fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
+        if self.r1_client.is_some()
+            && let Some(player_id) = player_id
+        {
+            self.cache_local_player_snapshot(None);
+            self.assigned_local_player_id
+                .store(player_id, Ordering::Release);
+        }
+    }
+
     fn ready_client(&self) -> Result<*mut c_void, SendError> {
         let client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
         if client.is_null() {
@@ -525,7 +691,55 @@ impl BackendState {
         // active_state and can still reach their original functions safely.
         clear_active_backend(self);
         self.rak_client.store(0, Ordering::Release);
+        if let Ok(mut dialogs) = self.local_dialogs.try_lock() {
+            dialogs.clear();
+        }
+        if let Ok(mut snapshot) = self.local_player_snapshot.try_lock() {
+            *snapshot = None;
+        }
+        if let Ok(mut candidate) = self.local_player_candidate.try_lock() {
+            *candidate = None;
+        }
+        self.assigned_local_player_id
+            .store(UNASSIGNED_LOCAL_PLAYER_ID, Ordering::Release);
     }
+}
+
+fn assigned_snapshot(
+    snapshot: Option<LocalPlayerSnapshot>,
+    assigned_id: u16,
+) -> Option<LocalPlayerSnapshot> {
+    (assigned_id != UNASSIGNED_LOCAL_PLAYER_ID)
+        .then_some(snapshot)
+        .flatten()
+        .filter(|snapshot| snapshot.id == assigned_id)
+}
+
+fn r1_init_game_player_id_from_rpc(input: &[u8]) -> Option<u16> {
+    let rpc_id = match input.first().copied()? {
+        ID_RPC => input.get(1).copied(),
+        ID_TIMESTAMP if input.get(5).copied() == Some(ID_RPC) => input.get(6).copied(),
+        _ => None,
+    }?;
+    if rpc_id != R1_INIT_GAME_RPC_ID {
+        return None;
+    }
+    let (_, mut payload, _) = parse_rpc_envelope(input).ok()?;
+    r1_init_game_player_id(&mut payload)
+}
+
+fn r1_init_game_player_id(payload: &mut BitStream) -> Option<u16> {
+    for _ in 0..4 {
+        payload.read_bool().ok()?;
+    }
+    payload.read_f32().ok()?;
+    payload.read_bool().ok()?;
+    payload.read_f32().ok()?;
+    payload.read_bool().ok()?;
+    payload.read_bool().ok()?;
+    payload.read_bool().ok()?;
+    payload.read_u32().ok()?;
+    payload.read_u16().ok()
 }
 
 #[repr(C)]
@@ -805,6 +1019,7 @@ mod vtable_tests {
             registry: Registry::new(),
             module_base: 0,
             addresses: AddressSet::for_version(SampVersion::R1),
+            r1_client: None,
             rak_client: AtomicUsize::new(0),
             rpc_receiver: AtomicUsize::new(0),
             player_address: AtomicU32::new(0),
@@ -818,8 +1033,132 @@ mod vtable_tests {
             client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
             incoming_packet_diagnostic_logged: AtomicBool::new(false),
             string_codec: Mutex::new(()),
+            local_dialogs: Mutex::new(VecDeque::new()),
+            local_player_snapshot: Mutex::new(None),
+            local_player_candidate: Mutex::new(None),
+            assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             hooks: Mutex::new(HookStorage::default()),
         }
+    }
+
+    fn test_dialog(id: u16) -> LocalDialogRequest {
+        LocalDialogRequest {
+            id,
+            style: crate::runtime::LocalDialogStyle::MessageBox,
+            title: b"title".to_vec(),
+            text: b"text".to_vec(),
+            button1: b"ok".to_vec(),
+            button2: Vec::new(),
+        }
+    }
+
+    fn test_snapshot(id: u16) -> LocalPlayerSnapshot {
+        LocalPlayerSnapshot {
+            id,
+            nickname: b"fixture".to_vec(),
+            colour: 0,
+            spawned: true,
+            health: 100.0,
+            armour: 0.0,
+            position: crate::runtime::Vector3::default(),
+            velocity: crate::runtime::Vector3::default(),
+            special_action: 0,
+            animation_id: 0,
+            vehicle_id: None,
+            score: 0,
+            ping: 0,
+        }
+    }
+
+    #[test]
+    fn direct_helpers_are_unsupported_without_the_r1_profile() {
+        let state = test_backend_state();
+        assert_eq!(
+            state.show_local_dialog(test_dialog(1)),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_player(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+    }
+
+    #[test]
+    fn game_pump_drains_only_four_dialogs_per_entry() {
+        let state = test_backend_state();
+        for id in 0..LOCAL_DIALOG_QUEUE_CAPACITY as u16 {
+            state.queue_local_dialog(test_dialog(id)).unwrap();
+        }
+        assert_eq!(
+            state.queue_local_dialog(test_dialog(99)),
+            Err(DirectClientError::QueueFull)
+        );
+
+        let drained = state.take_local_dialogs();
+        assert_eq!(drained.len(), LOCAL_DIALOGS_PER_PUMP);
+        assert_eq!(drained.first().map(|dialog| dialog.id), Some(0));
+        assert_eq!(drained.last().map(|dialog| dialog.id), Some(3));
+        assert_eq!(state.local_dialogs.lock().unwrap().len(), 28);
+    }
+
+    #[test]
+    fn local_snapshot_cache_publishes_only_a_stable_identity() {
+        let state = test_backend_state();
+        state.cache_local_player_snapshot(Some(test_snapshot(42)));
+        assert!(state.local_player_snapshot.lock().unwrap().is_none());
+
+        state.cache_local_player_snapshot(Some(test_snapshot(42)));
+        assert_eq!(
+            state
+                .local_player_snapshot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|snapshot| snapshot.id),
+            Some(42)
+        );
+
+        state.cache_local_player_snapshot(Some(test_snapshot(7)));
+        assert!(state.local_player_snapshot.lock().unwrap().is_none());
+        state.cache_local_player_snapshot(Some(test_snapshot(7)));
+        assert_eq!(
+            state
+                .local_player_snapshot
+                .lock()
+                .unwrap()
+                .as_ref()
+                .map(|snapshot| snapshot.id),
+            Some(7)
+        );
+
+        state.cache_local_player_snapshot(None);
+        assert!(state.local_player_snapshot.lock().unwrap().is_none());
+        assert!(state.local_player_candidate.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn init_game_assignment_filters_local_player_snapshots() {
+        let mut payload = BitStream::new();
+        for value in [true, false, true, false] {
+            payload.write_bool(value).unwrap();
+        }
+        payload.write_f32(123.0).unwrap();
+        payload.write_bool(true).unwrap();
+        payload.write_f32(70.0).unwrap();
+        payload.write_bool(false).unwrap();
+        payload.write_bool(true).unwrap();
+        payload.write_bool(false).unwrap();
+        payload.write_u32(7).unwrap();
+        payload.write_u16(42).unwrap();
+
+        let envelope = build_rpc_envelope(R1_INIT_GAME_RPC_ID, &payload, None).unwrap();
+        assert_eq!(r1_init_game_player_id_from_rpc(&envelope), Some(42));
+        assert_eq!(
+            assigned_snapshot(Some(test_snapshot(42)), 42).map(|snapshot| snapshot.id),
+            Some(42)
+        );
+        assert!(assigned_snapshot(Some(test_snapshot(7)), 42).is_none());
+        assert!(assigned_snapshot(Some(test_snapshot(42)), UNASSIGNED_LOCAL_PLAYER_ID).is_none());
     }
 
     #[test]
@@ -1191,6 +1530,7 @@ unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut 
     let Some(state) = active_state() else {
         return ptr::null_mut();
     };
+    state.pump_local_client();
     loop {
         let packet = call_incoming_packet(&state, client);
         if packet.is_null() {
@@ -1259,10 +1599,15 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
         return false;
     }
     let original: IncomingRpcFn = unsafe { mem::transmute(original) };
-    if !state.registry.has_rpc_listener(Direction::Incoming) {
-        return unsafe { original(receiver, data, length, player) };
-    }
     let input = unsafe { slice::from_raw_parts(data, length as usize) };
+    let assigned_local_player_id = r1_init_game_player_id_from_rpc(input);
+    if !state.registry.has_rpc_listener(Direction::Incoming) {
+        let result = unsafe { original(receiver, data, length, player) };
+        if result {
+            state.record_r1_init_game_player_id(assigned_local_player_id);
+        }
+        return result;
+    }
     let Ok((rpc_id, mut payload, timestamp)) = parse_rpc_envelope(input) else {
         return unsafe { original(receiver, data, length, player) };
     };
@@ -1276,7 +1621,11 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
     let Ok(mut output) = build_rpc_envelope(rpc_id, &payload, timestamp) else {
         return unsafe { original(receiver, data, length, player) };
     };
-    unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
+    let result = unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) };
+    if result {
+        state.record_r1_init_game_player_id(assigned_local_player_id);
+    }
+    result
 }
 
 unsafe fn dispatch_packet_stream(

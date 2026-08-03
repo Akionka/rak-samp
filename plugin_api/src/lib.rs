@@ -33,6 +33,141 @@ pub enum RakSampResult {
     PayloadTooLarge = 6,
     NativeCallFailed = 7,
     CallbackInProgress = 8,
+    /// A bounded host-side request queue could not accept another request.
+    QueueFull = 9,
+}
+
+/// The six dialog styles understood by SA-MP's local dialog implementation.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalDialogStyle {
+    MessageBox,
+    Input,
+    List,
+    Password,
+    TabList,
+    HeadersList,
+}
+
+impl LocalDialogStyle {
+    const fn as_raw(self) -> u32 {
+        match self {
+            Self::MessageBox => 0,
+            Self::Input => 1,
+            Self::List => 2,
+            Self::Password => 3,
+            Self::TabList => 4,
+            Self::HeadersList => 5,
+        }
+    }
+}
+
+/// A copied-and-queued local dialog request.
+///
+/// The host copies all borrowed strings before this call returns. Strings must
+/// not contain NUL bytes; title and buttons are limited to 255 bytes and text
+/// is limited to 4,095 bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LocalDialog<'a> {
+    pub id: u16,
+    pub style: LocalDialogStyle,
+    pub title: &'a [u8],
+    pub text: &'a [u8],
+    pub button1: &'a [u8],
+    pub button2: &'a [u8],
+}
+
+impl LocalDialog<'_> {
+    const MAX_TITLE_OR_BUTTON_BYTES: usize = 255;
+    const MAX_TEXT_BYTES: usize = 4_095;
+
+    fn is_valid(self) -> bool {
+        [self.title, self.text, self.button1, self.button2]
+            .into_iter()
+            .all(|value| !value.contains(&0))
+            && self.title.len() <= Self::MAX_TITLE_OR_BUTTON_BYTES
+            && self.button1.len() <= Self::MAX_TITLE_OR_BUTTON_BYTES
+            && self.button2.len() <= Self::MAX_TITLE_OR_BUTTON_BYTES
+            && self.text.len() <= Self::MAX_TEXT_BYTES
+    }
+}
+
+/// A three-dimensional value copied from the client snapshot.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Vector3 {
+    pub x: f32,
+    pub y: f32,
+    pub z: f32,
+}
+
+/// An owned, read-only local-player snapshot.
+///
+/// The host refreshes this on its verified game-thread packet pump. It is a
+/// cache, so fetching it never waits for the game thread or exposes client
+/// pointers.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LocalPlayer {
+    pub id: u16,
+    pub nickname: Vec<u8>,
+    pub colour: u32,
+    pub spawned: bool,
+    pub health: f32,
+    pub armour: f32,
+    pub position: Vector3,
+    pub velocity: Vector3,
+    pub special_action: u8,
+    pub animation_id: u16,
+    pub vehicle_id: Option<u16>,
+    pub score: i32,
+    pub ping: u32,
+}
+
+/// C-compatible storage for [`LocalPlayer`].
+///
+/// This is output-only. `nickname_len` selects the initialized prefix of
+/// `nickname`; the buffer has no required terminator.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct RakSampLocalPlayerV1 {
+    pub id: u16,
+    pub nickname_len: u16,
+    pub nickname: [u8; 256],
+    pub colour: u32,
+    pub spawned: u8,
+    pub special_action: u8,
+    pub animation_id: u16,
+    pub health: f32,
+    pub armour: f32,
+    pub position: Vector3,
+    pub velocity: Vector3,
+    pub has_vehicle: u8,
+    pub _reserved: u8,
+    pub vehicle_id: u16,
+    pub score: i32,
+    pub ping: u32,
+}
+
+impl Default for RakSampLocalPlayerV1 {
+    fn default() -> Self {
+        Self {
+            id: 0,
+            nickname_len: 0,
+            nickname: [0; 256],
+            colour: 0,
+            spawned: 0,
+            special_action: 0,
+            animation_id: 0,
+            health: 0.0,
+            armour: 0.0,
+            position: Vector3::default(),
+            velocity: Vector3::default(),
+            has_vehicle: 0,
+            _reserved: 0,
+            vehicle_id: 0,
+            score: 0,
+            ping: 0,
+        }
+    }
 }
 
 #[repr(C)]
@@ -179,6 +314,21 @@ pub struct RakSampApiV1 {
     /// Decodes one string from a callback event and advances its read cursor.
     pub event_read_encoded_string:
         unsafe extern "system" fn(*mut RakSampEventV1, *mut u8, usize, *mut usize) -> RakSampResult,
+    /// Copies and queues a local R1 dialog request for the verified game-thread pump.
+    pub show_local_dialog: unsafe extern "system" fn(
+        u16,
+        u32,
+        *const u8,
+        usize,
+        *const u8,
+        usize,
+        *const u8,
+        usize,
+        *const u8,
+        usize,
+    ) -> RakSampResult,
+    /// Copies the latest host-owned local-player snapshot into `output`.
+    pub local_player: unsafe extern "system" fn(*mut RakSampLocalPlayerV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -748,6 +898,61 @@ impl HostApi {
         bytes.truncate(bit_len.div_ceil(u8::BITS as usize));
         Ok(RakSampEncodedString { bytes, bit_len })
     }
+
+    /// Copies and queues a direct local dialog on the verified R1 game thread.
+    ///
+    /// [`RakSampResult::Ok`] confirms only that the host copied and queued the
+    /// request; it does not mean the player has seen or dismissed the dialog.
+    pub fn show_local_dialog(self, dialog: LocalDialog<'_>) -> RakSampResult {
+        if !dialog.is_valid() {
+            return RakSampResult::InvalidArgument;
+        }
+        unsafe {
+            (self.raw.show_local_dialog)(
+                dialog.id,
+                dialog.style.as_raw(),
+                dialog.title.as_ptr(),
+                dialog.title.len(),
+                dialog.text.as_ptr(),
+                dialog.text.len(),
+                dialog.button1.as_ptr(),
+                dialog.button1.len(),
+                dialog.button2.as_ptr(),
+                dialog.button2.len(),
+            )
+        }
+    }
+
+    /// Returns a cloned, nonblocking local-player snapshot.
+    ///
+    /// This returns [`RakSampResult::NotReady`] until the verified R1 game
+    /// thread has published its first complete, server-assigned snapshot.
+    pub fn local_player(self) -> Result<LocalPlayer, RakSampResult> {
+        let mut raw = RakSampLocalPlayerV1::default();
+        match unsafe { (self.raw.local_player)(&mut raw) } {
+            RakSampResult::Ok => {}
+            result => return Err(result),
+        }
+        let nickname_len = usize::from(raw.nickname_len);
+        if nickname_len > raw.nickname.len() {
+            return Err(RakSampResult::NativeCallFailed);
+        }
+        Ok(LocalPlayer {
+            id: raw.id,
+            nickname: raw.nickname[..nickname_len].to_vec(),
+            colour: raw.colour,
+            spawned: raw.spawned != 0,
+            health: raw.health,
+            armour: raw.armour,
+            position: raw.position,
+            velocity: raw.velocity,
+            special_action: raw.special_action,
+            animation_id: raw.animation_id,
+            vehicle_id: (raw.has_vehicle != 0).then_some(raw.vehicle_id),
+            score: raw.score,
+            ping: raw.ping,
+        })
+    }
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -907,8 +1112,64 @@ mod tests {
             mem::offset_of!(RakSampApiV1, encode_string) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, show_local_dialog),
             mem::offset_of!(RakSampApiV1, event_read_encoded_string) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakSampApiV1, local_player),
+            mem::offset_of!(RakSampApiV1, show_local_dialog) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_player) + function_size
+        );
+    }
+
+    #[test]
+    fn direct_dialog_rejects_nuls_and_oversized_fields_before_the_abi_call() {
+        let api = test_support::test_api();
+        let valid = LocalDialog {
+            id: 7,
+            style: LocalDialogStyle::MessageBox,
+            title: b"title",
+            text: b"text",
+            button1: b"ok",
+            button2: b"",
+        };
+        assert_eq!(api.show_local_dialog(valid), RakSampResult::Ok);
+
+        let nul = LocalDialog {
+            title: b"bad\0title",
+            ..valid
+        };
+        assert_eq!(api.show_local_dialog(nul), RakSampResult::InvalidArgument);
+
+        let too_long = [b'x'; 256];
+        let long_title = LocalDialog {
+            title: &too_long,
+            ..valid
+        };
+        assert_eq!(
+            api.show_local_dialog(long_title),
+            RakSampResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn local_player_snapshot_is_owned_and_converted_from_the_abi_buffer() {
+        let snapshot = test_support::test_api()
+            .local_player()
+            .expect("test host publishes a snapshot");
+        assert_eq!(snapshot.id, 42);
+        assert_eq!(snapshot.nickname, b"fixture");
+        assert_eq!(snapshot.vehicle_id, Some(19));
+        assert_eq!(
+            snapshot.position,
+            Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0
+            }
         );
     }
 

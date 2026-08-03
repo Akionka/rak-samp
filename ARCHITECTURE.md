@@ -18,7 +18,7 @@ plugins use the versioned ABI client crate.
 | --- | --- | --- |
 | Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish host state, and log lifecycle events. |
 | Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events and enforce bounded, exact-bit payloads. |
-| Native backend | `src/platform/win32.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. |
+| Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local helpers. |
 | Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI, safe filtered/typed callbacks, and grouped subscription shutdown. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
 | Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
@@ -52,6 +52,17 @@ applies it atomically. Explicit sends intentionally bypass outgoing listeners.
 Incoming packet emulation is queued through the captured RakPeer receiver;
 incoming RPC emulation dispatches before the native receiver.
 
+The incoming-packet vtable detour also performs a separate direct-client pump
+before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
+begins refreshing an owned local-player snapshot only after its `INIT_GAME`
+server assignment matches the pool ID on two game-thread refreshes, then keeps
+it fresh from the verified player pool. It releases the dialog queue lock, then
+calls `CDialog::Show` for no more than four copied requests. It clears the cache
+while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`
+sentinel. It neither consumes, creates, nor redispatches
+packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference
+direct-client layouts and report `UnsupportedVersion` through the ABI.
+
 ## Native and ABI boundaries
 
 Native pointers, client addresses, vtables, and StringCompressor calls remain
@@ -59,10 +70,10 @@ inside the host. The host patches only its RakClient slots and restores a slot
 only when it still owns it. The ABI passes copied bytes, capacities, statuses,
 and bit lengths, never Rust-owned values or client pointers.
 
-The packet layout fixture and live validation protect the Windows x86 boundary.
-R1 provides the authoritative typed layouts; detected non-R1 clients are raw
-event targets pending validation. See [REVIEW.md](REVIEW.md) for evidence and
-[VALIDATION.md](VALIDATION.md) for the test procedure.
+The packet/local-profile layout fixture and live validation protect the Windows
+x86 boundary. R1 provides the authoritative typed layouts; detected non-R1
+clients are raw event targets pending validation. See [REVIEW.md](REVIEW.md)
+for evidence and [VALIDATION.md](VALIDATION.md) for the test procedure.
 
 `tests/e2e/` provides a separate fixture host, plugin, and runner. The runner
 loads the host as `rak_samp.asi`, loads the plugin independently, dispatches a

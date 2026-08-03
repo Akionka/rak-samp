@@ -5,7 +5,8 @@ compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
     ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
-    RakSampHostStatus, RakSampResult, RakSampSendOptions, RakSampSubscription,
+    RakSampHostStatus, RakSampLocalPlayerV1, RakSampResult, RakSampSendOptions,
+    RakSampSubscription, Vector3,
 };
 use std::{
     ffi::c_void,
@@ -260,6 +261,67 @@ unsafe extern "system" fn read_encoded_string(
     RakSampResult::NotReady
 }
 
+unsafe extern "system" fn show_local_dialog(
+    _id: u16,
+    style: u32,
+    title: *const u8,
+    title_len: usize,
+    text: *const u8,
+    text_len: usize,
+    button1: *const u8,
+    button1_len: usize,
+    button2: *const u8,
+    button2_len: usize,
+) -> RakSampResult {
+    let valid_style = style <= 5;
+    let values = [
+        (title, title_len),
+        (text, text_len),
+        (button1, button1_len),
+        (button2, button2_len),
+    ];
+    if !valid_style
+        || values
+            .into_iter()
+            .any(|(value, len)| value.is_null() && len != 0)
+    {
+        RakSampResult::InvalidArgument
+    } else {
+        RakSampResult::Ok
+    }
+}
+
+unsafe extern "system" fn local_player(output: *mut RakSampLocalPlayerV1) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let mut nickname = [0; 256];
+    nickname[..3].copy_from_slice(b"e2e");
+    *output = RakSampLocalPlayerV1 {
+        id: 77,
+        nickname_len: 3,
+        nickname,
+        colour: 0xFF11_2233,
+        spawned: 1,
+        special_action: 2,
+        animation_id: 5,
+        health: 100.0,
+        armour: 25.0,
+        position: Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        velocity: Vector3::default(),
+        has_vehicle: 0,
+        _reserved: 0,
+        vehicle_id: 0,
+        score: 9,
+        ping: 20,
+    };
+    RakSampResult::Ok
+}
+
 static API: RakSampApiV1 = RakSampApiV1 {
     abi_version: ABI_VERSION_V1,
     size: std::mem::size_of::<RakSampApiV1>() as u32,
@@ -291,4 +353,6 @@ static API: RakSampApiV1 = RakSampApiV1 {
     event_replace_bits: replace_bits,
     encode_string,
     event_read_encoded_string: read_encoded_string,
+    show_local_dialog,
+    local_player,
 };

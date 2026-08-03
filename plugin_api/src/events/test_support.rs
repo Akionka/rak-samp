@@ -424,6 +424,60 @@ unsafe extern "system" fn test_emulate(
     RakSampResult::NativeCallFailed
 }
 
+unsafe extern "system" fn test_show_local_dialog(
+    _id: u16,
+    _style: u32,
+    _title: *const u8,
+    _title_len: usize,
+    _text: *const u8,
+    _text_len: usize,
+    _button1: *const u8,
+    _button1_len: usize,
+    _button2: *const u8,
+    _button2_len: usize,
+) -> RakSampResult {
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn test_local_player(
+    output: *mut crate::RakSampLocalPlayerV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = crate::RakSampLocalPlayerV1 {
+        id: 42,
+        nickname_len: 7,
+        nickname: {
+            let mut value = [0; 256];
+            value[..7].copy_from_slice(b"fixture");
+            value
+        },
+        colour: 0xFF00_00FF,
+        spawned: 1,
+        special_action: 3,
+        animation_id: 12,
+        health: 99.0,
+        armour: 50.0,
+        position: crate::Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        velocity: crate::Vector3 {
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+        },
+        has_vehicle: 1,
+        _reserved: 0,
+        vehicle_id: 19,
+        score: 123,
+        ping: 45,
+    };
+    RakSampResult::Ok
+}
+
 static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     abi_version: crate::ABI_VERSION_V1,
     size: mem::size_of::<crate::RakSampApiV1>() as u32,
@@ -455,6 +509,8 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     event_replace_bits: test_event_replace_bits,
     encode_string: test_encoded_string,
     event_read_encoded_string: test_read_encoded_string,
+    show_local_dialog: test_show_local_dialog,
+    local_player: test_local_player,
 };
 
 pub(crate) fn test_api() -> HostApi {
