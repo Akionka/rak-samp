@@ -49,7 +49,7 @@ helper emulates RPC traffic or exposes client pointers. `local_player` returns
 local-player ID across two game-thread refreshes.
 `HostApi` also exposes individual cached local-player ID, nickname, colour,
 spawned, health, armour, special-action, and animation-ID queries for the
-corresponding SF.lua local-player helpers.
+corresponding SF.lua local-player helpers, plus local score and ping.
 
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin

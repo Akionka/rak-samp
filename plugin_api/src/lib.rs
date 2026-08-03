@@ -1060,6 +1060,16 @@ impl HostApi {
         self.local_player().map(|player| player.animation_id)
     }
 
+    /// Returns the cached local-player score.
+    pub fn local_player_score(self) -> Result<i32, RakSampResult> {
+        self.local_player().map(|player| player.score)
+    }
+
+    /// Returns the cached local-player ping in milliseconds.
+    pub fn local_player_ping(self) -> Result<u32, RakSampResult> {
+        self.local_player().map(|player| player.ping)
+    }
+
     /// Returns the cached native `CNetGame` state for the verified R1 client.
     ///
     /// The value is deliberately an opaque scalar: SA-MP has no stable public
@@ -1343,6 +1353,8 @@ mod tests {
         assert_eq!(api.local_player_armour(), Ok(50.0));
         assert_eq!(api.local_player_special_action(), Ok(3));
         assert_eq!(api.local_player_animation_id(), Ok(12));
+        assert_eq!(api.local_player_score(), Ok(123));
+        assert_eq!(api.local_player_ping(), Ok(45));
     }
 
     #[test]

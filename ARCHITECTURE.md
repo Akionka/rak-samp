@@ -64,8 +64,9 @@ while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`
 sentinel. It neither consumes, creates, nor redispatches
 packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference
 direct-client layouts and report `UnsupportedVersion` through the ABI.
-The plugin API's local-player convenience queries are projections of this one
-host-owned cache; they do not create additional native reads.
+The plugin API's local-player convenience queries, including score and ping,
+are projections of this one host-owned cache; they do not create additional
+native reads.
 
 ## Native and ABI boundaries
 

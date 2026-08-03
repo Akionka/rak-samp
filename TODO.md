@@ -97,8 +97,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 ### Players (`player.lua`)
 
 - [ ] `sampGetPlayerPoolPtr`, `sampIsPlayerConnected`, `sampGetPlayerNickname`,
-  `sampSpawnPlayer`, `sampSendChat`, `sampIsPlayerNpc`, `sampGetPlayerScore`,
-  `sampGetPlayerPing`, `sampRequestClass`, `sampSendInteriorChange`,
+  `sampSpawnPlayer`, `sampSendChat`, `sampIsPlayerNpc`, `sampRequestClass`,
+  `sampSendInteriorChange`,
   `sampForceUnoccupiedSyncSeatId`, `sampGetCharHandleBySampPlayerId`,
   `sampGetPlayerIdByCharHandle`, `sampGetPlayerArmor`, `sampGetPlayerHealth`,
   `sampIsPlayerPaused`, `sampSetSpecialAction`, `sampGetPlayerCount`,
@@ -116,6 +116,9 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampGetPlayerAnimationId` — explicit safe local-player query methods reuse
   the single cached `HostApi::local_player` snapshot; remote-player calls
   remain pending.
+- [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::local_player_score`
+  and `HostApi::local_player_ping` cover the local player; player-ID based
+  remote queries remain pending.
 - [ ] `sampIsPlayerDefined`, `sampSetPlayerColor`
 
 ### RakNet and network actions (`raknet.lua`)
