@@ -24,6 +24,8 @@ pub(crate) const SEND_TEST_MARKER: &str = "rak-samp-validation-send.enabled";
 pub(crate) const DIRECT_CLIENT_TEST_MARKER: &str = "rak-samp-validation-direct-client.enabled";
 pub(crate) const PLAYER_DIRECTORY_TEST_MARKER: &str =
     "rak-samp-validation-player-directory.enabled";
+pub(crate) const REMOTE_PLAYER_STATE_TEST_MARKER: &str =
+    "rak-samp-validation-remote-player-state.enabled";
 pub(crate) const VEHICLE_EXISTS_TEST_MARKER: &str = "rak-samp-validation-vehicle-exists.enabled";
 pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
@@ -340,6 +342,7 @@ pub(crate) fn run(api: HostApi) {
     ));
     run_direct_client(api);
     run_player_directory(api);
+    run_remote_player_state(api);
     run_vehicle_exists(api);
     run_text_label_exists(api);
     run_text_label(api);
@@ -431,6 +434,95 @@ fn run_player_directory(api: HostApi) {
         .player_directory
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("player-directory self-test timed out without a remote player");
+}
+
+fn run_remote_player_state(api: HostApi) {
+    if !logging::plugin_path(REMOTE_PLAYER_STATE_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .remote_player_state
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "remote-player-state self-test disabled; opt in with rak-samp-validation-remote-player-state.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut id = 0_u16;
+    let baseline = loop {
+        if STOP.load(Ordering::Acquire) || Instant::now() >= deadline {
+            SELF_TESTS
+                .remote_player_state
+                .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+            logging::write("remote-player-state self-test timed out without a remote player");
+            return;
+        }
+        match api.remote_player_state(id) {
+            Ok(Some(state)) => break (id, state),
+            Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .remote_player_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "remote-player-state self-test returned {error:?}: player_id={id}"
+                ));
+                return;
+            }
+        }
+        id = (id + 1) % MAX_SAMP_PLAYERS;
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    let (id, baseline) = baseline;
+    let mut health_or_armour_changed = false;
+    let mut special_action_changed = false;
+    let mut animation_changed = false;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.remote_player_state(id) {
+            Ok(Some(state)) => {
+                health_or_armour_changed |=
+                    state.health != baseline.health || state.armour != baseline.armour;
+                special_action_changed |= state.special_action != baseline.special_action;
+                animation_changed |= state.animation_id != baseline.animation_id;
+                if health_or_armour_changed && special_action_changed && animation_changed {
+                    SELF_TESTS
+                        .remote_player_state
+                        .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                    logging::write(&format!(
+                        "remote-player-state self-test passed: player_id={id}"
+                    ));
+                    return;
+                }
+            }
+            Ok(None) => {
+                SELF_TESTS
+                    .remote_player_state
+                    .store(SelfTestStatus::Failed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "remote-player-state self-test disconnected before transitions: player_id={id}"
+                ));
+                return;
+            }
+            Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .remote_player_state
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "remote-player-state self-test returned {error:?}: player_id={id}"
+                ));
+                return;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .remote_player_state
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write(&format!(
+        "remote-player-state self-test timed out before all transitions: player_id={id}"
+    ));
 }
 
 fn run_vehicle_exists(api: HostApi) {

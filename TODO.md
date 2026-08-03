@@ -357,6 +357,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   colours. It never exposes a gangzone/pool pointer. Keep provisional until the
   opt-in gangzone scan verifies one visible record, no traffic, and normal
   shutdown.
+- [ ] With the remote-player-state marker enabled and a second player in-world,
+  confirm the validator observes a health-or-armour transition, special-action
+  transition, and animation-ID transition without logging values or traffic.
+  Repeat after that player disconnects to confirm the cached result becomes
+  `None`, then exit normally.
 - [ ] `sampGetTextlabelPoolPtr` — raw pointer API; excluded.
   `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
   `sampCreate3dTextEx` mutate the native label pool; excluded.

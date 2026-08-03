@@ -44,7 +44,7 @@ starting GTA and remove them afterwards.
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
 | Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected and in-world, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections, including the exact R1 world-defined state, and logs only the outcome and remote player ID. |
-| R1 remote player state | Uses the player-directory marker above | The same second-player scenario additionally verifies a populated copied remote health/armour/special-action/animation snapshot and scalar projections. Exercise damage, action, animation, disconnect, and shutdown manually; logs only outcomes and ID. |
+| R1 remote player state | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-remote-player-state.enabled') -ItemType File -Force` | With a second player connected and in-world, finds one copied remote snapshot and waits for a health-or-armour change, a special-action change, and an animation-ID change. Logs only the outcome and remote ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
 | R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
 | R1 3D text-label snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until one owned label record is copied and agrees with the existence cache. It logs only the outcome and label ID. |
@@ -77,6 +77,12 @@ with only a player ID in the log; then have that player disconnect and issue a
 fresh directory read during a follow-up run to confirm it becomes `None` after
 refresh. The first remote read may be `NotReady`; it must never block a plugin
 thread or generate packet/RPC traffic. Exit normally and remove the marker.
+
+For the remote-player-state check, create its marker, keep the second player
+in-world, then cause an armour-or-health change, perform a special action, and
+play a visibly different animation before the two-minute timeout. Confirm the
+outcome-only `remote-player-state self-test passed` log and then disconnect the
+second player in a follow-up run to exercise the cached disconnect path.
 
 For the text-label check, join a server that has at least one visible 3D label,
 create the text-label marker, and wait up to two minutes for
