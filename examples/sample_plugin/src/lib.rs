@@ -4,7 +4,7 @@
 compile_error!("rak_samp_sample_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    RakSampDirection, RakSampHookAction, Subscription,
+    RakSampDirection, Subscription,
     events::{RpcAction, rpc::incoming},
     wait_for_default_host,
 };
@@ -114,14 +114,14 @@ fn initialize() {
         return;
     }
 
-    let subscription = api.on_rpc(RakSampDirection::Incoming, |event| {
-        incoming::SERVER_MESSAGE
-            .handle(event, |_message| {
-                SERVER_MESSAGES.fetch_add(1, Ordering::Relaxed);
-                RpcAction::Continue
-            })
-            .unwrap_or(RakSampHookAction::Continue)
-    });
+    let subscription = api.on_typed_rpc(
+        RakSampDirection::Incoming,
+        incoming::SERVER_MESSAGE,
+        |_message| {
+            SERVER_MESSAGES.fetch_add(1, Ordering::Relaxed);
+            RpcAction::Continue
+        },
+    );
     if let Ok(subscription) = subscription {
         state.subscription = Some(subscription);
     }

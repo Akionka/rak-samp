@@ -39,12 +39,12 @@ and send/emulation calls use an exact bit length. Callback events must not be re
 
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
-perform that wait in `DllMain` or in a callback. See the
-[sample plugin](examples/sample_plugin) for a minimal integration.
+perform that wait in `DllMain` or in a callback. The
+[sample plugin](examples/sample_plugin) is a minimal typed-RPC integration.
 
 The [chat-command example](examples/chat_command_plugin) shows sending a real
-chat RPC and displaying a local dialog. It sends server-bound traffic, so run
-it only where that is allowed:
+chat RPC and displaying a local dialog through grouped typed handlers. It sends
+server-bound traffic, so run it only where that is allowed:
 
 ```powershell
 cargo make deploy-chat-command-example

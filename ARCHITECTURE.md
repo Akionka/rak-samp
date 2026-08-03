@@ -21,7 +21,7 @@ plugins use the versioned ABI client crate.
 | Native backend | `src/platform/win32.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. |
 | Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI, safe filtered/typed callbacks, and grouped subscription shutdown. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
-| Examples | `examples/` | Demonstrate a plugin and chat command; validation separates lifecycle, callbacks, self-tests, reporting. |
+| Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
 
 ## Lifecycle
 

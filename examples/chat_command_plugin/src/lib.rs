@@ -4,13 +4,12 @@
 compile_error!("rak_samp_chat_command_example supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, HostApi, RakSampDirection, RakSampHookAction, RakSampResult,
-    RakSampSendOptions, Subscription,
+    ABI_VERSION_V1, HostApi, RakSampDirection, RakSampResult, RakSampSendOptions, SubscriptionSet,
     events::{
         RpcAction,
         rpc::{incoming, outgoing},
     },
-    wait_for_default_host,
+    register_handlers, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -41,7 +40,7 @@ static LAST_CHAT_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 static LAST_DIALOG_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 
 struct PluginState {
-    subscription: Option<Subscription>,
+    subscriptions: SubscriptionSet,
     initializing: bool,
     shutting_down: bool,
 }
@@ -49,7 +48,7 @@ struct PluginState {
 impl PluginState {
     const fn new() -> Self {
         Self {
-            subscription: None,
+            subscriptions: SubscriptionSet::new(),
             initializing: false,
             shutting_down: false,
         }
@@ -125,34 +124,40 @@ fn initialize() {
     if state.shutting_down {
         return;
     }
-    let subscription = api.on_rpc(RakSampDirection::Outgoing, move |event| {
-        let command_action = outgoing::SEND_COMMAND
-            .handle(event, |command| {
+    let subscriptions = match register_handlers!(api;
+        typed_rpc(
+            RakSampDirection::Outgoing,
+            outgoing::SEND_COMMAND,
+            move |command| {
                 if is_raksamp_command(&command) {
                     run_example(api);
                     RpcAction::Block
                 } else {
                     RpcAction::Continue
                 }
-            })
-            .unwrap_or(RakSampHookAction::Continue);
-        if command_action == RakSampHookAction::Block {
-            return command_action;
-        }
-
-        outgoing::SEND_DIALOG_RESPONSE
-            .handle(event, |response| {
+            }
+        ),
+        typed_rpc(
+            RakSampDirection::Outgoing,
+            outgoing::SEND_DIALOG_RESPONSE,
+            |response| {
                 if response.dialog_id == DIALOG_ID {
                     RpcAction::Block
                 } else {
                     RpcAction::Continue
                 }
-            })
-            .unwrap_or(RakSampHookAction::Continue)
-    });
-    if let Ok(subscription) = subscription {
-        state.subscription = Some(subscription);
-    }
+            }
+        ),
+    ) {
+        Ok(subscriptions) => subscriptions,
+        Err(error) => {
+            if let Err(error) = error.into_subscriptions().unregister_and_wait() {
+                state.subscriptions = error.into_subscriptions();
+            }
+            return;
+        }
+    };
+    state.subscriptions = subscriptions;
 }
 
 fn run_example(api: HostApi) {
@@ -209,7 +214,7 @@ fn is_raksamp_command(command: &[u8]) -> bool {
 /// Call this from a worker thread, never from `DllMain` or a rak-samp callback.
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
-    let subscription = {
+    let subscriptions = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
         while state.initializing {
@@ -217,19 +222,19 @@ pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
                 .wait(state)
                 .unwrap_or_else(|error| error.into_inner());
         }
-        let Some(subscription) = state.subscription.take() else {
-            return TRUE;
-        };
-        subscription
+        std::mem::take(&mut state.subscriptions)
     };
 
-    match subscription.unregister_and_wait() {
+    if subscriptions.is_empty() {
+        return TRUE;
+    }
+    match subscriptions.unregister_and_wait() {
         Ok(()) => TRUE,
         Err(error) => {
             STATE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .subscription = Some(error.into_subscription());
+                .subscriptions = error.into_subscriptions();
             0
         }
     }

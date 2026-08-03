@@ -54,10 +54,8 @@ fn initialize() {
     if STOP.load(Ordering::Acquire) {
         return;
     }
-    let subscription = api.on_rpc(RakSampDirection::Incoming, |event| {
-        if event.id() == TEST_RPC_ID {
-            CALLBACKS.fetch_add(1, Ordering::AcqRel);
-        }
+    let subscription = api.on_rpc_id(RakSampDirection::Incoming, TEST_RPC_ID, |_| {
+        CALLBACKS.fetch_add(1, Ordering::AcqRel);
         RakSampHookAction::Continue
     });
     let Ok(subscription) = subscription else {
