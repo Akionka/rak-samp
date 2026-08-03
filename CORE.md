@@ -36,6 +36,9 @@ SA-MP 0.3.7 R1 is the typed-layout authority. Other recognized clients may use
 raw callbacks but are not typed-layout compatible until live validation is
 recorded.
 
+Typed-event tests share a mock ABI harness, keeping exact codec vectors focused
+on observable payload behavior.
+
 ## Native boundary
 
 The Windows backend owns client addresses, detours, vtable changes, and native
@@ -46,6 +49,10 @@ fixture and live evidence in [REVIEW.md](REVIEW.md).
 The Windows x86 end-to-end fixture loads a minimal ABI host and an independent
 plugin ASI, then verifies discovery, registration, callback delivery, shutdown,
 and unload. Run it with `cargo make test-e2e`.
+
+The validation ASI separates lifecycle, callbacks, self-tests, reporting, and
+logging. Its dedicated local `simplelog` writer keeps validation output beside
+the ASI, and its grouped metrics use typed self-test states for reliable reports.
 
 See [ARCHITECTURE.md](ARCHITECTURE.md) for component ownership and
 [VALIDATION.md](VALIDATION.md) for the live check.

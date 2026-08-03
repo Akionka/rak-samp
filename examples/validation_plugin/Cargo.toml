@@ -9,8 +9,9 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
+log = "0.4"
 rak_samp_plugin_api = { path = "../../plugin_api" }
-time = { version = "0.3", features = ["formatting"] }
+simplelog = "0.12"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

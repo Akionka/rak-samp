@@ -30,9 +30,38 @@ const DEALLOCATE_PACKET_SLOT: usize = 9;
 const OUTGOING_RPC_SLOT: usize = 25;
 const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
-const CLIENT_HOOK_PENDING: u32 = 0;
-const CLIENT_HOOK_READY: u32 = 1;
-const CLIENT_HOOK_FAILED: u32 = 2;
+
+#[repr(u32)]
+#[derive(Clone, Copy)]
+enum ClientHookInstallState {
+    Pending,
+    Ready,
+    Failed,
+}
+
+impl ClientHookInstallState {
+    const fn as_raw(self) -> u32 {
+        self as u32
+    }
+
+    const fn from_raw(value: u32) -> Self {
+        if value == Self::Ready.as_raw() {
+            Self::Ready
+        } else if value == Self::Failed.as_raw() {
+            Self::Failed
+        } else {
+            Self::Pending
+        }
+    }
+
+    const fn as_public(self) -> ClientHookStatus {
+        match self {
+            Self::Pending => ClientHookStatus::Pending,
+            Self::Ready => ClientHookStatus::Ready,
+            Self::Failed => ClientHookStatus::Failed,
+        }
+    }
+}
 
 pub(crate) struct Backend {
     state: Arc<BackendState>,
@@ -94,7 +123,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         incoming_packet_original: AtomicUsize::new(0),
         deallocate_packet_original: AtomicUsize::new(0),
         outgoing_rpc_original: AtomicUsize::new(0),
-        client_hook_status: AtomicU32::new(CLIENT_HOOK_PENDING),
+        client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
         hooks: Mutex::new(HookStorage::default()),
@@ -111,11 +140,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 
 impl Backend {
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
-        match self.state.client_hook_status.load(Ordering::Acquire) {
-            CLIENT_HOOK_READY => ClientHookStatus::Ready,
-            CLIENT_HOOK_FAILED => ClientHookStatus::Failed,
-            _ => ClientHookStatus::Pending,
-        }
+        ClientHookInstallState::from_raw(self.state.client_hook_status.load(Ordering::Acquire))
+            .as_public()
     }
 
     pub(crate) fn encode_string(&self, value: &[u8]) -> Result<BitStream, CodecError> {
@@ -236,7 +262,7 @@ impl BackendState {
         hooks.incoming_rpc = Some(incoming_rpc);
         hooks.vtable = Some(vtable);
         self.client_hook_status
-            .store(CLIENT_HOOK_READY, Ordering::Release);
+            .store(ClientHookInstallState::Ready.as_raw(), Ordering::Release);
         Ok(())
     }
 
@@ -789,7 +815,7 @@ mod vtable_tests {
             incoming_packet_original: AtomicUsize::new(0),
             deallocate_packet_original: AtomicUsize::new(0),
             outgoing_rpc_original: AtomicUsize::new(0),
-            client_hook_status: AtomicU32::new(CLIENT_HOOK_PENDING),
+            client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
             incoming_packet_diagnostic_logged: AtomicBool::new(false),
             string_codec: Mutex::new(()),
             hooks: Mutex::new(HookStorage::default()),
@@ -888,7 +914,7 @@ mod vtable_tests {
         assert_eq!(backend.client_hook_status(), ClientHookStatus::Pending);
         state
             .client_hook_status
-            .store(CLIENT_HOOK_FAILED, Ordering::Release);
+            .store(ClientHookInstallState::Failed.as_raw(), Ordering::Release);
         assert_eq!(backend.client_hook_status(), ClientHookStatus::Failed);
     }
 }
@@ -1135,7 +1161,7 @@ unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     {
         state
             .client_hook_status
-            .store(CLIENT_HOOK_FAILED, Ordering::Release);
+            .store(ClientHookInstallState::Failed.as_raw(), Ordering::Release);
         log::error!("RakClient hook installation failed: {error}");
     }
     client

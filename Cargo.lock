@@ -158,8 +158,9 @@ dependencies = [
 name = "rak_samp_validation_plugin"
 version = "0.1.0"
 dependencies = [
+ "log",
  "rak_samp_plugin_api",
- "time",
+ "simplelog",
  "windows-sys",
 ]
 
