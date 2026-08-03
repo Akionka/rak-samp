@@ -57,6 +57,10 @@ or another client build supplies an offset.
   through off, no-shadow, and normal (F7) while the validator is observing.
   Confirm its outcome line records all three cached modes, that no packet/RPC
   traffic was generated, and that normal shutdown remains stable.
+- [ ] In the same run, open and close the scoreboard (Tab) and activate then
+  dismiss any normal local cursor state. Confirm the validator records both
+  cached scoreboard states and both cursor categories without packet/RPC
+  emission or an unstable shutdown.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -142,8 +146,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `sampIsDialogActive`, `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
   `sampGetDialogCaption`, `sampGetDialogText`, `sampIsDialogClientside`,
   `sampSetDialogClientside`, `sampGetListboxItemsCount`, `sampGetListboxItemText`
-- [ ] `sampGetMiscInfoPtr`, `sampToggleCursor`, `sampIsCursorActive`,
-  `sampGetCursorMode`, `sampSetCursorMode`
+- [ ] `sampGetMiscInfoPtr`, `sampToggleCursor`, `sampSetCursorMode` — pointer
+  access and UI mutations remain outside the safe ABI.
+- [~] `sampIsCursorActive`, `sampGetCursorMode` —
+  `HostApi::local_cursor_mode` and its derived
+  `HostApi::is_local_cursor_active` copy a cached R1 cursor state only. Keep
+  provisional until the dedicated cursor transition and shutdown live check.
 - [ ] `sampGetInputInfoPtr`, `sampRegisterChatCommand`,
   `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampGetChatInputText`,
   `sampSetChatInputEnabled`, `sampIsChatInputActive`,
@@ -184,7 +192,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `HostApi::server_info` provides an owned cached R1 address, hostname, and
   port. Keep this status until its dedicated live R1 scenario records a match
   with the selected server and stable normal shutdown.
-- [ ] `sampToggleScoreboard`, `sampIsScoreboardOpen`
+- [ ] `sampToggleScoreboard` — direct scoreboard mutation remains outside the
+  safe ABI pending separate native-call evidence and an explicit policy.
+- [~] `sampIsScoreboardOpen` — `HostApi::is_local_scoreboard_open` returns a
+  cached R1 game-thread read only. Keep provisional until the open/close and
+  shutdown live check.
 
 ### Players (`player.lua`)
 

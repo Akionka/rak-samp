@@ -70,6 +70,12 @@ chat display mode as `Off`, `NoShadow`, or `Normal`; the derived
 Both return `NotReady` before their first valid publication and never call the
 client from a plugin thread.
 
+`HostApi::local_cursor_mode()` exposes the cached R1 cursor enum and
+`HostApi::is_local_cursor_active()` derives whether it is non-`None`.
+`HostApi::is_local_scoreboard_open()` similarly returns a cached local
+scoreboard flag. These are read-only R1 observations; they do not toggle UI,
+send traffic, or expose a client pointer.
+
 For every recognized client build, `HostApi::samp_version()` returns the
 verified build identity and `HostApi::is_samp_available()` reports whether the
 host's RakClient hooks are ready. `HostApi::is_samp_loaded()` instead reports

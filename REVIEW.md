@@ -28,6 +28,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   leaf-accessor signature. A legal R1 run must cycle off, no-shadow, and
   normal modes, compare the cached enum with the visible chat state, confirm
   no generated packet/RPC traffic, and exit normally.
+- **Cached R1 cursor/scoreboard live gate:** `HostApi::local_cursor_mode` and
+  `HostApi::is_local_scoreboard_open` are fail-closed behind exact R1 code
+  signatures plus independently checked packed offsets. A legal R1 run must
+  observe cursor inactive/active and scoreboard closed/open transitions,
+  confirm the cache agrees with the visible UI, produces no traffic, and exits
+  normally.
 
 ## Windows x86 evidence
 
@@ -82,6 +88,22 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   (normal), then atomically caches the scalar. Plugins receive only the
   converted enum or `NotReady`; no client layout, pointer, synchronous native
   call, packet, or RPC crosses the ABI.
+- **Cached R1 cursor and scoreboard state:** the pinned R1 C++ leads place
+  `CGame::m_nCursorMode` at packed offset `0x55` and
+  `CScoreboard::m_bIsEnabled` at `0x00`; the independent x86 fixture asserts
+  both. The installed fingerprinted R1 DLL's `CGame::ProcessInputEnabling` at
+  `samp.dll + 0x9BC10` begins
+  `56 8B F1 8B 46 55 57 33 FF 3B C7 0F 85 07 01 00`, loading the cursor field.
+  `CScoreboard::Close` at `+0x6A320` begins
+  `56 8B F1 83 3E 00 74 3C 8B 46 34 85 C0 74 35 C6`, while `Enable` at
+  `+0x6AD30` begins
+  `56 8B F1 83 3E 00 75 43 8B 46 34 85 C0 74 3C C6`; both compare the
+  scoreboard flag at offset zero. The profile checks these exact signatures,
+  validates the R1 `CGame` singleton at `+0x21A10C` and `CScoreboard`
+  singleton at `+0x21A0B4`, then copies only cursor values `0..=4` and
+  scoreboard values `0/1` from the game-thread pump into atomic caches. The
+  ABI returns converted scalars only; it cannot toggle UI, expose a pointer,
+  or synchronously call the client.
 - **Direct R1 death-window signatures:** static analysis of the installed
   fingerprinted R1 DLL found `CDeathWindow::AddMessage` at `samp.dll + 0x66A10`
   as `E9 1B FF FF FF`, a thunk to `CDeathWindow::AddEntry` at `+0x66930`, which

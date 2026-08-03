@@ -29,6 +29,9 @@ const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 const CHAT_SINGLETON_RVA: usize = 0x21A0E4;
 const CHAT_ADD_ENTRY_RVA: usize = 0x64010;
 const CHAT_GET_MODE_RVA: usize = 0x5D7A0;
+const SCOREBOARD_SINGLETON_RVA: usize = 0x21A0B4;
+const SCOREBOARD_CLOSE_RVA: usize = 0x6A320;
+const SCOREBOARD_ENABLE_RVA: usize = 0x6AD30;
 const DEATH_WINDOW_SINGLETON_RVA: usize = 0x21A0EC;
 const DEATH_WINDOW_ADD_ENTRY_RVA: usize = 0x66930;
 const DEATH_WINDOW_ADD_MESSAGE_RVA: usize = 0x66A10;
@@ -43,6 +46,8 @@ const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 const PED_GET_HEALTH_RVA: usize = 0xA6610;
 const PED_GET_ARMOUR_RVA: usize = 0xA6650;
+const GAME_SINGLETON_RVA: usize = 0x21A10C;
+const GAME_PROCESS_INPUT_ENABLING_RVA: usize = 0x9BC10;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 // These packed CNetGame fields are cross-checked by the independently written
@@ -52,6 +57,8 @@ const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x20;
 const NET_GAME_HOSTNAME_OFFSET: usize = 0x121;
 const NET_GAME_PORT_OFFSET: usize = 0x225;
 const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
+const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
+const GAME_CURSOR_MODE_OFFSET: usize = 0x55;
 
 // First 16 bytes of SA-MP 0.3.7 R1's `CDialog::Show` at `DIALOG_SHOW_RVA`.
 // The function uses a frame-less prologue; do not substitute the common
@@ -71,6 +78,23 @@ const CHAT_ADD_ENTRY_SIGNATURE: [u8; 16] = [
 // the exact code signature rather than reading the field directly so the
 // private layout remains behind the fingerprinted native profile.
 const CHAT_GET_MODE_SIGNATURE: [u8; 4] = [0x8B, 0x41, 0x08, 0xC3];
+
+// `CScoreboard::Close` and `Enable` both start by comparing the packed
+// `m_bIsEnabled` field at offset zero. Together they anchor the copied boolean
+// read below without turning the field into a public client layout.
+const SCOREBOARD_CLOSE_SIGNATURE: [u8; 16] = [
+    0x56, 0x8B, 0xF1, 0x83, 0x3E, 0x00, 0x74, 0x3C, 0x8B, 0x46, 0x34, 0x85, 0xC0, 0x74, 0x35, 0xC6,
+];
+const SCOREBOARD_ENABLE_SIGNATURE: [u8; 16] = [
+    0x56, 0x8B, 0xF1, 0x83, 0x3E, 0x00, 0x75, 0x43, 0x8B, 0x46, 0x34, 0x85, 0xC0, 0x74, 0x3C, 0xC6,
+];
+
+// `CGame::ProcessInputEnabling` loads `m_nCursorMode` from offset 0x55 before
+// checking the associated input-enable state. Its exact R1 signature anchors
+// the narrow copied cursor-mode field below.
+const GAME_PROCESS_INPUT_ENABLING_SIGNATURE: [u8; 16] = [
+    0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x55, 0x57, 0x33, 0xFF, 0x3B, 0xC7, 0x0F, 0x85, 0x07, 0x01, 0x00,
+];
 
 // `CDeathWindow::AddMessage` is an R1 thunk to `AddEntry`; verify both its
 // five-byte relative jump and the start of the final target before enabling
@@ -202,6 +226,24 @@ impl R1ClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
+    pub(super) fn cursor_mode(self) -> Result<i32, DirectClientError> {
+        let game = self.game().ok_or(DirectClientError::NotReady)?;
+        let mode = unsafe { read_unaligned::<i32>(game as usize + GAME_CURSOR_MODE_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        matches!(mode, 0..=4)
+            .then_some(mode)
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    pub(super) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
+        let scoreboard = self.scoreboard().ok_or(DirectClientError::NotReady)?;
+        match unsafe { read_unaligned::<i32>(scoreboard as usize + SCOREBOARD_ENABLED_OFFSET) } {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
     pub(super) fn death_window_is_ready(self) -> bool {
         self.death_window().is_some()
     }
@@ -253,6 +295,12 @@ impl R1ClientProfile {
         let chat: *mut c_void =
             unsafe { read_pointer(self.module_base + CHAT_SINGLETON_RVA) }?.cast();
         (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
+    }
+
+    fn scoreboard(self) -> Option<*mut c_void> {
+        let scoreboard: *mut c_void =
+            unsafe { read_pointer(self.module_base + SCOREBOARD_SINGLETON_RVA) }?.cast();
+        (!scoreboard.is_null() && readable_range(scoreboard.cast(), 4)).then_some(scoreboard)
     }
 
     fn death_window(self) -> Option<*mut c_void> {
@@ -394,6 +442,13 @@ impl R1ClientProfile {
             unsafe { read_pointer(self.module_base + NET_GAME_SINGLETON_RVA) }?.cast();
         (!net_game.is_null() && readable_range(net_game.cast(), 1)).then_some(net_game)
     }
+
+    fn game(self) -> Option<*mut c_void> {
+        let game: *mut c_void =
+            unsafe { read_pointer(self.module_base + GAME_SINGLETON_RVA) }?.cast();
+        (!game.is_null() && readable_range(game.cast(), GAME_CURSOR_MODE_OFFSET + 4))
+            .then_some(game)
+    }
 }
 
 fn assigned_player_id(id: u16) -> Option<u16> {
@@ -459,6 +514,18 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
         && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
         && code_matches(module_base + CHAT_GET_MODE_RVA, &CHAT_GET_MODE_SIGNATURE)
+        && code_matches(
+            module_base + SCOREBOARD_CLOSE_RVA,
+            &SCOREBOARD_CLOSE_SIGNATURE,
+        )
+        && code_matches(
+            module_base + SCOREBOARD_ENABLE_RVA,
+            &SCOREBOARD_ENABLE_SIGNATURE,
+        )
+        && code_matches(
+            module_base + GAME_PROCESS_INPUT_ENABLING_RVA,
+            &GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
+        )
         && code_matches(
             module_base + DEATH_WINDOW_ADD_MESSAGE_RVA,
             &DEATH_WINDOW_ADD_MESSAGE_SIGNATURE,
@@ -582,14 +649,16 @@ unsafe fn plausible_code(address: usize) -> bool {
 mod tests {
     use super::{
         CHAT_ADD_ENTRY_SIGNATURE, CHAT_GET_MODE_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
-        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
+        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_SHOW_SIGNATURE, GAME_CURSOR_MODE_OFFSET,
+        GAME_PROCESS_INPUT_ENABLING_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
         LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_STATE_SIGNATURE,
         NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_PORT_OFFSET,
-        PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET, assigned_player_id, nul_terminated,
+        PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE,
+        SCOREBOARD_ENABLE_SIGNATURE, SCOREBOARD_ENABLED_OFFSET, assigned_player_id, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -611,6 +680,8 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_hostname_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_port_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_game_state_offset() -> usize;
+        fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
+        fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
     }
 
     #[test]
@@ -680,6 +751,14 @@ mod tests {
                 NET_GAME_PORT_OFFSET
             );
             assert_eq!(rak_samp_fixture_r1_net_game_game_state_offset(), 0x3BD);
+            assert_eq!(
+                rak_samp_fixture_r1_game_cursor_mode_offset(),
+                GAME_CURSOR_MODE_OFFSET
+            );
+            assert_eq!(
+                rak_samp_fixture_r1_scoreboard_enabled_offset(),
+                SCOREBOARD_ENABLED_OFFSET
+            );
         }
     }
 
@@ -713,6 +792,31 @@ mod tests {
     #[test]
     fn chat_get_mode_signature_matches_the_fingerprinted_r1_target() {
         assert_eq!(CHAT_GET_MODE_SIGNATURE, [0x8B, 0x41, 0x08, 0xC3]);
+    }
+
+    #[test]
+    fn scoreboard_and_cursor_signatures_match_the_fingerprinted_r1_targets() {
+        assert_eq!(
+            SCOREBOARD_CLOSE_SIGNATURE,
+            [
+                0x56, 0x8B, 0xF1, 0x83, 0x3E, 0x00, 0x74, 0x3C, 0x8B, 0x46, 0x34, 0x85, 0xC0, 0x74,
+                0x35, 0xC6,
+            ]
+        );
+        assert_eq!(
+            SCOREBOARD_ENABLE_SIGNATURE,
+            [
+                0x56, 0x8B, 0xF1, 0x83, 0x3E, 0x00, 0x75, 0x43, 0x8B, 0x46, 0x34, 0x85, 0xC0, 0x74,
+                0x3C, 0xC6,
+            ]
+        );
+        assert_eq!(
+            GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
+            [
+                0x56, 0x8B, 0xF1, 0x8B, 0x46, 0x55, 0x57, 0x33, 0xFF, 0x3B, 0xC7, 0x0F, 0x85, 0x07,
+                0x01, 0x00,
+            ]
+        );
     }
 
     #[test]

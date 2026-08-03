@@ -82,6 +82,12 @@ all modes except `Off` as visible. The profile calls the verified R1 accessor
 only from the game-thread pump, publishes its scalar return atomically, and
 reports `NotReady` before a valid publication.
 
+`HostApi::local_cursor_mode` and `HostApi::is_local_cursor_active` expose a
+cached R1 cursor mode and its non-`None` projection. `HostApi::is_local_scoreboard_open`
+is a copied cached scoreboard flag. Their setters and toggles remain excluded:
+the game-thread pump performs only the verified read, then publishes scalar
+state without a client pointer or packet/RPC action.
+
 `HostApi::samp_version` exposes the recognized `samp.dll` build identity that
 the host already verified during attach. `HostApi::is_samp_available` reports
 host/hook readiness. Both are safe across every recognized build and need no

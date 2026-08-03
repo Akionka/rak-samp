@@ -346,6 +346,22 @@ unsafe extern "system" fn local_chat_display_mode(output: *mut i32) -> RakSampRe
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn local_cursor_mode(output: *mut i32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 3;
+    RakSampResult::Ok
+}
+
+unsafe extern "system" fn local_scoreboard_open(output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 0;
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -501,4 +517,6 @@ static API: RakSampApiV1 = RakSampApiV1 {
     show_local_chat_message,
     show_local_death_message,
     local_chat_display_mode,
+    local_cursor_mode,
+    local_scoreboard_open,
 };

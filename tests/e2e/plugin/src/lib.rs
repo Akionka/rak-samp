@@ -4,9 +4,9 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalDeathMessage, LocalDialog,
-    LocalDialogStyle, RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream,
-    wait_for_default_host,
+    LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
+    LocalDeathMessage, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampHookAction,
+    Subscription, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -34,6 +34,8 @@ static LOCAL_DEATH_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static LOCAL_CHAT_DISPLAY_MODE: AtomicI32 = AtomicI32::new(i32::MIN);
+static LOCAL_CURSOR_MODE: AtomicI32 = AtomicI32::new(i32::MIN);
+static LOCAL_SCOREBOARD_OPEN: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -100,6 +102,14 @@ fn initialize() {
         && api.is_local_chat_visible() == Ok(true)
     {
         LOCAL_CHAT_DISPLAY_MODE.store(2, Ordering::Release);
+    }
+    if api.local_cursor_mode() == Ok(LocalCursorMode::LockCamera)
+        && api.is_local_cursor_active() == Ok(true)
+    {
+        LOCAL_CURSOR_MODE.store(3, Ordering::Release);
+    }
+    if api.is_local_scoreboard_open() == Ok(false) {
+        LOCAL_SCOREBOARD_OPEN.store(0, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -181,6 +191,16 @@ pub extern "system" fn RakSampE2ePlugin_SampGameState() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalChatDisplayMode() -> i32 {
     LOCAL_CHAT_DISPLAY_MODE.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalCursorMode() -> i32 {
+    LOCAL_CURSOR_MODE.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalScoreboardOpen() -> i32 {
+    LOCAL_SCOREBOARD_OPEN.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

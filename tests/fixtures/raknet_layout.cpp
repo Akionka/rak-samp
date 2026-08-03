@@ -121,6 +121,18 @@ struct FixtureR1NetGamePrefix {
     int map_icons[100];
     int game_state;
 };
+
+// Independently recorded R1 UI-state prefixes. These are checked separately
+// from the Rust profile before it copies the two scalar reads on the game
+// thread.
+struct FixtureR1GamePrefix {
+    unsigned char pad_0[0x55];
+    int cursor_mode;
+};
+
+struct FixtureR1ScoreboardPrefix {
+    int is_enabled;
+};
 #pragma pack(pop)
 
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
@@ -138,6 +150,8 @@ static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
 static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
 static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
 static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
+static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
+static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
 
 extern "C" {
 
@@ -263,6 +277,14 @@ std::size_t rak_samp_fixture_r1_net_game_port_offset() {
 
 std::size_t rak_samp_fixture_r1_net_game_game_state_offset() {
     return offsetof(FixtureR1NetGamePrefix, game_state);
+}
+
+std::size_t rak_samp_fixture_r1_game_cursor_mode_offset() {
+    return offsetof(FixtureR1GamePrefix, cursor_mode);
+}
+
+std::size_t rak_samp_fixture_r1_scoreboard_enabled_offset() {
+    return offsetof(FixtureR1ScoreboardPrefix, is_enabled);
 }
 
 }

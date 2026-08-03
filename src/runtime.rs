@@ -404,6 +404,14 @@ impl Runtime {
     pub(crate) fn local_chat_display_mode(&self) -> Result<i32, DirectClientError> {
         self.backend.local_chat_display_mode()
     }
+
+    pub(crate) fn local_cursor_mode(&self) -> Result<i32, DirectClientError> {
+        self.backend.local_cursor_mode()
+    }
+
+    pub(crate) fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
+        self.backend.local_scoreboard_open()
+    }
 }
 
 fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {

@@ -42,18 +42,21 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot, cached game-state, current-server, and chat-display-mode results; then monitors position, health, armour, vehicle-state, and all three chat display modes for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Queues one direct local message dialog, chat entry, and death-window entry; verifies a populated local-player snapshot plus cached game-state, current-server, chat-display, cursor, and scoreboard results; then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, and scoreboard open/closed for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
 the next two minutes, walk, take enough damage to change both armour and health,
 enter or leave a vehicle, and press F7 until the chat window has cycled through
-off, no-shadow, and normal display modes.
+off, no-shadow, and normal display modes. Open and close the scoreboard with
+Tab, then activate and dismiss an ordinary local cursor state (for example,
+open and close chat input).
 Confirm its `direct-client state validation passed` line and separately inspect
-that its outcome records each chat mode and that the direct dialog, local chat
-entry, death-window entry, and cached display-mode reads added no RPC 61
-observation and no outgoing RPC 61 or 62 was counted. (The standard validator
-intentionally emulates one incoming RPC 61 before this direct check.)
+that its outcome records each chat mode, both cursor categories, and both
+scoreboard states; the direct dialog, local chat entry, death-window entry, and
+cached UI reads must add no RPC 61 observation and no outgoing RPC 61 or 62.
+(The standard validator intentionally emulates one incoming RPC 61 before this
+direct check.)
 A release requires this scenario to remain stable through normal shutdown.
 
 For the separate runtime-unload check, close GTA and run:

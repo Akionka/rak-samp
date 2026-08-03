@@ -134,6 +134,29 @@ impl LocalChatDisplayMode {
     }
 }
 
+/// The five R1 local-cursor modes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum LocalCursorMode {
+    None,
+    LockKeysNoCursor,
+    LockCameraAndControl,
+    LockCamera,
+    LockCameraNoCursor,
+}
+
+impl LocalCursorMode {
+    const fn from_raw(value: i32) -> Option<Self> {
+        match value {
+            0 => Some(Self::None),
+            1 => Some(Self::LockKeysNoCursor),
+            2 => Some(Self::LockCameraAndControl),
+            3 => Some(Self::LockCamera),
+            4 => Some(Self::LockCameraNoCursor),
+            _ => None,
+        }
+    }
+}
+
 /// A copied-and-queued local chat message.
 ///
 /// The host copies both borrowed byte strings before this call returns. They
@@ -534,6 +557,10 @@ pub struct RakSampApiV1 {
     ) -> RakSampResult,
     /// Copies the latest game-thread-cached R1 chat display mode into `output`.
     pub local_chat_display_mode: unsafe extern "system" fn(*mut i32) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 cursor mode into `output`.
+    pub local_cursor_mode: unsafe extern "system" fn(*mut i32) -> RakSampResult,
+    /// Copies the latest game-thread-cached R1 scoreboard-open flag into `output`.
+    pub local_scoreboard_open: unsafe extern "system" fn(*mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1522,6 +1549,36 @@ impl HostApi {
             .map(|mode| mode != LocalChatDisplayMode::Off)
     }
 
+    /// Returns the cached R1 local cursor mode.
+    pub fn local_cursor_mode(self) -> Result<LocalCursorMode, RakSampResult> {
+        let mut raw = 0;
+        match unsafe { (self.raw.local_cursor_mode)(&mut raw) } {
+            RakSampResult::Ok => {
+                LocalCursorMode::from_raw(raw).ok_or(RakSampResult::NativeCallFailed)
+            }
+            result => Err(result),
+        }
+    }
+
+    /// Returns whether the cached R1 local cursor mode is active.
+    pub fn is_local_cursor_active(self) -> Result<bool, RakSampResult> {
+        self.local_cursor_mode()
+            .map(|mode| mode != LocalCursorMode::None)
+    }
+
+    /// Returns whether the cached R1 local scoreboard is open.
+    pub fn is_local_scoreboard_open(self) -> Result<bool, RakSampResult> {
+        let mut raw = 0;
+        match unsafe { (self.raw.local_scoreboard_open)(&mut raw) } {
+            RakSampResult::Ok => match raw {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1897,8 +1954,16 @@ mod tests {
             mem::offset_of!(RakSampApiV1, show_local_death_message) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_cursor_mode),
             mem::offset_of!(RakSampApiV1, local_chat_display_mode) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(RakSampApiV1, local_scoreboard_open),
+            mem::offset_of!(RakSampApiV1, local_cursor_mode) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, local_scoreboard_open) + function_size
         );
     }
 
@@ -2038,6 +2103,15 @@ mod tests {
         );
         assert_eq!(api.is_local_chat_visible(), Ok(true));
         assert_eq!(LocalChatDisplayMode::from_raw(3), None);
+    }
+
+    #[test]
+    fn local_cursor_and_scoreboard_state_are_converted_from_scalar_abi_outputs() {
+        let api = test_support::test_api();
+        assert_eq!(api.local_cursor_mode(), Ok(LocalCursorMode::LockCamera));
+        assert_eq!(api.is_local_cursor_active(), Ok(true));
+        assert_eq!(api.is_local_scoreboard_open(), Ok(false));
+        assert_eq!(LocalCursorMode::from_raw(5), None);
     }
 
     #[test]

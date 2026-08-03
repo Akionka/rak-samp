@@ -106,5 +106,13 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn local_cursor_mode(&self) -> Result<i32, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn shutdown(&mut self) {}
 }

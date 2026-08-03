@@ -113,6 +113,10 @@ struct BackendState {
     samp_game_state_ready: AtomicBool,
     local_chat_display_mode: AtomicI32,
     local_chat_display_mode_ready: AtomicBool,
+    local_cursor_mode: AtomicI32,
+    local_cursor_mode_ready: AtomicBool,
+    local_scoreboard_open: AtomicBool,
+    local_scoreboard_open_ready: AtomicBool,
     hooks: Mutex<HookStorage>,
 }
 
@@ -178,6 +182,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         samp_game_state_ready: AtomicBool::new(false),
         local_chat_display_mode: AtomicI32::new(0),
         local_chat_display_mode_ready: AtomicBool::new(false),
+        local_cursor_mode: AtomicI32::new(0),
+        local_cursor_mode_ready: AtomicBool::new(false),
+        local_scoreboard_open: AtomicBool::new(false),
+        local_scoreboard_open_ready: AtomicBool::new(false),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
@@ -281,6 +289,14 @@ impl Backend {
 
     pub(crate) fn local_chat_display_mode(&self) -> Result<i32, DirectClientError> {
         self.state.local_chat_display_mode()
+    }
+
+    pub(crate) fn local_cursor_mode(&self) -> Result<i32, DirectClientError> {
+        self.state.local_cursor_mode()
+    }
+
+    pub(crate) fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
+        self.state.local_scoreboard_open()
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -692,7 +708,7 @@ impl BackendState {
     }
 
     fn samp_game_state(&self) -> Result<i32, DirectClientError> {
-        cached_direct_client_scalar(
+        cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
             self.samp_game_state_ready
@@ -702,12 +718,32 @@ impl BackendState {
     }
 
     fn local_chat_display_mode(&self) -> Result<i32, DirectClientError> {
-        cached_direct_client_scalar(
+        cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
             self.local_chat_display_mode_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_chat_display_mode.load(Ordering::Acquire)),
+        )
+    }
+
+    fn local_cursor_mode(&self) -> Result<i32, DirectClientError> {
+        cached_direct_client_value(
+            self.r1_client.is_some(),
+            self.rak_client.load(Ordering::Acquire) != 0,
+            self.local_cursor_mode_ready
+                .load(Ordering::Acquire)
+                .then(|| self.local_cursor_mode.load(Ordering::Acquire)),
+        )
+    }
+
+    fn local_scoreboard_open(&self) -> Result<bool, DirectClientError> {
+        cached_direct_client_value(
+            self.r1_client.is_some(),
+            self.rak_client.load(Ordering::Acquire) != 0,
+            self.local_scoreboard_open_ready
+                .load(Ordering::Acquire)
+                .then(|| self.local_scoreboard_open.load(Ordering::Acquire)),
         )
     }
 
@@ -720,6 +756,8 @@ impl BackendState {
         }
         self.refresh_samp_game_state(profile);
         self.refresh_local_chat_display_mode(profile);
+        self.refresh_local_cursor_mode(profile);
+        self.refresh_local_scoreboard_open(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         if profile.dialog_is_ready() {
@@ -871,6 +909,32 @@ impl BackendState {
         }
     }
 
+    fn refresh_local_cursor_mode(&self, profile: R1ClientProfile) {
+        match profile.cursor_mode() {
+            Ok(mode) => {
+                self.local_cursor_mode.store(mode, Ordering::Release);
+                self.local_cursor_mode_ready.store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_cursor_mode_ready.store(false, Ordering::Release);
+            }
+        }
+    }
+
+    fn refresh_local_scoreboard_open(&self, profile: R1ClientProfile) {
+        match profile.scoreboard_is_open() {
+            Ok(open) => {
+                self.local_scoreboard_open.store(open, Ordering::Release);
+                self.local_scoreboard_open_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_scoreboard_open_ready
+                    .store(false, Ordering::Release);
+            }
+        }
+    }
+
     fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
         if self.r1_client.is_some()
             && let Some(player_id) = player_id
@@ -938,6 +1002,9 @@ impl BackendState {
         self.samp_game_state_ready.store(false, Ordering::Release);
         self.local_chat_display_mode_ready
             .store(false, Ordering::Release);
+        self.local_cursor_mode_ready.store(false, Ordering::Release);
+        self.local_scoreboard_open_ready
+            .store(false, Ordering::Release);
     }
 }
 
@@ -951,11 +1018,11 @@ fn assigned_snapshot(
         .filter(|snapshot| snapshot.id == assigned_id)
 }
 
-fn cached_direct_client_scalar(
+fn cached_direct_client_value<T>(
     profile_available: bool,
     client_available: bool,
-    cached: Option<i32>,
-) -> Result<i32, DirectClientError> {
+    cached: Option<T>,
+) -> Result<T, DirectClientError> {
     if !profile_available {
         Err(DirectClientError::UnsupportedVersion)
     } else if !client_available {
@@ -1295,6 +1362,10 @@ mod vtable_tests {
             samp_game_state_ready: AtomicBool::new(false),
             local_chat_display_mode: AtomicI32::new(0),
             local_chat_display_mode_ready: AtomicBool::new(false),
+            local_cursor_mode: AtomicI32::new(0),
+            local_cursor_mode_ready: AtomicBool::new(false),
+            local_scoreboard_open: AtomicBool::new(false),
+            local_scoreboard_open_ready: AtomicBool::new(false),
             hooks: Mutex::new(HookStorage::default()),
         }
     }
@@ -1376,6 +1447,14 @@ mod vtable_tests {
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
+            state.local_cursor_mode(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_scoreboard_open(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
             state.server_info(),
             Err(DirectClientError::UnsupportedVersion)
         );
@@ -1384,27 +1463,36 @@ mod vtable_tests {
     #[test]
     fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
         assert_eq!(
-            cached_direct_client_scalar(false, true, Some(14)),
+            cached_direct_client_value(false, true, Some(14)),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
-            cached_direct_client_scalar(true, false, Some(14)),
+            cached_direct_client_value(true, false, Some(14)),
             Err(DirectClientError::NotReady)
         );
         assert_eq!(
-            cached_direct_client_scalar(true, true, None),
+            cached_direct_client_value(true, true, None::<i32>),
             Err(DirectClientError::NotReady)
         );
-        assert_eq!(cached_direct_client_scalar(true, true, Some(14)), Ok(14));
+        assert_eq!(cached_direct_client_value(true, true, Some(14)), Ok(14));
     }
 
     #[test]
     fn cached_chat_display_mode_requires_game_thread_publication() {
         assert_eq!(
-            cached_direct_client_scalar(true, true, None),
+            cached_direct_client_value(true, true, None::<i32>),
             Err(DirectClientError::NotReady)
         );
-        assert_eq!(cached_direct_client_scalar(true, true, Some(2)), Ok(2));
+        assert_eq!(cached_direct_client_value(true, true, Some(2)), Ok(2));
+    }
+
+    #[test]
+    fn cached_ui_flags_require_game_thread_publication() {
+        assert_eq!(
+            cached_direct_client_value(true, true, None::<bool>),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(cached_direct_client_value(true, true, Some(true)), Ok(true));
     }
 
     #[test]
