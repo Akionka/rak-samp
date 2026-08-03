@@ -156,6 +156,8 @@ fixtures, disassembly, or the E2E mock alone.
   that the queued dialog, chat entry, and death-window entry are all visible,
   dismiss the dialog, and exit normally. Preserve only outcome/ID logs; never
   record UI, packet, or RPC payloads.
+  The 2026-08-03 run was invalidated by a corrected host GTA-entry-point
+  fingerprint bug; redeploy the post-fix host before recording any result.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.

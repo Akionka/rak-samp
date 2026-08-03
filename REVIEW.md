@@ -102,6 +102,14 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
 
 ## Windows x86 evidence
 
+- **GTA SA 1.0 US PE entry-point correction (2026-08-04):** the live
+  `C:\Games\GTASA\gta_sa.exe` has the expected 14,383,616-byte image,
+  machine `0x014C`, image base `0x00400000`, image size `0x01177000`, and PE
+  `AddressOfEntryPoint` RVA `0x00024570`. The prior profile accidentally
+  compared that RVA to the loaded address `0x00424570`, causing every direct
+  R1 helper to return `UnsupportedVersion`. The strict profile now compares
+  the raw PE RVA and retains the executable-code check at image-base plus RVA.
+
 - **Dynamic dialog/input audit boundary:** the upstream multiversion R1
   headers and SF.lua source identify candidate dialog list/edit control
   pointers and a list-selection field, but those references are leads only.
