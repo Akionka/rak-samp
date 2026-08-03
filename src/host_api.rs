@@ -2,7 +2,7 @@ use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
     PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
-        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
         LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
         PlayerInfoSnapshot, ServerInfoSnapshot,
@@ -10,11 +10,11 @@ use crate::{
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
-    MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
-    RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction, RakSampHostStatus,
-    RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions,
-    RakSampServerInfoV1, RakSampSubscription, Vector3,
+    ABI_VERSION_V1, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS,
+    MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1,
+    RakSampDirection, RakSampEventCallbackV1, RakSampEventV1, RakSampGangzoneV1, RakSampHookAction,
+    RakSampHostStatus, RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult,
+    RakSampSendOptions, RakSampServerInfoV1, RakSampSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -164,6 +164,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     text_label_exists,
     textdraw_exists,
     object_exists,
+    gangzone_info,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -1078,6 +1079,32 @@ unsafe extern "system" fn object_exists(id: u16, output: *mut u8) -> RakSampResu
     }
 }
 
+unsafe extern "system" fn gangzone_info(id: u16, output: *mut RakSampGangzoneV1) -> RakSampResult {
+    if id >= MAX_SAMP_GANGZONES {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.gangzone(id) {
+        Ok(Some(snapshot)) => match gangzone_to_abi(snapshot) {
+            Ok(snapshot) => {
+                *output = snapshot;
+                RakSampResult::Ok
+            }
+            Err(()) => RakSampResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            *output = RakSampGangzoneV1::default();
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1378,6 +1405,28 @@ fn player_info_to_abi(snapshot: PlayerInfoSnapshot) -> Result<RakSampPlayerInfoV
     })
 }
 
+fn gangzone_to_abi(snapshot: GangzoneSnapshot) -> Result<RakSampGangzoneV1, ()> {
+    if !snapshot.left.is_finite()
+        || !snapshot.bottom.is_finite()
+        || !snapshot.right.is_finite()
+        || !snapshot.top.is_finite()
+    {
+        return Err(());
+    }
+    Ok(RakSampGangzoneV1 {
+        exists: 1,
+        _reserved: [0; 3],
+        id: snapshot.id,
+        _reserved2: 0,
+        left: snapshot.left,
+        bottom: snapshot.bottom,
+        right: snapshot.right,
+        top: snapshot.top,
+        colour: snapshot.colour,
+        alternate_colour: snapshot.alternate_colour,
+    })
+}
+
 fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<RakSampServerInfoV1, ()> {
     let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
     let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
@@ -1671,6 +1720,19 @@ mod tests {
         );
         assert_eq!(
             unsafe { object_exists(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut gangzone = RakSampGangzoneV1::default();
+        assert_eq!(
+            unsafe { gangzone_info(7, &mut gangzone) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { gangzone_info(MAX_SAMP_GANGZONES, &mut gangzone) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { gangzone_info(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();

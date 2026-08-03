@@ -36,6 +36,8 @@ pub const MAX_SAMP_TEXT_LABELS: u16 = 2_048;
 pub const MAX_SAMP_TEXTDRAWS: u16 = 2_304;
 /// Number of addressable SA-MP object IDs in the R1 object pool.
 pub const MAX_SAMP_OBJECTS: u16 = 1_000;
+/// Number of addressable SA-MP gangzone IDs in the R1 gangzone pool.
+pub const MAX_SAMP_GANGZONES: u16 = 1_024;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -291,6 +293,22 @@ pub struct PlayerInfo {
     pub ping: u32,
 }
 
+/// An owned R1 gangzone record copied from the game-thread cache.
+///
+/// The four coordinates retain the native pool's left, bottom, right, top
+/// order. Both colours are the native Direct3D ARGB values used by the R1
+/// draw path; no gangzone or GTA pointer crosses this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Gangzone {
+    pub id: u16,
+    pub left: f32,
+    pub bottom: f32,
+    pub right: f32,
+    pub top: f32,
+    pub colour: u32,
+    pub alternate_colour: u32,
+}
+
 /// An owned, read-only current-server snapshot.
 ///
 /// The address and hostname remain bytes because SA-MP does not guarantee a
@@ -427,6 +445,26 @@ impl Default for RakSampPlayerInfoV1 {
             ping: 0,
         }
     }
+}
+
+/// C-compatible storage for an owned [`Gangzone`] result.
+///
+/// `exists` is zero when the latest completed query found no gangzone. The
+/// host initializes all fields in that case; when it is one, the scalar fields
+/// hold an R1 game-thread copy.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct RakSampGangzoneV1 {
+    pub exists: u8,
+    pub _reserved: [u8; 3],
+    pub id: u16,
+    pub _reserved2: u16,
+    pub left: f32,
+    pub bottom: f32,
+    pub right: f32,
+    pub top: f32,
+    pub colour: u32,
+    pub alternate_colour: u32,
 }
 
 /// C-compatible storage for [`ServerInfo`].
@@ -738,6 +776,8 @@ pub struct RakSampApiV1 {
     pub textdraw_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
     /// Copies a cached R1 object-pool existence flag into `output`.
     pub object_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies a cached R1 gangzone record into `output`.
+    pub gangzone_info: unsafe extern "system" fn(u16, *mut RakSampGangzoneV1) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1974,6 +2014,23 @@ impl HostApi {
         }
     }
 
+    /// Returns the latest cached R1 gangzone record for `id`.
+    ///
+    /// The first lookup returns [`RakSampResult::NotReady`] while the verified
+    /// game-thread pump copies a bounded record. `Ok(None)` means the latest
+    /// completed query found no gangzone; retry normal plugin work instead of
+    /// blocking a callback.
+    pub fn gangzone(self, id: u16) -> Result<Option<Gangzone>, RakSampResult> {
+        if id >= MAX_SAMP_GANGZONES {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut raw = RakSampGangzoneV1::default();
+        match unsafe { (self.raw.gangzone_info)(id, &mut raw) } {
+            RakSampResult::Ok => gangzone_from_abi(raw),
+            result => Err(result),
+        }
+    }
+
     /// Returns copied core metadata for the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
@@ -2241,6 +2298,35 @@ fn player_info_from_abi(raw: RakSampPlayerInfoV1) -> Result<Option<PlayerInfo>, 
     }
 }
 
+fn gangzone_from_abi(raw: RakSampGangzoneV1) -> Result<Option<Gangzone>, RakSampResult> {
+    match raw.exists {
+        0 => {
+            if raw != RakSampGangzoneV1::default() {
+                return Err(RakSampResult::NativeCallFailed);
+            }
+            Ok(None)
+        }
+        1 if raw._reserved == [0; 3]
+            && raw._reserved2 == 0
+            && raw.left.is_finite()
+            && raw.bottom.is_finite()
+            && raw.right.is_finite()
+            && raw.top.is_finite() =>
+        {
+            Ok(Some(Gangzone {
+                id: raw.id,
+                left: raw.left,
+                bottom: raw.bottom,
+                right: raw.right,
+                top: raw.top,
+                colour: raw.colour,
+                alternate_colour: raw.alternate_colour,
+            }))
+        }
+        _ => Err(RakSampResult::NativeCallFailed),
+    }
+}
+
 unsafe extern "system" fn dispatch_callback(
     user_data: *mut c_void,
     raw: *mut RakSampEventV1,
@@ -2497,8 +2583,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, textdraw_exists) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, gangzone_info),
             mem::offset_of!(RakSampApiV1, object_exists) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, gangzone_info) + function_size
         );
     }
 
@@ -2662,6 +2752,23 @@ mod tests {
         assert_eq!(api.is_object_defined(8), Ok(false));
         assert_eq!(
             api.is_object_defined(MAX_SAMP_OBJECTS),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(
+            api.gangzone(7),
+            Ok(Some(Gangzone {
+                id: 7,
+                left: -1.0,
+                bottom: -2.0,
+                right: 3.0,
+                top: 4.0,
+                colour: 0xFF11_2233,
+                alternate_colour: 0xFF44_5566,
+            }))
+        );
+        assert_eq!(api.gangzone(8), Ok(None));
+        assert_eq!(
+            api.gangzone(MAX_SAMP_GANGZONES),
             Err(RakSampResult::InvalidArgument)
         );
         assert_eq!(

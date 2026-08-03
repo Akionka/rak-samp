@@ -116,6 +116,18 @@ pub(crate) struct PlayerInfoSnapshot {
     pub(crate) ping: u32,
 }
 
+/// Host-owned gangzone data copied from the verified R1 game thread.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct GangzoneSnapshot {
+    pub(crate) id: u16,
+    pub(crate) left: f32,
+    pub(crate) bottom: f32,
+    pub(crate) right: f32,
+    pub(crate) top: f32,
+    pub(crate) colour: u32,
+    pub(crate) alternate_colour: u32,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalChatMessageStyle {
     Chat,
@@ -453,6 +465,10 @@ impl Runtime {
 
     pub(crate) fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         self.backend.object_exists(id)
+    }
+
+    pub(crate) fn gangzone(&self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+        self.backend.gangzone(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {

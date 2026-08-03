@@ -9,8 +9,8 @@ use crate::{
 use rak_samp_plugin_api::{
     HostApi, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
     LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, LocalPlayer,
-    MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
-    MAX_SAMP_VEHICLES, RakSampHookAction, RakSampResult, RakSampSendOptions,
+    MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS,
+    MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -29,6 +29,7 @@ pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
 pub(crate) const TEXTDRAW_EXISTS_TEST_MARKER: &str = "rak-samp-validation-textdraw-exists.enabled";
 pub(crate) const OBJECT_EXISTS_TEST_MARKER: &str = "rak-samp-validation-object-exists.enabled";
+pub(crate) const GANGZONE_TEST_MARKER: &str = "rak-samp-validation-gangzone.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 pub(crate) const TEST_PACKET_ID: u8 = 254;
 pub(crate) const TEST_RPC_ID: u8 = 255;
@@ -341,6 +342,7 @@ pub(crate) fn run(api: HostApi) {
     run_text_label_exists(api);
     run_textdraw_exists(api);
     run_object_exists(api);
+    run_gangzone(api);
     run_send(api);
     schedule_shutdown();
 }
@@ -574,6 +576,48 @@ fn run_object_exists(api: HostApi) {
         .object_exists
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("object-exists self-test timed out without a defined object");
+}
+
+fn run_gangzone(api: HostApi) {
+    if !logging::plugin_path(GANGZONE_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .gangzone
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "gangzone self-test disabled; opt in with rak-samp-validation-gangzone.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut id = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.gangzone(id) {
+            Ok(Some(_)) => {
+                SELF_TESTS
+                    .gangzone
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!("gangzone self-test passed: gangzone_id={id}"));
+                return;
+            }
+            Ok(None) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .gangzone
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "gangzone self-test returned {error:?}: gangzone_id={id}"
+                ));
+                return;
+            }
+        }
+        id = (id + 1) % MAX_SAMP_GANGZONES;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .gangzone
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("gangzone self-test timed out without a defined gangzone");
 }
 
 fn run_direct_client(api: HostApi) {

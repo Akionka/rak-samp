@@ -517,6 +517,32 @@ unsafe extern "system" fn object_exists(id: u16, output: *mut u8) -> RakSampResu
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn gangzone_info(
+    id: u16,
+    output: *mut rak_samp_plugin_api::RakSampGangzoneV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if id == 7 {
+        *output = rak_samp_plugin_api::RakSampGangzoneV1 {
+            exists: 1,
+            _reserved: [0; 3],
+            id,
+            _reserved2: 0,
+            left: -1.0,
+            bottom: -2.0,
+            right: 3.0,
+            top: 4.0,
+            colour: 0xFF11_2233,
+            alternate_colour: 0xFF44_5566,
+        };
+    } else {
+        *output = rak_samp_plugin_api::RakSampGangzoneV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -686,4 +712,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     text_label_exists,
     textdraw_exists,
     object_exists,
+    gangzone_info,
 };

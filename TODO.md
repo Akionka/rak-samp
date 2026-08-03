@@ -110,6 +110,11 @@ fixtures, disassembly, or the E2E mock alone.
    fixture, `ResetObjectPool` field signature, four-per-pump budget, and opt-in
    scan are ready; retain `[~]` until a legal R1 run finds a defined object
    without traffic and exits normally.
+   The fourth bounded gangzone sub-batch is `HostApi::gangzone(id)`, a
+   1,024-ID demand-refreshed cache of fixed rectangle and draw-colour scalars.
+   Its fixture, `ResetGangZonePool` and `CGangZonePool::Create` field signatures,
+   four-per-pump budget, and opt-in scan are ready; retain `[~]` until a legal R1
+   run finds a gangzone with correct copied fields, no traffic, and normal exit.
 8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
@@ -187,6 +192,11 @@ fixtures, disassembly, or the E2E mock alone.
   passed` and one defined object ID. It must tolerate initial `NotReady` while
   the bounded queue is pumped, generate no packet/RPC traffic, and leave normal
   shutdown stable.
+- [ ] With the gangzone marker enabled on a server that displays a gangzone,
+  confirm the validator records only `gangzone self-test passed` and one ID.
+  Independently confirm the copied rectangle and both colours match the visible
+  gangzone. It must tolerate initial `NotReady`, generate no packet/RPC traffic,
+  and leave normal shutdown stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -305,8 +315,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 
 ### Pools, labels, objects, pickups, vehicles, textdraws (`gangzone.lua`, `label.lua`, `object.lua`, `pickup.lua`, `vehicle.lua`, `textdraw.lua`)
 
-- [ ] `sampGetGangzonePoolPtr` — raw pointer API; excluded. No gangzone
-  replacement is planned until a useful copied query is separately specified.
+- [ ] `sampGetGangzonePoolPtr` — raw pointer API; excluded.
+- [~] Safe replacement for a useful read-only gangzone view:
+  `HostApi::gangzone(id)` demand-refreshes an owned R1 rectangle and two draw
+  colours. It never exposes a gangzone/pool pointer. Keep provisional until the
+  opt-in gangzone scan verifies one visible record, no traffic, and normal
+  shutdown.
 - [ ] `sampGetTextlabelPoolPtr` — raw pointer API; excluded.
   `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
   `sampCreate3dTextEx` mutate the native label pool; excluded.

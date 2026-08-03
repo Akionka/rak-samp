@@ -48,6 +48,7 @@ starting GTA and remove them afterwards.
 | R1 3D text-label existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-text-label-exists.enabled') -ItemType File -Force` | On a server with a visible 3D label, demand-refreshes bounded label IDs through the R1 game-thread pump until a defined label is copied. It logs only the outcome and label ID. |
 | R1 textdraw existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-textdraw-exists.enabled') -ItemType File -Force` | On a server with a visible textdraw, demand-refreshes bounded raw textdraw pool indexes through the R1 game-thread pump until a defined slot is copied. It logs only the outcome and pool index. |
 | R1 object existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-object-exists.enabled') -ItemType File -Force` | On a server with a visible streamed object, demand-refreshes bounded object IDs through the R1 game-thread pump until a defined object is copied. It logs only the outcome and object ID. |
+| R1 gangzone snapshot | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-gangzone.enabled') -ItemType File -Force` | On a server with a visible gangzone, demand-refreshes bounded gangzone IDs through the R1 game-thread pump until a fixed rectangle-and-colour record is copied. It logs only the outcome and gangzone ID. |
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, wait until the validator logs `observing`. Within
@@ -91,6 +92,12 @@ For the object check, join a server with a visible streamed object, create the
 object marker, and wait up to two minutes for `object-exists self-test passed`.
 The first query may return `NotReady`. Confirm the log contains only the outcome
 and object ID, no packet/RPC traffic is generated, then exit normally and
+remove the marker.
+
+For the gangzone check, join a server with a visible gangzone, create the
+gangzone marker, and wait up to two minutes for `gangzone self-test passed`.
+The first query may return `NotReady`. Confirm the log contains only the outcome
+and gangzone ID, no packet/RPC traffic is generated, then exit normally and
 remove the marker.
 
 The direct R1 helper scenario also reports `player_count=Ok` once the cached

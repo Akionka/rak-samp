@@ -817,6 +817,32 @@ unsafe extern "system" fn test_object_exists(id: u16, output: *mut u8) -> RakSam
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_gangzone_info(
+    id: u16,
+    output: *mut crate::RakSampGangzoneV1,
+) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if id == 7 {
+        *output = crate::RakSampGangzoneV1 {
+            exists: 1,
+            _reserved: [0; 3],
+            id,
+            _reserved2: 0,
+            left: -1.0,
+            bottom: -2.0,
+            right: 3.0,
+            top: 4.0,
+            colour: 0xFF11_2233,
+            alternate_colour: 0xFF44_5566,
+        };
+    } else {
+        *output = crate::RakSampGangzoneV1::default();
+    }
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -926,6 +952,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     text_label_exists: test_text_label_exists,
     textdraw_exists: test_textdraw_exists,
     object_exists: test_object_exists,
+    gangzone_info: test_gangzone_info,
 };
 
 pub(crate) fn test_api() -> HostApi {

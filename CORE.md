@@ -108,6 +108,10 @@ layout fields, and textdraw/pool pointers outside the safe ABI.
 `CObjectPool::m_bNotEmpty`. It exposes only the copied existence boolean; object
 state, object/pool pointers, and GTA handles remain outside the safe ABI.
 
+`HostApi::gangzone` is a separate bounded 1,024-slot cache of fixed R1
+gangzone rectangles and draw colours. It exposes only scalar fields after the
+game-thread copy; gangzone/pool pointers remain outside the safe ABI.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

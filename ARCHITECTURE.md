@@ -102,6 +102,10 @@ entry and publishes only owned booleans, never textdraw data or a pool pointer.
 threads enqueue unknown object IDs; the pump drains at most four bounded pool-
 flag reads per entry and publishes only owned booleans, never object data, a
 pool pointer, or a GTA handle.
+`HostApi::gangzone` is a separate 1,024-slot cache of owned rectangle and colour
+records. Plugin threads enqueue unknown gangzone IDs; the pump drains at most
+four bounded pool reads per entry and publishes only scalars, never a gangzone
+or pool pointer.
 
 ## Native and ABI boundaries
 

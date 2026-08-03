@@ -84,6 +84,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   the game-thread pump. A legal R1 run on a server with a visible streamed
   object must observe a defined ID through the opt-in scan, no generated traffic,
   and stable shutdown; no object, pool, or GTA pointer is exposed.
+- **Cached R1 gangzone live gate:** `HostApi::gangzone` demand-refreshes only a
+  bounded fixed gangzone rectangle and two draw colours from the game-thread
+  pump. A legal R1 run on a server with a visible gangzone must observe a copied
+  record through the opt-in scan, no generated traffic, and stable shutdown; no
+  gangzone or pool pointer is exposed.
 
 ## Windows x86 evidence
 
@@ -146,6 +151,19 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   those pool-pointer fields. The profile verifies this exact anchor, probes the
   bounded range, and copies only canonical `0/1` flags on the game-thread pump;
   object state and GTA handles are intentionally not read.
+- **R1 gangzone snapshot layout:** the pinned R1 C++ lead defines the packed
+  `CGangZonePool*` at `CNetGame::m_pPools + 0x08`, with 1,024 object pointers
+  followed by `m_bNotEmpty` at `0x1000`; its fixed `GangZone` record is 24 bytes
+  of four rectangle floats and two Direct3D colours. The independent x86 fixture
+  checks those sizes and offsets. The installed fingerprinted R1 DLL's
+  `CNetGame::ResetGangZonePool` at RVA `0x8D60 + 0x15` begins
+  `51 56 8B F1 8B 86 CD 03 00 00 57 8B 78 08 85 FF 74 10`. Its
+  `CGangZonePool::Create` target at RVA `0x2170 + 0x19` clears the indexed
+  pointer and `m_bNotEmpty` entry with
+  `C7 04 BE 00 00 00 00 C7 84 BE 00 10 00 00 00 00 00 00`, then at
+  `+0x39` writes all six 24-byte record fields. The profile verifies both
+  anchors, checks ranges, and copies only finite scalar fields on the game-thread
+  pump.
   The profile validates both signatures, checks the addressed boolean range
   before calling, and copies only a bounded BOOL.
 

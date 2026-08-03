@@ -9,7 +9,7 @@ use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
     event::{HookAction, Registry},
     runtime::{
-        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
         LocalPlayerSnapshot, PacketPriority, PacketReliability, PlayerInfoSnapshot,
         ServerInfoSnapshot,
@@ -55,11 +55,14 @@ const TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const TEXTDRAW_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const OBJECT_EXISTS_REQUESTS_PER_PUMP: usize = 4;
+const GANGZONE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const GANGZONE_REQUESTS_PER_PUMP: usize = 4;
 const MAX_SAMP_PLAYERS: usize = 1004;
 const MAX_SAMP_VEHICLES: usize = 2000;
 const MAX_SAMP_TEXT_LABELS: usize = 2048;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_SAMP_OBJECTS: usize = 1000;
+const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_INIT_GAME_RPC_ID: u8 = 139;
 const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
 
@@ -133,6 +136,8 @@ struct BackendState {
     textdraw_exists_requests: Mutex<VecDeque<u16>>,
     object_exists_cache: Mutex<Vec<ObjectExistsCacheEntry>>,
     object_exists_requests: Mutex<VecDeque<u16>>,
+    gangzone_cache: Mutex<Vec<GangzoneCacheEntry>>,
+    gangzone_requests: Mutex<VecDeque<u16>>,
     player_count_including_npcs: AtomicI32,
     player_count_excluding_npcs: AtomicI32,
     player_count_ready: AtomicBool,
@@ -186,6 +191,12 @@ enum TextdrawExistsCacheEntry {
 enum ObjectExistsCacheEntry {
     Unknown,
     Known(bool),
+}
+
+#[derive(Clone)]
+enum GangzoneCacheEntry {
+    Unknown,
+    Known(Option<GangzoneSnapshot>),
 }
 
 #[derive(Default)]
@@ -270,6 +281,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         object_exists_requests: Mutex::new(VecDeque::with_capacity(
             OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY,
         )),
+        gangzone_cache: Mutex::new(vec![GangzoneCacheEntry::Unknown; MAX_SAMP_GANGZONES]),
+        gangzone_requests: Mutex::new(VecDeque::with_capacity(GANGZONE_REQUEST_QUEUE_CAPACITY)),
         player_count_including_npcs: AtomicI32::new(0),
         player_count_excluding_npcs: AtomicI32::new(0),
         player_count_ready: AtomicBool::new(false),
@@ -414,6 +427,10 @@ impl Backend {
 
     pub(crate) fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.object_exists(id)
+    }
+
+    pub(crate) fn gangzone(&self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+        self.state.gangzone(id)
     }
 
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
@@ -917,6 +934,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_gangzone_request(&self, id: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .gangzone_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == GANGZONE_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
     fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -1127,6 +1159,35 @@ impl BackendState {
         }
     }
 
+    fn gangzone(&self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        if usize::from(id) >= MAX_SAMP_GANGZONES {
+            return Err(DirectClientError::NotReady);
+        }
+        match self
+            .gangzone_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(usize::from(id))
+            .cloned()
+            .ok_or(DirectClientError::NotReady)?
+        {
+            GangzoneCacheEntry::Known(snapshot) => {
+                let _ = self.queue_gangzone_request(id);
+                Ok(snapshot)
+            }
+            GangzoneCacheEntry::Unknown => {
+                self.queue_gangzone_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
     fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -1276,6 +1337,7 @@ impl BackendState {
         self.refresh_text_label_exists(profile);
         self.refresh_textdraw_exists(profile);
         self.refresh_object_exists(profile);
+        self.refresh_gangzones(profile);
         if profile.dialog_is_ready() {
             let dialogs = self.take_local_dialogs();
             for dialog in dialogs {
@@ -1393,6 +1455,16 @@ impl BackendState {
             .unwrap_or_default()
     }
 
+    fn take_gangzone_requests(&self) -> Vec<u16> {
+        self.gangzone_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(GANGZONE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn cache_local_player_snapshot(&self, snapshot: Option<LocalPlayerSnapshot>) {
         let Ok(mut candidate) = self.local_player_candidate.try_lock() else {
             return;
@@ -1454,6 +1526,12 @@ impl BackendState {
     fn clear_object_exists_cache(&self) {
         if let Ok(mut cache) = self.object_exists_cache.try_lock() {
             cache.fill(ObjectExistsCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_gangzone_cache(&self) {
+        if let Ok(mut cache) = self.gangzone_cache.try_lock() {
+            cache.fill(GangzoneCacheEntry::Unknown);
         }
     }
 
@@ -1558,6 +1636,20 @@ impl BackendState {
             };
             if let Some(entry) = cache.get_mut(usize::from(id)) {
                 *entry = ObjectExistsCacheEntry::Known(exists);
+            }
+        }
+    }
+
+    fn refresh_gangzones(&self, profile: R1ClientProfile) {
+        for id in self.take_gangzone_requests() {
+            let Ok(snapshot) = profile.gangzone(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.gangzone_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = GangzoneCacheEntry::Known(snapshot);
             }
         }
     }
@@ -1756,6 +1848,10 @@ impl BackendState {
         }
         self.clear_object_exists_cache();
         if let Ok(mut requests) = self.object_exists_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_gangzone_cache();
+        if let Ok(mut requests) = self.gangzone_requests.try_lock() {
             requests.clear();
         }
         if let Ok(mut snapshot) = self.server_info_snapshot.try_lock() {
@@ -2168,6 +2264,8 @@ mod vtable_tests {
                 MAX_SAMP_OBJECTS
             ]),
             object_exists_requests: Mutex::new(VecDeque::new()),
+            gangzone_cache: Mutex::new(vec![GangzoneCacheEntry::Unknown; MAX_SAMP_GANGZONES]),
+            gangzone_requests: Mutex::new(VecDeque::new()),
             player_count_including_npcs: AtomicI32::new(0),
             player_count_excluding_npcs: AtomicI32::new(0),
             player_count_ready: AtomicBool::new(false),
@@ -2288,6 +2386,10 @@ mod vtable_tests {
         );
         assert_eq!(
             state.object_exists(7),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.gangzone(7),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
@@ -2521,6 +2623,27 @@ mod vtable_tests {
         assert_eq!(
             state.object_exists_requests.lock().unwrap().len(),
             OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY - OBJECT_EXISTS_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
+    fn gangzone_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_gangzone_request(7).unwrap();
+        state.queue_gangzone_request(7).unwrap();
+        assert_eq!(state.gangzone_requests.lock().unwrap().len(), 1);
+        for id in 8..(7 + GANGZONE_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_gangzone_request(id).unwrap();
+        }
+        assert_eq!(
+            state.queue_gangzone_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_gangzone_requests();
+        assert_eq!(drained, vec![7, 8, 9, 10]);
+        assert_eq!(
+            state.gangzone_requests.lock().unwrap().len(),
+            GANGZONE_REQUEST_QUEUE_CAPACITY - GANGZONE_REQUESTS_PER_PUMP
         );
     }
 

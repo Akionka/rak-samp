@@ -93,6 +93,10 @@ live scan.
 R1 object existence flag. It never returns an object, pool, or GTA handle, and
 remains provisional pending its opt-in live scan.
 
+`HostApi::gangzone(id)` returns an owned cached R1 gangzone rectangle and two
+Direct3D ARGB draw colours. It never returns a gangzone/pool pointer and remains
+provisional pending its opt-in live scan.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

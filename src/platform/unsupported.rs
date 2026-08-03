@@ -2,7 +2,7 @@ use crate::{
     AttachError, BitStream, SampVersion, SendError, SendOptions,
     event::Registry,
     runtime::{
-        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
         LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot,
     },
@@ -109,6 +109,10 @@ impl Backend {
     }
 
     pub(crate) fn object_exists(&self, _id: u16) -> Result<bool, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn gangzone(&self, _id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

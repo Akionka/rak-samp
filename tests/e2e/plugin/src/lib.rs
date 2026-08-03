@@ -4,9 +4,10 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
-    LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, PlayerInfo,
-    RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
+    Gangzone, LocalAnimation, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
+    LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle,
+    PlayerInfo, RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream,
+    wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -47,6 +48,7 @@ static ACTIVE_DIALOG_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXT_LABEL_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXTDRAW_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static OBJECT_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
+static GANGZONE_ID: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -179,6 +181,20 @@ fn initialize() {
     }
     if api.is_object_defined(7) == Ok(true) && api.is_object_defined(8) == Ok(false) {
         OBJECT_EXISTS.store(7, Ordering::Release);
+    }
+    if api.gangzone(7)
+        == Ok(Some(Gangzone {
+            id: 7,
+            left: -1.0,
+            bottom: -2.0,
+            right: 3.0,
+            top: 4.0,
+            colour: 0xFF11_2233,
+            alternate_colour: 0xFF44_5566,
+        }))
+        && api.gangzone(8) == Ok(None)
+    {
+        GANGZONE_ID.store(7, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -325,6 +341,11 @@ pub extern "system" fn RakSampE2ePlugin_TextdrawExists() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_ObjectExists() -> i32 {
     OBJECT_EXISTS.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_GangzoneId() -> i32 {
+    GANGZONE_ID.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

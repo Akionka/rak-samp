@@ -5,9 +5,9 @@
 //! calls are safe only for the one fingerprinted R1 profile below.
 
 use crate::runtime::{
-    AnimationSnapshot, DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest,
-    LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-    PlayerInfoSnapshot, ServerInfoSnapshot, Vector3,
+    AnimationSnapshot, DirectClientError, GangzoneSnapshot, LocalChatMessageRequest,
+    LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle,
+    LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -46,6 +46,8 @@ const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
 const NET_GAME_RESET_LABEL_POOL_RVA: usize = 0x8F00;
 const NET_GAME_RESET_TEXTDRAW_POOL_RVA: usize = 0x8C20;
 const NET_GAME_RESET_OBJECT_POOL_RVA: usize = 0x8CC0;
+const NET_GAME_RESET_GANGZONE_POOL_RVA: usize = 0x8D60;
+const GANG_ZONE_POOL_CREATE_RVA: usize = 0x2170;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
@@ -74,6 +76,7 @@ const MAX_SAMP_VEHICLES: u16 = 2000;
 const MAX_SAMP_TEXT_LABELS: u16 = 2048;
 const MAX_SAMP_TEXTDRAWS: u16 = 2304;
 const MAX_SAMP_OBJECTS: u16 = 1000;
+const MAX_SAMP_GANGZONES: u16 = 1024;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
@@ -82,9 +85,17 @@ const NET_GAME_POOLS_OFFSET: usize = 0x3CD;
 const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x0C;
 const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x10;
 const NET_GAME_POOLS_OBJECT_POOL_OFFSET: usize = 0x04;
+const NET_GAME_POOLS_GANGZONE_POOL_OFFSET: usize = 0x08;
 const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
 const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
 const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
+const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;
+const GANGZONE_LEFT_OFFSET: usize = 0x00;
+const GANGZONE_BOTTOM_OFFSET: usize = 0x04;
+const GANGZONE_RIGHT_OFFSET: usize = 0x08;
+const GANGZONE_TOP_OFFSET: usize = 0x0C;
+const GANGZONE_COLOUR_OFFSET: usize = 0x10;
+const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
@@ -214,6 +225,25 @@ const NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE: [u8; 18] = [
 const NET_GAME_RESET_OBJECT_POOL_FIELDS_SIGNATURE: [u8; 18] = [
     0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x04, 0x85, 0xFF,
     0x74, 0x10,
+];
+// R1's `CNetGame::ResetGangZonePool` reads `m_pPools` at `0x3CD` then the
+// gangzone-pool pointer at `0x08` before destroying/replacing the pool.
+const NET_GAME_RESET_GANGZONE_POOL_FIELDS_SIGNATURE: [u8; 18] = [
+    0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x08, 0x85, 0xFF,
+    0x74, 0x10,
+];
+// R1's `CGangZonePool::Create` clears the indexed object pointer and its
+// matching 1,024-entry BOOL flag at pool offset `0x1000` before allocating a
+// 24-byte rectangle-and-colour record. The subsequent stores pin all six
+// scalar fields copied by the safe snapshot below.
+const GANG_ZONE_POOL_CREATE_POOL_FIELDS_SIGNATURE: [u8; 18] = [
+    0xC7, 0x04, 0xBE, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x84, 0xBE, 0x00, 0x10, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00,
+];
+const GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE: [u8; 37] = [
+    0x8B, 0x4C, 0x24, 0x10, 0x8B, 0x54, 0x24, 0x1C, 0x89, 0x08, 0x8B, 0x4C, 0x24, 0x18, 0x89, 0x50,
+    0x04, 0x8B, 0x54, 0x24, 0x14, 0x89, 0x48, 0x08, 0x8B, 0x4C, 0x24, 0x20, 0x89, 0x50, 0x0C, 0x89,
+    0x48, 0x10, 0x89, 0x48, 0x14,
 ];
 const PLAYER_POOL_IS_CONNECTED_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x72, 0x05, 0x33, 0xC0, 0xC2, 0x04, 0x00,
@@ -734,6 +764,73 @@ impl R1ClientProfile {
         read_r1_bool(pool + OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>())
     }
 
+    /// Copies one R1 gangzone record on the game-thread pump. No client or
+    /// GTA pointer crosses the private profile boundary.
+    pub(super) fn gangzone(self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_GANGZONES {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_GANGZONE_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_GANGZONE_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            GANGZONE_POOL_NOT_EMPTY_OFFSET + (usize::from(id) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !read_r1_bool(
+            pool + GANGZONE_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>(),
+        )? {
+            return Ok(None);
+        }
+        let gangzone =
+            unsafe { read_unaligned::<usize>(pool + usize::from(id) * mem::size_of::<usize>()) }
+                .filter(|gangzone| *gangzone != 0)
+                .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            gangzone as *const u8,
+            GANGZONE_ALTERNATE_COLOUR_OFFSET + mem::size_of::<u32>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let left = unsafe { read_unaligned::<f32>(gangzone + GANGZONE_LEFT_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let bottom = unsafe { read_unaligned::<f32>(gangzone + GANGZONE_BOTTOM_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let right = unsafe { read_unaligned::<f32>(gangzone + GANGZONE_RIGHT_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let top = unsafe { read_unaligned::<f32>(gangzone + GANGZONE_TOP_OFFSET) }
+            .filter(|value| value.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let colour = unsafe { read_unaligned::<u32>(gangzone + GANGZONE_COLOUR_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let alternate_colour =
+            unsafe { read_unaligned::<u32>(gangzone + GANGZONE_ALTERNATE_COLOUR_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(GangzoneSnapshot {
+            id,
+            left,
+            bottom,
+            right,
+            top,
+            colour,
+            alternate_colour,
+        }))
+    }
+
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =
@@ -1001,6 +1098,18 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
             &NET_GAME_RESET_OBJECT_POOL_FIELDS_SIGNATURE,
         )
         && code_matches(
+            module_base + NET_GAME_RESET_GANGZONE_POOL_RVA + 0x15,
+            &NET_GAME_RESET_GANGZONE_POOL_FIELDS_SIGNATURE,
+        )
+        && code_matches(
+            module_base + GANG_ZONE_POOL_CREATE_RVA + 0x19,
+            &GANG_ZONE_POOL_CREATE_POOL_FIELDS_SIGNATURE,
+        )
+        && code_matches(
+            module_base + GANG_ZONE_POOL_CREATE_RVA + 0x39,
+            &GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE,
+        )
+        && code_matches(
             module_base + PLAYER_POOL_IS_CONNECTED_RVA,
             &PLAYER_POOL_IS_CONNECTED_SIGNATURE,
         )
@@ -1184,23 +1293,26 @@ mod tests {
         DIALOG_CAPTION_OFFSET, DIALOG_ID_OFFSET, DIALOG_SERVER_SIDE_OFFSET,
         DIALOG_SHOW_ACTIVE_SIGNATURE, DIALOG_SHOW_CORE_FIELDS_SIGNATURE, DIALOG_SHOW_SIGNATURE,
         DIALOG_TYPE_OFFSET, GAME_CURSOR_MODE_OFFSET, GAME_PROCESS_INPUT_ENABLING_SIGNATURE,
-        INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET, INPUT_OPEN_SIGNATURE,
-        LABEL_POOL_NOT_EMPTY_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
+        GANG_ZONE_POOL_CREATE_POOL_FIELDS_SIGNATURE, GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE,
+        GANGZONE_POOL_NOT_EMPTY_OFFSET, INPUT_CLOSE_SIGNATURE, INPUT_ENABLED_OFFSET,
+        INPUT_OPEN_SIGNATURE, LABEL_POOL_NOT_EMPTY_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
         LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, NET_GAME_GET_PLAYER_POOL_SIGNATURE,
         NET_GAME_GET_STATE_SIGNATURE, NET_GAME_GET_VEHICLE_POOL_SIGNATURE,
-        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
+        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
+        NET_GAME_POOLS_GANGZONE_POOL_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
         NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
         NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET,
-        NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_OBJECT_POOL_FIELDS_SIGNATURE,
-        NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE, OBJECT_POOL_NOT_EMPTY_OFFSET,
-        PLAYER_POOL_GET_COUNT_SIGNATURE, PLAYER_POOL_GET_NAME_SIGNATURE,
-        PLAYER_POOL_GET_PING_SIGNATURE, PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE,
-        PLAYER_POOL_GET_SCORE_SIGNATURE, PLAYER_POOL_IS_CONNECTED_SIGNATURE,
-        PLAYER_POOL_IS_NPC_SIGNATURE, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+        NET_GAME_RESET_GANGZONE_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_LABEL_POOL_FIELDS_SIGNATURE,
+        NET_GAME_RESET_OBJECT_POOL_FIELDS_SIGNATURE, NET_GAME_RESET_TEXTDRAW_POOL_FIELDS_SIGNATURE,
+        OBJECT_POOL_NOT_EMPTY_OFFSET, PLAYER_POOL_GET_COUNT_SIGNATURE,
+        PLAYER_POOL_GET_NAME_SIGNATURE, PLAYER_POOL_GET_PING_SIGNATURE,
+        PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE, PLAYER_POOL_GET_SCORE_SIGNATURE,
+        PLAYER_POOL_IS_CONNECTED_SIGNATURE, PLAYER_POOL_IS_NPC_SIGNATURE,
+        PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
         PLAYER_POOL_UPDATE_LARGEST_ID_SIGNATURE, REMOTE_PLAYER_GET_COLOUR_ARGB_SIGNATURE,
         SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_CLOSE_SIGNATURE, SCOREBOARD_ENABLE_SIGNATURE,
         SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
@@ -1233,9 +1345,12 @@ mod tests {
         fn rak_samp_fixture_r1_net_game_pools_label_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_pools_text_draw_offset() -> usize;
         fn rak_samp_fixture_r1_net_game_pools_object_offset() -> usize;
+        fn rak_samp_fixture_r1_net_game_pools_gang_zone_offset() -> usize;
         fn rak_samp_fixture_r1_label_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
         fn rak_samp_fixture_r1_object_pool_not_empty_offset() -> usize;
+        fn rak_samp_fixture_r1_gangzone_pool_not_empty_offset() -> usize;
+        fn rak_samp_fixture_r1_gangzone_size() -> usize;
         fn rak_samp_fixture_r1_game_cursor_mode_offset() -> usize;
         fn rak_samp_fixture_r1_scoreboard_enabled_offset() -> usize;
         fn rak_samp_fixture_r1_dialog_active_offset() -> usize;
@@ -1338,6 +1453,10 @@ mod tests {
                 NET_GAME_POOLS_OBJECT_POOL_OFFSET
             );
             assert_eq!(
+                rak_samp_fixture_r1_net_game_pools_gang_zone_offset(),
+                NET_GAME_POOLS_GANGZONE_POOL_OFFSET
+            );
+            assert_eq!(
                 rak_samp_fixture_r1_label_pool_not_empty_offset(),
                 LABEL_POOL_NOT_EMPTY_OFFSET
             );
@@ -1348,6 +1467,11 @@ mod tests {
             assert_eq!(
                 rak_samp_fixture_r1_object_pool_not_empty_offset(),
                 OBJECT_POOL_NOT_EMPTY_OFFSET
+            );
+            assert_eq!(rak_samp_fixture_r1_gangzone_size(), 0x18);
+            assert_eq!(
+                rak_samp_fixture_r1_gangzone_pool_not_empty_offset(),
+                GANGZONE_POOL_NOT_EMPTY_OFFSET
             );
             assert_eq!(
                 rak_samp_fixture_r1_game_cursor_mode_offset(),
@@ -1594,6 +1718,28 @@ mod tests {
             [
                 0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x04,
                 0x85, 0xFF, 0x74, 0x10,
+            ]
+        );
+        assert_eq!(
+            NET_GAME_RESET_GANGZONE_POOL_FIELDS_SIGNATURE,
+            [
+                0x51, 0x56, 0x8B, 0xF1, 0x8B, 0x86, 0xCD, 0x03, 0x00, 0x00, 0x57, 0x8B, 0x78, 0x08,
+                0x85, 0xFF, 0x74, 0x10,
+            ]
+        );
+        assert_eq!(
+            GANG_ZONE_POOL_CREATE_POOL_FIELDS_SIGNATURE,
+            [
+                0xC7, 0x04, 0xBE, 0x00, 0x00, 0x00, 0x00, 0xC7, 0x84, 0xBE, 0x00, 0x10, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00,
+            ]
+        );
+        assert_eq!(
+            GANG_ZONE_POOL_CREATE_RECORD_FIELDS_SIGNATURE,
+            [
+                0x8B, 0x4C, 0x24, 0x10, 0x8B, 0x54, 0x24, 0x1C, 0x89, 0x08, 0x8B, 0x4C, 0x24, 0x18,
+                0x89, 0x50, 0x04, 0x8B, 0x54, 0x24, 0x14, 0x89, 0x48, 0x08, 0x8B, 0x4C, 0x24, 0x20,
+                0x89, 0x50, 0x0C, 0x89, 0x48, 0x10, 0x89, 0x48, 0x14,
             ]
         );
         assert_eq!(
