@@ -21,7 +21,7 @@ use std::{
     mem, ptr, slice,
     sync::{
         Arc, Mutex, OnceLock, Weak,
-        atomic::{AtomicBool, AtomicU16, AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU16, AtomicU32, AtomicUsize, Ordering},
     },
 };
 use windows_sys::Win32::System::{
@@ -100,6 +100,8 @@ struct BackendState {
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
     assigned_local_player_id: AtomicU16,
+    samp_game_state: AtomicI32,
+    samp_game_state_ready: AtomicBool,
     hooks: Mutex<HookStorage>,
 }
 
@@ -155,6 +157,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
         assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
+        samp_game_state: AtomicI32::new(0),
+        samp_game_state_ready: AtomicBool::new(false),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
@@ -228,6 +232,10 @@ impl Backend {
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.state.local_player()
+    }
+
+    pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
+        self.state.samp_game_state()
     }
 
     pub(crate) fn shutdown(&mut self) {
@@ -567,6 +575,16 @@ impl BackendState {
             .ok_or(DirectClientError::NotReady)
     }
 
+    fn samp_game_state(&self) -> Result<i32, DirectClientError> {
+        cached_samp_game_state(
+            self.r1_client.is_some(),
+            self.rak_client.load(Ordering::Acquire) != 0,
+            self.samp_game_state_ready
+                .load(Ordering::Acquire)
+                .then(|| self.samp_game_state.load(Ordering::Acquire)),
+        )
+    }
+
     fn pump_local_client(&self) {
         let Some(profile) = self.r1_client else {
             return;
@@ -574,6 +592,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 {
             return;
         }
+        self.refresh_samp_game_state(profile);
         self.refresh_local_player_snapshot(profile);
         if !profile.dialog_is_ready() {
             return;
@@ -647,6 +666,21 @@ impl BackendState {
         ));
     }
 
+    fn refresh_samp_game_state(&self, profile: R1ClientProfile) {
+        match profile.game_state() {
+            Ok(game_state) => {
+                self.samp_game_state.store(game_state, Ordering::Release);
+                self.samp_game_state_ready.store(true, Ordering::Release);
+            }
+            Err(DirectClientError::NotReady) => {
+                self.samp_game_state_ready.store(false, Ordering::Release);
+            }
+            Err(DirectClientError::UnsupportedVersion | DirectClientError::QueueFull) => {
+                self.samp_game_state_ready.store(false, Ordering::Release);
+            }
+        }
+    }
+
     fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
         if self.r1_client.is_some()
             && let Some(player_id) = player_id
@@ -702,6 +736,7 @@ impl BackendState {
         }
         self.assigned_local_player_id
             .store(UNASSIGNED_LOCAL_PLAYER_ID, Ordering::Release);
+        self.samp_game_state_ready.store(false, Ordering::Release);
     }
 }
 
@@ -713,6 +748,20 @@ fn assigned_snapshot(
         .then_some(snapshot)
         .flatten()
         .filter(|snapshot| snapshot.id == assigned_id)
+}
+
+fn cached_samp_game_state(
+    profile_available: bool,
+    client_available: bool,
+    cached: Option<i32>,
+) -> Result<i32, DirectClientError> {
+    if !profile_available {
+        Err(DirectClientError::UnsupportedVersion)
+    } else if !client_available {
+        Err(DirectClientError::NotReady)
+    } else {
+        cached.ok_or(DirectClientError::NotReady)
+    }
 }
 
 fn r1_init_game_player_id_from_rpc(input: &[u8]) -> Option<u16> {
@@ -1037,6 +1086,8 @@ mod vtable_tests {
             local_player_snapshot: Mutex::new(None),
             local_player_candidate: Mutex::new(None),
             assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
+            samp_game_state: AtomicI32::new(0),
+            samp_game_state_ready: AtomicBool::new(false),
             hooks: Mutex::new(HookStorage::default()),
         }
     }
@@ -1081,6 +1132,27 @@ mod vtable_tests {
             state.local_player(),
             Err(DirectClientError::UnsupportedVersion)
         );
+        assert_eq!(
+            state.samp_game_state(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+    }
+
+    #[test]
+    fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
+        assert_eq!(
+            cached_samp_game_state(false, true, Some(14)),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            cached_samp_game_state(true, false, Some(14)),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(
+            cached_samp_game_state(true, true, None),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(cached_samp_game_state(true, true, Some(14)), Ok(14));
     }
 
     #[test]

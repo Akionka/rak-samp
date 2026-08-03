@@ -268,11 +268,30 @@ fn run_direct_client(api: HostApi) {
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
             Ok(snapshot) if !snapshot.nickname.is_empty() => {
+                match api.samp_game_state() {
+                    Ok(_) => {}
+                    Err(RakSampResult::NotReady) => {
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
+                    }
+                    Err(error) => {
+                        SELF_TESTS
+                            .direct_client
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        SELF_TESTS
+                            .direct_snapshot_state
+                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                        logging::write(&format!(
+                            "direct-client self-test game-state returned {error:?}"
+                        ));
+                        return;
+                    }
+                }
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok game_state=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

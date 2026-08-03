@@ -19,9 +19,10 @@ emulation follows the normal incoming dispatch path exactly once.
 
 ## ABI and plugin safety
 
-`RakSampApiV1` is append-only and C-compatible: Rust references, trait objects,
-allocations, and native pointers do not cross the DLL boundary. Payload sizes
-and bit counts are checked before they reach RakNet.
+`RakSampApiV1` is C-compatible and versioned: Rust references, trait objects,
+allocations, and native pointers do not cross the DLL boundary. During the
+ALPHA stage its contract may intentionally break and does not have to remain
+append-only. Payload sizes and bit counts are checked before they reach RakNet.
 
 `HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
 32-request host queue. `HostApi::local_player` returns an owned clone of a
@@ -32,6 +33,11 @@ begins only after the server's R1 `INIT_GAME` assignment matches the
 local-player ID on two game-thread refreshes, then refreshes from the verified
 R1 player pool. It returns `NotReady` rather than publishing a provisional zero
 or SA-MP's `0xFFFF` sentinel.
+
+`HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
+`CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
+the native state may change during normal play. It instead reports `NotReady`
+until a state has been published and keeps no client pointer in the ABI.
 
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures
@@ -53,9 +59,10 @@ recorded.
 
 The Windows backend owns client addresses, detours, vtable changes, native
 string-codec calls, and the private R1 client profile. Its incoming-packet
-detour is also the game-thread pump: it refreshes the snapshot and drains at
-most four copied dialog requests after releasing queue locks, without touching
-packet or RPC dispatch. It restores only hooks it owns and keeps captured
+detour is also the game-thread pump: it refreshes the local snapshot and cached
+game-state scalar, then drains at most four copied dialog requests after
+releasing queue locks, without touching packet or RPC dispatch. It restores
+only hooks it owns and keeps captured
 backend state valid for in-flight original calls. Native layouts are covered by
 the C++ fixture and live evidence in [REVIEW.md](REVIEW.md).
 

@@ -19,7 +19,7 @@ plugins use the versioned ABI client crate.
 | Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish host state, and log lifecycle events. |
 | Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events and enforce bounded, exact-bit payloads. |
 | Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local helpers. |
-| Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI, safe filtered/typed callbacks, and grouped subscription shutdown. |
+| Plugin API | `plugin_api/src/lib.rs` | Define the versioned C-compatible ABI, safe filtered/typed callbacks, and grouped subscription shutdown. Alpha releases may make explicit compatibility breaks. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
 | Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
 
@@ -56,8 +56,10 @@ The incoming-packet vtable detour also performs a separate direct-client pump
 before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
 begins refreshing an owned local-player snapshot only after its `INIT_GAME`
 server assignment matches the pool ID on two game-thread refreshes, then keeps
-it fresh from the verified player pool. It releases the dialog queue lock, then
-calls `CDialog::Show` for no more than four copied requests. It clears the cache
+it fresh from the verified player pool. The same entry caches R1's opaque
+`CNetGame` state scalar, which never drives snapshot readiness. It releases the
+dialog queue lock, then calls `CDialog::Show` for no more than four copied
+requests. It clears the cache
 while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`
 sentinel. It neither consumes, creates, nor redispatches
 packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference

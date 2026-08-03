@@ -139,6 +139,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     event_read_encoded_string,
     show_local_dialog,
     local_player,
+    samp_game_state,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -603,6 +604,22 @@ unsafe extern "system" fn local_player(output: *mut RakSampLocalPlayerV1) -> Rak
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn samp_game_state(output: *mut i32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.samp_game_state() {
+        Ok(game_state) => {
+            *output = game_state;
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 fn register_listener(
     direction: RakSampDirection,
     callback: Option<RakSampEventCallbackV1>,
@@ -904,6 +921,11 @@ mod tests {
         let mut output = RakSampLocalPlayerV1::default();
         assert_eq!(
             unsafe { local_player(&mut output) },
+            RakSampResult::NotReady
+        );
+        let mut game_state = 0;
+        assert_eq!(
+            unsafe { samp_game_state(&mut game_state) },
             RakSampResult::NotReady
         );
     }

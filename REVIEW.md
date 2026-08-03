@@ -42,6 +42,13 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `83 EC 10 53 56 57 8B 7C 24 20 33 DB 3B FB 8B F1`; this exact signature is
   the profile gate. The earlier `55 8B EC` check rejected this valid target
   and made direct helpers return `UnsupportedVersion`.
+- **Cached R1 game state:** `CNetGame::GetGameState` at `samp.dll + 0x2E20`
+  begins `8B 81 BD 03 00 00 C3` (`mov eax, [ecx + 0x3BD]; ret`) in the
+  fingerprinted R1 target. The profile verifies that exact seven-byte signature
+  before publishing. The host invokes it only from the incoming-packet game
+  thread and copies its `i32` return into an atomic cache. The ABI deliberately
+  exposes the result as an opaque scalar: no R1 enum naming, native pointer,
+  or synchronous client call crosses the boundary.
 - **Direct snapshot layout:** the independent C++ fixture asserts R1 packed
   on-foot (68-byte), in-car (63-byte), and local-player-prefix (92-byte)
   boundaries used to obtain sync position/velocity, special action, animation,
@@ -62,11 +69,13 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   consecutively. This keeps server-assigned ID zero valid while rejecting the
   transition. A trial decoder omitted the final flag and class count, producing
   a wrong ID in live validation; its exact wire fixture now covers both fields.
-  A trial gate on `CNetGame::GetState` was removed:
-  its post-join state changes again during ordinary gameplay and would erase a
-  valid assignment, leaving the cache permanently `NotReady`. The R1 player
-  pool's verified pointers and the retained assignment match are the readiness
-  boundary; unavailable pools or peds clear the cache and report `NotReady`.
+  A trial gate on `CNetGame::GetState` was removed: its post-join state changes
+  again during ordinary gameplay and would erase a valid assignment, leaving
+  the cache permanently `NotReady`. The state accessor is now separately
+  exposed as the nonblocking cached scalar above, never as a snapshot gate. The
+  R1 player pool's verified pointers and the retained assignment match are the
+  snapshot-readiness boundary; unavailable pools or peds clear that cache and
+  report `NotReady`.
 - **Direct helper live run (2026-08-03):** the fingerprinted GTA SA 1.0 US +
   SA-MP 0.3.7 R1 client enabled the profile, displayed the queued direct dialog,
   and published stable local-player ID `1`. The opt-in state check completed

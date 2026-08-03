@@ -75,5 +75,9 @@ impl Backend {
         Err(DirectClientError::UnsupportedVersion)
     }
 
+    pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
     pub(crate) fn shutdown(&mut self) {}
 }

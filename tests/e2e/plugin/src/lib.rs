@@ -11,7 +11,7 @@ use std::{
     ffi::c_void,
     sync::{
         Mutex,
-        atomic::{AtomicBool, AtomicU32, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU32, Ordering},
     },
     time::Duration,
 };
@@ -29,6 +29,7 @@ static STOP: AtomicBool = AtomicBool::new(false);
 static CALLBACKS: AtomicU32 = AtomicU32::new(0);
 static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
+static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 
 #[unsafe(no_mangle)]
 /// Windows invokes this with loader-owned arguments while the plugin module is loaded.
@@ -68,6 +69,9 @@ fn initialize() {
     DIALOG_RESULT.store(dialog_result as u32, Ordering::Release);
     if let Ok(local_player) = api.local_player() {
         LOCAL_PLAYER_ID.store(u32::from(local_player.id), Ordering::Release);
+    }
+    if let Ok(game_state) = api.samp_game_state() {
+        SAMP_GAME_STATE.store(game_state, Ordering::Release);
     }
     let subscription = api.on_rpc_id(RakSampDirection::Incoming, TEST_RPC_ID, |_| {
         CALLBACKS.fetch_add(1, Ordering::AcqRel);
@@ -110,6 +114,11 @@ pub extern "system" fn RakSampE2ePlugin_DialogResult() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalPlayerId() -> u32 {
     LOCAL_PLAYER_ID.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_SampGameState() -> i32 {
+    SAMP_GAME_STATE.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

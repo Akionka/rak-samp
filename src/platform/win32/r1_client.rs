@@ -24,6 +24,7 @@ const GTA_SA_10_US_ENTRY_POINT: u32 = 0x0042_4570;
 const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
+const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
@@ -42,6 +43,12 @@ const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
     0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB, 0x8B, 0xF1,
 ];
+
+// `CNetGame::GetGameState` returns the client's native state enum by value.
+// Keep this signature separate from the dialog target: callers expose the
+// value only as an opaque scalar, rather than depending on enum names from an
+// unversioned client header.
+const NET_GAME_GET_STATE_SIGNATURE: [u8; 7] = [0x8B, 0x81, 0xBD, 0x03, 0x00, 0x00, 0xC3];
 
 const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
 const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0x14;
@@ -99,6 +106,13 @@ impl R1ClientProfile {
 
     pub(super) fn dialog_is_ready(self) -> bool {
         self.dialog().is_some()
+    }
+
+    pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_state: NetGameGetStateFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_STATE_RVA) };
+        Ok(unsafe { get_state(net_game) })
     }
 
     fn dialog(self) -> Option<*mut c_void> {
@@ -256,6 +270,7 @@ type DialogShowFn = unsafe extern "thiscall" fn(
     *const i8,
     i32,
 );
+type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalNameFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
@@ -298,6 +313,10 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     // publishing the profile. A mismatch leaves direct helpers unsupported.
     let show = module_base + DIALOG_SHOW_RVA;
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
+        && code_matches(
+            module_base + NET_GAME_GET_STATE_RVA,
+            &NET_GAME_GET_STATE_SIGNATURE,
+        )
         && [
             NET_GAME_GET_PLAYER_POOL_RVA,
             PLAYER_POOL_GET_LOCAL_PLAYER_RVA,
@@ -413,7 +432,8 @@ mod tests {
         LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
         LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
         LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
-        PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET, assigned_player_id, nul_terminated,
+        NET_GAME_GET_STATE_SIGNATURE, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
+        assigned_player_id, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -503,6 +523,14 @@ mod tests {
                 0x83, 0xEC, 0x10, 0x53, 0x56, 0x57, 0x8B, 0x7C, 0x24, 0x20, 0x33, 0xDB, 0x3B, 0xFB,
                 0x8B, 0xF1,
             ]
+        );
+    }
+
+    #[test]
+    fn net_game_state_signature_matches_the_fingerprinted_r1_target() {
+        assert_eq!(
+            NET_GAME_GET_STATE_SIGNATURE,
+            [0x8B, 0x81, 0xBD, 0x03, 0x00, 0x00, 0xC3]
         );
     }
 

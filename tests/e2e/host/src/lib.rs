@@ -322,6 +322,14 @@ unsafe extern "system" fn local_player(output: *mut RakSampLocalPlayerV1) -> Rak
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn samp_game_state(output: *mut i32) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = 14;
+    RakSampResult::Ok
+}
+
 static API: RakSampApiV1 = RakSampApiV1 {
     abi_version: ABI_VERSION_V1,
     size: std::mem::size_of::<RakSampApiV1>() as u32,
@@ -355,4 +363,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     event_read_encoded_string: read_encoded_string,
     show_local_dialog,
     local_player,
+    samp_game_state,
 };

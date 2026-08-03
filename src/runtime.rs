@@ -317,6 +317,10 @@ impl Runtime {
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         self.backend.local_player()
     }
+
+    pub(crate) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
+        self.backend.samp_game_state()
+    }
 }
 
 fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {

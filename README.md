@@ -7,9 +7,9 @@ send, and emulate RakNet packets and RPCs through a stable C-compatible API.
 ## Compatibility
 
 - Windows GTA: San Andreas with an ASI loader.
-- SA-MP 0.3.7 R1 is the supported typed-event target. Direct local dialogs and
-  local-player snapshots additionally require the fingerprinted GTA San
-  Andreas 1.0 US executable; unsupported fingerprints return
+- SA-MP 0.3.7 R1 is the supported typed-event target. Direct local dialogs,
+  local-player snapshots, and cached game-state reads additionally require the
+  fingerprinted GTA San Andreas 1.0 US executable; unsupported fingerprints return
   `UnsupportedVersion`.
 - R2, R3.1, R4.2, R5.1, and DL are detected, but are experimental and intended
   for raw-event testing only.
@@ -47,6 +47,12 @@ host accepted one of its 32 queued requests, not that it was displayed. Neither
 helper emulates RPC traffic or exposes client pointers. `local_player` returns
 `NotReady` until the server's R1 `INIT_GAME` assignment matches the pool's
 local-player ID across two game-thread refreshes.
+
+`HostApi::samp_game_state()` returns the latest game-thread-cached R1
+`CNetGame` state as an opaque `i32`; it never calls client code on a plugin
+thread and returns `NotReady` before its first publication. The numeric state
+is intentionally not mapped to a public enum because that enum is not a stable
+SA-MP ABI.
 
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never

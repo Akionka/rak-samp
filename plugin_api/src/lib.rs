@@ -329,6 +329,8 @@ pub struct RakSampApiV1 {
     ) -> RakSampResult,
     /// Copies the latest host-owned local-player snapshot into `output`.
     pub local_player: unsafe extern "system" fn(*mut RakSampLocalPlayerV1) -> RakSampResult,
+    /// Copies the latest R1 `CNetGame` state scalar into `output`.
+    pub samp_game_state: unsafe extern "system" fn(*mut i32) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -953,6 +955,19 @@ impl HostApi {
             ping: raw.ping,
         })
     }
+
+    /// Returns the cached native `CNetGame` state for the verified R1 client.
+    ///
+    /// The value is deliberately an opaque scalar: SA-MP has no stable public
+    /// enum ABI for it. Like [`Self::local_player`], this never calls client
+    /// code from the plugin thread and returns `NotReady` before publication.
+    pub fn samp_game_state(self) -> Result<i32, RakSampResult> {
+        let mut state = 0_i32;
+        match unsafe { (self.raw.samp_game_state)(&mut state) } {
+            RakSampResult::Ok => Ok(state),
+            result => Err(result),
+        }
+    }
 }
 
 unsafe extern "system" fn dispatch_callback(
@@ -1120,8 +1135,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, show_local_dialog) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, samp_game_state),
             mem::offset_of!(RakSampApiV1, local_player) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, samp_game_state) + function_size
         );
     }
 
@@ -1171,6 +1190,11 @@ mod tests {
                 z: 3.0
             }
         );
+    }
+
+    #[test]
+    fn samp_game_state_is_returned_from_the_scalar_abi_output() {
+        assert_eq!(test_support::test_api().samp_game_state(), Ok(14));
     }
 
     #[test]
