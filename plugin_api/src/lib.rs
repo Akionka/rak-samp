@@ -1081,6 +1081,46 @@ impl HostApi {
         )
     }
 
+    /// Sends a complete local aim-sync packet (203).
+    pub fn send_aim_sync(self, sync: events::packet::AimSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_AIM_SYNC, sync)
+    }
+
+    /// Sends a complete local bullet-sync packet (206).
+    pub fn send_bullet_sync(self, sync: events::packet::BulletSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_BULLET_SYNC, sync)
+    }
+
+    /// Sends a complete local vehicle-sync packet (200).
+    pub fn send_vehicle_sync(self, sync: events::packet::VehicleSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_VEHICLE_SYNC, sync)
+    }
+
+    /// Sends a complete local on-foot player-sync packet (207).
+    pub fn send_player_sync(self, sync: events::packet::PlayerSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_PLAYER_SYNC, sync)
+    }
+
+    /// Sends a complete local spectator-sync packet (212).
+    pub fn send_spectator_sync(self, sync: events::packet::SpectatorSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_SPECTATOR_SYNC, sync)
+    }
+
+    /// Sends a complete local trailer-sync packet (210).
+    pub fn send_trailer_sync(self, sync: events::packet::TrailerSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_TRAILER_SYNC, sync)
+    }
+
+    /// Sends a complete local passenger-sync packet (211).
+    pub fn send_passenger_sync(self, sync: events::packet::PassengerSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_PASSENGER_SYNC, sync)
+    }
+
+    /// Sends a complete local unoccupied-vehicle sync packet (209).
+    pub fn send_unoccupied_sync(self, sync: events::packet::UnoccupiedSync) -> RakSampResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_UNOCCUPIED_SYNC, sync)
+    }
+
     /// Sends a complete owned plugin-side bit stream as a packet payload.
     pub fn send_packet_stream(
         self,
@@ -1739,6 +1779,123 @@ mod tests {
         assert_eq!(
             api.send_rcon_command(&[b'x'; events::MAX_STRING32_BYTES + 1]),
             RakSampResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
+        let api = test_support::test_api();
+        let zero = events::Vector3 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+        };
+        assert_eq!(
+            api.send_aim_sync(events::packet::AimSync {
+                camera_mode: 0,
+                camera_front: zero,
+                camera_position: zero,
+                aim_z: 0.0,
+                zoom_and_weapon_state: 0,
+                aspect_ratio: 0,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_bullet_sync(events::packet::BulletSync {
+                target_type: 0,
+                target_id: 0,
+                origin: zero,
+                target: zero,
+                center: zero,
+                weapon_id: 0,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_vehicle_sync(events::packet::VehicleSync {
+                vehicle_id: 0,
+                left_right_keys: 0,
+                up_down_keys: 0,
+                key_data: 0,
+                quaternion: [0.0; 4],
+                position: zero,
+                move_speed: zero,
+                vehicle_health: 0.0,
+                player_health: 0,
+                armour: 0,
+                weapon_and_special_key: 0,
+                siren: 0,
+                landing_gear_state: 0,
+                trailer_id: 0,
+                vehicle_specific: [0; 4],
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_player_sync(events::packet::PlayerSync {
+                left_right_keys: 0,
+                up_down_keys: 0,
+                key_data: 0,
+                position: zero,
+                quaternion: [0.0; 4],
+                health: 0,
+                armour: 0,
+                weapon_and_special_key: 0,
+                special_action: 0,
+                move_speed: zero,
+                surfing_offsets: zero,
+                surfing_vehicle_id: 0,
+                animation_id: 0,
+                animation_flags: 0,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_spectator_sync(events::packet::SpectatorSync {
+                left_right_keys: 0,
+                up_down_keys: 0,
+                key_data: 0,
+                position: zero,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_trailer_sync(events::packet::TrailerSync {
+                trailer_id: 0,
+                position: zero,
+                quaternion: [0.0; 4],
+                move_speed: zero,
+                turn_speed: zero,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_passenger_sync(events::packet::PassengerSync {
+                vehicle_id: 0,
+                seat_driveby_cuffed: 0,
+                weapon_and_special_key: 0,
+                health: 0,
+                armour: 0,
+                left_right_keys: 0,
+                up_down_keys: 0,
+                key_data: 0,
+                position: zero,
+            }),
+            RakSampResult::Ok
+        );
+        assert_eq!(
+            api.send_unoccupied_sync(events::packet::UnoccupiedSync {
+                vehicle_id: 0,
+                seat_id: 0,
+                roll: zero,
+                direction: zero,
+                position: zero,
+                move_speed: zero,
+                turn_speed: zero,
+                vehicle_health: 0.0,
+            }),
+            RakSampResult::Ok
         );
     }
 

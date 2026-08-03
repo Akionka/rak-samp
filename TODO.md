@@ -160,11 +160,8 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [x] `raknetSendBitStreamEx`, `raknetSendBitStream` — represented by
   `HostApi::send_packet_stream` and `HostApi::send_packet` with the packet ID
   explicit rather than embedded in an unchecked native bitstream.
-- [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendAimData`,
-  `sampSendBulletData`, `sampSendIncarData`, `sampSendOnfootData`,
-  `sampSendSpectatorData`, `sampSendTrailerData`, `sampSendPassengerData`,
-  `sampSendUnoccupiedData`, `sampSendScmEvent`, `sampDisconnectWithReason`,
-  `sampConnectToServer`
+- [ ] `sampGetRakclientInterface`, `sampGetRakpeer`, `sampSendScmEvent`,
+  `sampDisconnectWithReason`, `sampConnectToServer`
 - [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
   empty, server-bound RPC 129 without invoking native local-player methods.
 - [x] `sampSendDialogResponse`, `sampSendClickPlayer`,
@@ -177,6 +174,12 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   matching `HostApi::send_*` helpers serialize the exact bounded outgoing RPC
   or packet. Attached-object edits require the complete typed payload,
   including both colours omitted by SF.lua's partial helper signature.
+- [x] `sampSendAimData`, `sampSendBulletData`, `sampSendIncarData`,
+  `sampSendOnfootData`, `sampSendSpectatorData`, `sampSendTrailerData`,
+  `sampSendPassengerData`, `sampSendUnoccupiedData` — matching complete typed
+  `HostApi::send_*_sync` helpers serialize the fixed-layout packet and send it
+  through the original RakClient path. They do not force or mutate local sync
+  state.
 
 ### SF.lua’s explicit future items (`init.lua`)
 

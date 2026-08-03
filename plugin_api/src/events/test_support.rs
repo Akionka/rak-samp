@@ -455,6 +455,14 @@ unsafe extern "system" fn test_send(
         || (id, bit_len, bytes) == (116, 480, &[0; 60])
         || (id, bit_len, bytes) == (117, 241, &[0; 31])
         || (id, bit_len, bytes) == (201, 64, &[4, 0, 0, 0, b'r', b'c', b'o', b'n'])
+        || (id, bit_len, bytes) == (203, 248, &[0; 31])
+        || (id, bit_len, bytes) == (206, 320, &[0; 40])
+        || (id, bit_len, bytes) == (200, 504, &[0; 63])
+        || (id, bit_len, bytes) == (207, 544, &[0; 68])
+        || (id, bit_len, bytes) == (212, 144, &[0; 18])
+        || (id, bit_len, bytes) == (210, 432, &[0; 54])
+        || (id, bit_len, bytes) == (211, 192, &[0; 24])
+        || (id, bit_len, bytes) == (209, 536, &[0; 67])
     {
         RakSampResult::Ok
     } else {

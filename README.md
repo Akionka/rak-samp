@@ -93,6 +93,11 @@ native UI or local-player mutation methods. Attached-object edits require the
 complete typed payload, including both colour fields that SF.lua leaves
 unspecified.
 
+`send_aim_sync`, `send_bullet_sync`, `send_vehicle_sync`, `send_player_sync`,
+`send_spectator_sync`, `send_trailer_sync`, `send_passenger_sync`, and
+`send_unoccupied_sync` send complete, fixed-layout local synchronization
+packets. They do not force or otherwise alter the client's local sync state.
+
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
 perform that wait in `DllMain` or in a callback. The

@@ -40,6 +40,10 @@ calling the original RakClient send path. They do not claim to perform the
 local state changes of similarly named native methods. Attached-object edits
 require their complete payload, including both colour fields.
 
+The complete typed `send_*_sync` helpers serialize the eight outgoing local
+sync packet layouts. They send only the supplied packet; they do not force,
+store, or mutate the client-side sync state.
+
 `HostApi::show_local_dialog` copies a NUL-free R1 dialog into a bounded
 32-request host queue. `HostApi::local_player` returns an owned clone of a
 host-owned cache and never waits for the game thread. Both APIs return
