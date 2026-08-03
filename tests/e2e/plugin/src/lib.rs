@@ -46,6 +46,7 @@ static VEHICLE_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static ACTIVE_DIALOG_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXT_LABEL_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static TEXTDRAW_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
+static OBJECT_EXISTS: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
 static SERVER_PORT: AtomicU32 = AtomicU32::new(u32::MAX);
 static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -175,6 +176,9 @@ fn initialize() {
     }
     if api.is_textdraw_defined(7) == Ok(true) && api.is_textdraw_defined(8) == Ok(false) {
         TEXTDRAW_EXISTS.store(7, Ordering::Release);
+    }
+    if api.is_object_defined(7) == Ok(true) && api.is_object_defined(8) == Ok(false) {
+        OBJECT_EXISTS.store(7, Ordering::Release);
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
@@ -316,6 +320,11 @@ pub extern "system" fn RakSampE2ePlugin_TextLabelExists() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_TextdrawExists() -> i32 {
     TEXTDRAW_EXISTS.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_ObjectExists() -> i32 {
+    OBJECT_EXISTS.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

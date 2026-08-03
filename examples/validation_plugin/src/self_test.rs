@@ -9,8 +9,8 @@ use crate::{
 use rak_samp_plugin_api::{
     HostApi, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle, LocalCursorMode,
     LocalDeathMessage, LocalDialog, LocalDialogState, LocalDialogStyle, LocalPlayer,
-    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
-    RakSampHookAction, RakSampResult, RakSampSendOptions,
+    MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
+    MAX_SAMP_VEHICLES, RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -28,6 +28,7 @@ pub(crate) const VEHICLE_EXISTS_TEST_MARKER: &str = "rak-samp-validation-vehicle
 pub(crate) const TEXT_LABEL_EXISTS_TEST_MARKER: &str =
     "rak-samp-validation-text-label-exists.enabled";
 pub(crate) const TEXTDRAW_EXISTS_TEST_MARKER: &str = "rak-samp-validation-textdraw-exists.enabled";
+pub(crate) const OBJECT_EXISTS_TEST_MARKER: &str = "rak-samp-validation-object-exists.enabled";
 pub(crate) const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 pub(crate) const TEST_PACKET_ID: u8 = 254;
 pub(crate) const TEST_RPC_ID: u8 = 255;
@@ -339,6 +340,7 @@ pub(crate) fn run(api: HostApi) {
     run_vehicle_exists(api);
     run_text_label_exists(api);
     run_textdraw_exists(api);
+    run_object_exists(api);
     run_send(api);
     schedule_shutdown();
 }
@@ -530,6 +532,48 @@ fn run_textdraw_exists(api: HostApi) {
         .textdraw_exists
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
     logging::write("textdraw-exists self-test timed out without a defined textdraw");
+}
+
+fn run_object_exists(api: HostApi) {
+    if !logging::plugin_path(OBJECT_EXISTS_TEST_MARKER).is_file() {
+        SELF_TESTS
+            .object_exists
+            .store(SelfTestStatus::Disabled.as_raw(), Ordering::Release);
+        logging::write(
+            "object-exists self-test disabled; opt in with rak-samp-validation-object-exists.enabled",
+        );
+        return;
+    }
+
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+    let mut id = 0_u16;
+    while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
+        match api.is_object_defined(id) {
+            Ok(true) => {
+                SELF_TESTS
+                    .object_exists
+                    .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
+                logging::write(&format!("object-exists self-test passed: object_id={id}"));
+                return;
+            }
+            Ok(false) | Err(RakSampResult::NotReady | RakSampResult::QueueFull) => {}
+            Err(error) => {
+                SELF_TESTS
+                    .object_exists
+                    .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                logging::write(&format!(
+                    "object-exists self-test returned {error:?}: object_id={id}"
+                ));
+                return;
+            }
+        }
+        id = (id + 1) % MAX_SAMP_OBJECTS;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    SELF_TESTS
+        .object_exists
+        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+    logging::write("object-exists self-test timed out without a defined object");
 }
 
 fn run_direct_client(api: HostApi) {

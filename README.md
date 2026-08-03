@@ -89,6 +89,10 @@ R1 textdraw existence flag. Its raw 2,304-slot index covers 2,048 global then
 or returns a textdraw/pool pointer, and remains provisional pending its opt-in
 live scan.
 
+`HostApi::is_object_defined(id)` similarly demand-refreshes only the bounded
+R1 object existence flag. It never returns an object, pool, or GTA handle, and
+remains provisional pending its opt-in live scan.
+
 `HostApi::samp_game_state()` returns the latest game-thread-cached R1
 `CNetGame` state as an opaque `i32`; it never calls client code on a plugin
 thread and returns `NotReady` before its first publication. The numeric state

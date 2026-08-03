@@ -104,6 +104,10 @@ safe ABI.
 followed by 256 local slots, exposes only the copied boolean, and keeps text,
 layout fields, and textdraw/pool pointers outside the safe ABI.
 
+`HostApi::is_object_defined` is a separate bounded 1,000-slot cache of R1
+`CObjectPool::m_bNotEmpty`. It exposes only the copied existence boolean; object
+state, object/pool pointers, and GTA handles remain outside the safe ABI.
+
 `HostApi::samp_game_state` returns a cached, opaque `i32` copied from R1
 `CNetGame` on the same game-thread pump. It is not a snapshot-readiness gate:
 the native state may change during normal play. It instead reports `NotReady`

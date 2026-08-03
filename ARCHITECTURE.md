@@ -98,6 +98,10 @@ text or a label/pool pointer.
 R1 raw order of 2,048 global followed by 256 local slots. Plugin threads enqueue
 unknown pool indexes; the pump drains at most four bounded pool-flag reads per
 entry and publishes only owned booleans, never textdraw data or a pool pointer.
+`HostApi::is_object_defined` is a separate 1,000-slot boolean cache. Plugin
+threads enqueue unknown object IDs; the pump drains at most four bounded pool-
+flag reads per entry and publishes only owned booleans, never object data, a
+pool pointer, or a GTA handle.
 
 ## Native and ABI boundaries
 

@@ -184,6 +184,12 @@ struct FixtureR1TextDrawPoolExistsPrefix {
     void* objects[2048 + 256];
 };
 
+struct FixtureR1ObjectPoolExistsPrefix {
+    int largest_id;
+    int not_empty[1000];
+    void* objects[1000];
+};
+
 // Independently recorded R1 UI-state prefixes. These are checked separately
 // from the Rust profile before it copies the two scalar reads on the game
 // thread.
@@ -239,10 +245,12 @@ static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
 static_assert(offsetof(FixtureR1NetGamePrefix, pools) == 0x3CD);
 static_assert(offsetof(FixtureR1NetGamePools, label) == 0x0C);
 static_assert(offsetof(FixtureR1NetGamePools, text_draw) == 0x10);
+static_assert(offsetof(FixtureR1NetGamePools, object) == 0x04);
 static_assert(sizeof(FixtureR1TextLabel) == 29);
 static_assert(offsetof(FixtureR1LabelPoolExistsPrefix, not_empty) == 0xE800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty) == 0);
 static_assert(sizeof(FixtureR1TextDrawPoolExistsPrefix) == 0x4800);
+static_assert(offsetof(FixtureR1ObjectPoolExistsPrefix, not_empty) == 0x04);
 static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
 static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
 static_assert(offsetof(FixtureR1DialogSnapshot, is_active) == 0x28);
@@ -398,12 +406,20 @@ std::size_t rak_samp_fixture_r1_net_game_pools_text_draw_offset() {
     return offsetof(FixtureR1NetGamePools, text_draw);
 }
 
+std::size_t rak_samp_fixture_r1_net_game_pools_object_offset() {
+    return offsetof(FixtureR1NetGamePools, object);
+}
+
 std::size_t rak_samp_fixture_r1_label_pool_not_empty_offset() {
     return offsetof(FixtureR1LabelPoolExistsPrefix, not_empty);
 }
 
 std::size_t rak_samp_fixture_r1_textdraw_pool_not_empty_offset() {
     return offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty);
+}
+
+std::size_t rak_samp_fixture_r1_object_pool_not_empty_offset() {
+    return offsetof(FixtureR1ObjectPoolExistsPrefix, not_empty);
 }
 
 std::size_t rak_samp_fixture_r1_game_cursor_mode_offset() {

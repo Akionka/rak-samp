@@ -79,6 +79,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   textdraw must observe a defined raw pool index through the opt-in scan, no
   generated traffic, and stable shutdown; no textdraw data or pool pointer is
   exposed.
+- **Cached R1 object-existence live gate:** `HostApi::is_object_defined`
+  demand-refreshes only the bounded `CObjectPool::m_bNotEmpty[id]` boolean from
+  the game-thread pump. A legal R1 run on a server with a visible streamed
+  object must observe a defined ID through the opt-in scan, no generated traffic,
+  and stable shutdown; no object, pool, or GTA pointer is exposed.
 
 ## Windows x86 evidence
 
@@ -132,6 +137,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   those pool-pointer fields. The profile verifies this exact anchor, probes
   the bounded range, and copies only canonical `0/1` flags on the game-thread
   pump; textdraw content is intentionally not read.
+- **R1 object-pool existence layout:** the pinned R1 C++ lead defines the
+  packed `CObjectPool*` at `CNetGame::m_pPools + 0x04`, with its signed largest
+  ID at offset `0` and 1,000-BOOL `m_bNotEmpty` array at offset `0x04`. The
+  independent x86 fixture checks both offsets. The installed fingerprinted R1
+  DLL's `CNetGame::ResetObjectPool` at RVA `0x8CC0 + 0x15` begins
+  `51 56 8B F1 8B 86 CD 03 00 00 57 8B 78 04 85 FF 74 10`, directly loading
+  those pool-pointer fields. The profile verifies this exact anchor, probes the
+  bounded range, and copies only canonical `0/1` flags on the game-thread pump;
+  object state and GTA handles are intentionally not read.
   The profile validates both signatures, checks the addressed boolean range
   before calling, and copies only a bounded BOOL.
 

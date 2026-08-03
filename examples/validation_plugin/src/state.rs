@@ -130,6 +130,7 @@ pub(crate) struct SelfTests {
     pub(crate) vehicle_exists: AtomicU8,
     pub(crate) text_label_exists: AtomicU8,
     pub(crate) textdraw_exists: AtomicU8,
+    pub(crate) object_exists: AtomicU8,
     pub(crate) send_packet: AtomicU8,
     pub(crate) send_rpc: AtomicU8,
 }
@@ -146,6 +147,7 @@ impl SelfTests {
             vehicle_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             text_label_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             textdraw_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
+            object_exists: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             send_packet: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
             send_rpc: AtomicU8::new(SelfTestStatus::Pending.as_raw()),
         }

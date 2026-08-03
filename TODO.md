@@ -105,6 +105,11 @@ fixtures, disassembly, or the E2E mock alone.
    `ResetTextDrawPool` field signature, four-per-pump budget, and opt-in scan
    are ready; retain `[~]` until a legal R1 run finds a defined textdraw without
    traffic and exits normally.
+   The third bounded object sub-batch is `HostApi::is_object_defined(id)`, a
+   1,000-ID demand-refreshed cache of only `CObjectPool::m_bNotEmpty[id]`. Its
+   fixture, `ResetObjectPool` field signature, four-per-pump budget, and opt-in
+   scan are ready; retain `[~]` until a legal R1 run finds a defined object
+   without traffic and exits normally.
 8. [ ] Reconcile the remaining typed protocol names below against the existing
    event codecs. Add a named safe convenience only when its exact R1 wire
    vector already exists or can be independently tested. Do not emulate a
@@ -177,6 +182,11 @@ fixtures, disassembly, or the E2E mock alone.
   passed` and one defined raw pool index. It must tolerate initial `NotReady`
   while the bounded queue is pumped, generate no packet/RPC traffic, and leave
   normal shutdown stable.
+- [ ] With the object-exists marker enabled on a server that displays a
+  streamed object, confirm the validator records only `object-exists self-test
+  passed` and one defined object ID. It must tolerate initial `NotReady` while
+  the bounded queue is pumped, generate no packet/RPC traffic, and leave normal
+  shutdown stable.
 - [ ] For every newly added direct native surface, add an opt-in validator
   action before asking for its live run. Record the exact client identity,
   observed outcome, shutdown result, and any RPC/packet absence evidence in
@@ -311,6 +321,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
 - [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
   `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
   from the safe ABI rather than wrapped as integer addresses.
+- [~] Safe read-only prerequisite for `sampGetObjectHandleBySampId`:
+  `HostApi::is_object_defined(id)` is a bounded demand-refreshed R1
+  `CObjectPool::m_bNotEmpty` cache. It exposes only the copied boolean, never an
+  object/pool pointer or GTA handle. Keep provisional until the opt-in object
+  scan records a defined ID, no traffic, and normal shutdown.
 - [ ] `sampGetPickupPoolPtr`, `sampGetPickupHandleBySampId`, and
   `sampGetPickupSampIdByHandle` expose native/GTA pointers or handles; excluded.
 - [ ] `sampGetVehiclePoolPtr`, `sampGetCarHandleBySampVehicleId`, and

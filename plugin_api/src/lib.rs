@@ -34,6 +34,8 @@ pub const MAX_SAMP_VEHICLES: u16 = 2_000;
 pub const MAX_SAMP_TEXT_LABELS: u16 = 2_048;
 /// Number of raw global and local SA-MP textdraw-pool slots in R1.
 pub const MAX_SAMP_TEXTDRAWS: u16 = 2_304;
+/// Number of addressable SA-MP object IDs in the R1 object pool.
+pub const MAX_SAMP_OBJECTS: u16 = 1_000;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -734,6 +736,8 @@ pub struct RakSampApiV1 {
     pub text_label_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
     /// Copies a cached R1 textdraw-pool existence flag into `output`.
     pub textdraw_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
+    /// Copies a cached R1 object-pool existence flag into `output`.
+    pub object_exists: unsafe extern "system" fn(u16, *mut u8) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -1949,6 +1953,27 @@ impl HostApi {
         }
     }
 
+    /// Returns whether the latest cached R1 object-pool result has `id` defined.
+    ///
+    /// The first lookup returns [`RakSampResult::NotReady`] while the verified
+    /// game-thread pump copies the bounded pool flag. Retry from ordinary
+    /// plugin work instead of blocking a callback; this never exposes an
+    /// object or GTA handle.
+    pub fn is_object_defined(self, id: u16) -> Result<bool, RakSampResult> {
+        if id >= MAX_SAMP_OBJECTS {
+            return Err(RakSampResult::InvalidArgument);
+        }
+        let mut exists = 0;
+        match unsafe { (self.raw.object_exists)(id, &mut exists) } {
+            RakSampResult::Ok => match exists {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(RakSampResult::NativeCallFailed),
+            },
+            result => Err(result),
+        }
+    }
+
     /// Returns copied core metadata for the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
@@ -2468,8 +2493,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, text_label_exists) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, object_exists),
             mem::offset_of!(RakSampApiV1, textdraw_exists) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, object_exists) + function_size
         );
     }
 
@@ -2627,6 +2656,12 @@ mod tests {
         assert_eq!(api.is_textdraw_defined(8), Ok(false));
         assert_eq!(
             api.is_textdraw_defined(MAX_SAMP_TEXTDRAWS),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(api.is_object_defined(7), Ok(true));
+        assert_eq!(api.is_object_defined(8), Ok(false));
+        assert_eq!(
+            api.is_object_defined(MAX_SAMP_OBJECTS),
             Err(RakSampResult::InvalidArgument)
         );
         assert_eq!(

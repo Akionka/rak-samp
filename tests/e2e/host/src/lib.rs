@@ -509,6 +509,14 @@ unsafe extern "system" fn textdraw_exists(id: u16, output: *mut u8) -> RakSampRe
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn object_exists(id: u16, output: *mut u8) -> RakSampResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    *output = u8::from(id == 7);
+    RakSampResult::Ok
+}
+
 unsafe extern "system" fn show_local_chat_message(
     style: u32,
     text: *const u8,
@@ -677,4 +685,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     active_local_dialog,
     text_label_exists,
     textdraw_exists,
+    object_exists,
 };

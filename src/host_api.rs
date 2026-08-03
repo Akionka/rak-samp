@@ -10,8 +10,8 @@ use crate::{
 };
 use log::{debug, error, info};
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
-    RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
+    ABI_VERSION_V1, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
+    MAX_SAMP_VEHICLES, RakSampActiveDialogV1, RakSampAnimationV1, RakSampApiV1, RakSampDirection,
     RakSampEventCallbackV1, RakSampEventV1, RakSampHookAction, RakSampHostStatus,
     RakSampLocalPlayerV1, RakSampPlayerInfoV1, RakSampResult, RakSampSendOptions,
     RakSampServerInfoV1, RakSampSubscription, Vector3,
@@ -163,6 +163,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     active_local_dialog,
     text_label_exists,
     textdraw_exists,
+    object_exists,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -1058,6 +1059,25 @@ unsafe extern "system" fn textdraw_exists(pool_index: u16, output: *mut u8) -> R
     }
 }
 
+unsafe extern "system" fn object_exists(id: u16, output: *mut u8) -> RakSampResult {
+    if id >= MAX_SAMP_OBJECTS {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    match runtime.object_exists(id) {
+        Ok(exists) => {
+            *output = u8::from(exists);
+            RakSampResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
 unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return RakSampResult::InvalidArgument;
@@ -1638,6 +1658,19 @@ mod tests {
         );
         assert_eq!(
             unsafe { textdraw_exists(7, std::ptr::null_mut()) },
+            RakSampResult::InvalidArgument
+        );
+        let mut object_exists_output = 0;
+        assert_eq!(
+            unsafe { object_exists(7, &mut object_exists_output) },
+            RakSampResult::NotReady
+        );
+        assert_eq!(
+            unsafe { object_exists(MAX_SAMP_OBJECTS, &mut object_exists_output) },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { object_exists(7, std::ptr::null_mut()) },
             RakSampResult::InvalidArgument
         );
         let mut server = RakSampServerInfoV1::default();
