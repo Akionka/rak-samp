@@ -3,8 +3,8 @@ use crate::{
     PacketReliability, Runtime, SampVersion, SendError, SendOptions, logging,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
-        LocalChatMessageStyle, LocalDialogRequest, LocalDialogStyle, LocalPlayerSnapshot,
-        ServerInfoSnapshot,
+        LocalChatMessageStyle, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogStyle,
+        LocalPlayerSnapshot, ServerInfoSnapshot,
     },
 };
 use log::{debug, error, info};
@@ -145,6 +145,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     decode_string,
     server_info,
     show_local_chat_message,
+    show_local_death_message,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -677,6 +678,35 @@ unsafe extern "system" fn show_local_chat_message(
             prefix,
             text_colour,
             prefix_colour,
+        })
+        .map_or_else(direct_client_result, |_| RakSampResult::Ok)
+}
+
+unsafe extern "system" fn show_local_death_message(
+    killer: *const u8,
+    killer_len: usize,
+    victim: *const u8,
+    victim_len: usize,
+    killer_colour: u32,
+    victim_colour: u32,
+    weapon: u8,
+) -> RakSampResult {
+    let Ok(killer) = (unsafe { copied_nul_free_string(killer, killer_len, 24) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Ok(victim) = (unsafe { copied_nul_free_string(victim, victim_len, 24) }) else {
+        return RakSampResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    runtime
+        .show_local_death_message(LocalDeathMessageRequest {
+            killer,
+            victim,
+            killer_colour,
+            victim_colour,
+            weapon,
         })
         .map_or_else(direct_client_result, |_| RakSampResult::Ok)
 }

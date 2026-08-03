@@ -28,6 +28,17 @@ pub(crate) struct LocalChatMessageRequest {
     pub(crate) prefix_colour: u32,
 }
 
+/// A copied death-window entry that is safe to retain until the game-thread
+/// pump can call the private R1 death-window backend.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalDeathMessageRequest {
+    pub(crate) killer: Vec<u8>,
+    pub(crate) victim: Vec<u8>,
+    pub(crate) killer_colour: u32,
+    pub(crate) victim_colour: u32,
+    pub(crate) weapon: u8,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum LocalDialogStyle {
     MessageBox,
@@ -369,6 +380,13 @@ impl Runtime {
         request: LocalChatMessageRequest,
     ) -> Result<(), DirectClientError> {
         self.backend.show_local_chat_message(request)
+    }
+
+    pub(crate) fn show_local_death_message(
+        &self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        self.backend.show_local_death_message(request)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {

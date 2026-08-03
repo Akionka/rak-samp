@@ -52,7 +52,8 @@ store, or mutate the client-side sync state.
 `HostApi::show_local_dialog` and `HostApi::show_local_chat_message` copy
 NUL-free R1 UI requests into separate bounded 32-request host queues.
 Chat messages accept only R1's chat, info, and debug entry styles, with the
-native 143-byte text and 27-byte prefix limits. `HostApi::local_player` returns
+native 143-byte text and 27-byte prefix limits. `HostApi::show_local_death_message`
+similarly queues bounded 24-byte killer/victim names. `HostApi::local_player` returns
 an owned clone of a host-owned cache and never waits for the game thread. These
 APIs return `UnsupportedVersion` unless the R1 SA-MP and GTA SA 1.0 US
 fingerprints pass; they never expose client pointers or use RPC emulation.

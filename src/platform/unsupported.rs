@@ -3,7 +3,7 @@ use crate::{
     event::Registry,
     runtime::{
         ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
-        LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot,
+        LocalDeathMessageRequest, LocalDialogRequest, LocalPlayerSnapshot, ServerInfoSnapshot,
     },
 };
 use std::sync::Arc;
@@ -83,6 +83,13 @@ impl Backend {
     pub(crate) fn show_local_chat_message(
         &self,
         _request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn show_local_death_message(
+        &self,
+        _request: LocalDeathMessageRequest,
     ) -> Result<(), DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }

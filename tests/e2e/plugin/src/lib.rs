@@ -4,8 +4,8 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    LocalChatMessage, LocalChatMessageStyle, LocalDialog, LocalDialogStyle, RakSampDirection,
-    RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
+    LocalChatMessage, LocalChatMessageStyle, LocalDeathMessage, LocalDialog, LocalDialogStyle,
+    RakSampDirection, RakSampHookAction, Subscription, raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -29,6 +29,7 @@ static STOP: AtomicBool = AtomicBool::new(false);
 static CALLBACKS: AtomicU32 = AtomicU32::new(0);
 static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_CHAT_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
+static LOCAL_DEATH_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
@@ -79,6 +80,14 @@ fn initialize() {
         prefix_colour: u32::MAX,
     });
     LOCAL_CHAT_RESULT.store(local_chat_result as u32, Ordering::Release);
+    let local_death_result = api.show_local_death_message(LocalDeathMessage {
+        killer: b"killer",
+        victim: b"victim",
+        killer_colour: 0xFFFF_0000,
+        victim_colour: 0xFF00_FF00,
+        weapon: 24,
+    });
+    LOCAL_DEATH_RESULT.store(local_death_result as u32, Ordering::Release);
     if let Ok(local_player) = api.local_player() {
         LOCAL_PLAYER_ID.store(u32::from(local_player.id), Ordering::Release);
     }
@@ -145,6 +154,11 @@ pub extern "system" fn RakSampE2ePlugin_DialogResult() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_LocalChatResult() -> u32 {
     LOCAL_CHAT_RESULT.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_LocalDeathResult() -> u32 {
+    LOCAL_DEATH_RESULT.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

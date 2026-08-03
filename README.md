@@ -42,8 +42,9 @@ and send/emulation calls use an exact bit length. Callback events must not be re
 
 R1 plugins can queue a copied direct local dialog with
 `HostApi::show_local_dialog(LocalDialog { .. })`, a local chat entry with
-`HostApi::show_local_chat_message(LocalChatMessage { .. })`, and retrieve an
-owned cached snapshot with `HostApi::local_player()`. A successful UI call
+`HostApi::show_local_chat_message(LocalChatMessage { .. })`, a local
+death-window entry with `HostApi::show_local_death_message(LocalDeathMessage { .. })`,
+and retrieve an owned cached snapshot with `HostApi::local_player()`. A successful UI call
 means the host accepted one of its 32 queued requests, not that it was
 displayed. Neither UI helper emulates RPC traffic or exposes client pointers.
 `local_player` returns

@@ -7,8 +7,8 @@ use crate::{
     },
 };
 use rak_samp_plugin_api::{
-    HostApi, LocalChatMessage, LocalChatMessageStyle, LocalDialog, LocalDialogStyle, LocalPlayer,
-    RakSampHookAction, RakSampResult, RakSampSendOptions,
+    HostApi, LocalChatMessage, LocalChatMessageStyle, LocalDeathMessage, LocalDialog,
+    LocalDialogStyle, LocalPlayer, RakSampHookAction, RakSampResult, RakSampSendOptions,
     events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
@@ -284,6 +284,26 @@ fn run_direct_client(api: HostApi) {
         return;
     }
 
+    let death_result = api.show_local_death_message(LocalDeathMessage {
+        killer: b"killer",
+        victim: b"victim",
+        killer_colour: 0xFFFF_0000,
+        victim_colour: 0xFF00_FF00,
+        weapon: 24,
+    });
+    if death_result != RakSampResult::Ok {
+        SELF_TESTS
+            .direct_client
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        SELF_TESTS
+            .direct_snapshot_state
+            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+        logging::write(&format!(
+            "direct-client self-test death-window request returned {death_result:?}"
+        ));
+        return;
+    }
+
     let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
@@ -330,7 +350,7 @@ fn run_direct_client(api: HostApi) {
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
                 logging::write(&format!(
-                    "direct-client self-test passed: dialog=Ok chat=Ok game_state=Ok server_info=Ok local_player_id={}",
+                    "direct-client self-test passed: dialog=Ok chat=Ok death_window=Ok game_state=Ok server_info=Ok local_player_id={}",
                     snapshot.id
                 ));
                 run_direct_snapshot_state(api, snapshot.id);

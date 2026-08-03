@@ -141,6 +141,30 @@ impl LocalChatMessage<'_> {
     }
 }
 
+/// A copied-and-queued local death-window entry.
+///
+/// The host copies both names before this call returns. They must not contain
+/// NUL bytes and are limited to 24 bytes each by R1's native entry buffers.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct LocalDeathMessage<'a> {
+    pub killer: &'a [u8],
+    pub victim: &'a [u8],
+    pub killer_colour: u32,
+    pub victim_colour: u32,
+    pub weapon: u8,
+}
+
+impl LocalDeathMessage<'_> {
+    const MAX_NAME_BYTES: usize = 24;
+
+    fn is_valid(self) -> bool {
+        !self.killer.contains(&0)
+            && !self.victim.contains(&0)
+            && self.killer.len() <= Self::MAX_NAME_BYTES
+            && self.victim.len() <= Self::MAX_NAME_BYTES
+    }
+}
+
 /// A three-dimensional value copied from the client snapshot.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -478,6 +502,16 @@ pub struct RakSampApiV1 {
         usize,
         u32,
         u32,
+    ) -> RakSampResult,
+    /// Copies and queues a local R1 death-window entry for the game-thread pump.
+    pub show_local_death_message: unsafe extern "system" fn(
+        *const u8,
+        usize,
+        *const u8,
+        usize,
+        u32,
+        u32,
+        u8,
     ) -> RakSampResult,
 }
 
@@ -1429,6 +1463,27 @@ impl HostApi {
         }
     }
 
+    /// Copies and queues a direct local R1 death-window entry on the game thread.
+    ///
+    /// [`RakSampResult::Ok`] confirms only that the host copied and queued the
+    /// entry. It does not send any packet or RPC.
+    pub fn show_local_death_message(self, message: LocalDeathMessage<'_>) -> RakSampResult {
+        if !message.is_valid() {
+            return RakSampResult::InvalidArgument;
+        }
+        unsafe {
+            (self.raw.show_local_death_message)(
+                message.killer.as_ptr(),
+                message.killer.len(),
+                message.victim.as_ptr(),
+                message.victim.len(),
+                message.killer_colour,
+                message.victim_colour,
+                message.weapon,
+            )
+        }
+    }
+
     /// Returns a cloned, nonblocking local-player snapshot.
     ///
     /// This returns [`RakSampResult::NotReady`] until the verified R1 game
@@ -1796,8 +1851,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, server_info) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, show_local_death_message),
             mem::offset_of!(RakSampApiV1, show_local_chat_message) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, show_local_death_message) + function_size
         );
     }
 
@@ -1861,6 +1920,34 @@ mod tests {
         assert_eq!(
             api.show_local_chat_message(LocalChatMessage {
                 prefix: &too_long_prefix,
+                ..valid
+            }),
+            RakSampResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn direct_death_window_rejects_nuls_and_native_name_overflows_before_the_abi_call() {
+        let api = test_support::test_api();
+        let valid = LocalDeathMessage {
+            killer: b"killer",
+            victim: b"victim",
+            killer_colour: 0xFFFF_0000,
+            victim_colour: 0xFF00_FF00,
+            weapon: 24,
+        };
+        assert_eq!(api.show_local_death_message(valid), RakSampResult::Ok);
+        assert_eq!(
+            api.show_local_death_message(LocalDeathMessage {
+                killer: b"bad\0killer",
+                ..valid
+            }),
+            RakSampResult::InvalidArgument
+        );
+        let too_long = [b'x'; 25];
+        assert_eq!(
+            api.show_local_death_message(LocalDeathMessage {
+                victim: &too_long,
                 ..valid
             }),
             RakSampResult::InvalidArgument

@@ -5,8 +5,8 @@
 //! calls are safe only for the one fingerprinted R1 profile below.
 
 use crate::runtime::{
-    DirectClientError, LocalChatMessageRequest, LocalDialogRequest, LocalPlayerSnapshot,
-    ServerInfoSnapshot, Vector3,
+    DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+    LocalPlayerSnapshot, ServerInfoSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem};
 use windows_sys::Win32::System::{
@@ -28,6 +28,9 @@ const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 const CHAT_SINGLETON_RVA: usize = 0x21A0E4;
 const CHAT_ADD_ENTRY_RVA: usize = 0x64010;
+const DEATH_WINDOW_SINGLETON_RVA: usize = 0x21A0EC;
+const DEATH_WINDOW_ADD_ENTRY_RVA: usize = 0x66930;
+const DEATH_WINDOW_ADD_MESSAGE_RVA: usize = 0x66A10;
 const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
 const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
@@ -61,6 +64,14 @@ const DIALOG_SHOW_SIGNATURE: [u8; 16] = [
 // EBP, slides the 100-entry ring, and then consumes the five stack arguments.
 const CHAT_ADD_ENTRY_SIGNATURE: [u8; 16] = [
     0x55, 0x56, 0x8B, 0xE9, 0x57, 0x8D, 0xBD, 0x32, 0x01, 0x00, 0x00, 0x8D, 0xB5, 0x2E, 0x02, 0x00,
+];
+
+// `CDeathWindow::AddMessage` is an R1 thunk to `AddEntry`; verify both its
+// five-byte relative jump and the start of the final target before enabling
+// the direct death-window helper.
+const DEATH_WINDOW_ADD_MESSAGE_SIGNATURE: [u8; 5] = [0xE9, 0x1B, 0xFF, 0xFF, 0xFF];
+const DEATH_WINDOW_ADD_ENTRY_SIGNATURE: [u8; 16] = [
+    0x8B, 0xD1, 0xE8, 0x49, 0xF6, 0xFF, 0xFF, 0x8A, 0x44, 0x24, 0x14, 0x8B, 0x4C, 0x24, 0x10, 0x88,
 ];
 
 // `CNetGame::GetGameState` returns the client's native state enum by value.
@@ -145,12 +156,38 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    pub(super) fn show_death_message(
+        self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        let death_window = self.death_window().ok_or(DirectClientError::NotReady)?;
+        let killer = nul_terminated(request.killer);
+        let victim = nul_terminated(request.victim);
+        let add_message: DeathWindowAddMessageFn =
+            unsafe { mem::transmute(self.module_base + DEATH_WINDOW_ADD_MESSAGE_RVA) };
+        unsafe {
+            add_message(
+                death_window,
+                killer.as_ptr().cast(),
+                victim.as_ptr().cast(),
+                request.killer_colour,
+                request.victim_colour,
+                request.weapon,
+            );
+        }
+        Ok(())
+    }
+
     pub(super) fn dialog_is_ready(self) -> bool {
         self.dialog().is_some()
     }
 
     pub(super) fn chat_is_ready(self) -> bool {
         self.chat().is_some()
+    }
+
+    pub(super) fn death_window_is_ready(self) -> bool {
+        self.death_window().is_some()
     }
 
     pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
@@ -200,6 +237,12 @@ impl R1ClientProfile {
         let chat: *mut c_void =
             unsafe { read_pointer(self.module_base + CHAT_SINGLETON_RVA) }?.cast();
         (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
+    }
+
+    fn death_window(self) -> Option<*mut c_void> {
+        let death_window: *mut c_void =
+            unsafe { read_pointer(self.module_base + DEATH_WINDOW_SINGLETON_RVA) }?.cast();
+        (!death_window.is_null() && readable_range(death_window.cast(), 1)).then_some(death_window)
     }
 
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
@@ -352,6 +395,8 @@ type DialogShowFn = unsafe extern "thiscall" fn(
     i32,
 );
 type ChatAddEntryFn = unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
+type DeathWindowAddMessageFn =
+    unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
 type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -396,6 +441,14 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
     let show = module_base + DIALOG_SHOW_RVA;
     code_matches(show, &DIALOG_SHOW_SIGNATURE)
         && code_matches(module_base + CHAT_ADD_ENTRY_RVA, &CHAT_ADD_ENTRY_SIGNATURE)
+        && code_matches(
+            module_base + DEATH_WINDOW_ADD_MESSAGE_RVA,
+            &DEATH_WINDOW_ADD_MESSAGE_SIGNATURE,
+        )
+        && code_matches(
+            module_base + DEATH_WINDOW_ADD_ENTRY_RVA,
+            &DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
+        )
         && code_matches(
             module_base + NET_GAME_GET_STATE_RVA,
             &NET_GAME_GET_STATE_SIGNATURE,
@@ -510,7 +563,8 @@ unsafe fn plausible_code(address: usize) -> bool {
 #[cfg(test)]
 mod tests {
     use super::{
-        CHAT_ADD_ENTRY_SIGNATURE, DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
+        CHAT_ADD_ENTRY_SIGNATURE, DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
+        DEATH_WINDOW_ADD_MESSAGE_SIGNATURE, DIALOG_SHOW_SIGNATURE, LOCAL_PLAYER_ACTIVE_OFFSET,
         LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
@@ -634,6 +688,21 @@ mod tests {
             [
                 0x55, 0x56, 0x8B, 0xE9, 0x57, 0x8D, 0xBD, 0x32, 0x01, 0x00, 0x00, 0x8D, 0xB5, 0x2E,
                 0x02, 0x00,
+            ]
+        );
+    }
+
+    #[test]
+    fn death_window_signatures_match_the_fingerprinted_r1_targets() {
+        assert_eq!(
+            DEATH_WINDOW_ADD_MESSAGE_SIGNATURE,
+            [0xE9, 0x1B, 0xFF, 0xFF, 0xFF]
+        );
+        assert_eq!(
+            DEATH_WINDOW_ADD_ENTRY_SIGNATURE,
+            [
+                0x8B, 0xD1, 0xE8, 0x49, 0xF6, 0xFF, 0xFF, 0x8A, 0x44, 0x24, 0x14, 0x8B, 0x4C, 0x24,
+                0x10, 0x88,
             ]
         );
     }

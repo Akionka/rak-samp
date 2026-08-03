@@ -535,6 +535,41 @@ unsafe extern "system" fn test_show_local_chat_message(
     }
 }
 
+unsafe extern "system" fn test_show_local_death_message(
+    killer: *const u8,
+    killer_len: usize,
+    victim: *const u8,
+    victim_len: usize,
+    killer_colour: u32,
+    victim_colour: u32,
+    weapon: u8,
+) -> RakSampResult {
+    let killer = if killer_len == 0 {
+        &[]
+    } else if killer.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(killer, killer_len) }
+    };
+    let victim = if victim_len == 0 {
+        &[]
+    } else if victim.is_null() {
+        return RakSampResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(victim, victim_len) }
+    };
+    if killer == b"killer"
+        && victim == b"victim"
+        && killer_colour == 0xFFFF_0000
+        && victim_colour == 0xFF00_FF00
+        && weapon == 24
+    {
+        RakSampResult::Ok
+    } else {
+        RakSampResult::NativeCallFailed
+    }
+}
+
 unsafe extern "system" fn test_local_player(
     output: *mut crate::RakSampLocalPlayerV1,
 ) -> RakSampResult {
@@ -675,6 +710,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     decode_string: test_decode_string,
     server_info: test_server_info,
     show_local_chat_message: test_show_local_chat_message,
+    show_local_death_message: test_show_local_death_message,
 };
 
 pub(crate) fn test_api() -> HostApi {

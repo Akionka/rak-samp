@@ -19,6 +19,10 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   fail-closed behind the R1 PE/GTA checks and a `CChat::AddEntry` code
   signature. A legal R1 run still must confirm a visible chat/info/debug entry,
   no generated RPC 61/62 traffic, and stable normal shutdown.
+- **Queued R1 death-window live gate:** `HostApi::show_local_death_message`
+  is fail-closed behind the R1 PE/GTA checks and both `CDeathWindow` target
+  signatures. A legal R1 run must confirm a visible entry, no generated
+  packet/RPC traffic, and stable normal shutdown.
 
 ## Windows x86 evidence
 
@@ -64,6 +68,14 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   and readable-pointer gates. The host copies and terminates its own strings
   on the game-thread call; no client pointer or packet/RPC emulation reaches
   the ABI.
+- **Direct R1 death-window signatures:** static analysis of the installed
+  fingerprinted R1 DLL found `CDeathWindow::AddMessage` at `samp.dll + 0x66A10`
+  as `E9 1B FF FF FF`, a thunk to `CDeathWindow::AddEntry` at `+0x66930`, which
+  begins `8B D1 E8 49 F6 FF FF 8A 44 24 14 8B 4C 24 10 88`. Direct call sites
+  load the `CDeathWindow` singleton at `+0x21A0EC` into ECX before five
+  pointer/scalar arguments. The private helper passes copied NUL-terminated
+  24-byte-bounded names and scalar colours/weapon only from the game-thread
+  pump. It exposes neither native pointers nor packet/RPC emulation.
 - **Cached R1 game state:** `CNetGame::GetGameState` at `samp.dll + 0x2E20`
   begins `8B 81 BD 03 00 00 C3` (`mov eax, [ecx + 0x3BD]; ret`) in the
   fingerprinted R1 target. The profile verifies that exact seven-byte signature
