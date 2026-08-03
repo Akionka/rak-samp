@@ -4,13 +4,12 @@
 compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    HostApi, RakSampDirection, RakSampEventV1, RakSampHookAction, RakSampResult,
-    RakSampSubscription, wait_for_default_host,
+    RakSampDirection, RakSampHookAction, Subscription, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
     sync::{
-        Mutex, OnceLock,
+        Mutex,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
     time::Duration,
@@ -23,8 +22,7 @@ use windows_sys::core::BOOL;
 
 const TEST_RPC_ID: u8 = 42;
 
-static API: OnceLock<HostApi> = OnceLock::new();
-static SUBSCRIPTION: Mutex<Option<RakSampSubscription>> = Mutex::new(None);
+static SUBSCRIPTION: Mutex<Option<Subscription>> = Mutex::new(None);
 static READY: AtomicBool = AtomicBool::new(false);
 static STOP: AtomicBool = AtomicBool::new(false);
 static CALLBACKS: AtomicU32 = AtomicU32::new(0);
@@ -56,43 +54,29 @@ fn initialize() {
     if STOP.load(Ordering::Acquire) {
         return;
     }
-    let mut subscription = RakSampSubscription::default();
-    let result = unsafe {
-        (api.raw().register_rpc)(
-            RakSampDirection::Incoming,
-            Some(on_incoming_rpc),
-            std::ptr::null_mut(),
-            &raw mut subscription,
-        )
-    };
-    if result != RakSampResult::Ok || STOP.load(Ordering::Acquire) {
-        if result == RakSampResult::Ok {
-            let _ = api.unregister_and_wait(subscription);
+    let subscription = api.on_rpc(RakSampDirection::Incoming, |event| {
+        if event.id() == TEST_RPC_ID {
+            CALLBACKS.fetch_add(1, Ordering::AcqRel);
         }
+        RakSampHookAction::Continue
+    });
+    let Ok(subscription) = subscription else {
         return;
-    }
-    if API.set(api).is_err() {
-        let _ = api.unregister_and_wait(subscription);
-        return;
-    }
-    *SUBSCRIPTION
-        .lock()
-        .unwrap_or_else(|error| error.into_inner()) = Some(subscription);
-    READY.store(true, Ordering::Release);
-}
-
-unsafe extern "system" fn on_incoming_rpc(
-    _user_data: *mut c_void,
-    event: *mut RakSampEventV1,
-) -> RakSampHookAction {
-    let Some(api) = API.get().copied() else {
-        return RakSampHookAction::Continue;
     };
-    let id = unsafe { (api.raw().event_id)(event) };
-    if id == TEST_RPC_ID {
-        CALLBACKS.fetch_add(1, Ordering::AcqRel);
+    if STOP.load(Ordering::Acquire) {
+        let _ = subscription.unregister_and_wait();
+        return;
     }
-    RakSampHookAction::Continue
+    let mut slot = SUBSCRIPTION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if slot.is_some() {
+        drop(slot);
+        let _ = subscription.unregister_and_wait();
+        return;
+    }
+    *slot = Some(subscription);
+    READY.store(true, Ordering::Release);
 }
 
 #[unsafe(no_mangle)]
@@ -116,11 +100,5 @@ pub extern "system" fn RakSampE2ePlugin_Shutdown() -> i32 {
     let Some(subscription) = subscription else {
         return 1;
     };
-    let Some(api) = API.get().copied() else {
-        return 0;
-    };
-    i32::from(matches!(
-        api.unregister_and_wait(subscription),
-        RakSampResult::Ok | RakSampResult::SubscriptionNotFound
-    ))
+    i32::from(subscription.unregister_and_wait().is_ok())
 }

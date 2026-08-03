@@ -19,9 +19,9 @@ plugins use the versioned ABI client crate.
 | Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish host state, and log lifecycle events. |
 | Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events and enforce bounded, exact-bit payloads. |
 | Native backend | `src/platform/win32.rs`, `src/client.rs` | Detect SA-MP, manage hooks, and cross the RakNet boundary. |
-| Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI and safe plugin wrappers. |
+| Plugin API | `plugin_api/src/lib.rs` | Define the append-only ABI and own safe callback subscriptions. |
 | Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
-| Examples | `examples/` | Demonstrate a plugin and chat command; validation separates lifecycle, callbacks, self-tests, reporting, and logging with dedicated `simplelog` output. |
+| Examples | `examples/` | Demonstrate a plugin and chat command; validation separates lifecycle, callbacks, self-tests, reporting. |
 
 ## Lifecycle
 

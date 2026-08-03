@@ -102,8 +102,8 @@ impl std::error::Error for EventError {}
 
 /// A callback-local view over an opaque host event.
 ///
-/// Construct this only with [`Event::from_callback`] inside the raw callback registered with the
-/// host. It may not be retained after that callback returns.
+/// [`crate::HostApi::on_packet`] and [`crate::HostApi::on_rpc`] supply this to safe handlers. It
+/// may not be retained after that handler returns.
 pub struct Event<'callback> {
     api: HostApi,
     raw: *mut RakSampEventV1,
@@ -117,7 +117,7 @@ impl<'callback> Event<'callback> {
     ///
     /// `raw` must be the event pointer received from a currently executing `rak_samp` callback and
     /// the returned value must not outlive that callback.
-    pub unsafe fn from_callback(
+    pub(crate) unsafe fn from_callback(
         api: HostApi,
         raw: *mut RakSampEventV1,
     ) -> Result<Self, EventError> {
@@ -583,7 +583,7 @@ impl<T> Rpc<T> {
 ///
 /// `raw` must be the event pointer supplied to the currently executing callback. On an error,
 /// return [`RakSampHookAction::Continue`] so malformed traffic remains fail-open.
-pub unsafe fn handle<T>(
+pub(crate) unsafe fn handle<T>(
     api: HostApi,
     raw: *mut RakSampEventV1,
     rpc: Rpc<T>,

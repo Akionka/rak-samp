@@ -4,8 +4,8 @@
 compile_error!("rak_samp_chat_command_example supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
-    ABI_VERSION_V1, HostApi, RakSampDirection, RakSampEventV1, RakSampHookAction, RakSampResult,
-    RakSampSendOptions, RakSampSubscription,
+    ABI_VERSION_V1, HostApi, RakSampDirection, RakSampHookAction, RakSampResult,
+    RakSampSendOptions, Subscription,
     events::{
         RpcAction,
         rpc::{incoming, outgoing},
@@ -41,8 +41,7 @@ static LAST_CHAT_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 static LAST_DIALOG_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 
 struct PluginState {
-    api: Option<HostApi>,
-    subscription: Option<RakSampSubscription>,
+    subscription: Option<Subscription>,
     initializing: bool,
     shutting_down: bool,
 }
@@ -50,7 +49,6 @@ struct PluginState {
 impl PluginState {
     const fn new() -> Self {
         Self {
-            api: None,
             subscription: None,
             initializing: false,
             shutting_down: false,
@@ -127,55 +125,34 @@ fn initialize() {
     if state.shutting_down {
         return;
     }
-    let mut subscription = RakSampSubscription::default();
-    let result = unsafe {
-        (api.raw().register_rpc)(
-            RakSampDirection::Outgoing,
-            Some(on_outgoing_rpc),
-            std::ptr::null_mut(),
-            &raw mut subscription,
-        )
-    };
-    if result == RakSampResult::Ok {
-        state.api = Some(api);
+    let subscription = api.on_rpc(RakSampDirection::Outgoing, move |event| {
+        let command_action = outgoing::SEND_COMMAND
+            .handle(event, |command| {
+                if is_raksamp_command(&command) {
+                    run_example(api);
+                    RpcAction::Block
+                } else {
+                    RpcAction::Continue
+                }
+            })
+            .unwrap_or(RakSampHookAction::Continue);
+        if command_action == RakSampHookAction::Block {
+            return command_action;
+        }
+
+        outgoing::SEND_DIALOG_RESPONSE
+            .handle(event, |response| {
+                if response.dialog_id == DIALOG_ID {
+                    RpcAction::Block
+                } else {
+                    RpcAction::Continue
+                }
+            })
+            .unwrap_or(RakSampHookAction::Continue)
+    });
+    if let Ok(subscription) = subscription {
         state.subscription = Some(subscription);
     }
-}
-
-unsafe extern "system" fn on_outgoing_rpc(
-    _user_data: *mut c_void,
-    event: *mut RakSampEventV1,
-) -> RakSampHookAction {
-    let api = STATE.lock().unwrap_or_else(|error| error.into_inner()).api;
-    let Some(api) = api else {
-        return RakSampHookAction::Continue;
-    };
-
-    let command_action = unsafe {
-        outgoing::on_send_command(api, event, |command| {
-            if is_raksamp_command(&command) {
-                run_example(api);
-                RpcAction::Block
-            } else {
-                RpcAction::Continue
-            }
-        })
-    }
-    .unwrap_or(RakSampHookAction::Continue);
-    if command_action == RakSampHookAction::Block {
-        return command_action;
-    }
-
-    unsafe {
-        outgoing::on_send_dialog_response(api, event, |response| {
-            if response.dialog_id == DIALOG_ID {
-                RpcAction::Block
-            } else {
-                RpcAction::Continue
-            }
-        })
-    }
-    .unwrap_or(RakSampHookAction::Continue)
 }
 
 fn run_example(api: HostApi) {
@@ -232,7 +209,7 @@ fn is_raksamp_command(command: &[u8]) -> bool {
 /// Call this from a worker thread, never from `DllMain` or a rak-samp callback.
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
-    let (api, subscription) = {
+    let subscription = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
         while state.initializing {
@@ -240,22 +217,19 @@ pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
                 .wait(state)
                 .unwrap_or_else(|error| error.into_inner());
         }
-        let Some(api) = state.api else {
-            return TRUE;
-        };
         let Some(subscription) = state.subscription.take() else {
             return TRUE;
         };
-        (api, subscription)
+        subscription
     };
 
-    match api.unregister_and_wait(subscription) {
-        RakSampResult::Ok | RakSampResult::SubscriptionNotFound => TRUE,
-        _ => {
+    match subscription.unregister_and_wait() {
+        Ok(()) => TRUE,
+        Err(error) => {
             STATE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .subscription = Some(subscription);
+                .subscription = Some(error.into_subscription());
             0
         }
     }

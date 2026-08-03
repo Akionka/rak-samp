@@ -1,7 +1,5 @@
-use rak_samp_plugin_api::RakSampApiV1;
 use std::{
-    ptr,
-    sync::atomic::{AtomicBool, AtomicPtr, AtomicU8, AtomicU32},
+    sync::atomic::{AtomicBool, AtomicU8, AtomicU32},
     time::Duration,
 };
 
@@ -142,7 +140,6 @@ impl SelfTests {
     }
 }
 
-pub(crate) static API: AtomicPtr<RakSampApiV1> = AtomicPtr::new(ptr::null_mut());
 pub(crate) static STOP: AtomicBool = AtomicBool::new(false);
 pub(crate) static METRICS: Metrics = Metrics::new();
 pub(crate) static SELF_TESTS: SelfTests = SelfTests::new();

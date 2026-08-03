@@ -71,7 +71,8 @@ macro_rules! packet_helper {
         /// # Safety
         ///
         /// See [`super::super::handle`].
-        pub unsafe fn $name(
+        #[allow(dead_code)]
+        pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut RakSampEventV1,
             handler: impl FnOnce($value) -> RpcAction<$value>,

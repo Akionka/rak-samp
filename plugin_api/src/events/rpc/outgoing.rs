@@ -1,11 +1,9 @@
 //! Outgoing client-to-server RPC helpers.
 
-use crate::events::core::PayloadWriter;
+use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, RakSampEventV1, RakSampHookAction,
-    events::{
-        EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Rpc, RpcAction, Vector3, handle,
-    },
+    events::{EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Rpc, RpcAction, Vector3},
 };
 
 /// MoonLoader's `onSendDialogResponse` payload (RPC 62).
@@ -254,7 +252,8 @@ pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
 /// # Safety
 ///
 /// See [`crate::events::handle`].
-pub unsafe fn on_send_chat(
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_chat(
     api: HostApi,
     raw: *mut RakSampEventV1,
     handler: impl FnOnce(Vec<u8>) -> RpcAction<Vec<u8>>,
@@ -269,7 +268,8 @@ macro_rules! rpc_helper {
         /// # Safety
         ///
         /// See [`crate::events::handle`].
-        pub unsafe fn $name(
+        #[allow(dead_code)]
+        pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut RakSampEventV1,
             handler: impl FnOnce($value) -> RpcAction<$value>,
@@ -445,7 +445,8 @@ rpc_helper!(
 /// # Safety
 ///
 /// See [`crate::events::handle`].
-pub unsafe fn on_send_give_damage(
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_give_damage(
     api: HostApi,
     raw: *mut RakSampEventV1,
     handler: impl FnOnce(Damage) -> RpcAction<Damage>,
@@ -466,7 +467,8 @@ pub unsafe fn on_send_give_damage(
 /// # Safety
 ///
 /// See [`crate::events::handle`].
-pub unsafe fn on_send_take_damage(
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_take_damage(
     api: HostApi,
     raw: *mut RakSampEventV1,
     handler: impl FnOnce(Damage) -> RpcAction<Damage>,

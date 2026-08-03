@@ -10,10 +10,10 @@ pub mod rpc;
 
 pub use core::{
     EncodedPayload, Event, EventError, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES, Packet, Rpc,
-    RpcAction, Vector2, Vector3, handle,
+    RpcAction, Vector2, Vector3,
 };
 
 #[cfg(test)]
-mod test_support;
+pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;

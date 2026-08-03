@@ -1,6 +1,91 @@
 use super::{EncodedPayload, Event, Rpc, RpcAction, core::PayloadWriter};
 use crate::{HostApi, RakSampEventV1, RakSampHookAction, RakSampResult};
 use ::core::{mem, ptr};
+use std::sync::Mutex;
+
+#[derive(Clone, Copy)]
+struct RegisteredCallback {
+    callback: crate::RakSampEventCallbackV1,
+    user_data: usize,
+    subscription: crate::RakSampSubscription,
+}
+
+struct RegistrationState {
+    register_result: RakSampResult,
+    unregister_result: RakSampResult,
+    unregister_and_wait_result: RakSampResult,
+    next_id: u64,
+    callback: Option<RegisteredCallback>,
+    unregister_calls: u32,
+    unregister_and_wait_calls: u32,
+}
+
+impl RegistrationState {
+    const fn new() -> Self {
+        Self {
+            register_result: RakSampResult::Ok,
+            unregister_result: RakSampResult::Ok,
+            unregister_and_wait_result: RakSampResult::Ok,
+            next_id: 1,
+            callback: None,
+            unregister_calls: 0,
+            unregister_and_wait_calls: 0,
+        }
+    }
+}
+
+static REGISTRATION: Mutex<RegistrationState> = Mutex::new(RegistrationState::new());
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct RegistrationStats {
+    pub(crate) unregister_calls: u32,
+    pub(crate) unregister_and_wait_calls: u32,
+}
+
+pub(crate) fn reset_registration() {
+    *REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = RegistrationState::new();
+}
+
+pub(crate) fn set_register_result(result: RakSampResult) {
+    REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .register_result = result;
+}
+
+pub(crate) fn set_unregister_and_wait_result(result: RakSampResult) {
+    REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .unregister_and_wait_result = result;
+}
+
+pub(crate) fn registration_stats() -> RegistrationStats {
+    let state = REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    RegistrationStats {
+        unregister_calls: state.unregister_calls,
+        unregister_and_wait_calls: state.unregister_and_wait_calls,
+    }
+}
+
+pub(crate) fn invoke_registered_callback(id: u8) -> Option<RakSampHookAction> {
+    let callback = REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .callback?;
+    let payload = EncodedPayload::from_bits(Vec::new(), 0).expect("an empty payload is valid");
+    let mut event = TestEvent::new(id, payload);
+    Some(unsafe {
+        (callback.callback)(
+            callback.user_data as *mut ::core::ffi::c_void,
+            (&mut event as *mut TestEvent).cast::<RakSampEventV1>(),
+        )
+    })
+}
 
 #[repr(C)]
 pub(crate) struct TestEvent {
@@ -249,17 +334,66 @@ extern "system" fn test_status() -> crate::RakSampHostStatus {
 
 unsafe extern "system" fn test_register(
     _direction: crate::RakSampDirection,
-    _callback: Option<crate::RakSampEventCallbackV1>,
-    _user_data: *mut ::core::ffi::c_void,
-    _subscription: *mut crate::RakSampSubscription,
+    callback: Option<crate::RakSampEventCallbackV1>,
+    user_data: *mut ::core::ffi::c_void,
+    subscription: *mut crate::RakSampSubscription,
 ) -> RakSampResult {
-    RakSampResult::NativeCallFailed
+    let Some(callback) = callback else {
+        return RakSampResult::InvalidArgument;
+    };
+    if subscription.is_null() {
+        return RakSampResult::InvalidArgument;
+    }
+    let mut state = REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if state.register_result != RakSampResult::Ok {
+        return state.register_result;
+    }
+    let handle = crate::RakSampSubscription { id: state.next_id };
+    state.next_id += 1;
+    state.callback = Some(RegisteredCallback {
+        callback,
+        user_data: user_data as usize,
+        subscription: handle,
+    });
+    unsafe { subscription.write(handle) };
+    RakSampResult::Ok
 }
 
 unsafe extern "system" fn test_unregister(
-    _subscription: crate::RakSampSubscription,
+    subscription: crate::RakSampSubscription,
 ) -> RakSampResult {
-    RakSampResult::NativeCallFailed
+    unregister(subscription, false)
+}
+
+unsafe extern "system" fn test_unregister_and_wait(
+    subscription: crate::RakSampSubscription,
+) -> RakSampResult {
+    unregister(subscription, true)
+}
+
+fn unregister(subscription: crate::RakSampSubscription, wait: bool) -> RakSampResult {
+    let mut state = REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    let result = if wait {
+        state.unregister_and_wait_calls += 1;
+        state.unregister_and_wait_result
+    } else {
+        state.unregister_calls += 1;
+        state.unregister_result
+    };
+    if matches!(
+        result,
+        RakSampResult::Ok | RakSampResult::SubscriptionNotFound
+    ) && state
+        .callback
+        .is_some_and(|callback| callback.subscription == subscription)
+    {
+        state.callback = None;
+    }
+    result
 }
 
 unsafe extern "system" fn test_send(
@@ -304,7 +438,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     send_packet: test_send,
     send_rpc: test_send,
     event_replace_bytes: test_event_replace_bytes,
-    unregister_and_wait: test_unregister,
+    unregister_and_wait: test_unregister_and_wait,
     emulate_incoming_packet: test_emulate,
     emulate_incoming_rpc: test_emulate,
     event_remaining_bits: test_event_remaining_bits,

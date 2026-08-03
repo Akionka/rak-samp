@@ -1,13 +1,11 @@
-use super::core::PayloadWriter;
+use super::core::{PayloadWriter, handle};
 /// Typed fixed-layout RakNet packet helpers.
 ///
-/// The helpers in this module operate on raw packet subscriptions, not RPC subscriptions. They
+/// The helpers in this module operate on packet callback events, not RPC callback events. They
 /// cover packet layouts that are fixed and byte-aligned in the SA-MP protocol. The packed flag
 /// bytes are intentionally exposed without splitting bit fields: their bit order is protocol
 /// data, not a Rust memory layout.
-use super::{
-    EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Packet, RpcAction, Vector3, handle,
-};
+use super::{EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Packet, RpcAction, Vector3};
 use crate::{HostApi, RakSampEventV1, RakSampHookAction, RakSampResult};
 
 /// SA-MP sends at most 13 weapon slots in one weapons-update packet.

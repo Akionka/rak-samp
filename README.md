@@ -31,12 +31,13 @@ cargo make deploy
 
 Plugins are 32-bit `cdylib`s that depend on `rak_samp_plugin_api`, not the host.
 Start a worker thread, wait for the host with `wait_for_default_host`, and
-register callbacks through `HostApi`. Callbacks can inspect, block, or replace
-packet and RPC payloads; replacement and send/emulation calls use an exact bit
-length. Callback events must not be retained.
+register safe closures with `HostApi::on_packet` or `HostApi::on_rpc`. Callbacks
+can inspect, block, or replace packet and RPC payloads; replacement and
+send/emulation calls use an exact bit length. Callback events must not be
+retained.
 
-Keep each `RakSampSubscription`. Before runtime unload, remove every subscription
-with `HostApi::unregister_and_wait` from a worker thread, then unload the ASI.
+Keep each `Subscription`. Before runtime unload, remove every subscription with
+`Subscription::unregister_and_wait` from a worker thread, then unload the ASI.
 Never perform that wait in `DllMain` or in a callback. See the
 [sample plugin](examples/sample_plugin) for a minimal integration.
 

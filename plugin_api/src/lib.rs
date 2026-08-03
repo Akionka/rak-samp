@@ -1,8 +1,10 @@
-//! Stable C ABI definitions and host-discovery helpers for `rak-samp` plugins.
+//! Stable C ABI definitions and safe host-discovery helpers for `rak-samp` plugins.
 //!
 //! Depend on this crate from an independently loaded ASI plugin. Do **not**
 //! depend on the `rak_samp` host crate: that would embed a second hook engine in
-//! the process instead of communicating with `rak_samp.asi`.
+//! the process instead of communicating with `rak_samp.asi`. Register callbacks with
+//! [`HostApi::on_packet`] or [`HostApi::on_rpc`] and synchronize each [`Subscription`] before
+//! unloading the plugin.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("rak_samp_plugin_api supports only 32-bit Windows x86 targets");
@@ -10,7 +12,10 @@ compile_error!("rak_samp_plugin_api supports only 32-bit Windows x86 targets");
 pub mod events;
 
 use core::{ffi::c_void, fmt, mem, ptr::NonNull};
-use std::time::{Duration, Instant};
+use std::{
+    panic::{AssertUnwindSafe, catch_unwind},
+    time::{Duration, Instant},
+};
 
 pub const ABI_VERSION_V1: u32 = 1;
 pub const DEFAULT_HOST_MODULE: &[u8] = b"rak_samp.asi\0";
@@ -107,10 +112,10 @@ pub type RakSampEventCallbackV1 = unsafe extern "system" fn(
     event: *mut RakSampEventV1,
 ) -> RakSampHookAction;
 
-/// The process-wide API exported by `rak_samp.asi`.
+/// The host-side ABI table exported by `rak_samp.asi`.
 ///
 /// Fields are append-only. Check `size` before accessing fields added by a
-/// newer ABI version.
+/// newer ABI version. Normal plugins use [`HostApi`] instead of calling this table directly.
 #[repr(C)]
 pub struct RakSampApiV1 {
     pub abi_version: u32,
@@ -177,17 +182,125 @@ pub struct RakSampApiV1 {
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
 
+type EventHandler =
+    dyn for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static;
+
+struct CallbackState {
+    api: HostApi,
+    handler: Box<EventHandler>,
+}
+
+type RegisterListener = unsafe extern "system" fn(
+    RakSampDirection,
+    Option<RakSampEventCallbackV1>,
+    *mut c_void,
+    *mut RakSampSubscription,
+) -> RakSampResult;
+
 /// A validated reference to the host API table.
 #[derive(Clone, Copy)]
 pub struct HostApi {
     raw: &'static RakSampApiV1,
 }
 
+/// An owned packet or RPC callback registration.
+///
+/// Call [`Self::unregister_and_wait`] from a worker thread before unloading the plugin ASI.
+/// Dropping this value attempts a nonblocking listener removal and intentionally retains the
+/// callback allocation, so it is memory-safe but does not prepare a plugin for `FreeLibrary`.
+#[must_use = "a subscription must be synchronized before unloading the plugin ASI"]
+pub struct Subscription {
+    api: HostApi,
+    raw: RakSampSubscription,
+    callback: Option<Box<CallbackState>>,
+}
+
+impl Subscription {
+    /// Returns this registration's host-assigned identifier.
+    #[must_use]
+    pub const fn id(&self) -> u64 {
+        self.raw.id
+    }
+
+    /// Removes this listener and waits until the host cannot invoke its callback anymore.
+    ///
+    /// Call this from a worker thread, never from `DllMain` or from this subscription's callback.
+    /// On failure, the returned error retains the subscription so shutdown can be retried.
+    pub fn unregister_and_wait(mut self) -> Result<(), SubscriptionShutdownError> {
+        let result = unsafe { (self.api.raw.unregister_and_wait)(self.raw) };
+        if matches!(
+            result,
+            RakSampResult::Ok | RakSampResult::SubscriptionNotFound
+        ) {
+            drop(self.callback.take());
+            Ok(())
+        } else {
+            Err(SubscriptionShutdownError {
+                result,
+                subscription: self,
+            })
+        }
+    }
+}
+
+impl Drop for Subscription {
+    fn drop(&mut self) {
+        if let Some(callback) = self.callback.take() {
+            // Do not wait here: Drop may run inside DllMain or a callback. The host listener is
+            // detached, but the allocation must stay valid for any callback already in flight.
+            let _ = unsafe { (self.api.raw.unregister)(self.raw) };
+            let _ = Box::leak(callback);
+        }
+    }
+}
+
+impl fmt::Debug for Subscription {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Subscription")
+            .field("id", &self.id())
+            .finish_non_exhaustive()
+    }
+}
+
+/// A synchronized subscription removal that the host could not complete.
+#[derive(Debug)]
+pub struct SubscriptionShutdownError {
+    result: RakSampResult,
+    subscription: Subscription,
+}
+
+impl SubscriptionShutdownError {
+    /// Returns the host result that prevented synchronized removal.
+    #[must_use]
+    pub const fn result(&self) -> RakSampResult {
+        self.result
+    }
+
+    /// Returns the still-registered subscription so shutdown can be retried.
+    pub fn into_subscription(self) -> Subscription {
+        self.subscription
+    }
+}
+
+impl fmt::Display for SubscriptionShutdownError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "host could not synchronize subscription {}: {:?}",
+            self.subscription.id(),
+            self.result
+        )
+    }
+}
+
+impl std::error::Error for SubscriptionShutdownError {}
+
 impl HostApi {
     /// # Safety
     ///
     /// `raw` must point to a live API table exported by a compatible host.
-    pub unsafe fn from_raw(raw: *const RakSampApiV1) -> Result<Self, ResolveError> {
+    pub(crate) unsafe fn from_raw(raw: *const RakSampApiV1) -> Result<Self, ResolveError> {
         let raw = NonNull::new(raw.cast_mut()).ok_or(ResolveError::MissingApi)?;
         let raw = unsafe { raw.as_ref() };
         if raw.abi_version != ABI_VERSION_V1 || raw.size < mem::size_of::<RakSampApiV1>() as u32 {
@@ -197,7 +310,7 @@ impl HostApi {
     }
 
     #[must_use]
-    pub fn raw(self) -> &'static RakSampApiV1 {
+    pub(crate) fn raw(self) -> &'static RakSampApiV1 {
         self.raw
     }
 
@@ -206,12 +319,67 @@ impl HostApi {
         (self.raw.host_status)()
     }
 
-    /// Removes a subscription and waits until no callback can still execute it.
+    /// Registers a packet callback.
     ///
-    /// Call this from the plugin's shutdown worker before unloading its ASI. Calling it from a
-    /// rak-samp callback returns [`RakSampResult::CallbackInProgress`] instead of deadlocking.
-    pub fn unregister_and_wait(self, subscription: RakSampSubscription) -> RakSampResult {
-        unsafe { (self.raw.unregister_and_wait)(subscription) }
+    /// The callback receives a view that is valid only for that invocation. Use typed packet
+    /// descriptors from [`events::packet`] to decode, block, or replace a matching payload.
+    pub fn on_packet<F>(
+        self,
+        direction: RakSampDirection,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
+    {
+        self.register_listener(direction, handler, self.raw.register_packet)
+    }
+
+    /// Registers an RPC callback.
+    ///
+    /// The callback receives a view that is valid only for that invocation. Use typed RPC
+    /// descriptors from [`events::rpc`] to decode, block, or replace a matching payload.
+    pub fn on_rpc<F>(
+        self,
+        direction: RakSampDirection,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
+    {
+        self.register_listener(direction, handler, self.raw.register_rpc)
+    }
+
+    fn register_listener<F>(
+        self,
+        direction: RakSampDirection,
+        handler: F,
+        register: RegisterListener,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
+    {
+        let mut callback = Box::new(CallbackState {
+            api: self,
+            handler: Box::new(handler),
+        });
+        let mut raw = RakSampSubscription::default();
+        let result = unsafe {
+            register(
+                direction,
+                Some(dispatch_callback),
+                (&mut *callback as *mut CallbackState).cast(),
+                &raw mut raw,
+            )
+        };
+        if result == RakSampResult::Ok {
+            Ok(Subscription {
+                api: self,
+                raw,
+                callback: Some(callback),
+            })
+        } else {
+            Err(result)
+        }
     }
 
     /// Sends a packet through SA-MP's original RakClient method.
@@ -294,6 +462,20 @@ impl HostApi {
         bytes.truncate(bit_len.div_ceil(u8::BITS as usize));
         Ok(RakSampEncodedString { bytes, bit_len })
     }
+}
+
+unsafe extern "system" fn dispatch_callback(
+    user_data: *mut c_void,
+    raw: *mut RakSampEventV1,
+) -> RakSampHookAction {
+    let Some(callback) = (unsafe { user_data.cast::<CallbackState>().as_ref() }) else {
+        return RakSampHookAction::Continue;
+    };
+    let Ok(mut event) = (unsafe { events::Event::from_callback(callback.api, raw) }) else {
+        return RakSampHookAction::Continue;
+    };
+    catch_unwind(AssertUnwindSafe(|| (callback.handler)(&mut event)))
+        .unwrap_or(RakSampHookAction::Continue)
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -380,6 +562,21 @@ fn resolve_host(_module_name: &[u8]) -> Result<HostApi, ResolveError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::test_support;
+    use std::sync::{
+        Arc, Mutex,
+        atomic::{AtomicUsize, Ordering},
+    };
+
+    static REGISTRATION_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    struct DropCounter(Arc<AtomicUsize>);
+
+    impl Drop for DropCounter {
+        fn drop(&mut self) {
+            self.0.fetch_add(1, Ordering::Release);
+        }
+    }
 
     #[test]
     fn default_options_match_raknet_defaults() {
@@ -427,5 +624,120 @@ mod tests {
             mem::size_of::<RakSampApiV1>(),
             mem::offset_of!(RakSampApiV1, event_read_encoded_string) + function_size
         );
+    }
+
+    #[test]
+    fn safe_rpc_registration_dispatches_and_synchronizes() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = Arc::clone(&calls);
+        let subscription = test_support::test_api()
+            .on_rpc(RakSampDirection::Incoming, move |event| {
+                assert_eq!(event.id(), 42);
+                observed.fetch_add(1, Ordering::AcqRel);
+                RakSampHookAction::Block
+            })
+            .expect("test registration must succeed");
+
+        assert_eq!(subscription.id(), 1);
+        assert_eq!(
+            test_support::invoke_registered_callback(42),
+            Some(RakSampHookAction::Block)
+        );
+        assert_eq!(calls.load(Ordering::Acquire), 1);
+
+        subscription
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize");
+        assert_eq!(test_support::invoke_registered_callback(42), None);
+        assert_eq!(
+            test_support::registration_stats().unregister_and_wait_calls,
+            1
+        );
+    }
+
+    #[test]
+    fn safe_callback_panic_fails_open() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let subscription = test_support::test_api()
+            .on_packet(RakSampDirection::Outgoing, |_| {
+                panic!("test callback panic")
+            })
+            .expect("test registration must succeed");
+
+        assert_eq!(
+            test_support::invoke_registered_callback(10),
+            Some(RakSampHookAction::Continue)
+        );
+        subscription
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize");
+    }
+
+    #[test]
+    fn failed_synchronized_shutdown_keeps_the_subscription_for_retry() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let subscription = test_support::test_api()
+            .on_rpc(RakSampDirection::Incoming, |_| RakSampHookAction::Continue)
+            .expect("test registration must succeed");
+        test_support::set_unregister_and_wait_result(RakSampResult::CallbackInProgress);
+
+        let error = subscription
+            .unregister_and_wait()
+            .expect_err("callback-thread shutdown must remain retryable");
+        assert_eq!(error.result(), RakSampResult::CallbackInProgress);
+        let subscription = error.into_subscription();
+        test_support::set_unregister_and_wait_result(RakSampResult::Ok);
+        subscription
+            .unregister_and_wait()
+            .expect("retry must synchronize");
+    }
+
+    #[test]
+    fn failed_registration_releases_the_handler() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        test_support::set_register_result(RakSampResult::NotReady);
+        let drops = Arc::new(AtomicUsize::new(0));
+        let counter = DropCounter(Arc::clone(&drops));
+
+        let result = test_support::test_api().on_packet(RakSampDirection::Incoming, move |_| {
+            let _ = &counter;
+            RakSampHookAction::Continue
+        });
+        assert_eq!(result.unwrap_err(), RakSampResult::NotReady);
+        assert_eq!(drops.load(Ordering::Acquire), 1);
+    }
+
+    #[test]
+    fn dropping_a_subscription_detaches_without_freeing_callback_state() {
+        let _serial = REGISTRATION_TEST_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        test_support::reset_registration();
+        let drops = Arc::new(AtomicUsize::new(0));
+        let counter = DropCounter(Arc::clone(&drops));
+        let subscription = test_support::test_api()
+            .on_packet(RakSampDirection::Incoming, move |_| {
+                let _ = &counter;
+                RakSampHookAction::Continue
+            })
+            .expect("test registration must succeed");
+
+        drop(subscription);
+        assert_eq!(drops.load(Ordering::Acquire), 0);
+        assert_eq!(test_support::invoke_registered_callback(1), None);
+        assert_eq!(test_support::registration_stats().unregister_calls, 1);
     }
 }

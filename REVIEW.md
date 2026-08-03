@@ -19,10 +19,6 @@ None.
 - **Encoded strings:** the host calls the detected client's StringCompressor
   reader and writer as x86 `thiscall` functions. An R1 live test encoded,
   decoded, replaced, and blocked a private dialog without instability.
-- **Typed encoded/compressed events:** a stable 2026-08-03 R1 run passed the
-  private-dialog encoded-string self-test and exercised typed replacement for
-  incoming vehicle (200), player (207), and marker (208) sync events, with no
-  null events or timestamp decode errors.
 - **Hook and unload checks:** fixture tests cover owned-slot restoration and
   original calls. An R1 validation run completed callback quiescence before an
   external manager released the validation ASI.

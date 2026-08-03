@@ -6,7 +6,8 @@ pub use fixed::*;
 pub use r1::*;
 pub use types::*;
 
-use crate::events::{EventError, RpcAction, Vector3, handle};
+use crate::events::core::handle;
+use crate::events::{EventError, RpcAction, Vector3};
 use crate::{HostApi, RakSampEventV1, RakSampHookAction};
 
 /// Handles `onServerMessage` from an incoming raw RPC callback.
@@ -14,7 +15,8 @@ use crate::{HostApi, RakSampEventV1, RakSampHookAction};
 /// # Safety
 ///
 /// See [`crate::events::handle`].
-pub unsafe fn on_server_message(
+#[allow(dead_code)]
+pub(crate) unsafe fn on_server_message(
     api: HostApi,
     raw: *mut RakSampEventV1,
     handler: impl FnOnce(ServerMessage) -> RpcAction<ServerMessage>,
@@ -29,7 +31,8 @@ macro_rules! rpc_helper {
         /// # Safety
         ///
         /// See [`crate::events::handle`].
-        pub unsafe fn $name(
+        #[allow(dead_code)]
+        pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut RakSampEventV1,
             handler: impl FnOnce($value) -> RpcAction<$value>,

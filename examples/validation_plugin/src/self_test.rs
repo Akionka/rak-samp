@@ -1,14 +1,14 @@
 use crate::{
     logging,
     state::{
-        API, HOST_WAIT_TIMEOUT, ID_STATS_UPDATE, RPC_UPDATE_SCORES_AND_PINGS, SELF_TESTS,
-        STATS_PAYLOAD, STATS_PAYLOAD_LEN, STATS_PAYLOAD_READY, STOP, SelfTestStatus,
-        self_test_finished, self_test_label,
+        HOST_WAIT_TIMEOUT, ID_STATS_UPDATE, RPC_UPDATE_SCORES_AND_PINGS, SELF_TESTS, STATS_PAYLOAD,
+        STATS_PAYLOAD_LEN, STATS_PAYLOAD_READY, STOP, SelfTestStatus, self_test_finished,
+        self_test_label,
     },
 };
 use rak_samp_plugin_api::{
-    HostApi, RakSampApiV1, RakSampEventV1, RakSampHookAction, RakSampResult, RakSampSendOptions,
-    events::{EncodedPayload, EventError, rpc::incoming},
+    HostApi, RakSampHookAction, RakSampResult, RakSampSendOptions,
+    events::{EncodedPayload, Event, EventError, rpc::incoming},
 };
 use std::{
     sync::atomic::{AtomicU8, Ordering},
@@ -25,10 +25,7 @@ pub(crate) const TEST_PACKET_REPLACEMENT: [u8; 18] = *b"rak-samp-packet-ok";
 pub(crate) const TEST_RPC_INPUT: [u8; 18] = *b"rak-samp-rpc-input";
 pub(crate) const TEST_RPC_REPLACEMENT: [u8; 18] = *b"rak-samp-rpc-pass!";
 
-pub(crate) unsafe extern "system" fn rewrite_test_packet(
-    _user_data: *mut std::ffi::c_void,
-    event: *mut RakSampEventV1,
-) -> RakSampHookAction {
+pub(crate) fn rewrite_test_packet(event: &mut Event<'_>) -> RakSampHookAction {
     rewrite_test_event(
         event,
         TEST_PACKET_ID,
@@ -39,10 +36,7 @@ pub(crate) unsafe extern "system" fn rewrite_test_packet(
     RakSampHookAction::Continue
 }
 
-pub(crate) unsafe extern "system" fn rewrite_test_rpc(
-    _user_data: *mut std::ffi::c_void,
-    event: *mut RakSampEventV1,
-) -> RakSampHookAction {
+pub(crate) fn rewrite_test_rpc(event: &mut Event<'_>) -> RakSampHookAction {
     rewrite_test_event(
         event,
         TEST_RPC_ID,
@@ -54,25 +48,20 @@ pub(crate) unsafe extern "system" fn rewrite_test_rpc(
 }
 
 fn rewrite_test_event<const N: usize>(
-    event: *mut RakSampEventV1,
+    event: &mut Event<'_>,
     expected_id: u8,
     input: &[u8; N],
     replacement: &[u8; N],
     status: &AtomicU8,
 ) {
-    if event.is_null() {
+    if event.id() != expected_id {
         return;
     }
-    let api = API.load(Ordering::Acquire);
-    if api.is_null() || unsafe { ((*api).event_id)(event) } != expected_id {
+    if !event_matches(event, input) {
         return;
     }
-    if !event_matches(api, event, input) {
-        return;
-    }
-    let result = unsafe { ((*api).event_replace_bytes)(event, replacement.as_ptr(), N) };
     status.store(
-        if result == RakSampResult::Ok {
+        if event.replace_bytes(replacement).is_ok() {
             SelfTestStatus::Rewritten.as_raw()
         } else {
             SelfTestStatus::Failed.as_raw()
@@ -82,57 +71,53 @@ fn rewrite_test_event<const N: usize>(
 }
 
 pub(crate) fn test_verdict<const N: usize>(
-    observed: Option<(*mut RakSampApiV1, u8)>,
-    event: *mut RakSampEventV1,
+    event: &mut Event<'_>,
+    id: u8,
     expected_id: u8,
     input: &[u8; N],
     replacement: &[u8; N],
     status: &AtomicU8,
 ) -> RakSampHookAction {
-    let Some((api, id)) = observed else {
-        return RakSampHookAction::Continue;
-    };
     if id != expected_id {
         return RakSampHookAction::Continue;
     }
-    if event_matches(api, event, replacement) {
+    if event_matches(event, replacement) {
         status.store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
         return RakSampHookAction::Block;
     }
-    if event_matches(api, event, input) {
+    if event_matches(event, input) {
         status.store(SelfTestStatus::Failed.as_raw(), Ordering::Release);
         return RakSampHookAction::Block;
     }
     RakSampHookAction::Continue
 }
 
-fn event_matches<const N: usize>(
-    api: *mut RakSampApiV1,
-    event: *mut RakSampEventV1,
-    expected: &[u8; N],
-) -> bool {
-    read_exact_event(api, event).as_ref() == Some(expected)
+fn event_matches<const N: usize>(event: &mut Event<'_>, expected: &[u8; N]) -> bool {
+    read_exact_event(event).as_ref() == Some(expected)
 }
 
-fn read_exact_event<const N: usize>(
-    api: *mut RakSampApiV1,
-    event: *mut RakSampEventV1,
-) -> Option<[u8; N]> {
+fn read_exact_event<const N: usize>(event: &mut Event<'_>) -> Option<[u8; N]> {
     let mut actual = [0; N];
-    let mut trailing = 0;
-    let read = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok
-        && unsafe { ((*api).event_read_bytes)(event, actual.as_mut_ptr(), N) } == RakSampResult::Ok
-        && unsafe { ((*api).event_read_u8)(event, &raw mut trailing) }
-            == RakSampResult::ReadOutOfBounds;
-    let restored = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok;
+    let read = event.reset_read().is_ok()
+        && event
+            .read_bytes(N)
+            .map(|bytes| {
+                actual.copy_from_slice(&bytes);
+            })
+            .is_ok()
+        && matches!(
+            event.read_u8(),
+            Err(EventError::Host(RakSampResult::ReadOutOfBounds))
+        );
+    let restored = event.reset_read().is_ok();
     (read && restored).then_some(actual)
 }
 
-pub(crate) fn capture_stats_payload(api: *mut RakSampApiV1, event: *mut RakSampEventV1) {
+pub(crate) fn capture_stats_payload(event: &mut Event<'_>) {
     if STATS_PAYLOAD_READY.load(Ordering::Acquire) {
         return;
     }
-    let Some(payload) = read_exact_event::<STATS_PAYLOAD_LEN>(api, event) else {
+    let Some(payload) = read_exact_event::<STATS_PAYLOAD_LEN>(event) else {
         return;
     };
     for (destination, source) in STATS_PAYLOAD.iter().zip(payload) {
