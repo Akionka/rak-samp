@@ -64,6 +64,78 @@ struct FixtureR1IncarData {
     unsigned int hydra_or_train;
 };
 
+struct FixtureR1TrailerData {
+    unsigned short id;
+    FixtureVector3 position;
+    float quaternion[4];
+    FixtureVector3 speed;
+    FixtureVector3 turn_speed;
+};
+
+struct FixtureR1PassengerData {
+    unsigned short vehicle_id;
+    unsigned char seat_id;
+    unsigned char weapon;
+    unsigned char health;
+    unsigned char armour;
+    FixtureControllerState controller;
+    FixtureVector3 position;
+};
+
+struct FixtureR1AimData {
+    unsigned char camera_mode;
+    FixtureVector3 aim_first;
+    FixtureVector3 aim_position;
+    float aim_z;
+    unsigned char camera_zoom_and_weapon_state;
+    char aspect_ratio;
+};
+
+// Independent packed reconstruction of the fixed R1 CRemotePlayer prefix.
+// This fixture deliberately stops before its remaining marker state because
+// the future safe snapshot needs only the fields below; no native pointer is
+// exported by this fixture or the eventual ABI.
+struct FixtureR1RemotePlayerPrefix {
+    void* ped;
+    void* vehicle;
+    unsigned char team;
+    unsigned char state;
+    unsigned char seat_id;
+    int unknown_b;
+    int passenger_drive_by;
+    unsigned char pad_13[64];
+    FixtureVector3 position_difference;
+    struct {
+        float real;
+        FixtureVector3 imag;
+    } incar_target_rotation;
+    int pad_6f[3];
+    FixtureVector3 onfoot_target_position;
+    FixtureVector3 onfoot_target_speed;
+    FixtureVector3 incar_target_position;
+    FixtureVector3 incar_target_speed;
+    unsigned short id;
+    unsigned short vehicle_id;
+    int unknown_af;
+    int draw_labels;
+    int has_jetpack;
+    unsigned char special_action;
+    int pad_bc[3];
+    FixtureR1OnfootData onfoot;
+    FixtureR1IncarData incar;
+    FixtureR1TrailerData trailer;
+    FixtureR1PassengerData passenger;
+    FixtureR1AimData aim;
+    float reported_armour;
+    float reported_health;
+    unsigned int animation;
+    unsigned char update_type;
+    unsigned int last_update;
+    unsigned int last_timestamp;
+    int performing_custom_animation;
+    int status;
+};
+
 struct FixtureR1LocalPlayerPrefix {
     void* ped;
     unsigned int animation;
@@ -293,6 +365,15 @@ static_assert(alignof(FixturePacket) == 1);
 static_assert(sizeof(FixtureVector3) == 12);
 static_assert(sizeof(FixtureR1OnfootData) == 68);
 static_assert(sizeof(FixtureR1IncarData) == 63);
+static_assert(sizeof(FixtureR1TrailerData) == 54);
+static_assert(sizeof(FixtureR1PassengerData) == 24);
+static_assert(sizeof(FixtureR1AimData) == 31);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, special_action) == 0xBB);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, onfoot) == 0xC8);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_armour) == 0x1B8);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_health) == 0x1BC);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, animation) == 0x1C0);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, status) == 0x1D1);
 static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
 static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);

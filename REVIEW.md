@@ -116,6 +116,12 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   only—this batch introduces no native field layout, so no new C++ layout
   fixture is claimed. The profile still requires the existing strict SA-MP and
   GTA SA 1.0 US fingerprints.
+- **R1 remote-player snapshot fixture preparation:** the independent x86
+  fixture now reconstructs the packed remote-player prefix through status at
+  `0x1D1`: special action `0xBB`, on-foot cache `0xC8`, reported armour/health
+  `0x1B8`/`0x1BC`, and animation word `0x1C0`. This is layout evidence only;
+  no public snapshot is enabled until the relevant update-path signatures,
+  bounded-cache tests, and live transitions are all verified.
 - **R1 player-count accessor target:** the installed SA-MP 0.3.7 R1 `samp.dll`
   audit confirms `CPlayerPool::GetCount(BOOL)` at RVA `0x10520`, with leading
   bytes `8B 54 24 04 56 33 C0 85 D2 57 74 71 33 D2 8B FF`. The profile verifies
