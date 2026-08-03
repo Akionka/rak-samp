@@ -1,7 +1,7 @@
 use super::types::*;
 use crate::events::core::PayloadWriter;
 use crate::{
-    HostApi, RakRsResult,
+    HostApi, RakSampResult,
     events::{
         EncodedPayload, Event, EventError, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES, Rpc,
         Vector2, Vector3,
@@ -647,7 +647,7 @@ fn decode_fixed_string32(event: &mut Event<'_>) -> Result<[u8; 32], EventError> 
     event
         .read_bytes(32)?
         .try_into()
-        .map_err(|_| EventError::Host(RakRsResult::NativeCallFailed))
+        .map_err(|_| EventError::Host(RakSampResult::NativeCallFailed))
 }
 
 fn encode_fixed_string32(value: [u8; 32]) -> Result<Vec<u8>, EventError> {
@@ -1010,7 +1010,7 @@ pub(super) fn read_array<const N: usize>(event: &mut Event<'_>) -> Result<[u8; N
     event
         .read_bytes(N)?
         .try_into()
-        .map_err(|_| EventError::Host(RakRsResult::NativeCallFailed))
+        .map_err(|_| EventError::Host(RakSampResult::NativeCallFailed))
 }
 
 fn decode_vehicle_params_ex(event: &mut Event<'_>) -> Result<VehicleParamsEx, EventError> {

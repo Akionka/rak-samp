@@ -2,7 +2,7 @@
 
 use crate::events::core::PayloadWriter;
 use crate::{
-    HostApi, RakRsEventV1, RakRsHookAction,
+    HostApi, RakSampEventV1, RakSampHookAction,
     events::{
         EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Rpc, RpcAction, Vector3, handle,
     },
@@ -256,9 +256,9 @@ pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
 /// See [`crate::events::handle`].
 pub unsafe fn on_send_chat(
     api: HostApi,
-    raw: *mut RakRsEventV1,
+    raw: *mut RakSampEventV1,
     handler: impl FnOnce(Vec<u8>) -> RpcAction<Vec<u8>>,
-) -> Result<RakRsHookAction, EventError> {
+) -> Result<RakSampHookAction, EventError> {
     unsafe { handle(api, raw, SEND_CHAT, handler) }
 }
 
@@ -271,9 +271,9 @@ macro_rules! rpc_helper {
         /// See [`crate::events::handle`].
         pub unsafe fn $name(
             api: HostApi,
-            raw: *mut RakRsEventV1,
+            raw: *mut RakSampEventV1,
             handler: impl FnOnce($value) -> RpcAction<$value>,
-        ) -> Result<RakRsHookAction, EventError> {
+        ) -> Result<RakSampHookAction, EventError> {
             unsafe { handle(api, raw, $rpc, handler) }
         }
     };
@@ -447,9 +447,9 @@ rpc_helper!(
 /// See [`crate::events::handle`].
 pub unsafe fn on_send_give_damage(
     api: HostApi,
-    raw: *mut RakRsEventV1,
+    raw: *mut RakSampEventV1,
     handler: impl FnOnce(Damage) -> RpcAction<Damage>,
-) -> Result<RakRsHookAction, EventError> {
+) -> Result<RakSampHookAction, EventError> {
     unsafe {
         handle(api, raw, SEND_DAMAGE, |value| {
             if value.take {
@@ -468,9 +468,9 @@ pub unsafe fn on_send_give_damage(
 /// See [`crate::events::handle`].
 pub unsafe fn on_send_take_damage(
     api: HostApi,
-    raw: *mut RakRsEventV1,
+    raw: *mut RakSampEventV1,
     handler: impl FnOnce(Damage) -> RpcAction<Damage>,
-) -> Result<RakRsHookAction, EventError> {
+) -> Result<RakSampHookAction, EventError> {
     unsafe {
         handle(api, raw, SEND_DAMAGE, |value| {
             if value.take {

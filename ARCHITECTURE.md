@@ -4,9 +4,9 @@
 
 ```text
 GTA ASI loader
- ├─ rak_rs.asi (host and native hooks)
+ ├─ rak_samp.asi (host and native hooks)
  ├─ feature-a.asi ─┐
- └─ feature-b.asi ─┴─> rak_rs_plugin_api ─> RakRs_GetApiV1 ─> host
+ └─ feature-b.asi ─┴─> rak_samp_plugin_api ─> RakSamp_GetApiV1 ─> host
 ```
 
 Each ASI loads independently. Only the host links the native hook backend;

@@ -1,5 +1,5 @@
 [package]
-name = "rak_rs_validation_unloader"
+name = "rak_samp_validation_unloader"
 version = "0.1.0"
 edition = "2024"
 publish = false

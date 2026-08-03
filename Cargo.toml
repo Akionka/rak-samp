@@ -1,8 +1,28 @@
 [package]
-name = "rak_rs"
-version = "0.1.0"
+name = "rak-samp"
+version = "0.1.0-alpha.2"
 edition = "2024"
+rust-version = "1.87"
+description = "Windows x86 SA-MP RakNet host for Rust ASI plugins"
 license = "MIT"
+readme = "README.md"
+repository = "https://github.com/Akionka/rak-samp"
+homepage = "https://github.com/Akionka/rak-samp"
+documentation = "https://docs.rs/rak-samp"
+keywords = ["samp", "raknet", "gta-sa", "asi", "windows"]
+categories = ["api-bindings", "game-development", "os::windows-apis"]
+include = [
+    "/src",
+    "/tests",
+    "/build.rs",
+    "/Cargo.toml",
+    "/LICENSE",
+    "/README.md",
+]
+
+[package.metadata.docs.rs]
+default-target = "i686-pc-windows-msvc"
+targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
@@ -16,23 +36,22 @@ default-members = ["."]
 resolver = "2"
 
 [lib]
+name = "rak_samp"
 crate-type = ["cdylib"]
+
+[dependencies]
+log = "0.4"
+rak_samp_plugin_api = { package = "rak_samp_plugin_api", version = "=0.1.0-alpha.2", path = "plugin_api" }
+simplelog = "0.12"
 
 [build-dependencies]
 cc = "1.4"
 
-[dependencies]
-log = "0.4"
-rak_rs_plugin_api = { package = "rak_rs_plugin_api", path = "plugin_api" }
-simplelog = "0.12"
-
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
+minhook = "0.9"
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",
     "Win32_System_SystemServices",
 ] }
-
-[target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
-minhook = "0.9"

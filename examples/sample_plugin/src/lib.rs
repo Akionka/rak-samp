@@ -1,7 +1,11 @@
-//! Minimal independently loaded ASI plugin using the rak-rs host ABI.
+//! Minimal independently loaded ASI plugin using the rak-samp host ABI.
 
-use rak_rs_plugin_api::{
-    HostApi, RakRsDirection, RakRsEventV1, RakRsHookAction, RakRsResult, RakRsSubscription,
+#[cfg(not(all(windows, target_arch = "x86")))]
+compile_error!("rak_samp_sample_plugin supports only 32-bit Windows x86 targets");
+
+use rak_samp_plugin_api::{
+    HostApi, RakSampDirection, RakSampEventV1, RakSampHookAction, RakSampResult,
+    RakSampSubscription,
     events::{RpcAction, rpc::incoming},
     wait_for_default_host,
 };
@@ -28,7 +32,7 @@ static SERVER_MESSAGES: AtomicUsize = AtomicUsize::new(0);
 
 struct PluginState {
     api: Option<HostApi>,
-    subscription: Option<RakRsSubscription>,
+    subscription: Option<RakSampSubscription>,
     initializing: bool,
     shutting_down: bool,
 }
@@ -70,7 +74,7 @@ unsafe extern "system" fn DllMain(
                 .unwrap_or_else(|error| error.into_inner())
                 .initializing = true;
             if std::thread::Builder::new()
-                .name("rak-rs-sample-init".into())
+                .name("rak-samp-sample-init".into())
                 .spawn(initialize)
                 .is_err()
             {
@@ -104,7 +108,7 @@ fn initialize() {
         }
         match wait_for_default_host(remaining.min(Duration::from_millis(100))) {
             Ok(api) => break api,
-            Err(rak_rs_plugin_api::ResolveError::TimedOut) => {}
+            Err(rak_samp_plugin_api::ResolveError::TimedOut) => {}
             Err(_) => return,
         }
     };
@@ -113,16 +117,16 @@ fn initialize() {
         return;
     }
 
-    let mut subscription = RakRsSubscription::default();
+    let mut subscription = RakSampSubscription::default();
     let result = unsafe {
         (api.raw().register_rpc)(
-            RakRsDirection::Incoming,
+            RakSampDirection::Incoming,
             Some(on_incoming_rpc),
             std::ptr::null_mut(),
             &raw mut subscription,
         )
     };
-    if result == RakRsResult::Ok {
+    if result == RakSampResult::Ok {
         state.api = Some(api);
         state.subscription = Some(subscription);
     }
@@ -130,14 +134,14 @@ fn initialize() {
 
 unsafe extern "system" fn on_incoming_rpc(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     let api = {
         let state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.api
     };
     let Some(api) = api else {
-        return RakRsHookAction::Continue;
+        return RakSampHookAction::Continue;
     };
     unsafe {
         incoming::on_server_message(api, event, |_message| {
@@ -145,14 +149,14 @@ unsafe extern "system" fn on_incoming_rpc(
             RpcAction::Continue
         })
     }
-    .unwrap_or(RakRsHookAction::Continue)
+    .unwrap_or(RakSampHookAction::Continue)
 }
 
 /// Stops callbacks before an unload manager calls `FreeLibrary`.
 ///
-/// This must be called from a worker thread, not from `DllMain` or a rak-rs callback.
+/// This must be called from a worker thread, not from `DllMain` or a rak-samp callback.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
+pub extern "system" fn RakSampPlugin_Shutdown() -> BOOL {
     let (api, subscription) = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
@@ -171,7 +175,7 @@ pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
     };
 
     match api.unregister_and_wait(subscription) {
-        RakRsResult::Ok | RakRsResult::SubscriptionNotFound => TRUE,
+        RakSampResult::Ok | RakSampResult::SubscriptionNotFound => TRUE,
         _ => {
             STATE
                 .lock()
@@ -184,6 +188,6 @@ pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
 
 /// Returns how many typed `onServerMessage` events this sample observed.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsSample_ServerMessageCount() -> usize {
+pub extern "system" fn RakSampSample_ServerMessageCount() -> usize {
     SERVER_MESSAGES.load(Ordering::Relaxed)
 }

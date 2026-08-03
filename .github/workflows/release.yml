@@ -14,10 +14,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  HOST_DLL: target/i686-pc-windows-msvc/release/rak_rs.dll
-  HOST_PDB: target/i686-pc-windows-msvc/release/rak_rs.pdb
-  EXAMPLE_DLL: target/i686-pc-windows-msvc/release/rak_rs_chat_command_example.dll
-  ARCHIVE_NAME: rak-rs-windows-x86.zip
+  HOST_DLL: target/i686-pc-windows-msvc/release/rak_samp.dll
+  HOST_PDB: target/i686-pc-windows-msvc/release/rak_samp.pdb
+  EXAMPLE_DLL: target/i686-pc-windows-msvc/release/rak_samp_chat_command_example.dll
+  ARCHIVE_NAME: rak-samp-windows-x86.zip
 
 jobs:
   release:
@@ -55,14 +55,14 @@ jobs:
           $exampleDist = Join-Path $dist "examples/chat_command"
 
           New-Item -ItemType Directory -Force -Path $exampleDist | Out-Null
-          Copy-Item $env:HOST_DLL (Join-Path $dist "rak_rs.asi")
-          Copy-Item $env:HOST_PDB (Join-Path $dist "rak_rs.pdb")
-          Copy-Item $env:EXAMPLE_DLL (Join-Path $exampleDist "rak_rs_chat_command_example.asi")
+          Copy-Item $env:HOST_DLL (Join-Path $dist "rak_samp.asi")
+          Copy-Item $env:HOST_PDB (Join-Path $dist "rak_samp.pdb")
+          Copy-Item $env:EXAMPLE_DLL (Join-Path $exampleDist "rak_samp_chat_command_example.asi")
           Copy-Item "examples/chat_command_plugin/README.md" (Join-Path $exampleDist "README.md")
           Copy-Item "README.md", "LICENSE" $dist
           Compress-Archive -Path "$dist/*" -DestinationPath $env:ARCHIVE_NAME
 
-          @($env:ARCHIVE_NAME, "dist/rak_rs.asi", "dist/rak_rs.pdb") | ForEach-Object {
+          @($env:ARCHIVE_NAME, "dist/rak_samp.asi", "dist/rak_samp.pdb") | ForEach-Object {
             $hash = Get-FileHash -Algorithm SHA256 $_
             "{0}  {1}" -f $hash.Hash.ToLowerInvariant(), (Split-Path $_ -Leaf)
           } | Out-File -Encoding ascii "SHA256SUMS.txt"
@@ -70,11 +70,11 @@ jobs:
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: rak-rs-${{ github.ref_name }}-windows-x86
+          name: rak-samp-${{ github.ref_name }}-windows-x86
           path: |
             ${{ env.ARCHIVE_NAME }}
-            dist/rak_rs.asi
-            dist/rak_rs.pdb
+            dist/rak_samp.asi
+            dist/rak_samp.pdb
             SHA256SUMS.txt
           if-no-files-found: error
 
@@ -87,10 +87,10 @@ jobs:
             "release", "create", $env:GITHUB_REF_NAME,
             "--verify-tag",
             "--generate-notes",
-            "--title", "rak-rs $env:GITHUB_REF_NAME",
+            "--title", "rak-samp $env:GITHUB_REF_NAME",
             $env:ARCHIVE_NAME,
-            "dist/rak_rs.asi",
-            "dist/rak_rs.pdb",
+            "dist/rak_samp.asi",
+            "dist/rak_samp.pdb",
             "SHA256SUMS.txt"
           )
           if ($env:GITHUB_REF_NAME.Contains("-")) {

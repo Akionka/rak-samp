@@ -1,11 +1,14 @@
 #![doc = include_str!("../CORE.md")]
 #![deny(unsafe_op_in_unsafe_fn)]
 
-//! `rak_rs` is a Windows x86 SDK for observing and controlling SA-MP client
+//! `rak_samp` is a Windows x86 SDK for observing and controlling SA-MP client
 //! packet and RPC traffic from a Rust ASI/DLL.
 //!
 //! The safe API deliberately exposes no client pointers. Native hooks and
 //! SA-MP version-specific offsets remain private implementation details.
+
+#[cfg(not(all(windows, target_arch = "x86")))]
+compile_error!("rak-samp supports only 32-bit Windows x86 targets");
 
 mod bitstream;
 mod client;
@@ -32,7 +35,7 @@ pub use runtime::{
 
 #[cfg(all(windows, target_pointer_width = "32"))]
 #[unsafe(no_mangle)]
-/// Windows loader entry point for the `rak_rs.asi` host.
+/// Windows loader entry point for the `rak_samp.asi` host.
 ///
 /// # Safety
 ///

@@ -8,7 +8,7 @@ use super::core::PayloadWriter;
 use super::{
     EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Packet, RpcAction, Vector3, handle,
 };
-use crate::{HostApi, RakRsEventV1, RakRsHookAction, RakRsResult};
+use crate::{HostApi, RakSampEventV1, RakSampHookAction, RakSampResult};
 
 /// SA-MP sends at most 13 weapon slots in one weapons-update packet.
 pub const MAX_WEAPON_SLOTS: usize = 13;
@@ -479,7 +479,7 @@ pub(super) fn decode_vehicle_sync(event: &mut Event<'_>) -> Result<VehicleSync, 
         vehicle_specific: event
             .read_bytes(4)?
             .try_into()
-            .map_err(|_| EventError::Host(RakRsResult::NativeCallFailed))?,
+            .map_err(|_| EventError::Host(RakSampResult::NativeCallFailed))?,
     })
 }
 

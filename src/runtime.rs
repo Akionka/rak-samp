@@ -19,7 +19,7 @@ impl fmt::Display for AttachError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedPlatform => {
-                formatter.write_str("rak_rs requires a 32-bit Windows process")
+                formatter.write_str("rak_samp requires a 32-bit Windows process")
             }
             Self::SampNotLoaded => formatter.write_str("samp.dll is not loaded"),
             Self::UnsupportedClient { entry_point } => {
@@ -29,7 +29,7 @@ impl fmt::Display for AttachError {
                 )
             }
             Self::ClientNotReady => formatter.write_str("the SA-MP RakClient is not ready yet"),
-            Self::AlreadyAttached => formatter.write_str("a rak_rs runtime is already attached"),
+            Self::AlreadyAttached => formatter.write_str("a rak_samp runtime is already attached"),
             Self::HookInstallFailed(detail) => {
                 write!(formatter, "failed to install SA-MP hook: {detail}")
             }

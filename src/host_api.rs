@@ -4,9 +4,9 @@ use crate::{
     runtime::{ClientHookStatus, CodecError},
 };
 use log::{debug, error, info};
-use rak_rs_plugin_api::{
-    ABI_VERSION_V1, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1,
-    RakRsHookAction, RakRsHostStatus, RakRsResult, RakRsSendOptions, RakRsSubscription,
+use rak_samp_plugin_api::{
+    ABI_VERSION_V1, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
+    RakSampHookAction, RakSampHostStatus, RakSampResult, RakSampSendOptions, RakSampSubscription,
 };
 use std::{
     collections::HashMap,
@@ -19,9 +19,9 @@ use std::{
     time::Duration,
 };
 
-const STATUS_WAITING: u32 = RakRsHostStatus::WaitingForSamp as u32;
-const STATUS_READY: u32 = RakRsHostStatus::Ready as u32;
-const STATUS_FAILED: u32 = RakRsHostStatus::Failed as u32;
+const STATUS_WAITING: u32 = RakSampHostStatus::WaitingForSamp as u32;
+const STATUS_READY: u32 = RakSampHostStatus::Ready as u32;
+const STATUS_FAILED: u32 = RakSampHostStatus::Failed as u32;
 
 struct HostState {
     status: AtomicU32,
@@ -93,18 +93,18 @@ fn monitor_client_hooks(runtime: Arc<Runtime>) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRs_GetApiV1(requested_version: u32) -> *const RakRsApiV1 {
+pub extern "system" fn RakSamp_GetApiV1(requested_version: u32) -> *const RakSampApiV1 {
     if requested_version == ABI_VERSION_V1 {
-        &RAK_RS_API_V1
+        &RAK_SAMP_API_V1
     } else {
         debug!("rejected unsupported plugin ABI version {requested_version}");
         ptr::null()
     }
 }
 
-static RAK_RS_API_V1: RakRsApiV1 = RakRsApiV1 {
+static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     abi_version: ABI_VERSION_V1,
-    size: std::mem::size_of::<RakRsApiV1>() as u32,
+    size: std::mem::size_of::<RakSampApiV1>() as u32,
     host_status,
     register_packet,
     register_rpc,
@@ -135,20 +135,20 @@ static RAK_RS_API_V1: RakRsApiV1 = RakRsApiV1 {
     event_read_encoded_string,
 };
 
-extern "system" fn host_status() -> RakRsHostStatus {
+extern "system" fn host_status() -> RakSampHostStatus {
     match host().status.load(Ordering::Acquire) {
-        STATUS_READY => RakRsHostStatus::Ready,
-        STATUS_FAILED => RakRsHostStatus::Failed,
-        _ => RakRsHostStatus::WaitingForSamp,
+        STATUS_READY => RakSampHostStatus::Ready,
+        STATUS_FAILED => RakSampHostStatus::Failed,
+        _ => RakSampHostStatus::WaitingForSamp,
     }
 }
 
 unsafe extern "system" fn register_packet(
-    direction: RakRsDirection,
-    callback: Option<RakRsEventCallbackV1>,
+    direction: RakSampDirection,
+    callback: Option<RakSampEventCallbackV1>,
     user_data: *mut c_void,
-    subscription: *mut RakRsSubscription,
-) -> RakRsResult {
+    subscription: *mut RakSampSubscription,
+) -> RakSampResult {
     register_listener(
         direction,
         callback,
@@ -159,11 +159,11 @@ unsafe extern "system" fn register_packet(
 }
 
 unsafe extern "system" fn register_rpc(
-    direction: RakRsDirection,
-    callback: Option<RakRsEventCallbackV1>,
+    direction: RakSampDirection,
+    callback: Option<RakSampEventCallbackV1>,
     user_data: *mut c_void,
-    subscription: *mut RakRsSubscription,
-) -> RakRsResult {
+    subscription: *mut RakSampSubscription,
+) -> RakSampResult {
     register_listener(
         direction,
         callback,
@@ -173,9 +173,9 @@ unsafe extern "system" fn register_rpc(
     )
 }
 
-unsafe extern "system" fn unregister(subscription: RakRsSubscription) -> RakRsResult {
+unsafe extern "system" fn unregister(subscription: RakSampSubscription) -> RakSampResult {
     if subscription.id == 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let removed = host()
         .subscriptions
@@ -185,15 +185,15 @@ unsafe extern "system" fn unregister(subscription: RakRsSubscription) -> RakRsRe
         .is_some();
     if removed {
         debug!("unregistered plugin subscription {}", subscription.id);
-        RakRsResult::Ok
+        RakSampResult::Ok
     } else {
-        RakRsResult::SubscriptionNotFound
+        RakSampResult::SubscriptionNotFound
     }
 }
 
-unsafe extern "system" fn unregister_and_wait(subscription: RakRsSubscription) -> RakRsResult {
+unsafe extern "system" fn unregister_and_wait(subscription: RakSampSubscription) -> RakSampResult {
     if subscription.id == 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let listener = {
         let mut subscriptions = host()
@@ -201,13 +201,13 @@ unsafe extern "system" fn unregister_and_wait(subscription: RakRsSubscription) -
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let Some(listener) = subscriptions.get(&subscription.id) else {
-            return RakRsResult::SubscriptionNotFound;
+            return RakSampResult::SubscriptionNotFound;
         };
         if !listener.can_remove_and_wait() {
-            return RakRsResult::CallbackInProgress;
+            return RakSampResult::CallbackInProgress;
         }
         let Some(listener) = subscriptions.remove(&subscription.id) else {
-            return RakRsResult::SubscriptionNotFound;
+            return RakSampResult::SubscriptionNotFound;
         };
         listener
     };
@@ -216,150 +216,153 @@ unsafe extern "system" fn unregister_and_wait(subscription: RakRsSubscription) -
         "unregistered plugin subscription {} and synchronized callbacks",
         subscription.id
     );
-    RakRsResult::Ok
+    RakSampResult::Ok
 }
 
-unsafe extern "system" fn event_id(event: *const RakRsEventV1) -> u8 {
+unsafe extern "system" fn event_id(event: *const RakSampEventV1) -> u8 {
     if event.is_null() {
         return 0;
     }
     unsafe { event.cast::<AbiEvent>().as_ref() }.map_or(0, |event| event.id)
 }
 
-unsafe extern "system" fn event_reset_read(event: *mut RakRsEventV1) -> RakRsResult {
+unsafe extern "system" fn event_reset_read(event: *mut RakSampEventV1) -> RakSampResult {
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     unsafe { &mut *event.payload }.reset_read();
-    RakRsResult::Ok
+    RakSampResult::Ok
 }
 
-unsafe extern "system" fn event_clear(event: *mut RakRsEventV1) -> RakRsResult {
+unsafe extern "system" fn event_clear(event: *mut RakSampEventV1) -> RakSampResult {
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     unsafe { &mut *event.payload }.clear();
-    RakRsResult::Ok
+    RakSampResult::Ok
 }
 
-unsafe extern "system" fn event_read_u8(event: *mut RakRsEventV1, output: *mut u8) -> RakRsResult {
+unsafe extern "system" fn event_read_u8(
+    event: *mut RakSampEventV1,
+    output: *mut u8,
+) -> RakSampResult {
     if output.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_u8() {
         Ok(value) => {
             unsafe { output.write(value) };
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
 unsafe extern "system" fn event_read_u16(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut u16,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_u16() {
         Ok(value) => {
             unsafe { output.write(value) };
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
 unsafe extern "system" fn event_read_u32(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut u32,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_u32() {
         Ok(value) => {
             unsafe { output.write(value) };
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
 unsafe extern "system" fn event_read_f32(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut f32,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_f32() {
         Ok(value) => {
             unsafe { output.write(value) };
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
 unsafe extern "system" fn event_read_bytes(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut u8,
     len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() && len != 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_bytes(len) {
         Ok(bytes) => {
             if len != 0 {
                 unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), output, len) };
             }
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
-unsafe extern "system" fn event_write_u8(event: *mut RakRsEventV1, value: u8) -> RakRsResult {
+unsafe extern "system" fn event_write_u8(event: *mut RakSampEventV1, value: u8) -> RakSampResult {
     write_event(event, |stream| stream.write_u8(value))
 }
 
-unsafe extern "system" fn event_write_u16(event: *mut RakRsEventV1, value: u16) -> RakRsResult {
+unsafe extern "system" fn event_write_u16(event: *mut RakSampEventV1, value: u16) -> RakSampResult {
     write_event(event, |stream| stream.write_u16(value))
 }
 
-unsafe extern "system" fn event_write_u32(event: *mut RakRsEventV1, value: u32) -> RakRsResult {
+unsafe extern "system" fn event_write_u32(event: *mut RakSampEventV1, value: u32) -> RakSampResult {
     write_event(event, |stream| stream.write_u32(value))
 }
 
-unsafe extern "system" fn event_write_f32(event: *mut RakRsEventV1, value: f32) -> RakRsResult {
+unsafe extern "system" fn event_write_f32(event: *mut RakSampEventV1, value: f32) -> RakSampResult {
     write_event(event, |stream| stream.write_f32(value))
 }
 
 unsafe extern "system" fn event_write_bytes(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     value: *const u8,
     len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if value.is_null() && len != 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let bytes = if len == 0 {
         &[]
@@ -374,8 +377,8 @@ unsafe extern "system" fn send_packet(
     data: *const u8,
     byte_len: usize,
     bit_len: usize,
-    options: RakRsSendOptions,
-) -> RakRsResult {
+    options: RakSampSendOptions,
+) -> RakSampResult {
     send(id, data, byte_len, bit_len, options, ListenerKind::Packet)
 }
 
@@ -384,8 +387,8 @@ unsafe extern "system" fn send_rpc(
     data: *const u8,
     byte_len: usize,
     bit_len: usize,
-    options: RakRsSendOptions,
-) -> RakRsResult {
+    options: RakSampSendOptions,
+) -> RakSampResult {
     send(id, data, byte_len, bit_len, options, ListenerKind::Rpc)
 }
 
@@ -394,7 +397,7 @@ unsafe extern "system" fn emulate_incoming_packet(
     data: *const u8,
     byte_len: usize,
     bit_len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     emulate_incoming(id, data, byte_len, bit_len, ListenerKind::Packet)
 }
 
@@ -403,17 +406,17 @@ unsafe extern "system" fn emulate_incoming_rpc(
     data: *const u8,
     byte_len: usize,
     bit_len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     emulate_incoming(id, data, byte_len, bit_len, ListenerKind::Rpc)
 }
 
 unsafe extern "system" fn event_replace_bytes(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     value: *const u8,
     len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if value.is_null() && len != 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let bytes = if len == 0 {
         &[]
@@ -423,7 +426,7 @@ unsafe extern "system" fn event_replace_bytes(
     write_event(event, |stream| stream.replace_bytes(bytes))
 }
 
-unsafe extern "system" fn event_remaining_bits(event: *mut RakRsEventV1) -> usize {
+unsafe extern "system" fn event_remaining_bits(event: *mut RakSampEventV1) -> usize {
     let Ok(event) = (unsafe { abi_event(event) }) else {
         return 0;
     };
@@ -431,38 +434,38 @@ unsafe extern "system" fn event_remaining_bits(event: *mut RakRsEventV1) -> usiz
 }
 
 unsafe extern "system" fn event_read_bits(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut u8,
     bit_len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() && bit_len != 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     match unsafe { &mut *event.payload }.read_bits(bit_len) {
         Ok(bytes) => {
             if !bytes.is_empty() {
                 unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len()) };
             }
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => bitstream_result(error),
     }
 }
 
 unsafe extern "system" fn event_replace_bits(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     value: *const u8,
     byte_len: usize,
     bit_len: usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if value.is_null() && byte_len != 0 {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     if bit_len > byte_len.saturating_mul(u8::BITS as usize) {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let bytes = if byte_len == 0 {
         &[]
@@ -478,12 +481,12 @@ unsafe extern "system" fn encode_string(
     output: *mut u8,
     output_capacity: usize,
     output_bit_len: *mut usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if (value.is_null() && value_len != 0)
         || (output.is_null() && output_capacity != 0)
         || output_bit_len.is_null()
     {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let value = if value_len == 0 {
         &[]
@@ -491,14 +494,14 @@ unsafe extern "system" fn encode_string(
         unsafe { std::slice::from_raw_parts(value, value_len) }
     };
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        return RakRsResult::NotReady;
+        return RakSampResult::NotReady;
     };
     let encoded = match runtime.encode_string(value) {
         Ok(encoded) => encoded,
         Err(error) => return codec_result(error),
     };
     if encoded.len_bytes() > output_capacity {
-        return RakRsResult::PayloadTooLarge;
+        return RakSampResult::PayloadTooLarge;
     }
     if encoded.len_bytes() != 0 {
         unsafe {
@@ -506,54 +509,54 @@ unsafe extern "system" fn encode_string(
         };
     }
     unsafe { output_bit_len.write(encoded.len_bits()) };
-    RakRsResult::Ok
+    RakSampResult::Ok
 }
 
 unsafe extern "system" fn event_read_encoded_string(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     output: *mut u8,
     output_capacity: usize,
     output_len: *mut usize,
-) -> RakRsResult {
+) -> RakSampResult {
     if output.is_null() || output_capacity == 0 || output_len.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        return RakRsResult::NotReady;
+        return RakSampResult::NotReady;
     };
     let output = unsafe { std::slice::from_raw_parts_mut(output, output_capacity) };
     match runtime.decode_string(unsafe { &mut *event.payload }, output) {
         Ok(length) => {
             unsafe { output_len.write(length) };
-            RakRsResult::Ok
+            RakSampResult::Ok
         }
         Err(error) => codec_result(error),
     }
 }
 
 fn register_listener(
-    direction: RakRsDirection,
-    callback: Option<RakRsEventCallbackV1>,
+    direction: RakSampDirection,
+    callback: Option<RakSampEventCallbackV1>,
     user_data: *mut c_void,
-    subscription: *mut RakRsSubscription,
+    subscription: *mut RakSampSubscription,
     kind: ListenerKind,
-) -> RakRsResult {
+) -> RakSampResult {
     let Some(callback) = callback else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     if subscription.is_null() {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     }
     let direction = match direction {
-        RakRsDirection::Incoming => Direction::Incoming,
-        RakRsDirection::Outgoing => Direction::Outgoing,
+        RakSampDirection::Incoming => Direction::Incoming,
+        RakSampDirection::Outgoing => Direction::Outgoing,
     };
     let user_data = user_data as usize;
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        return RakRsResult::NotReady;
+        return RakSampResult::NotReady;
     };
     let listener = match kind {
         ListenerKind::Packet => runtime.on_packet(direction, move |event| {
@@ -570,13 +573,13 @@ fn register_listener(
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .insert(id, listener);
-    unsafe { subscription.write(RakRsSubscription { id }) };
+    unsafe { subscription.write(RakSampSubscription { id }) };
     debug!("registered {kind:?} subscription {id}");
-    RakRsResult::Ok
+    RakSampResult::Ok
 }
 
 fn call_plugin_callback(
-    callback: RakRsEventCallbackV1,
+    callback: RakSampEventCallbackV1,
     user_data: usize,
     id: u8,
     payload: &mut BitStream,
@@ -585,23 +588,23 @@ fn call_plugin_callback(
     let action = unsafe {
         callback(
             user_data as *mut c_void,
-            (&mut event as *mut AbiEvent).cast::<RakRsEventV1>(),
+            (&mut event as *mut AbiEvent).cast::<RakSampEventV1>(),
         )
     };
     match action {
-        RakRsHookAction::Block => HookAction::Block,
-        RakRsHookAction::Continue => HookAction::Continue,
+        RakSampHookAction::Block => HookAction::Block,
+        RakSampHookAction::Continue => HookAction::Continue,
     }
 }
 
 fn write_event(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     operation: impl FnOnce(&mut BitStream) -> Result<(), BitStreamError>,
-) -> RakRsResult {
+) -> RakSampResult {
     let Ok(event) = (unsafe { abi_event(event) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
-    operation(unsafe { &mut *event.payload }).map_or_else(bitstream_result, |_| RakRsResult::Ok)
+    operation(unsafe { &mut *event.payload }).map_or_else(bitstream_result, |_| RakSampResult::Ok)
 }
 
 fn send(
@@ -609,17 +612,17 @@ fn send(
     data: *const u8,
     byte_len: usize,
     bit_len: usize,
-    options: RakRsSendOptions,
+    options: RakSampSendOptions,
     kind: ListenerKind,
-) -> RakRsResult {
+) -> RakSampResult {
     let Ok(payload) = (unsafe { stream_from_abi(data, byte_len, bit_len) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     let Ok(options) = send_options(options) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        return RakRsResult::NotReady;
+        return RakSampResult::NotReady;
     };
     let result = match kind {
         ListenerKind::Packet => runtime.send_packet_with_options(id, &payload, options),
@@ -627,9 +630,9 @@ fn send(
     };
     result.map_or_else(send_result, |sent| {
         if sent {
-            RakRsResult::Ok
+            RakSampResult::Ok
         } else {
-            RakRsResult::NativeCallFailed
+            RakSampResult::NativeCallFailed
         }
     })
 }
@@ -640,18 +643,18 @@ fn emulate_incoming(
     byte_len: usize,
     bit_len: usize,
     kind: ListenerKind,
-) -> RakRsResult {
+) -> RakSampResult {
     let Ok(payload) = (unsafe { stream_from_abi(data, byte_len, bit_len) }) else {
-        return RakRsResult::InvalidArgument;
+        return RakSampResult::InvalidArgument;
     };
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        return RakRsResult::NotReady;
+        return RakSampResult::NotReady;
     };
     let result = match kind {
         ListenerKind::Packet => runtime.emulate_incoming_packet(id, payload),
         ListenerKind::Rpc => runtime.emulate_incoming_rpc(id, payload),
     };
-    result.map_or_else(send_result, |_| RakRsResult::Ok)
+    result.map_or_else(send_result, |_| RakSampResult::Ok)
 }
 
 unsafe fn stream_from_abi(
@@ -673,7 +676,7 @@ unsafe fn stream_from_abi(
     BitStream::from_bytes_with_bits(bytes, bit_len)
 }
 
-unsafe fn abi_event(event: *mut RakRsEventV1) -> Result<&'static mut AbiEvent, ()> {
+unsafe fn abi_event(event: *mut RakSampEventV1) -> Result<&'static mut AbiEvent, ()> {
     let event = unsafe { event.cast::<AbiEvent>().as_mut() }.ok_or(())?;
     if event.payload.is_null() {
         return Err(());
@@ -681,33 +684,33 @@ unsafe fn abi_event(event: *mut RakRsEventV1) -> Result<&'static mut AbiEvent, (
     Ok(event)
 }
 
-fn bitstream_result(error: BitStreamError) -> RakRsResult {
+fn bitstream_result(error: BitStreamError) -> RakSampResult {
     match error {
-        BitStreamError::ReadOutOfBounds { .. } => RakRsResult::ReadOutOfBounds,
-        BitStreamError::CapacityExceeded { .. } => RakRsResult::PayloadTooLarge,
-        BitStreamError::InvalidOffset { .. } => RakRsResult::InvalidArgument,
+        BitStreamError::ReadOutOfBounds { .. } => RakSampResult::ReadOutOfBounds,
+        BitStreamError::CapacityExceeded { .. } => RakSampResult::PayloadTooLarge,
+        BitStreamError::InvalidOffset { .. } => RakSampResult::InvalidArgument,
     }
 }
 
-fn send_result(error: SendError) -> RakRsResult {
+fn send_result(error: SendError) -> RakSampResult {
     match error {
-        SendError::ClientNotReady => RakRsResult::NotReady,
-        SendError::PayloadTooLarge => RakRsResult::PayloadTooLarge,
-        SendError::NativeCallFailed => RakRsResult::NativeCallFailed,
-        SendError::TimestampedPacketUnsupported => RakRsResult::InvalidArgument,
+        SendError::ClientNotReady => RakSampResult::NotReady,
+        SendError::PayloadTooLarge => RakSampResult::PayloadTooLarge,
+        SendError::NativeCallFailed => RakSampResult::NativeCallFailed,
+        SendError::TimestampedPacketUnsupported => RakSampResult::InvalidArgument,
     }
 }
 
-fn codec_result(error: CodecError) -> RakRsResult {
+fn codec_result(error: CodecError) -> RakSampResult {
     match error {
-        CodecError::ClientNotReady => RakRsResult::NotReady,
-        CodecError::InvalidArgument => RakRsResult::InvalidArgument,
-        CodecError::PayloadTooLarge => RakRsResult::PayloadTooLarge,
-        CodecError::NativeCallFailed => RakRsResult::NativeCallFailed,
+        CodecError::ClientNotReady => RakSampResult::NotReady,
+        CodecError::InvalidArgument => RakSampResult::InvalidArgument,
+        CodecError::PayloadTooLarge => RakSampResult::PayloadTooLarge,
+        CodecError::NativeCallFailed => RakSampResult::NativeCallFailed,
     }
 }
 
-fn send_options(options: RakRsSendOptions) -> Result<SendOptions, ()> {
+fn send_options(options: RakSampSendOptions) -> Result<SendOptions, ()> {
     let priority = match options.priority {
         0 => PacketPriority::System,
         1 => PacketPriority::High,

@@ -1,14 +1,25 @@
 [package]
-name = "rak_rs_plugin_api"
-version = "0.1.0"
+name = "rak_samp_plugin_api"
+version = "0.1.0-alpha.2"
 edition = "2024"
+rust-version = "1.87"
 license = "MIT"
-description = "Versioned C ABI client for rak_rs ASI plugins"
+description = "Windows x86 C ABI client for rak_samp ASI plugins"
+repository = "https://github.com/Akionka/rak-samp"
+homepage = "https://github.com/Akionka/rak-samp"
+documentation = "https://docs.rs/rak_samp_plugin_api"
+keywords = ["samp", "raknet", "gta-sa", "asi", "windows"]
+categories = ["api-bindings", "game-development", "os::windows-apis"]
+include = ["/src", "/Cargo.toml"]
+
+[package.metadata.docs.rs]
+default-target = "i686-pc-windows-msvc"
+targets = ["i686-pc-windows-msvc"]
 
 [lib]
-name = "rak_rs_plugin_api"
+name = "rak_samp_plugin_api"
 
-[target.'cfg(windows)'.dependencies]
+[target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

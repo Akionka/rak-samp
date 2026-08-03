@@ -14,10 +14,10 @@ $env:GTA_DIR = 'D:\Games\GTA San Andreas'
 cargo make deploy-validation
 ```
 
-Start GTA with `rak_rs.asi` and `rak_rs_validation.asi`, connect to a server,
+Start GTA with `rak_samp.asi` and `rak_samp_validation.asi`, connect to a server,
 and use ordinary gameplay for about 30 seconds (walk or drive, chat, and press
 F5 several times). Exit normally. The validator writes
-`rak-rs-validation.log` beside its ASI; the host writes `rak-rs.log`.
+`rak-samp-validation.log` beside its ASI; the host writes `rak-samp.log`.
 
 A passing standard run has all of the following:
 
@@ -39,15 +39,15 @@ starting GTA and remove them afterwards.
 
 | Scenario | Command | Effect |
 | --- | --- | --- |
-| Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
+| Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
+| Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the separate runtime-unload check, close GTA and run:
 
 ```powershell
 cargo make deploy-validation-unload
-Remove-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-shutdown.enabled') -ErrorAction SilentlyContinue
-New-Item (Join-Path $env:GTA_DIR 'rak-rs-validation-unload.enabled') -ItemType File -Force
+Remove-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ErrorAction SilentlyContinue
+New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-unload.enabled') -ItemType File -Force
 ```
 
 The external manager owns shutdown in this scenario. A pass reports successful

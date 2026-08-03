@@ -2,10 +2,10 @@
 
 ## Layout
 
-This Rust 2024 workspace builds a process-wide Windows x86 host (`rak_rs.asi`).
+This Rust 2024 workspace builds a process-wide Windows x86 host (`rak_samp.asi`).
 Host runtime and ABI implementation live in `src/`; independently loaded ASI
 plugins depend only on `plugin_api/`. Typed RPC helpers belong in
-`plugin_api/src/events/`. The examples contain a minimal plugin, a `/rakrs`
+`plugin_api/src/events/`. The examples contain a minimal plugin, a `/raksamp`
 chat-command plugin, and in-game validation tooling. Keep SA-MP offsets in
 `src/client.rs`, native hook code in `src/platform/win32.rs`, and independent
 ABI oracles in `tests/fixtures/`.
@@ -21,7 +21,7 @@ Run from the repository root:
 - `cargo make deploy` to copy the release host to `$env:GTA_DIR`
 - `cargo make deploy-validation` to deploy the host and validation plugin
 - `cargo make deploy-validation-unload` to include the external unload manager
-- `cargo make deploy-chat-command-example` to deploy the `/rakrs` example
+- `cargo make deploy-chat-command-example` to deploy the `/raksamp` example
 
 Close GTA before deployment because Windows locks loaded ASIs.
 

@@ -98,51 +98,51 @@ dependencies = [
 ]
 
 [[package]]
-name = "rak_rs"
-version = "0.1.0"
+name = "rak-samp"
+version = "0.1.0-alpha.2"
 dependencies = [
  "cc",
  "log",
  "minhook",
- "rak_rs_plugin_api",
+ "rak_samp_plugin_api",
  "simplelog",
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_rs_chat_command_example"
+name = "rak_samp_chat_command_example"
 version = "0.1.0"
 dependencies = [
- "rak_rs_plugin_api",
+ "rak_samp_plugin_api",
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_rs_plugin_api"
-version = "0.1.0"
+name = "rak_samp_plugin_api"
+version = "0.1.0-alpha.2"
 dependencies = [
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_rs_sample_plugin"
+name = "rak_samp_sample_plugin"
 version = "0.1.0"
 dependencies = [
- "rak_rs_plugin_api",
+ "rak_samp_plugin_api",
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_rs_validation_plugin"
+name = "rak_samp_validation_plugin"
 version = "0.1.0"
 dependencies = [
- "rak_rs_plugin_api",
+ "rak_samp_plugin_api",
  "time",
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_rs_validation_unloader"
+name = "rak_samp_validation_unloader"
 version = "0.1.0"
 dependencies = [
  "time",

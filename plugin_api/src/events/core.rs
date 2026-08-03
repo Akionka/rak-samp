@@ -8,7 +8,7 @@
 //! Text fields deliberately use `Vec<u8>`: SA-MP text is not guaranteed to be UTF-8. Use
 //! [`std::str::from_utf8`] only when the server's encoding is known.
 
-use crate::{HostApi, RakRsEventV1, RakRsHookAction, RakRsResult};
+use crate::{HostApi, RakSampEventV1, RakSampHookAction, RakSampResult};
 use core::{fmt, marker::PhantomData};
 
 /// Maximum supported length for a `string32` field in the initial helper set.
@@ -49,7 +49,7 @@ pub enum RpcAction<T> {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EventError {
     /// The host rejected an operation on the callback event.
-    Host(RakRsResult),
+    Host(RakSampResult),
     /// A `string32` length exceeded the event's documented safe limit.
     LengthExceedsLimit { length: usize, limit: usize },
     /// A field cannot be encoded in the SA-MP representation used by this helper.
@@ -68,7 +68,10 @@ impl fmt::Display for EventError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Host(result) => {
-                write!(formatter, "rak-rs host event operation failed: {result:?}")
+                write!(
+                    formatter,
+                    "rak-samp host event operation failed: {result:?}"
+                )
             }
             Self::LengthExceedsLimit { length, limit } => {
                 write!(
@@ -79,7 +82,7 @@ impl fmt::Display for EventError {
             Self::ValueOutOfRange { value, maximum } => {
                 write!(formatter, "value {value} exceeds the maximum {maximum}")
             }
-            Self::NullEvent => formatter.write_str("rak-rs supplied a null callback event"),
+            Self::NullEvent => formatter.write_str("rak-samp supplied a null callback event"),
             Self::InvalidBitLength { bit_len, byte_len } => write!(
                 formatter,
                 "bit length {bit_len} exceeds the {byte_len}-byte payload"
@@ -103,8 +106,8 @@ impl std::error::Error for EventError {}
 /// host. It may not be retained after that callback returns.
 pub struct Event<'callback> {
     api: HostApi,
-    raw: *mut RakRsEventV1,
-    _callback: PhantomData<&'callback mut RakRsEventV1>,
+    raw: *mut RakSampEventV1,
+    _callback: PhantomData<&'callback mut RakSampEventV1>,
 }
 
 impl<'callback> Event<'callback> {
@@ -112,9 +115,12 @@ impl<'callback> Event<'callback> {
     ///
     /// # Safety
     ///
-    /// `raw` must be the event pointer received from a currently executing `rak_rs` callback and
+    /// `raw` must be the event pointer received from a currently executing `rak_samp` callback and
     /// the returned value must not outlive that callback.
-    pub unsafe fn from_callback(api: HostApi, raw: *mut RakRsEventV1) -> Result<Self, EventError> {
+    pub unsafe fn from_callback(
+        api: HostApi,
+        raw: *mut RakSampEventV1,
+    ) -> Result<Self, EventError> {
         if raw.is_null() {
             return Err(EventError::NullEvent);
         }
@@ -195,7 +201,7 @@ impl<'callback> Event<'callback> {
             )
         })?;
         if length > bytes.len() {
-            return Err(EventError::Host(RakRsResult::NativeCallFailed));
+            return Err(EventError::Host(RakSampResult::NativeCallFailed));
         }
         bytes.truncate(length);
         Ok(bytes)
@@ -304,8 +310,8 @@ impl<'callback> Event<'callback> {
         self.write_bytes(value)
     }
 
-    fn host_result(&self, result: RakRsResult) -> Result<(), EventError> {
-        if result == RakRsResult::Ok {
+    fn host_result(&self, result: RakSampResult) -> Result<(), EventError> {
+        if result == RakSampResult::Ok {
             Ok(())
         } else {
             Err(EventError::Host(result))
@@ -547,9 +553,9 @@ impl<T> Rpc<T> {
         self,
         event: &mut Event<'_>,
         handler: impl FnOnce(T) -> RpcAction<T>,
-    ) -> Result<RakRsHookAction, EventError> {
+    ) -> Result<RakSampHookAction, EventError> {
         if event.id() != self.id {
-            return Ok(RakRsHookAction::Continue);
+            return Ok(RakSampHookAction::Continue);
         }
         event.reset_read()?;
         let value = (self.decode)(event)?;
@@ -560,12 +566,12 @@ impl<T> Rpc<T> {
             });
         }
         match handler(value) {
-            RpcAction::Continue => Ok(RakRsHookAction::Continue),
-            RpcAction::Block => Ok(RakRsHookAction::Block),
+            RpcAction::Continue => Ok(RakSampHookAction::Continue),
+            RpcAction::Block => Ok(RakSampHookAction::Block),
             RpcAction::Replace(value) => {
                 let payload = self.encode(event.api, value)?;
                 event.replace_bits(payload.as_bytes(), payload.len_bits())?;
-                Ok(RakRsHookAction::Continue)
+                Ok(RakSampHookAction::Continue)
             }
         }
     }
@@ -576,13 +582,13 @@ impl<T> Rpc<T> {
 /// # Safety
 ///
 /// `raw` must be the event pointer supplied to the currently executing callback. On an error,
-/// return [`RakRsHookAction::Continue`] so malformed traffic remains fail-open.
+/// return [`RakSampHookAction::Continue`] so malformed traffic remains fail-open.
 pub unsafe fn handle<T>(
     api: HostApi,
-    raw: *mut RakRsEventV1,
+    raw: *mut RakSampEventV1,
     rpc: Rpc<T>,
     handler: impl FnOnce(T) -> RpcAction<T>,
-) -> Result<RakRsHookAction, EventError> {
+) -> Result<RakSampHookAction, EventError> {
     let mut event = unsafe { Event::from_callback(api, raw) }?;
     rpc.handle(&mut event, handler)
 }

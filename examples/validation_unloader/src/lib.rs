@@ -1,5 +1,8 @@
 //! External validation manager for synchronized runtime ASI unload.
 
+#[cfg(not(all(windows, target_arch = "x86")))]
+compile_error!("rak_samp_validation_unloader supports only 32-bit Windows x86 targets");
+
 use std::{
     ffi::c_void,
     fs::{File, OpenOptions},
@@ -19,8 +22,8 @@ use windows_sys::Win32::{
 };
 use windows_sys::core::BOOL;
 
-const ENABLE_MARKER: &str = "rak-rs-validation-unload.enabled";
-const TARGET_MODULE: &[u8] = b"rak_rs_validation.asi\0";
+const ENABLE_MARKER: &str = "rak-samp-validation-unload.enabled";
+const TARGET_MODULE: &[u8] = b"rak_samp_validation.asi\0";
 const TARGET_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
 const SELF_TEST_WAIT_TIMEOUT: Duration = Duration::from_secs(120);
 const POLL_INTERVAL: Duration = Duration::from_millis(10);
@@ -38,7 +41,7 @@ unsafe extern "system" fn DllMain(
     if reason == DLL_PROCESS_ATTACH {
         unsafe { DisableThreadLibraryCalls(instance) };
         let _ = std::thread::Builder::new()
-            .name("rak-rs-validation-unloader".into())
+            .name("rak-samp-validation-unloader".into())
             .spawn(run);
     }
     TRUE
@@ -59,12 +62,12 @@ fn run() {
         write_log("target validation ASI did not load within 30 seconds");
         return;
     };
-    let Some(self_tests_complete) = resolve(module, c"RakRsValidation_SelfTestsComplete") else {
-        write_log("target is missing RakRsValidation_SelfTestsComplete");
+    let Some(self_tests_complete) = resolve(module, c"RakSampValidation_SelfTestsComplete") else {
+        write_log("target is missing RakSampValidation_SelfTestsComplete");
         return;
     };
-    let Some(shutdown) = resolve(module, c"RakRsPlugin_Shutdown") else {
-        write_log("target is missing RakRsPlugin_Shutdown");
+    let Some(shutdown) = resolve(module, c"RakSampPlugin_Shutdown") else {
+        write_log("target is missing RakSampPlugin_Shutdown");
         return;
     };
 
@@ -121,7 +124,7 @@ fn initialize_log() {
         .create(true)
         .write(true)
         .truncate(true)
-        .open("rak-rs-validation-unloader.log");
+        .open("rak-samp-validation-unloader.log");
     if let Ok(file) = result {
         let _ = LOG_FILE.set(Mutex::new(file));
     }

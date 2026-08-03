@@ -1,12 +1,12 @@
 # Core Features
 
-`rak-rs` builds one Windows x86 host, `rak_rs.asi`. Independent plugins link
-only `rak_rs_plugin_api`; the host owns SA-MP detection and native hooks.
+`rak-samp` builds one Windows x86 host, `rak_samp.asi`. Independent plugins link
+only `rak_samp_plugin_api`; the host owns SA-MP detection and native hooks.
 
 ## Runtime
 
 Bootstrap runs outside `DllMain`, waits for `samp.dll`, and exposes a ready or
-failed host state. Lifecycle and ABI diagnostics go to `rak-rs.log`; packet and
+failed host state. Lifecycle and ABI diagnostics go to `rak-samp.log`; packet and
 RPC payloads are never logged.
 
 Plugins subscribe to incoming or outgoing packets and RPCs. A matching listener
@@ -17,7 +17,7 @@ incoming emulation follows the normal incoming dispatch path exactly once.
 
 ## ABI and plugin safety
 
-`RakRsApiV1` is append-only and C-compatible: Rust references, trait objects,
+`RakSampApiV1` is append-only and C-compatible: Rust references, trait objects,
 allocations, and native pointers do not cross the DLL boundary. Payload sizes
 and bit counts are checked before they reach RakNet.
 

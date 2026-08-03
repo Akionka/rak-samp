@@ -667,53 +667,56 @@ mod layout_tests {
     use std::ptr;
 
     unsafe extern "C" {
-        fn rak_rs_fixture_player_id_size() -> usize;
-        fn rak_rs_fixture_player_id_alignment() -> usize;
-        fn rak_rs_fixture_packet_size() -> usize;
-        fn rak_rs_fixture_packet_alignment() -> usize;
-        fn rak_rs_fixture_packet_player_index_offset() -> usize;
-        fn rak_rs_fixture_packet_player_id_offset() -> usize;
-        fn rak_rs_fixture_packet_length_offset() -> usize;
-        fn rak_rs_fixture_packet_bit_size_offset() -> usize;
-        fn rak_rs_fixture_packet_data_offset() -> usize;
-        fn rak_rs_fixture_packet_delete_data_offset() -> usize;
-        fn rak_rs_fixture_initialize_packet(memory: *mut RawPacket, data: *mut u8);
+        fn rak_samp_fixture_player_id_size() -> usize;
+        fn rak_samp_fixture_player_id_alignment() -> usize;
+        fn rak_samp_fixture_packet_size() -> usize;
+        fn rak_samp_fixture_packet_alignment() -> usize;
+        fn rak_samp_fixture_packet_player_index_offset() -> usize;
+        fn rak_samp_fixture_packet_player_id_offset() -> usize;
+        fn rak_samp_fixture_packet_length_offset() -> usize;
+        fn rak_samp_fixture_packet_bit_size_offset() -> usize;
+        fn rak_samp_fixture_packet_data_offset() -> usize;
+        fn rak_samp_fixture_packet_delete_data_offset() -> usize;
+        fn rak_samp_fixture_initialize_packet(memory: *mut RawPacket, data: *mut u8);
     }
 
     #[test]
     fn raknet_packet_layout_matches_the_cpp_x86_abi() {
         unsafe {
-            assert_eq!(size_of::<PacketPlayerId>(), rak_rs_fixture_player_id_size());
+            assert_eq!(
+                size_of::<PacketPlayerId>(),
+                rak_samp_fixture_player_id_size()
+            );
             assert_eq!(
                 align_of::<PacketPlayerId>(),
-                rak_rs_fixture_player_id_alignment()
+                rak_samp_fixture_player_id_alignment()
             );
 
-            assert_eq!(size_of::<RawPacket>(), rak_rs_fixture_packet_size());
-            assert_eq!(align_of::<RawPacket>(), rak_rs_fixture_packet_alignment());
+            assert_eq!(size_of::<RawPacket>(), rak_samp_fixture_packet_size());
+            assert_eq!(align_of::<RawPacket>(), rak_samp_fixture_packet_alignment());
             assert_eq!(
                 offset_of!(RawPacket, player_index),
-                rak_rs_fixture_packet_player_index_offset()
+                rak_samp_fixture_packet_player_index_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, player_id),
-                rak_rs_fixture_packet_player_id_offset()
+                rak_samp_fixture_packet_player_id_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, length),
-                rak_rs_fixture_packet_length_offset()
+                rak_samp_fixture_packet_length_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, bit_size),
-                rak_rs_fixture_packet_bit_size_offset()
+                rak_samp_fixture_packet_bit_size_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, data),
-                rak_rs_fixture_packet_data_offset()
+                rak_samp_fixture_packet_data_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, delete_data),
-                rak_rs_fixture_packet_delete_data_offset()
+                rak_samp_fixture_packet_delete_data_offset()
             );
         }
     }
@@ -723,7 +726,7 @@ mod layout_tests {
         let mut data = [0xAA, 0xBB, 0xCC];
         let mut packet = MaybeUninit::<RawPacket>::uninit();
         unsafe {
-            rak_rs_fixture_initialize_packet(packet.as_mut_ptr(), data.as_mut_ptr());
+            rak_samp_fixture_initialize_packet(packet.as_mut_ptr(), data.as_mut_ptr());
             let packet = packet.assume_init();
             assert_eq!(ptr::addr_of!(packet.player_index).read_unaligned(), 0x1234);
             assert_eq!(

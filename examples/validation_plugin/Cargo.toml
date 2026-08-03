@@ -1,5 +1,5 @@
 [package]
-name = "rak_rs_validation_plugin"
+name = "rak_samp_validation_plugin"
 version = "0.1.0"
 edition = "2024"
 publish = false
@@ -9,7 +9,7 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-rak_rs_plugin_api = { path = "../../plugin_api" }
+rak_samp_plugin_api = { path = "../../plugin_api" }
 time = { version = "0.3", features = ["formatting"] }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",

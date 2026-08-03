@@ -73,9 +73,9 @@ macro_rules! packet_helper {
         /// See [`super::super::handle`].
         pub unsafe fn $name(
             api: HostApi,
-            raw: *mut RakRsEventV1,
+            raw: *mut RakSampEventV1,
             handler: impl FnOnce($value) -> RpcAction<$value>,
-        ) -> Result<RakRsHookAction, EventError> {
+        ) -> Result<RakSampHookAction, EventError> {
             unsafe { handle(api, raw, $packet, handler) }
         }
     };

@@ -2,7 +2,7 @@ use log::LevelFilter;
 use simplelog::{ConfigBuilder, WriteLogger};
 use std::{fs::OpenOptions, sync::Once};
 
-pub(crate) const LOG_FILE_NAME: &str = "rak-rs.log";
+pub(crate) const LOG_FILE_NAME: &str = "rak-samp.log";
 
 /// Configures the host logger once, outside the Windows loader lock.
 pub(crate) fn initialize() {
@@ -17,13 +17,13 @@ pub(crate) fn initialize() {
         {
             Ok(file) => file,
             Err(error) => {
-                eprintln!("rak-rs: could not open {LOG_FILE_NAME}: {error}");
+                eprintln!("rak-samp: could not open {LOG_FILE_NAME}: {error}");
                 return;
             }
         };
         let config = ConfigBuilder::new().set_time_format_rfc3339().build();
         if let Err(error) = WriteLogger::init(LevelFilter::Debug, config, file) {
-            eprintln!("rak-rs: could not initialize logging: {error}");
+            eprintln!("rak-samp: could not initialize logging: {error}");
         }
     });
 }

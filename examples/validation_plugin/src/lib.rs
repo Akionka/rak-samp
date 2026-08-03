@@ -1,8 +1,11 @@
-//! In-game validation plugin for the rak-rs native packet and RPC paths.
+//! In-game validation plugin for the rak-samp native packet and RPC paths.
 
-use rak_rs_plugin_api::{
-    HostApi, RakRsApiV1, RakRsDirection, RakRsEventCallbackV1, RakRsEventV1, RakRsHookAction,
-    RakRsResult, RakRsSendOptions, RakRsSubscription, ResolveError,
+#[cfg(not(all(windows, target_arch = "x86")))]
+compile_error!("rak_samp_validation_plugin supports only 32-bit Windows x86 targets");
+
+use rak_samp_plugin_api::{
+    HostApi, RakSampApiV1, RakSampDirection, RakSampEventCallbackV1, RakSampEventV1,
+    RakSampHookAction, RakSampResult, RakSampSendOptions, RakSampSubscription, ResolveError,
     events::{EncodedPayload, EventError, RpcAction, packet, rpc::incoming},
     wait_for_default_host,
 };
@@ -39,14 +42,14 @@ const ID_TIMESTAMP: u8 = 40;
 const ID_STATS_UPDATE: u8 = 205;
 const RPC_UPDATE_SCORES_AND_PINGS: u8 = 155;
 const STATS_PAYLOAD_LEN: usize = 8;
-const SEND_TEST_MARKER: &str = "rak-rs-validation-send.enabled";
-const SHUTDOWN_TEST_MARKER: &str = "rak-rs-validation-shutdown.enabled";
+const SEND_TEST_MARKER: &str = "rak-samp-validation-send.enabled";
+const SHUTDOWN_TEST_MARKER: &str = "rak-samp-validation-shutdown.enabled";
 const TEST_PACKET_ID: u8 = 254;
 const TEST_RPC_ID: u8 = 255;
-const TEST_PACKET_INPUT: [u8; 16] = *b"rak-rs-packet-in";
-const TEST_PACKET_REPLACEMENT: [u8; 16] = *b"rak-rs-packet-ok";
-const TEST_RPC_INPUT: [u8; 16] = *b"rak-rs-rpc-input";
-const TEST_RPC_REPLACEMENT: [u8; 16] = *b"rak-rs-rpc-pass!";
+const TEST_PACKET_INPUT: [u8; 18] = *b"rak-samp-packet-in";
+const TEST_PACKET_REPLACEMENT: [u8; 18] = *b"rak-samp-packet-ok";
+const TEST_RPC_INPUT: [u8; 18] = *b"rak-samp-rpc-input";
+const TEST_RPC_REPLACEMENT: [u8; 18] = *b"rak-samp-rpc-pass!";
 const SELF_TEST_PENDING: u32 = 0;
 const SELF_TEST_REWRITTEN: u32 = 1;
 const SELF_TEST_PASSED: u32 = 2;
@@ -57,16 +60,16 @@ const SELF_TEST_DISABLED: u32 = 6;
 
 type IdHistogram = [AtomicU32; ID_COUNT];
 type RegisterFn = unsafe extern "system" fn(
-    RakRsDirection,
-    Option<RakRsEventCallbackV1>,
+    RakSampDirection,
+    Option<RakSampEventCallbackV1>,
     *mut c_void,
-    *mut RakRsSubscription,
-) -> RakRsResult;
+    *mut RakSampSubscription,
+) -> RakSampResult;
 
 static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
 static LOG_FILE: OnceLock<Mutex<File>> = OnceLock::new();
 static PLUGIN_DIRECTORY: OnceLock<PathBuf> = OnceLock::new();
-static API: AtomicPtr<RakRsApiV1> = AtomicPtr::new(ptr::null_mut());
+static API: AtomicPtr<RakSampApiV1> = AtomicPtr::new(ptr::null_mut());
 static STOP: AtomicBool = AtomicBool::new(false);
 static INCOMING_PACKETS: AtomicU32 = AtomicU32::new(0);
 static OUTGOING_PACKETS: AtomicU32 = AtomicU32::new(0);
@@ -96,7 +99,7 @@ static OUTGOING_RPC_IDS: IdHistogram = [const { AtomicU32::new(0) }; ID_COUNT];
 
 struct PluginState {
     api: Option<HostApi>,
-    subscriptions: Vec<RakRsSubscription>,
+    subscriptions: Vec<RakSampSubscription>,
     initialization_worker: Option<JoinHandle<()>>,
     reporter_worker: Option<JoinHandle<()>>,
     self_test_worker: Option<JoinHandle<()>>,
@@ -127,7 +130,7 @@ unsafe extern "system" fn DllMain(
             unsafe { DisableThreadLibraryCalls(instance) };
             let instance = instance as usize;
             let worker = std::thread::Builder::new()
-                .name("rak-rs-validation-init".into())
+                .name("rak-samp-validation-init".into())
                 .spawn(move || initialize(instance));
             if let Ok(worker) = worker {
                 STATE
@@ -160,41 +163,41 @@ fn initialize(instance: usize) {
         return;
     }
 
-    let registrations: [(&str, RegisterFn, RakRsDirection, RakRsEventCallbackV1); 6] = [
+    let registrations: [(&str, RegisterFn, RakSampDirection, RakSampEventCallbackV1); 6] = [
         (
             "incoming packet self-test rewriter",
             api.raw().register_packet,
-            RakRsDirection::Incoming,
+            RakSampDirection::Incoming,
             rewrite_test_packet,
         ),
         (
             "incoming RPC self-test rewriter",
             api.raw().register_rpc,
-            RakRsDirection::Incoming,
+            RakSampDirection::Incoming,
             rewrite_test_rpc,
         ),
         (
             "incoming packet",
             api.raw().register_packet,
-            RakRsDirection::Incoming,
+            RakSampDirection::Incoming,
             on_incoming_packet,
         ),
         (
             "outgoing packet",
             api.raw().register_packet,
-            RakRsDirection::Outgoing,
+            RakSampDirection::Outgoing,
             on_outgoing_packet,
         ),
         (
             "incoming RPC",
             api.raw().register_rpc,
-            RakRsDirection::Incoming,
+            RakSampDirection::Incoming,
             on_incoming_rpc,
         ),
         (
             "outgoing RPC",
             api.raw().register_rpc,
-            RakRsDirection::Outgoing,
+            RakSampDirection::Outgoing,
             on_outgoing_rpc,
         ),
     ];
@@ -220,7 +223,7 @@ fn initialize(instance: usize) {
         state.api = Some(api);
         state.subscriptions = subscriptions;
         API.store(
-            api.raw() as *const RakRsApiV1 as *mut RakRsApiV1,
+            api.raw() as *const RakSampApiV1 as *mut RakSampApiV1,
             Ordering::Release,
         );
     }
@@ -228,7 +231,7 @@ fn initialize(instance: usize) {
     report_counts(0);
 
     match std::thread::Builder::new()
-        .name("rak-rs-validation-report".into())
+        .name("rak-samp-validation-report".into())
         .spawn(report_loop)
     {
         Ok(worker) => {
@@ -251,7 +254,7 @@ fn initialize(instance: usize) {
     }
 
     match std::thread::Builder::new()
-        .name("rak-rs-validation-self-test".into())
+        .name("rak-samp-validation-self-test".into())
         .spawn(move || run_self_test(api))
     {
         Ok(worker) => {
@@ -288,17 +291,17 @@ fn wait_for_host() -> Option<HostApi> {
 
 fn register(
     register: unsafe extern "system" fn(
-        RakRsDirection,
-        Option<RakRsEventCallbackV1>,
+        RakSampDirection,
+        Option<RakSampEventCallbackV1>,
         *mut c_void,
-        *mut RakRsSubscription,
-    ) -> RakRsResult,
-    direction: RakRsDirection,
-    callback: Option<RakRsEventCallbackV1>,
-) -> Result<RakRsSubscription, RakRsResult> {
-    let mut subscription = RakRsSubscription::default();
+        *mut RakSampSubscription,
+    ) -> RakSampResult,
+    direction: RakSampDirection,
+    callback: Option<RakSampEventCallbackV1>,
+) -> Result<RakSampSubscription, RakSampResult> {
+    let mut subscription = RakSampSubscription::default();
     let result = unsafe { register(direction, callback, ptr::null_mut(), &raw mut subscription) };
-    if result == RakRsResult::Ok {
+    if result == RakSampResult::Ok {
         Ok(subscription)
     } else {
         Err(result)
@@ -307,8 +310,8 @@ fn register(
 
 unsafe extern "system" fn on_incoming_packet(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     let observed = observe_packet(
         event,
         &INCOMING_PACKETS,
@@ -323,7 +326,7 @@ unsafe extern "system" fn on_incoming_packet(
         &TEST_PACKET_REPLACEMENT,
         &PACKET_SELF_TEST,
     );
-    if action == RakRsHookAction::Block {
+    if action == RakSampHookAction::Block {
         return action;
     }
     let Some((raw_api, packet_id @ (200 | 207 | 208))) = observed else {
@@ -337,8 +340,8 @@ unsafe extern "system" fn on_incoming_packet(
 
 unsafe extern "system" fn on_outgoing_packet(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     let observed = observe_packet(
         event,
         &OUTGOING_PACKETS,
@@ -348,13 +351,13 @@ unsafe extern "system" fn on_outgoing_packet(
     if let Some((api, ID_STATS_UPDATE)) = observed {
         capture_stats_payload(api, event);
     }
-    RakRsHookAction::Continue
+    RakSampHookAction::Continue
 }
 
 unsafe extern "system" fn on_incoming_rpc(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     let observed = observe(event, &INCOMING_RPCS, &INCOMING_RPC_IDS);
     let action = test_verdict(
         observed,
@@ -364,7 +367,7 @@ unsafe extern "system" fn on_incoming_rpc(
         &TEST_RPC_REPLACEMENT,
         &RPC_SELF_TEST,
     );
-    if action == RakRsHookAction::Block {
+    if action == RakSampHookAction::Block {
         return action;
     }
     let Some((raw_api, rpc_id)) = observed else {
@@ -387,7 +390,7 @@ unsafe extern "system" fn on_incoming_rpc(
     }
 }
 
-fn validate_player_skin(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookAction {
+fn validate_player_skin(api: HostApi, event: *mut RakSampEventV1) -> RakSampHookAction {
     match unsafe {
         incoming::on_set_player_skin(api, event, |_skin| {
             PLAYER_SKIN_DECODED.fetch_add(1, Ordering::Relaxed);
@@ -397,7 +400,7 @@ fn validate_player_skin(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookActi
         Ok(action) => action,
         Err(error) => {
             write_log(&format!("SetPlayerSkin decode failed: {error}"));
-            RakRsHookAction::Continue
+            RakSampHookAction::Continue
         }
     }
 }
@@ -428,16 +431,16 @@ fn typed_packet_action<T>(value: T) -> RpcAction<T> {
 
 fn validate_typed_r1_packet(
     api: HostApi,
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     packet_id: u8,
-) -> RakRsHookAction {
+) -> RakSampHookAction {
     macro_rules! handle_packet {
         ($helper:path) => {
             match unsafe { $helper(api, event, typed_packet_action) } {
                 Ok(action) => action,
                 Err(error) => {
                     write_log(&format!("R1 typed packet {packet_id} failed: {error}"));
-                    RakRsHookAction::Continue
+                    RakSampHookAction::Continue
                 }
             }
         };
@@ -446,18 +449,22 @@ fn validate_typed_r1_packet(
         200 => handle_packet!(packet::incoming::on_vehicle_sync),
         207 => handle_packet!(packet::incoming::on_player_sync),
         208 => handle_packet!(packet::incoming::on_markers_sync),
-        _ => RakRsHookAction::Continue,
+        _ => RakSampHookAction::Continue,
     }
 }
 
-fn validate_typed_r1_rpc(api: HostApi, event: *mut RakRsEventV1, rpc_id: u8) -> RakRsHookAction {
+fn validate_typed_r1_rpc(
+    api: HostApi,
+    event: *mut RakSampEventV1,
+    rpc_id: u8,
+) -> RakSampHookAction {
     macro_rules! handle_rpc {
         ($helper:path) => {
             match unsafe { $helper(api, event, typed_rpc_action) } {
                 Ok(action) => action,
                 Err(error) => {
                     write_log(&format!("R1 typed RPC {rpc_id} failed: {error}"));
-                    RakRsHookAction::Continue
+                    RakSampHookAction::Continue
                 }
             }
         };
@@ -486,11 +493,11 @@ fn validate_typed_r1_rpc(api: HostApi, event: *mut RakRsEventV1, rpc_id: u8) -> 
         167 => handle_rpc!(incoming::on_disable_vehicle_collisions),
         170 => handle_rpc!(incoming::on_toggle_camera_target_notifying),
         173 => handle_rpc!(incoming::on_apply_actor_animation),
-        _ => RakRsHookAction::Continue,
+        _ => RakSampHookAction::Continue,
     }
 }
 
-fn validate_dialog_rewrite(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookAction {
+fn validate_dialog_rewrite(api: HostApi, event: *mut RakSampEventV1) -> RakSampHookAction {
     let first = unsafe {
         incoming::on_show_dialog(api, event, |dialog| {
             if dialog == test_dialog_input() {
@@ -504,10 +511,10 @@ fn validate_dialog_rewrite(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookA
     if let Err(error) = first {
         DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
         write_log(&format!("dialog decode/rewrite failed: {error}"));
-        return RakRsHookAction::Continue;
+        return RakSampHookAction::Continue;
     }
     if DIALOG_SELF_TEST.load(Ordering::Acquire) != SELF_TEST_REWRITTEN {
-        return first.unwrap_or(RakRsHookAction::Continue);
+        return first.unwrap_or(RakSampHookAction::Continue);
     }
     match unsafe {
         incoming::on_show_dialog(api, event, |dialog| {
@@ -524,7 +531,7 @@ fn validate_dialog_rewrite(api: HostApi, event: *mut RakRsEventV1) -> RakRsHookA
         Err(error) => {
             DIALOG_SELF_TEST.store(SELF_TEST_FAILED, Ordering::Release);
             write_log(&format!("dialog replacement verification failed: {error}"));
-            RakRsHookAction::Continue
+            RakSampHookAction::Continue
         }
     }
 }
@@ -533,7 +540,7 @@ fn test_dialog_input() -> incoming::ShowDialog {
     incoming::ShowDialog {
         dialog_id: 0x7FFE,
         style: 2,
-        title: b"rak-rs input".to_vec(),
+        title: b"rak-samp input".to_vec(),
         button1: b"accept".to_vec(),
         button2: b"cancel".to_vec(),
         text: b"native encoded dialog input".to_vec(),
@@ -544,7 +551,7 @@ fn test_dialog_replacement() -> incoming::ShowDialog {
     incoming::ShowDialog {
         dialog_id: 0x7FFD,
         style: 5,
-        title: b"rak-rs replacement".to_vec(),
+        title: b"rak-samp replacement".to_vec(),
         button1: b"yes".to_vec(),
         button2: b"no".to_vec(),
         text: b"native encoded dialog replacement".to_vec(),
@@ -553,18 +560,18 @@ fn test_dialog_replacement() -> incoming::ShowDialog {
 
 unsafe extern "system" fn on_outgoing_rpc(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     observe(event, &OUTGOING_RPCS, &OUTGOING_RPC_IDS);
-    RakRsHookAction::Continue
+    RakSampHookAction::Continue
 }
 
 fn observe_packet(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     count: &AtomicU32,
     ids: &IdHistogram,
     timestamp_inner_ids: &IdHistogram,
-) -> Option<(*mut RakRsApiV1, u8)> {
+) -> Option<(*mut RakSampApiV1, u8)> {
     let (api, id) = observe(event, count, ids)?;
     if id != ID_TIMESTAMP {
         return Some((api, id));
@@ -572,10 +579,10 @@ fn observe_packet(
 
     let mut timestamp = 0;
     let mut inner_id = 0;
-    let decoded = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok
-        && unsafe { ((*api).event_read_u32)(event, &raw mut timestamp) } == RakRsResult::Ok
-        && unsafe { ((*api).event_read_u8)(event, &raw mut inner_id) } == RakRsResult::Ok;
-    let restored = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok;
+    let decoded = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok
+        && unsafe { ((*api).event_read_u32)(event, &raw mut timestamp) } == RakSampResult::Ok
+        && unsafe { ((*api).event_read_u8)(event, &raw mut inner_id) } == RakSampResult::Ok;
+    let restored = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok;
     if decoded && restored {
         timestamp_inner_ids[usize::from(inner_id)].fetch_add(1, Ordering::Relaxed);
     } else {
@@ -586,8 +593,8 @@ fn observe_packet(
 
 unsafe extern "system" fn rewrite_test_packet(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     rewrite_test_event(
         event,
         TEST_PACKET_ID,
@@ -595,13 +602,13 @@ unsafe extern "system" fn rewrite_test_packet(
         &TEST_PACKET_REPLACEMENT,
         &PACKET_SELF_TEST,
     );
-    RakRsHookAction::Continue
+    RakSampHookAction::Continue
 }
 
 unsafe extern "system" fn rewrite_test_rpc(
     _user_data: *mut c_void,
-    event: *mut RakRsEventV1,
-) -> RakRsHookAction {
+    event: *mut RakSampEventV1,
+) -> RakSampHookAction {
     rewrite_test_event(
         event,
         TEST_RPC_ID,
@@ -609,11 +616,11 @@ unsafe extern "system" fn rewrite_test_rpc(
         &TEST_RPC_REPLACEMENT,
         &RPC_SELF_TEST,
     );
-    RakRsHookAction::Continue
+    RakSampHookAction::Continue
 }
 
 fn rewrite_test_event<const N: usize>(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     expected_id: u8,
     input: &[u8; N],
     replacement: &[u8; N],
@@ -631,7 +638,7 @@ fn rewrite_test_event<const N: usize>(
     }
     let result = unsafe { ((*api).event_replace_bytes)(event, replacement.as_ptr(), N) };
     status.store(
-        if result == RakRsResult::Ok {
+        if result == RakSampResult::Ok {
             SELF_TEST_REWRITTEN
         } else {
             SELF_TEST_FAILED
@@ -641,53 +648,53 @@ fn rewrite_test_event<const N: usize>(
 }
 
 fn test_verdict<const N: usize>(
-    observed: Option<(*mut RakRsApiV1, u8)>,
-    event: *mut RakRsEventV1,
+    observed: Option<(*mut RakSampApiV1, u8)>,
+    event: *mut RakSampEventV1,
     expected_id: u8,
     input: &[u8; N],
     replacement: &[u8; N],
     status: &AtomicU32,
-) -> RakRsHookAction {
+) -> RakSampHookAction {
     let Some((api, id)) = observed else {
-        return RakRsHookAction::Continue;
+        return RakSampHookAction::Continue;
     };
     if id != expected_id {
-        return RakRsHookAction::Continue;
+        return RakSampHookAction::Continue;
     }
     if event_matches(api, event, replacement) {
         status.store(SELF_TEST_PASSED, Ordering::Release);
-        return RakRsHookAction::Block;
+        return RakSampHookAction::Block;
     }
     if event_matches(api, event, input) {
         status.store(SELF_TEST_FAILED, Ordering::Release);
-        return RakRsHookAction::Block;
+        return RakSampHookAction::Block;
     }
-    RakRsHookAction::Continue
+    RakSampHookAction::Continue
 }
 
 fn event_matches<const N: usize>(
-    api: *mut RakRsApiV1,
-    event: *mut RakRsEventV1,
+    api: *mut RakSampApiV1,
+    event: *mut RakSampEventV1,
     expected: &[u8; N],
 ) -> bool {
     read_exact_event(api, event).as_ref() == Some(expected)
 }
 
 fn read_exact_event<const N: usize>(
-    api: *mut RakRsApiV1,
-    event: *mut RakRsEventV1,
+    api: *mut RakSampApiV1,
+    event: *mut RakSampEventV1,
 ) -> Option<[u8; N]> {
     let mut actual = [0; N];
     let mut trailing = 0;
-    let read = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok
-        && unsafe { ((*api).event_read_bytes)(event, actual.as_mut_ptr(), N) } == RakRsResult::Ok
+    let read = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok
+        && unsafe { ((*api).event_read_bytes)(event, actual.as_mut_ptr(), N) } == RakSampResult::Ok
         && unsafe { ((*api).event_read_u8)(event, &raw mut trailing) }
-            == RakRsResult::ReadOutOfBounds;
-    let restored = unsafe { ((*api).event_reset_read)(event) } == RakRsResult::Ok;
+            == RakSampResult::ReadOutOfBounds;
+    let restored = unsafe { ((*api).event_reset_read)(event) } == RakSampResult::Ok;
     (read && restored).then_some(actual)
 }
 
-fn capture_stats_payload(api: *mut RakRsApiV1, event: *mut RakRsEventV1) {
+fn capture_stats_payload(api: *mut RakSampApiV1, event: *mut RakSampEventV1) {
     if STATS_PAYLOAD_READY.load(Ordering::Acquire) {
         return;
     }
@@ -701,10 +708,10 @@ fn capture_stats_payload(api: *mut RakRsApiV1, event: *mut RakRsEventV1) {
 }
 
 fn observe(
-    event: *mut RakRsEventV1,
+    event: *mut RakSampEventV1,
     count: &AtomicU32,
     ids: &IdHistogram,
-) -> Option<(*mut RakRsApiV1, u8)> {
+) -> Option<(*mut RakSampApiV1, u8)> {
     if event.is_null() {
         NULL_EVENTS.fetch_add(1, Ordering::Relaxed);
         return None;
@@ -777,7 +784,7 @@ fn run_send_self_test(api: HostApi) {
     if !plugin_path(SEND_TEST_MARKER).is_file() {
         SEND_PACKET_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
         SEND_RPC_SELF_TEST.store(SELF_TEST_DISABLED, Ordering::Release);
-        write_log("send self-test disabled; opt in with rak-rs-validation-send.enabled");
+        write_log("send self-test disabled; opt in with rak-samp-validation-send.enabled");
         return;
     }
     write_log("send self-test enabled; waiting for an outgoing ID_STATS_UPDATE payload");
@@ -799,9 +806,9 @@ fn run_send_self_test(api: HostApi) {
     for (destination, source) in payload.iter_mut().zip(&STATS_PAYLOAD) {
         *destination = source.load(Ordering::Relaxed);
     }
-    let packet_options = RakRsSendOptions {
+    let packet_options = RakSampSendOptions {
         reliability: 6,
-        ..RakRsSendOptions::default()
+        ..RakSampSendOptions::default()
     };
     let packet_result = api.send_packet(
         ID_STATS_UPDATE,
@@ -815,7 +822,7 @@ fn run_send_self_test(api: HostApi) {
         RPC_UPDATE_SCORES_AND_PINGS,
         &[],
         0,
-        RakRsSendOptions::default(),
+        RakSampSendOptions::default(),
     );
     record_send_result("RPC", rpc_result, &SEND_RPC_SELF_TEST);
     write_log(&format!(
@@ -825,10 +832,10 @@ fn run_send_self_test(api: HostApi) {
     ));
 }
 
-fn record_send_result(label: &str, result: RakRsResult, status: &AtomicU32) {
+fn record_send_result(label: &str, result: RakSampResult, status: &AtomicU32) {
     write_log(&format!("send self-test {label} returned {result:?}"));
     status.store(
-        if result == RakRsResult::Ok {
+        if result == RakSampResult::Ok {
             SELF_TEST_PASSED
         } else {
             SELF_TEST_CALL_FAILED
@@ -843,10 +850,10 @@ fn schedule_shutdown_self_test() {
     }
     write_log("shutdown self-test enabled; scheduling coordinated callback shutdown");
     if let Err(error) = std::thread::Builder::new()
-        .name("rak-rs-validation-shutdown".into())
+        .name("rak-samp-validation-shutdown".into())
         .spawn(|| {
             std::thread::sleep(Duration::from_millis(250));
-            let result = RakRsPlugin_Shutdown();
+            let result = RakSampPlugin_Shutdown();
             write_log(&format!("shutdown self-test returned {result}"));
         })
     {
@@ -856,14 +863,14 @@ fn schedule_shutdown_self_test() {
     }
 }
 
-fn emulate_when_ready(mut emulate: impl FnMut() -> RakRsResult) -> RakRsResult {
+fn emulate_when_ready(mut emulate: impl FnMut() -> RakSampResult) -> RakSampResult {
     let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
     loop {
         if STOP.load(Ordering::Acquire) {
-            return RakRsResult::NotReady;
+            return RakSampResult::NotReady;
         }
         let result = emulate();
-        if result != RakRsResult::NotReady || Instant::now() >= deadline {
+        if result != RakSampResult::NotReady || Instant::now() >= deadline {
             return result;
         }
         std::thread::sleep(Duration::from_millis(10));
@@ -874,10 +881,10 @@ fn encode_dialog_when_ready(api: HostApi) -> Result<EncodedPayload, EventError> 
     let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
     loop {
         if STOP.load(Ordering::Acquire) {
-            return Err(EventError::Host(RakRsResult::NotReady));
+            return Err(EventError::Host(RakSampResult::NotReady));
         }
         let result = incoming::SHOW_DIALOG.encode(api, test_dialog_input());
-        if !matches!(result, Err(EventError::Host(RakRsResult::NotReady)))
+        if !matches!(result, Err(EventError::Host(RakSampResult::NotReady)))
             || Instant::now() >= deadline
         {
             return result;
@@ -886,9 +893,9 @@ fn encode_dialog_when_ready(api: HostApi) -> Result<EncodedPayload, EventError> 
     }
 }
 
-fn record_emulation_result(label: &str, result: RakRsResult, status: &AtomicU32) {
+fn record_emulation_result(label: &str, result: RakSampResult, status: &AtomicU32) {
     write_log(&format!("self-test {label} emulation returned {result:?}"));
-    if result != RakRsResult::Ok {
+    if result != RakSampResult::Ok {
         let _ = status.compare_exchange(
             SELF_TEST_PENDING,
             SELF_TEST_CALL_FAILED,
@@ -1061,7 +1068,7 @@ fn packet_name(id: u8) -> Option<&'static str> {
         210 => "ID_TRAILER_SYNC",
         211 => "ID_PASSENGER_SYNC",
         212 => "ID_SPECTATOR_SYNC",
-        TEST_PACKET_ID => "RAK_RS_SELF_TEST",
+        TEST_PACKET_ID => "rak_samp_SELF_TEST",
         _ => return None,
     })
 }
@@ -1110,7 +1117,7 @@ fn incoming_rpc_name(id: u8) -> Option<&'static str> {
         162 => "SET_CAMERA_BEHIND",
         163 => "PLAYER_STREAM_OUT",
         165 => "VEHICLE_STREAM_OUT",
-        TEST_RPC_ID => "RAK_RS_SELF_TEST",
+        TEST_RPC_ID => "rak_samp_SELF_TEST",
         _ => return None,
     })
 }
@@ -1142,7 +1149,7 @@ fn initialize_log() {
         .create(true)
         .write(true)
         .truncate(true)
-        .open(plugin_path("rak-rs-validation.log"))
+        .open(plugin_path("rak-samp-validation.log"))
     else {
         return;
     };
@@ -1211,7 +1218,7 @@ fn is_shutting_down() -> bool {
         .shutting_down
 }
 
-fn unregister_all(api: HostApi, subscriptions: Vec<RakRsSubscription>) {
+fn unregister_all(api: HostApi, subscriptions: Vec<RakSampSubscription>) {
     for subscription in subscriptions {
         let _ = api.unregister_and_wait(subscription);
     }
@@ -1219,7 +1226,7 @@ fn unregister_all(api: HostApi, subscriptions: Vec<RakRsSubscription>) {
 
 /// Stops workers and callbacks before an unload manager calls `FreeLibrary`.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
+pub extern "system" fn RakSampPlugin_Shutdown() -> BOOL {
     STOP.store(true, Ordering::Release);
     let initialization = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
@@ -1260,7 +1267,10 @@ pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
     let mut failed = Vec::new();
     for subscription in subscriptions {
         let result = api.unregister_and_wait(subscription);
-        if !matches!(result, RakRsResult::Ok | RakRsResult::SubscriptionNotFound) {
+        if !matches!(
+            result,
+            RakSampResult::Ok | RakSampResult::SubscriptionNotFound
+        ) {
             write_log(&format!(
                 "subscription {} failed to stop: {result:?}",
                 subscription.id
@@ -1283,31 +1293,31 @@ pub extern "system" fn RakRsPlugin_Shutdown() -> BOOL {
 
 /// Returns the number of incoming packet callbacks observed in this session.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsValidation_IncomingPacketCount() -> u32 {
+pub extern "system" fn RakSampValidation_IncomingPacketCount() -> u32 {
     INCOMING_PACKETS.load(Ordering::Relaxed)
 }
 
 /// Returns the number of outgoing packet callbacks observed in this session.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsValidation_OutgoingPacketCount() -> u32 {
+pub extern "system" fn RakSampValidation_OutgoingPacketCount() -> u32 {
     OUTGOING_PACKETS.load(Ordering::Relaxed)
 }
 
 /// Returns the number of incoming RPC callbacks observed in this session.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsValidation_IncomingRpcCount() -> u32 {
+pub extern "system" fn RakSampValidation_IncomingRpcCount() -> u32 {
     INCOMING_RPCS.load(Ordering::Relaxed)
 }
 
 /// Returns the number of outgoing RPC callbacks observed in this session.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsValidation_OutgoingRpcCount() -> u32 {
+pub extern "system" fn RakSampValidation_OutgoingRpcCount() -> u32 {
     OUTGOING_RPCS.load(Ordering::Relaxed)
 }
 
 /// Reports whether all enabled local, send, and emulation self-tests finished.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakRsValidation_SelfTestsComplete() -> BOOL {
+pub extern "system" fn RakSampValidation_SelfTestsComplete() -> BOOL {
     let statuses = [
         PACKET_SELF_TEST.load(Ordering::Acquire),
         RPC_SELF_TEST.load(Ordering::Acquire),
@@ -1332,8 +1342,8 @@ mod tests {
         assert_eq!(packet_name(207), Some("ID_PLAYER_SYNC"));
         assert_eq!(incoming_rpc_name(93), Some("SERVER_MESSAGE"));
         assert_eq!(incoming_rpc_name(153), Some("SET_PLAYER_SKIN"));
-        assert_eq!(packet_name(TEST_PACKET_ID), Some("RAK_RS_SELF_TEST"));
-        assert_eq!(incoming_rpc_name(TEST_RPC_ID), Some("RAK_RS_SELF_TEST"));
+        assert_eq!(packet_name(TEST_PACKET_ID), Some("rak_samp_SELF_TEST"));
+        assert_eq!(incoming_rpc_name(TEST_RPC_ID), Some("rak_samp_SELF_TEST"));
     }
 
     #[test]

@@ -28,47 +28,47 @@ static_assert(alignof(FixturePacket) == 1);
 
 extern "C" {
 
-std::size_t rak_rs_fixture_player_id_size() {
+std::size_t rak_samp_fixture_player_id_size() {
     return sizeof(FixturePlayerId);
 }
 
-std::size_t rak_rs_fixture_player_id_alignment() {
+std::size_t rak_samp_fixture_player_id_alignment() {
     return alignof(FixturePlayerId);
 }
 
-std::size_t rak_rs_fixture_packet_size() {
+std::size_t rak_samp_fixture_packet_size() {
     return sizeof(FixturePacket);
 }
 
-std::size_t rak_rs_fixture_packet_alignment() {
+std::size_t rak_samp_fixture_packet_alignment() {
     return alignof(FixturePacket);
 }
 
-std::size_t rak_rs_fixture_packet_player_index_offset() {
+std::size_t rak_samp_fixture_packet_player_index_offset() {
     return offsetof(FixturePacket, player_index);
 }
 
-std::size_t rak_rs_fixture_packet_player_id_offset() {
+std::size_t rak_samp_fixture_packet_player_id_offset() {
     return offsetof(FixturePacket, player_id);
 }
 
-std::size_t rak_rs_fixture_packet_length_offset() {
+std::size_t rak_samp_fixture_packet_length_offset() {
     return offsetof(FixturePacket, length);
 }
 
-std::size_t rak_rs_fixture_packet_bit_size_offset() {
+std::size_t rak_samp_fixture_packet_bit_size_offset() {
     return offsetof(FixturePacket, bit_size);
 }
 
-std::size_t rak_rs_fixture_packet_data_offset() {
+std::size_t rak_samp_fixture_packet_data_offset() {
     return offsetof(FixturePacket, data);
 }
 
-std::size_t rak_rs_fixture_packet_delete_data_offset() {
+std::size_t rak_samp_fixture_packet_delete_data_offset() {
     return offsetof(FixturePacket, delete_data);
 }
 
-void rak_rs_fixture_initialize_packet(void* memory, unsigned char* data) {
+void rak_samp_fixture_initialize_packet(void* memory, unsigned char* data) {
     auto* packet = static_cast<FixturePacket*>(memory);
     *packet = {};
     packet->player_index = 0x1234;
