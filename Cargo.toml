@@ -1,6 +1,6 @@
 [package]
 name = "rak-samp"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 edition = "2024"
 rust-version = "1.87"
 description = "Windows x86 SA-MP RakNet host for Rust ASI plugins"
@@ -44,7 +44,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4"
-rak_samp_plugin_api = { package = "rak_samp_plugin_api", version = "=0.1.0-alpha.2", path = "plugin_api" }
+rak_samp_plugin_api = { package = "rak_samp_plugin_api", version = "=0.1.0-alpha.3", path = "plugin_api" }
 simplelog = "0.12"
 
 [build-dependencies]

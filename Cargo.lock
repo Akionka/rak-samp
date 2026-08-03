@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "rak-samp"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "cc",
  "log",
@@ -141,7 +141,7 @@ dependencies = [
 
 [[package]]
 name = "rak_samp_plugin_api"
-version = "0.1.0-alpha.2"
+version = "0.1.0-alpha.3"
 dependencies = [
  "windows-sys",
 ]
