@@ -92,6 +92,14 @@ fixtures, disassembly, or the E2E mock alone.
    Candidate outputs are copied dialog text/buttons/list selection and copied
    chat draft text only; close/select/edit/open/command registration remain
    mutations and are excluded.
+   Static audit note (2026-08-03): the upstream R1 headers identify candidate
+   `CDialog` pointers at `m_pListbox=0x20` and `m_pEditbox=0x24`, while
+   SF.lua reads the selected item via the foreign `CDXUTListBox + 0x143` and
+   obtains edit text through a `CDXUTIMEEditBox` method. This is lead-only
+   evidence: before a safe copy, independently reconstruct both R1 prefixes,
+   pin the exact R1 producer/lifetime paths, bound the returned text, and run
+   an active/inactive list/input live transition. Do not expose these pointers
+   or rely solely on the headers.
 7. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
     state first, then labels, textdraws, objects, and pickups. Each needs a
    bounded copied model, independent native-layout

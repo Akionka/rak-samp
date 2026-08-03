@@ -102,6 +102,14 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
 
 ## Windows x86 evidence
 
+- **Dynamic dialog/input audit boundary:** the upstream multiversion R1
+  headers and SF.lua source identify candidate dialog list/edit control
+  pointers and a list-selection field, but those references are leads only.
+  They do not prove DXUT allocation ownership, control lifetime, text bounds,
+  or a matching installed-R1 code path. No dynamic dialog or chat-draft bytes
+  are therefore copied by the host yet; a separate fixture, target signatures,
+  and live active/inactive scenario are required before that surface exists.
+
 - **R1 player-directory accessor targets:** the installed SA-MP 0.3.7 R1
   `samp.dll` audit confirms `CNetGame::GetPlayerPool` at RVA `0x1160`,
   `CPlayerPool::{IsConnected,GetPlayer,IsNPC,GetName,GetScore,GetPing}` at
