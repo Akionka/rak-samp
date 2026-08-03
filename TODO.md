@@ -439,7 +439,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   and armour bytes into reported floats at `+0x1BC` and `+0x1B8`, and writes
   its special-action byte to `+0xBB`. Before exposing any snapshot, add an
   independent packed remote-player fixture, exact complete update-path
-  signatures for every copied field (including animation lifecycle), bounded
+  signatures for every copied field. The on-foot health/armour/special-action
+  signature is now pinned at `Update(OnfootData) + 0x2F` (RVA `0x139CF`);
+  animation remains blocked on a distinct verified write lifecycle for the
+  `CRemotePlayer + 0x1C0` field, rather than being inferred from on-foot sync
+  bytes. Then add bounded
   cache/queue tests, ABI mock/E2E coverage, and an opt-in second-client live
   scenario that exercises damage, special action, and animation transitions.
 - [~] `sampGetPlayerCount` — `HostApi::player_count(include_npcs)` caches the
