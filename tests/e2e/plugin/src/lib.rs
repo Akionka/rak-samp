@@ -5,7 +5,7 @@ compile_error!("rak_samp_e2e_plugin supports only 32-bit Windows x86 targets");
 
 use rak_samp_plugin_api::{
     LocalDialog, LocalDialogStyle, RakSampDirection, RakSampHookAction, Subscription,
-    wait_for_default_host,
+    raknet::BitStream, wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -31,6 +31,7 @@ static DIALOG_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 static LOCAL_PLAYER_ID: AtomicU32 = AtomicU32::new(u32::MAX);
 static SAMP_GAME_STATE: AtomicI32 = AtomicI32::new(i32::MIN);
 static SAMP_VERSION: AtomicU32 = AtomicU32::new(u32::MAX);
+static DECODE_RESULT: AtomicU32 = AtomicU32::new(u32::MAX);
 
 #[unsafe(no_mangle)]
 /// Windows invokes this with loader-owned arguments while the plugin module is loaded.
@@ -76,6 +77,16 @@ fn initialize() {
     }
     if let Ok(version) = api.samp_version() {
         SAMP_VERSION.store(version as u32, Ordering::Release);
+    }
+    let mut compressed = match BitStream::from_bits(vec![0b1010_0000], 3) {
+        Ok(value) => value,
+        Err(_) => return,
+    };
+    if let Ok(decoded) = api.decode_string(&mut compressed)
+        && decoded == b"e2e"
+        && compressed.read_offset_bits() == 3
+    {
+        DECODE_RESULT.store(1, Ordering::Release);
     }
     let subscription = api.on_rpc_id(RakSampDirection::Incoming, TEST_RPC_ID, |_| {
         CALLBACKS.fetch_add(1, Ordering::AcqRel);
@@ -128,6 +139,11 @@ pub extern "system" fn RakSampE2ePlugin_SampGameState() -> i32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn RakSampE2ePlugin_SampVersion() -> u32 {
     SAMP_VERSION.load(Ordering::Acquire)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn RakSampE2ePlugin_DecodeResult() -> u32 {
+    DECODE_RESULT.load(Ordering::Acquire)
 }
 
 #[unsafe(no_mangle)]

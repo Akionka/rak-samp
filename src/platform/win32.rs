@@ -418,13 +418,14 @@ impl BackendState {
             return Err(CodecError::NativeCallFailed);
         }
         let read_offset = native.read_offset().ok_or(CodecError::NativeCallFailed)?;
+        let length = output
+            .iter()
+            .position(|byte| *byte == 0)
+            .ok_or(CodecError::PayloadTooLarge)?;
         payload
             .set_read_offset_bits(read_offset)
             .map_err(|_| CodecError::NativeCallFailed)?;
-        Ok(output
-            .iter()
-            .position(|byte| *byte == 0)
-            .unwrap_or_else(|| output.len().saturating_sub(1)))
+        Ok(length)
     }
 
     fn ready_string_compressor(&self) -> Result<*mut c_void, CodecError> {

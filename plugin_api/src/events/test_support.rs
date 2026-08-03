@@ -494,6 +494,39 @@ unsafe extern "system" fn test_samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn test_decode_string(
+    input: *const u8,
+    input_len: usize,
+    input_bit_len: usize,
+    input_read_offset: usize,
+    output: *mut u8,
+    output_capacity: usize,
+    output_len: *mut usize,
+    output_read_offset: *mut usize,
+) -> RakSampResult {
+    if input.is_null()
+        || input_len != 1
+        || input_bit_len != 3
+        || input_read_offset != 0
+        || output.is_null()
+        || output_capacity < b"fixture".len() + 1
+        || output_len.is_null()
+        || output_read_offset.is_null()
+    {
+        return RakSampResult::InvalidArgument;
+    }
+    let input = unsafe { std::slice::from_raw_parts(input, input_len) };
+    if input != [0b1010_0000] {
+        return RakSampResult::InvalidArgument;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(b"fixture".as_ptr(), output, b"fixture".len());
+        output_len.write(b"fixture".len());
+        output_read_offset.write(input_bit_len);
+    }
+    RakSampResult::Ok
+}
+
 static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     abi_version: crate::ABI_VERSION_V1,
     size: mem::size_of::<crate::RakSampApiV1>() as u32,
@@ -529,6 +562,7 @@ static TEST_API: crate::RakSampApiV1 = crate::RakSampApiV1 {
     local_player: test_local_player,
     samp_game_state: test_samp_game_state,
     samp_version: test_samp_version,
+    decode_string: test_decode_string,
 };
 
 pub(crate) fn test_api() -> HostApi {

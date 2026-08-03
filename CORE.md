@@ -55,7 +55,10 @@ not interpret or inspect network payloads.
 The same module provides an owned, bounded `BitStream` with checked cursors and
 MSB-first RakNet bit order. Stream sends reuse the host's existing exact-bit
 packet/RPC ABI. It deliberately has no data-pointer escape hatch, no native
-allocation, and no generic StringCompressor decode outside a callback.
+allocation, and no native bitstream lifetime. `HostApi::decode_string` is the
+bounded exception to callback-local StringCompressor decoding: it copies an
+owned stream through the ABI, returns at most 4,095 owned bytes, and applies
+the resulting read cursor only after a successful native decode.
 
 A plugin must keep its `Subscription` values or a `SubscriptionSet` and, before
 runtime unload, call `unregister_and_wait` from a worker thread. Batch failures

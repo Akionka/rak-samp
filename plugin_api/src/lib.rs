@@ -21,6 +21,11 @@ use std::{
 
 pub const ABI_VERSION_V1: u32 = 1;
 pub const DEFAULT_HOST_MODULE: &[u8] = b"rak_samp.asi\0";
+/// Maximum decoded byte length accepted by [`HostApi::decode_string`].
+///
+/// The extra byte used by the host's native decoder is reserved for its NUL
+/// terminator and is not included in this limit.
+pub const MAX_RAKNET_DECODED_STRING_BYTES: usize = 4_095;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -365,6 +370,21 @@ pub struct RakSampApiV1 {
     pub samp_game_state: unsafe extern "system" fn(*mut i32) -> RakSampResult,
     /// Copies the detected SA-MP client version identity into `output`.
     pub samp_version: unsafe extern "system" fn(*mut u32) -> RakSampResult,
+    /// Decodes an owned bit stream with SA-MP's native RakNet string compressor.
+    ///
+    /// `input_read_offset` is the initial cursor, and `output_read_offset`
+    /// receives the cursor after a successful decode. The output buffer has no
+    /// required terminator; `output_len` selects its initialized prefix.
+    pub decode_string: unsafe extern "system" fn(
+        *const u8,
+        usize,
+        usize,
+        usize,
+        *mut u8,
+        usize,
+        *mut usize,
+        *mut usize,
+    ) -> RakSampResult,
 }
 
 pub type RakSampGetApiV1 = unsafe extern "system" fn(u32) -> *const RakSampApiV1;
@@ -965,6 +985,41 @@ impl HostApi {
         Ok(RakSampEncodedString { bytes, bit_len })
     }
 
+    /// Decodes one native RakNet-compressed string from an owned bit stream.
+    ///
+    /// On success, advances `stream`'s read cursor by exactly the bits the
+    /// client decoder consumed. The returned byte string has no terminating
+    /// NUL and is bounded to [`MAX_RAKNET_DECODED_STRING_BYTES`]. On failure,
+    /// the stream cursor is unchanged.
+    pub fn decode_string(self, stream: &mut raknet::BitStream) -> Result<Vec<u8>, RakSampResult> {
+        let mut output = vec![0_u8; MAX_RAKNET_DECODED_STRING_BYTES + 1];
+        let mut output_len = 0_usize;
+        let mut output_read_offset = 0_usize;
+        let result = unsafe {
+            (self.raw.decode_string)(
+                stream.as_bytes().as_ptr(),
+                stream.len_bytes(),
+                stream.len_bits(),
+                stream.read_offset_bits(),
+                output.as_mut_ptr(),
+                output.len(),
+                &raw mut output_len,
+                &raw mut output_read_offset,
+            )
+        };
+        if result != RakSampResult::Ok {
+            return Err(result);
+        }
+        if output_len > MAX_RAKNET_DECODED_STRING_BYTES || output_read_offset > stream.len_bits() {
+            return Err(RakSampResult::NativeCallFailed);
+        }
+        stream
+            .set_read_offset(output_read_offset)
+            .map_err(|_| RakSampResult::NativeCallFailed)?;
+        output.truncate(output_len);
+        Ok(output)
+    }
+
     /// Copies and queues a direct local dialog on the verified R1 game thread.
     ///
     /// [`RakSampResult::Ok`] confirms only that the host copied and queued the
@@ -1276,8 +1331,12 @@ mod tests {
             mem::offset_of!(RakSampApiV1, samp_game_state) + function_size
         );
         assert_eq!(
-            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, decode_string),
             mem::offset_of!(RakSampApiV1, samp_version) + function_size
+        );
+        assert_eq!(
+            mem::size_of::<RakSampApiV1>(),
+            mem::offset_of!(RakSampApiV1, decode_string) + function_size
         );
     }
 
@@ -1340,6 +1399,25 @@ mod tests {
             test_support::test_api().samp_version(),
             Ok(RakSampClientVersion::R1)
         );
+    }
+
+    #[test]
+    fn decode_string_returns_owned_bytes_and_advances_the_owned_stream() {
+        let api = test_support::test_api();
+        let mut stream = raknet::BitStream::from_bits(vec![0b1010_0000], 3)
+            .expect("fixture bit stream is valid");
+
+        assert_eq!(api.decode_string(&mut stream), Ok(b"fixture".to_vec()));
+        assert_eq!(stream.read_offset_bits(), 3);
+
+        let mut rejected = raknet::BitStream::from_bits(vec![0b0100_0000], 3)
+            .expect("fixture bit stream is valid");
+        rejected.set_read_offset(1).expect("cursor is valid");
+        assert_eq!(
+            api.decode_string(&mut rejected),
+            Err(RakSampResult::InvalidArgument)
+        );
+        assert_eq!(rejected.read_offset_bits(), 1);
     }
 
     #[test]

@@ -141,6 +141,7 @@ static RAK_SAMP_API_V1: RakSampApiV1 = RakSampApiV1 {
     local_player,
     samp_game_state,
     samp_version,
+    decode_string,
 };
 
 extern "system" fn host_status() -> RakSampHostStatus {
@@ -539,6 +540,64 @@ unsafe extern "system" fn event_read_encoded_string(
     match runtime.decode_string(unsafe { &mut *event.payload }, output) {
         Ok(length) => {
             unsafe { output_len.write(length) };
+            RakSampResult::Ok
+        }
+        Err(error) => codec_result(error),
+    }
+}
+
+const MAX_CODEC_INPUT_BITS: usize = 16 * 1024 * 1024 * u8::BITS as usize;
+const MAX_CODEC_OUTPUT_BYTES: usize = 4_096;
+
+unsafe extern "system" fn decode_string(
+    input: *const u8,
+    input_byte_len: usize,
+    input_bit_len: usize,
+    input_read_offset: usize,
+    output: *mut u8,
+    output_capacity: usize,
+    output_len: *mut usize,
+    output_read_offset: *mut usize,
+) -> RakSampResult {
+    if (input.is_null() && input_byte_len != 0)
+        || output.is_null()
+        || output_capacity == 0
+        || output_len.is_null()
+        || output_read_offset.is_null()
+        || input_bit_len > input_byte_len.saturating_mul(u8::BITS as usize)
+        || input_read_offset > input_bit_len
+    {
+        return RakSampResult::InvalidArgument;
+    }
+    if input_bit_len > MAX_CODEC_INPUT_BITS || output_capacity > MAX_CODEC_OUTPUT_BYTES {
+        return RakSampResult::PayloadTooLarge;
+    }
+    let input_len = input_bit_len.div_ceil(u8::BITS as usize);
+    let input = if input_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(input, input_len) }
+    };
+    let Ok(mut payload) = BitStream::from_bytes_with_bits(input.to_vec(), input_bit_len) else {
+        return RakSampResult::InvalidArgument;
+    };
+    if payload.set_read_offset_bits(input_read_offset).is_err() {
+        return RakSampResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return RakSampResult::NotReady;
+    };
+    let output = unsafe { std::slice::from_raw_parts_mut(output, output_capacity) };
+    match runtime.decode_string(&mut payload, output) {
+        Ok(length) => {
+            let read_offset = payload.read_offset_bits();
+            if length >= output_capacity || read_offset > input_bit_len {
+                return RakSampResult::NativeCallFailed;
+            }
+            unsafe {
+                output_len.write(length);
+                output_read_offset.write(read_offset);
+            }
             RakSampResult::Ok
         }
         Err(error) => codec_result(error),
@@ -955,6 +1014,61 @@ mod tests {
         assert_eq!(
             unsafe { samp_version(&mut version) },
             RakSampResult::NotReady
+        );
+        let mut decoded = [0; 1];
+        let mut decoded_len = 0;
+        let mut read_offset = 0;
+        assert_eq!(
+            unsafe {
+                decode_string(
+                    std::ptr::null(),
+                    0,
+                    0,
+                    0,
+                    decoded.as_mut_ptr(),
+                    decoded.len(),
+                    &raw mut decoded_len,
+                    &raw mut read_offset,
+                )
+            },
+            RakSampResult::NotReady
+        );
+    }
+
+    #[test]
+    fn owned_string_decode_rejects_invalid_abi_metadata_before_runtime_access() {
+        let mut decoded = [0; 1];
+        let mut decoded_len = 0;
+        let mut read_offset = 0;
+        assert_eq!(
+            unsafe {
+                decode_string(
+                    std::ptr::null(),
+                    0,
+                    1,
+                    0,
+                    decoded.as_mut_ptr(),
+                    decoded.len(),
+                    &raw mut decoded_len,
+                    &raw mut read_offset,
+                )
+            },
+            RakSampResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe {
+                decode_string(
+                    std::ptr::null(),
+                    0,
+                    0,
+                    0,
+                    decoded.as_mut_ptr(),
+                    MAX_CODEC_OUTPUT_BYTES + 1,
+                    &raw mut decoded_len,
+                    &raw mut read_offset,
+                )
+            },
+            RakSampResult::PayloadTooLarge
         );
     }
 

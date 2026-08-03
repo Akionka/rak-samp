@@ -23,7 +23,11 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   observed emulated packet and RPC events once each through normal dispatch.
 - **Encoded strings:** the host calls the detected client's StringCompressor
   reader and writer as x86 `thiscall` functions. An R1 live test encoded,
-  decoded, replaced, and blocked a private dialog without instability.
+  decoded, replaced, and blocked a private dialog without instability. The
+  owned `HostApi::decode_string` path reuses that verified reader behind copied
+  input/output buffers, a 16 MiB input cap, a 4,096-byte terminating output
+  buffer, and a scalar returned read cursor; it introduces no new native
+  address, layout, or pointer ABI.
 - **Hook and unload checks:** fixture tests cover owned-slot restoration and
   original calls. An R1 validation run completed callback quiescence before an
   external manager released the validation ASI.

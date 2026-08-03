@@ -141,9 +141,11 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   `raknetBitStreamWriteString`, `raknetBitStreamWriteBitStream` — safe owned
   equivalents are in `rak_samp_plugin_api::raknet::BitStream`; raw data pointers
   and invalid/uninitialized cursor states are intentionally unavailable.
-- [~] `raknetBitStreamEncodeString` — use `HostApi::encode_string` then
-  `BitStream::write_encoded_string`; `raknetBitStreamDecodeString` remains
-  callback-local until a safe owned decoder design exists.
+- [x] `raknetBitStreamEncodeString` — use `HostApi::encode_string` then
+  `BitStream::write_encoded_string`.
+- [~] `raknetBitStreamDecodeString` — `HostApi::decode_string` decodes through
+  copied, owned `BitStream` storage and advances its cursor only on success;
+  retain this status until the dedicated direct-ABI R1 live scenario runs.
 - [ ] `raknetBitStreamGetDataPtr` — raw client/plugin memory pointers remain
   outside the safe ABI.
 - [x] `raknetSendRpcEx`, `raknetSendRpc` — safe stream convenience methods are

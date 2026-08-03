@@ -338,6 +338,39 @@ unsafe extern "system" fn samp_version(output: *mut u32) -> RakSampResult {
     RakSampResult::Ok
 }
 
+unsafe extern "system" fn decode_string(
+    input: *const u8,
+    input_len: usize,
+    input_bit_len: usize,
+    input_read_offset: usize,
+    output: *mut u8,
+    output_capacity: usize,
+    output_len: *mut usize,
+    output_read_offset: *mut usize,
+) -> RakSampResult {
+    if input.is_null()
+        || input_len != 1
+        || input_bit_len != 3
+        || input_read_offset != 0
+        || output.is_null()
+        || output_capacity < b"e2e".len() + 1
+        || output_len.is_null()
+        || output_read_offset.is_null()
+    {
+        return RakSampResult::InvalidArgument;
+    }
+    let input = unsafe { std::slice::from_raw_parts(input, input_len) };
+    if input != [0b1010_0000] {
+        return RakSampResult::InvalidArgument;
+    }
+    unsafe {
+        std::ptr::copy_nonoverlapping(b"e2e".as_ptr(), output, b"e2e".len());
+        output_len.write(b"e2e".len());
+        output_read_offset.write(input_bit_len);
+    }
+    RakSampResult::Ok
+}
+
 static API: RakSampApiV1 = RakSampApiV1 {
     abi_version: ABI_VERSION_V1,
     size: std::mem::size_of::<RakSampApiV1>() as u32,
@@ -373,4 +406,5 @@ static API: RakSampApiV1 = RakSampApiV1 {
     local_player,
     samp_game_state,
     samp_version,
+    decode_string,
 };

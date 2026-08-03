@@ -68,7 +68,12 @@ static RPC and packet labels without requiring host discovery or a client call.
 replacement for SF.lua's native bitstream pointer. It supports checked bit,
 buffer, numeric, string, cursor, and stream operations; pass it directly to
 `HostApi::send_packet_stream` or `HostApi::send_rpc_stream`. Raw data-pointer
-access and generic native string decoding remain intentionally unavailable.
+access is intentionally unavailable.
+
+`HostApi::encode_string` and `HostApi::decode_string` use the detected
+client's native RakNet StringCompressor without exposing its pointer. Decoding
+returns owned bytes (at most 4,095), advances only the supplied owned
+`BitStream` cursor on success, and leaves that cursor unchanged on failure.
 
 Keep each `Subscription` or `SubscriptionSet`. Before runtime unload, call its
 `unregister_and_wait` method from a worker thread, then unload the ASI. Never
