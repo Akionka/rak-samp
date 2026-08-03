@@ -296,6 +296,213 @@ impl fmt::Display for SubscriptionShutdownError {
 
 impl std::error::Error for SubscriptionShutdownError {}
 
+/// A group of callback subscriptions that should be stopped together.
+///
+/// Call [`Self::unregister_and_wait`] from a worker thread before unloading the plugin ASI.
+#[must_use = "subscriptions must be synchronized before unloading the plugin ASI"]
+#[derive(Debug, Default)]
+pub struct SubscriptionSet {
+    subscriptions: Vec<Subscription>,
+}
+
+impl SubscriptionSet {
+    /// Creates an empty subscription group.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self {
+            subscriptions: Vec::new(),
+        }
+    }
+
+    /// Adds one successful registration to this group.
+    pub fn push(&mut self, subscription: Subscription) {
+        self.subscriptions.push(subscription);
+    }
+
+    /// Returns the number of owned subscriptions.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.subscriptions.len()
+    }
+
+    /// Returns whether this group has no subscriptions.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.subscriptions.is_empty()
+    }
+
+    /// Adds a registration result while preserving earlier registrations if it failed.
+    ///
+    /// This is primarily useful to [`register_handlers!`] and other batch-registration helpers.
+    pub fn try_add(
+        mut self,
+        registration: Result<Subscription, RakSampResult>,
+    ) -> Result<Self, SubscriptionRegistrationError> {
+        match registration {
+            Ok(subscription) => {
+                self.push(subscription);
+                Ok(self)
+            }
+            Err(result) => Err(SubscriptionRegistrationError {
+                result,
+                subscriptions: self,
+            }),
+        }
+    }
+
+    /// Stops every callback and waits until the host cannot invoke any of them.
+    ///
+    /// Call this from a worker thread, never from `DllMain` or from one of the registered
+    /// callbacks. Failures retain only the subscriptions that still need a retry.
+    pub fn unregister_and_wait(self) -> Result<(), SubscriptionSetShutdownError> {
+        let mut subscriptions = Vec::new();
+        let mut failures = Vec::new();
+        for subscription in self.subscriptions {
+            if let Err(error) = subscription.unregister_and_wait() {
+                let result = error.result();
+                let subscription = error.into_subscription();
+                failures.push(SubscriptionShutdownFailure {
+                    id: subscription.id(),
+                    result,
+                });
+                subscriptions.push(subscription);
+            }
+        }
+        if subscriptions.is_empty() {
+            Ok(())
+        } else {
+            Err(SubscriptionSetShutdownError {
+                failures,
+                subscriptions: Self { subscriptions },
+            })
+        }
+    }
+}
+
+/// A callback registration that failed after earlier batch registrations succeeded.
+#[derive(Debug)]
+pub struct SubscriptionRegistrationError {
+    result: RakSampResult,
+    subscriptions: SubscriptionSet,
+}
+
+impl SubscriptionRegistrationError {
+    /// Returns the host result from the failed registration.
+    #[must_use]
+    pub const fn result(&self) -> RakSampResult {
+        self.result
+    }
+
+    /// Returns the earlier successful registrations for synchronized cleanup or retry.
+    pub fn into_subscriptions(self) -> SubscriptionSet {
+        self.subscriptions
+    }
+}
+
+impl fmt::Display for SubscriptionRegistrationError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "host rejected a callback registration: {:?}",
+            self.result
+        )
+    }
+}
+
+impl std::error::Error for SubscriptionRegistrationError {}
+
+/// One subscription that the host could not synchronize.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SubscriptionShutdownFailure {
+    id: u64,
+    result: RakSampResult,
+}
+
+impl SubscriptionShutdownFailure {
+    /// Returns the host-assigned subscription identifier.
+    #[must_use]
+    pub const fn id(self) -> u64 {
+        self.id
+    }
+
+    /// Returns the host result that prevented synchronized removal.
+    #[must_use]
+    pub const fn result(self) -> RakSampResult {
+        self.result
+    }
+}
+
+/// A batch shutdown that left one or more callbacks registered.
+#[derive(Debug)]
+pub struct SubscriptionSetShutdownError {
+    failures: Vec<SubscriptionShutdownFailure>,
+    subscriptions: SubscriptionSet,
+}
+
+impl SubscriptionSetShutdownError {
+    /// Returns each callback that still needs synchronized removal.
+    #[must_use]
+    pub fn failures(&self) -> &[SubscriptionShutdownFailure] {
+        &self.failures
+    }
+
+    /// Returns the remaining subscriptions so shutdown can be retried.
+    pub fn into_subscriptions(self) -> SubscriptionSet {
+        self.subscriptions
+    }
+}
+
+impl fmt::Display for SubscriptionSetShutdownError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "host could not synchronize {} subscriptions",
+            self.failures.len()
+        )
+    }
+}
+
+impl std::error::Error for SubscriptionSetShutdownError {}
+
+/// Registers a batch of packet and RPC handlers into one [`SubscriptionSet`].
+///
+/// The macro accepts `packet`, `rpc`, `packet_id`, `rpc_id`, `typed_packet`, and `typed_rpc`
+/// entries. If one registration fails, the error retains every earlier successful subscription so
+/// the caller can synchronize them before unloading the plugin.
+#[macro_export]
+macro_rules! register_handlers {
+    ($api:expr; $($kind:ident($($argument:expr),*)),+ $(,)?) => {{
+        (|| -> Result<$crate::SubscriptionSet, $crate::SubscriptionRegistrationError> {
+            let api = $api;
+            let subscriptions = $crate::SubscriptionSet::new();
+            $(
+                let subscriptions = $crate::register_handlers!(
+                    @add subscriptions, api, $kind, $($argument),*
+                )?;
+            )+
+            Ok(subscriptions)
+        })()
+    }};
+    (@add $subscriptions:ident, $api:ident, packet, $direction:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_packet($direction, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, rpc, $direction:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_rpc($direction, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, packet_id, $direction:expr, $id:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_packet_id($direction, $id, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, rpc_id, $direction:expr, $id:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_rpc_id($direction, $id, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, typed_packet, $direction:expr, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_typed_packet($direction, $descriptor, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, typed_rpc, $direction:expr, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_typed_rpc($direction, $descriptor, $handler))
+    };
+}
+
 impl HostApi {
     /// # Safety
     ///
@@ -347,6 +554,85 @@ impl HostApi {
         F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
     {
         self.register_listener(direction, handler, self.raw.register_rpc)
+    }
+
+    /// Registers a packet callback that runs only for one packet ID.
+    pub fn on_packet_id<F>(
+        self,
+        direction: RakSampDirection,
+        packet_id: u8,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
+    {
+        self.on_packet(direction, move |event| {
+            if event.id() == packet_id {
+                handler(event)
+            } else {
+                RakSampHookAction::Continue
+            }
+        })
+    }
+
+    /// Registers an RPC callback that runs only for one RPC ID.
+    pub fn on_rpc_id<F>(
+        self,
+        direction: RakSampDirection,
+        rpc_id: u8,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        F: for<'event> Fn(&mut events::Event<'event>) -> RakSampHookAction + Send + Sync + 'static,
+    {
+        self.on_rpc(direction, move |event| {
+            if event.id() == rpc_id {
+                handler(event)
+            } else {
+                RakSampHookAction::Continue
+            }
+        })
+    }
+
+    /// Registers a packet callback that decodes one typed packet descriptor.
+    ///
+    /// Nonmatching packet IDs and decode errors continue without calling `handler`. Use
+    /// [`Self::on_packet`] when decode failures need plugin-specific reporting.
+    pub fn on_typed_packet<T, F>(
+        self,
+        direction: RakSampDirection,
+        packet: events::Packet<T>,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        T: 'static,
+        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.on_packet_id(direction, packet.id(), move |event| {
+            packet
+                .handle(event, |value| handler(value))
+                .unwrap_or(RakSampHookAction::Continue)
+        })
+    }
+
+    /// Registers an RPC callback that decodes one typed RPC descriptor.
+    ///
+    /// Nonmatching RPC IDs and decode errors continue without calling `handler`. Use
+    /// [`Self::on_rpc`] when decode failures need plugin-specific reporting.
+    pub fn on_typed_rpc<T, F>(
+        self,
+        direction: RakSampDirection,
+        rpc: events::Rpc<T>,
+        handler: F,
+    ) -> Result<Subscription, RakSampResult>
+    where
+        T: 'static,
+        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.on_rpc_id(direction, rpc.id(), move |event| {
+            rpc.handle(event, |value| handler(value))
+                .unwrap_or(RakSampHookAction::Continue)
+        })
     }
 
     fn register_listener<F>(

@@ -484,18 +484,32 @@ impl EncodedPayload {
     }
 }
 
-#[derive(Clone, Copy)]
 pub(super) enum RpcEncoder<T> {
     Bytes(fn(T) -> Result<Vec<u8>, EventError>),
     Bits(fn(HostApi, T) -> Result<EncodedPayload, EventError>),
 }
 
+impl<T> Copy for RpcEncoder<T> {}
+
+impl<T> Clone for RpcEncoder<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
 /// A typed RPC descriptor with its SA-MP RPC ID and read/write layout.
-#[derive(Clone, Copy)]
 pub struct Rpc<T> {
     pub(super) id: u8,
     pub(super) decode: fn(&mut Event<'_>) -> Result<T, EventError>,
     pub(super) encode: RpcEncoder<T>,
+}
+
+impl<T> Copy for Rpc<T> {}
+
+impl<T> Clone for Rpc<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
 }
 
 /// A typed packet descriptor with its RakNet packet ID and read/write layout.

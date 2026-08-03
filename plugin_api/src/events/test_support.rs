@@ -15,7 +15,7 @@ struct RegistrationState {
     unregister_result: RakSampResult,
     unregister_and_wait_result: RakSampResult,
     next_id: u64,
-    callback: Option<RegisteredCallback>,
+    callbacks: Vec<RegisteredCallback>,
     unregister_calls: u32,
     unregister_and_wait_calls: u32,
 }
@@ -27,7 +27,7 @@ impl RegistrationState {
             unregister_result: RakSampResult::Ok,
             unregister_and_wait_result: RakSampResult::Ok,
             next_id: 1,
-            callback: None,
+            callbacks: Vec::new(),
             unregister_calls: 0,
             unregister_and_wait_calls: 0,
         }
@@ -40,6 +40,7 @@ static REGISTRATION: Mutex<RegistrationState> = Mutex::new(RegistrationState::ne
 pub(crate) struct RegistrationStats {
     pub(crate) unregister_calls: u32,
     pub(crate) unregister_and_wait_calls: u32,
+    pub(crate) registered_callbacks: usize,
 }
 
 pub(crate) fn reset_registration() {
@@ -69,15 +70,24 @@ pub(crate) fn registration_stats() -> RegistrationStats {
     RegistrationStats {
         unregister_calls: state.unregister_calls,
         unregister_and_wait_calls: state.unregister_and_wait_calls,
+        registered_callbacks: state.callbacks.len(),
     }
 }
 
 pub(crate) fn invoke_registered_callback(id: u8) -> Option<RakSampHookAction> {
-    let callback = REGISTRATION
+    let payload = EncodedPayload::from_bits(Vec::new(), 0).expect("an empty payload is valid");
+    invoke_registered_callback_with_payload(id, payload)
+}
+
+pub(crate) fn invoke_registered_callback_with_payload(
+    id: u8,
+    payload: EncodedPayload,
+) -> Option<RakSampHookAction> {
+    let callback = *REGISTRATION
         .lock()
         .unwrap_or_else(|error| error.into_inner())
-        .callback?;
-    let payload = EncodedPayload::from_bits(Vec::new(), 0).expect("an empty payload is valid");
+        .callbacks
+        .first()?;
     let mut event = TestEvent::new(id, payload);
     Some(unsafe {
         (callback.callback)(
@@ -352,7 +362,7 @@ unsafe extern "system" fn test_register(
     }
     let handle = crate::RakSampSubscription { id: state.next_id };
     state.next_id += 1;
-    state.callback = Some(RegisteredCallback {
+    state.callbacks.push(RegisteredCallback {
         callback,
         user_data: user_data as usize,
         subscription: handle,
@@ -387,11 +397,10 @@ fn unregister(subscription: crate::RakSampSubscription, wait: bool) -> RakSampRe
     if matches!(
         result,
         RakSampResult::Ok | RakSampResult::SubscriptionNotFound
-    ) && state
-        .callback
-        .is_some_and(|callback| callback.subscription == subscription)
-    {
-        state.callback = None;
+    ) {
+        state
+            .callbacks
+            .retain(|callback| callback.subscription != subscription);
     }
     result
 }
