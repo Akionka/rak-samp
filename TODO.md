@@ -10,6 +10,13 @@ new facade (or the explicit `unsafe raw` tier), covered by tests, and documented
 An existing `HostApi` helper is reusable implementation material, not completion
 of the renamed public API.
 
+Use [SF.lua](https://github.com/SF-lua/SF.lua) and
+[SAMP-API.lua](https://github.com/imring/SAMP-API.lua) as the primary native
+references for offsets, addresses, structures, field layouts, calling
+conventions, enums, and client behavior. Keep the independent C++ layout fixture
+for C++↔Rust packing checks when a referenced native structure crosses the host
+boundary.
+
 ## Delivery checklist
 
 ### Baseline
