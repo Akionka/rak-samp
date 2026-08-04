@@ -273,6 +273,21 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   bounded assigned ID directly, while the two-refresh identity check prevents
   provisional or unstable publication. Crossing into or out of state `14`
   also clears cached remote directory/state records.
+- **R1 direct-validator sequencing evidence (2026-08-04):** the first live run
+  after the native-state readiness correction enabled the R1 profile, invoked
+  all three direct UI pumps, produced a nonempty local-player snapshot, and
+  passed the copied remote directory check for player ID zero. The automatic
+  packet/RPC/dialog checks passed with zero null events and zero timestamp
+  decode errors. The direct scenario itself remained invalid: it queued its
+  local dialog before spawn, then the observed incoming RPC 61 count increased
+  from the validator's one intentional emulation to two while an outgoing RPC
+  62 appeared, and the active core no longer matched the local validation
+  dialog. This is evidence of a server-dialog collision, not clean direct-call
+  traffic evidence. The validator now waits for a populated spawned snapshot
+  and idle dialog state before queueing direct UI work; if another dialog later
+  interrupts it, the validator waits for that state to clear and requeues only
+  the local dialog within a bounded two-minute window. A fresh live run is
+  still required.
 - **Direct R1 dialog signature:** the installed supported binaries identify
   GTA SA 1.0 US as image base `0x00400000`, image size `0x01177000`, and entry
   RVA `0x00424570`, and SA-MP R1 as timestamp `0x5542F47A` and entry RVA

@@ -168,7 +168,13 @@ fixtures, disassembly, or the E2E mock alone.
   encoding now shares the two-minute connection-dependent validation window.
   The directory validator also now accepts either defined
   `is_player_paused` boolean instead of incorrectly requiring every selected
-  remote player to be unpaused.
+  remote player to be unpaused. The next live run populated the local snapshot
+  and passed the remote directory check, but the validator had queued its local
+  dialog before spawn; a real server RPC 61 replaced it during the login/spawn
+  flow. The validator now waits for a populated spawned snapshot plus an idle
+  dialog state before queueing direct UI work, and boundedly requeues the local
+  dialog if a later non-validation dialog interrupts it. Redeploy before the
+  next live run.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.

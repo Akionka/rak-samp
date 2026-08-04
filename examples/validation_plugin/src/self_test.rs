@@ -21,6 +21,8 @@ use std::{
 
 const SEND_TEST_WAIT_TIMEOUT: Duration = Duration::from_secs(60);
 const DIRECT_SNAPSHOT_STATE_TIMEOUT: Duration = Duration::from_secs(120);
+const DIRECT_DIALOG_ID: u16 = 0x7FFC;
+const DIRECT_DIALOG_TITLE: &[u8] = b"rak-samp validation";
 pub(crate) const SEND_TEST_MARKER: &str = "rak-samp-validation-send.enabled";
 pub(crate) const DIRECT_CLIENT_TEST_MARKER: &str = "rak-samp-validation-direct-client.enabled";
 pub(crate) const PLAYER_DIRECTORY_TEST_MARKER: &str =
@@ -183,6 +185,53 @@ impl DirectScoreboardStates {
 
     fn complete(self) -> bool {
         self.closed && self.open
+    }
+}
+
+fn direct_validation_dialog() -> LocalDialog<'static> {
+    LocalDialog {
+        id: DIRECT_DIALOG_ID,
+        style: LocalDialogStyle::MessageBox,
+        title: DIRECT_DIALOG_TITLE,
+        text: b"This is a direct local dialog validation request.",
+        button1: b"Close",
+        button2: b"",
+    }
+}
+
+fn is_direct_validation_dialog(dialog: &LocalDialogState) -> bool {
+    dialog.id == i32::from(DIRECT_DIALOG_ID)
+        && dialog.style == LocalDialogStyle::MessageBox
+        && dialog.title == DIRECT_DIALOG_TITLE
+        && !dialog.server_side
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum DirectDialogAction {
+    Matched,
+    Wait,
+    Interference,
+    Requeue,
+}
+
+#[derive(Default)]
+struct DirectDialogWaitState {
+    retry_after_interference: bool,
+}
+
+impl DirectDialogWaitState {
+    fn observe(&mut self, dialog: Option<&LocalDialogState>) -> DirectDialogAction {
+        match dialog {
+            Some(dialog) if is_direct_validation_dialog(dialog) => DirectDialogAction::Matched,
+            Some(_) => {
+                self.retry_after_interference = true;
+                DirectDialogAction::Interference
+            }
+            None if std::mem::take(&mut self.retry_after_interference) => {
+                DirectDialogAction::Requeue
+            }
+            None => DirectDialogAction::Wait,
+        }
     }
 }
 
@@ -874,71 +923,13 @@ fn run_direct_client(api: HostApi) {
         return;
     }
 
-    let dialog_result = api.show_local_dialog(LocalDialog {
-        id: 0x7FFC,
-        style: LocalDialogStyle::MessageBox,
-        title: b"rak-samp validation",
-        text: b"This is a direct local dialog validation request.",
-        button1: b"Close",
-        button2: b"",
-    });
-    if dialog_result != RakSampResult::Ok {
-        SELF_TESTS
-            .direct_client
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        SELF_TESTS
-            .direct_snapshot_state
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        logging::write(&format!(
-            "direct-client self-test dialog request returned {dialog_result:?}"
-        ));
-        return;
-    }
-
-    let chat_result = api.show_local_chat_message(LocalChatMessage {
-        style: LocalChatMessageStyle::Debug,
-        text: b"Direct local chat validation request.",
-        prefix: b"[rak-samp]",
-        text_colour: 0xFF_A9_C4_E4,
-        prefix_colour: u32::MAX,
-    });
-    if chat_result != RakSampResult::Ok {
-        SELF_TESTS
-            .direct_client
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        SELF_TESTS
-            .direct_snapshot_state
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        logging::write(&format!(
-            "direct-client self-test chat request returned {chat_result:?}"
-        ));
-        return;
-    }
-
-    let death_result = api.show_local_death_message(LocalDeathMessage {
-        killer: b"killer",
-        victim: b"victim",
-        killer_colour: 0xFFFF_0000,
-        victim_colour: 0xFF00_FF00,
-        weapon: 24,
-    });
-    if death_result != RakSampResult::Ok {
-        SELF_TESTS
-            .direct_client
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        SELF_TESTS
-            .direct_snapshot_state
-            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-        logging::write(&format!(
-            "direct-client self-test death-window request returned {death_result:?}"
-        ));
-        return;
-    }
-
-    let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
+    logging::write(
+        "direct-client self-test waiting for a spawned local player and idle dialog state",
+    );
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
         match api.local_player() {
-            Ok(snapshot) if !snapshot.nickname.is_empty() => {
+            Ok(snapshot) if snapshot.spawned && !snapshot.nickname.is_empty() => {
                 match api.samp_game_state() {
                     Ok(_) => {}
                     Err(RakSampResult::NotReady) => {
@@ -971,9 +962,7 @@ fn run_direct_client(api: HostApi) {
                         SELF_TESTS
                             .direct_snapshot_state
                             .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(
-                            "direct-client self-test animation-table entry did not match the R1 fingerprint",
-                        );
+                        logging::write("direct-client self-test server-info snapshot was empty");
                         return;
                     }
                     Err(error) => {
@@ -1047,8 +1036,8 @@ fn run_direct_client(api: HostApi) {
                     }
                 }
                 match api.is_local_dialog_active() {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
+                    Ok(false) => {}
+                    Ok(true) | Err(RakSampResult::NotReady) => {
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
                     }
@@ -1066,27 +1055,10 @@ fn run_direct_client(api: HostApi) {
                     }
                 }
                 match api.active_local_dialog() {
-                    Ok(Some(LocalDialogState {
-                        id: 0x7FFC,
-                        style: LocalDialogStyle::MessageBox,
-                        title,
-                        server_side: false,
-                    })) if title == b"rak-samp validation" => {}
-                    Ok(None) | Err(RakSampResult::NotReady) => {
+                    Ok(None) => {}
+                    Ok(Some(_)) | Err(RakSampResult::NotReady) => {
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
-                    }
-                    Ok(Some(_)) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(
-                            "direct-client self-test active-dialog snapshot did not match the queued direct dialog",
-                        );
-                        return;
                     }
                     Err(error) => {
                         SELF_TESTS
@@ -1102,8 +1074,8 @@ fn run_direct_client(api: HostApi) {
                     }
                 }
                 match api.is_local_chat_input_active() {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
+                    Ok(false) => {}
+                    Ok(true) | Err(RakSampResult::NotReady) => {
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
                     }
@@ -1206,6 +1178,135 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
+
+                let dialog_result = api.show_local_dialog(direct_validation_dialog());
+                if dialog_result != RakSampResult::Ok {
+                    SELF_TESTS
+                        .direct_client
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    SELF_TESTS
+                        .direct_snapshot_state
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    logging::write(&format!(
+                        "direct-client self-test dialog request returned {dialog_result:?}"
+                    ));
+                    return;
+                }
+
+                let chat_result = api.show_local_chat_message(LocalChatMessage {
+                    style: LocalChatMessageStyle::Debug,
+                    text: b"Direct local chat validation request.",
+                    prefix: b"[rak-samp]",
+                    text_colour: 0xFF_A9_C4_E4,
+                    prefix_colour: u32::MAX,
+                });
+                if chat_result != RakSampResult::Ok {
+                    SELF_TESTS
+                        .direct_client
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    SELF_TESTS
+                        .direct_snapshot_state
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    logging::write(&format!(
+                        "direct-client self-test chat request returned {chat_result:?}"
+                    ));
+                    return;
+                }
+
+                let death_result = api.show_local_death_message(LocalDeathMessage {
+                    killer: b"killer",
+                    victim: b"victim",
+                    killer_colour: 0xFFFF_0000,
+                    victim_colour: 0xFF00_FF00,
+                    weapon: 24,
+                });
+                if death_result != RakSampResult::Ok {
+                    SELF_TESTS
+                        .direct_client
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    SELF_TESTS
+                        .direct_snapshot_state
+                        .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                    logging::write(&format!(
+                        "direct-client self-test death-window request returned {death_result:?}"
+                    ));
+                    return;
+                }
+
+                logging::write(&format!(
+                    "direct-client self-test queued after spawned preflight: local_player_id={}",
+                    snapshot.id
+                ));
+                let dialog_deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
+                let mut dialog_wait = DirectDialogWaitState::default();
+                let mut interference_logged = false;
+                let dialog_ready = loop {
+                    if STOP.load(Ordering::Acquire) || Instant::now() >= dialog_deadline {
+                        break false;
+                    }
+                    match api.active_local_dialog() {
+                        Ok(dialog) => match dialog_wait.observe(dialog.as_ref()) {
+                            DirectDialogAction::Matched => break true,
+                            DirectDialogAction::Wait => {}
+                            DirectDialogAction::Interference => {
+                                if !interference_logged {
+                                    interference_logged = true;
+                                    logging::write(
+                                        "direct-client self-test observed non-validation dialog interference; waiting to retry the local dialog",
+                                    );
+                                }
+                            }
+                            DirectDialogAction::Requeue => {
+                                let retry_result =
+                                    api.show_local_dialog(direct_validation_dialog());
+                                if retry_result != RakSampResult::Ok {
+                                    SELF_TESTS.direct_client.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    SELF_TESTS.direct_snapshot_state.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    logging::write(&format!(
+                                        "direct-client self-test dialog retry returned {retry_result:?}"
+                                    ));
+                                    return;
+                                }
+                                logging::write(
+                                    "direct-client self-test requeued the local dialog after interference",
+                                );
+                            }
+                        },
+                        Err(RakSampResult::NotReady) => {}
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test active-dialog snapshot returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                    std::thread::sleep(Duration::from_millis(10));
+                };
+                if !dialog_ready {
+                    SELF_TESTS
+                        .direct_client
+                        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+                    SELF_TESTS
+                        .direct_snapshot_state
+                        .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
+                    logging::write(
+                        "direct-client self-test timed out before its local dialog became active",
+                    );
+                    return;
+                }
+
                 SELF_TESTS
                     .direct_client
                     .store(SelfTestStatus::Passed.as_raw(), Ordering::Release);
@@ -1235,7 +1336,9 @@ fn run_direct_client(api: HostApi) {
     SELF_TESTS
         .direct_snapshot_state
         .store(SelfTestStatus::TimedOut.as_raw(), Ordering::Release);
-    logging::write("direct-client self-test timed out before a populated snapshot");
+    logging::write(
+        "direct-client self-test timed out before a spawned snapshot and idle dialog state",
+    );
 }
 
 fn run_direct_snapshot_state(api: HostApi, expected_id: u16) {
@@ -1566,11 +1669,13 @@ fn mark_timeout(status: &AtomicU8) {
 #[cfg(test)]
 mod tests {
     use super::{
-        DirectChatDisplayModes, DirectCursorStates, DirectScoreboardStates, DirectSnapshotChanges,
-        DirectUiStates, DirectVisibilityStates, RemotePlayerStateChanges,
+        DirectChatDisplayModes, DirectCursorStates, DirectDialogAction, DirectDialogWaitState,
+        DirectScoreboardStates, DirectSnapshotChanges, DirectUiStates, DirectVisibilityStates,
+        RemotePlayerStateChanges, direct_validation_dialog, is_direct_validation_dialog,
     };
     use rak_samp_plugin_api::{
-        LocalChatDisplayMode, LocalCursorMode, LocalPlayer, RemotePlayerState, Vector3,
+        LocalChatDisplayMode, LocalCursorMode, LocalDialogState, LocalDialogStyle, LocalPlayer,
+        RemotePlayerState, Vector3,
     };
 
     fn snapshot() -> LocalPlayer {
@@ -1704,5 +1809,57 @@ mod tests {
         assert!(!states.complete());
         states.active_dialog_core.observe(false);
         assert!(states.complete());
+    }
+
+    #[test]
+    fn direct_dialog_match_requires_the_owned_local_validation_core() {
+        let request = direct_validation_dialog();
+        let expected = LocalDialogState {
+            id: i32::from(request.id),
+            style: request.style,
+            title: request.title.to_vec(),
+            server_side: false,
+        };
+        assert!(is_direct_validation_dialog(&expected));
+
+        assert!(!is_direct_validation_dialog(&LocalDialogState {
+            server_side: true,
+            ..expected.clone()
+        }));
+        assert!(!is_direct_validation_dialog(&LocalDialogState {
+            style: LocalDialogStyle::Input,
+            ..expected
+        }));
+    }
+
+    #[test]
+    fn direct_dialog_wait_requeues_only_after_interference_clears() {
+        let mut wait = DirectDialogWaitState::default();
+        assert_eq!(wait.observe(None), DirectDialogAction::Wait);
+
+        let server_dialog = LocalDialogState {
+            id: 7,
+            style: LocalDialogStyle::MessageBox,
+            title: b"server".to_vec(),
+            server_side: true,
+        };
+        assert_eq!(
+            wait.observe(Some(&server_dialog)),
+            DirectDialogAction::Interference
+        );
+        assert_eq!(wait.observe(None), DirectDialogAction::Requeue);
+        assert_eq!(wait.observe(None), DirectDialogAction::Wait);
+
+        let request = direct_validation_dialog();
+        let direct_dialog = LocalDialogState {
+            id: i32::from(request.id),
+            style: request.style,
+            title: request.title.to_vec(),
+            server_side: false,
+        };
+        assert_eq!(
+            wait.observe(Some(&direct_dialog)),
+            DirectDialogAction::Matched
+        );
     }
 }
