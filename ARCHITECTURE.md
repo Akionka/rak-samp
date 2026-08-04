@@ -54,9 +54,11 @@ incoming RPC emulation dispatches before the native receiver.
 
 The incoming-packet vtable detour also performs a separate direct-client pump
 before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
-begins refreshing an owned local-player snapshot only after its `INIT_GAME`
-server assignment matches the pool ID on two game-thread refreshes, then keeps
-it fresh from the verified player pool. The same entry caches R1's opaque
+begins refreshing an owned local-player snapshot only after the fingerprinted
+native game state is R1 `CONNECTED` and the pool exposes a bounded assigned ID
+on two game-thread refreshes, then keeps it fresh from the verified player
+pool. Crossing that connected-state boundary clears player caches. The same
+entry caches R1's opaque
 `CNetGame` state scalar, copied current-server metadata, and the validated
 three-value local chat display mode, five-value local cursor mode, and
 scoreboard-open, dialog-active, and chat-input-active flags. It also copies the

@@ -57,10 +57,10 @@ similarly queues bounded 24-byte killer/victim names. `HostApi::local_player` re
 an owned clone of a host-owned cache and never waits for the game thread. These
 APIs return `UnsupportedVersion` unless the R1 SA-MP and GTA SA 1.0 US
 fingerprints pass; they never expose client pointers or use RPC emulation.
-Snapshot publication
-begins only after the server's R1 `INIT_GAME` assignment matches the
-local-player ID on two game-thread refreshes, then refreshes from the verified
-R1 player pool. It returns `NotReady` rather than publishing a provisional zero
+Snapshot publication begins only after the fingerprinted native game state is
+R1 `CONNECTED` and the player pool exposes a valid local-player ID on two
+game-thread refreshes, then refreshes from the verified R1 player pool. It
+returns `NotReady` rather than publishing a provisional zero
 or SA-MP's `0xFFFF` sentinel.
 
 The local-player ID, nickname, colour, spawned, health, armour, special-action,

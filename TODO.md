@@ -161,8 +161,14 @@ fixtures, disassembly, or the E2E mock alone.
   late, then the GTA PE entry RVA was misread as `0x00024570` instead of its
   exact raw value `0x00424570`. The next run enabled the R1 profile and invoked
   all three direct UI pumps, but exposed an invalid local-name accessor call;
-  redeploy the build that reuses `CPlayerPool::GetName(pool, id)` before
-  recording snapshot results.
+  the following run exposed a stale packet-derived assignment gate after that
+  accessor was corrected. Redeploy the build that gates the native pool ID on
+  R1 `CONNECTED` state before recording snapshot results. That run also took
+  longer than 30 seconds to install the client hooks, so dialog self-test
+  encoding now shares the two-minute connection-dependent validation window.
+  The directory validator also now accepts either defined
+  `is_player_paused` boolean instead of incorrectly requiring every selected
+  remote player to be unpaused.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.
@@ -259,11 +265,13 @@ fixtures, disassembly, or the E2E mock alone.
 - [ ] Perform the final Windows x86 build/E2E suite and the required live R1
   scenarios on the exact release artifacts before declaring the backlog done.
 
-- [x] Record the GTA SA 1.0 US + SA-MP 0.3.7 R1 direct-client live gate:
+- [ ] Re-record the GTA SA 1.0 US + SA-MP 0.3.7 R1 direct-client live gate
+  after the 2026-08-04 readiness corrections:
   dialog display, populated snapshot, walking/damage/armour/vehicle field
   changes, no direct-dialog RPC 61/62 traffic, and stable normal shutdown.
-  Snapshot publication starts after R1 `INIT_GAME` assigns the local-player ID
-  and reports `NotReady` beforehand.
+  Snapshot publication starts only when the fingerprinted native state is R1
+  `CONNECTED` and the pool exposes an assigned local-player ID; it reports
+  `NotReady` beforehand.
 - [ ] Validate the complete lifecycle on legal R2, R3.1, R4.2, R5.1, and DL
   installations. Keep direct client helpers unsupported until each profile has
   its own fingerprints, fixture, and live evidence.

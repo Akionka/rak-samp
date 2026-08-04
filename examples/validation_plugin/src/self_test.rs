@@ -410,7 +410,7 @@ fn run_player_directory(api: HostApi) {
                 };
                 if api.is_player_connected(id) == Ok(true)
                     && api.is_player_defined(id) == Ok(true)
-                    && api.is_player_paused(id) == Ok(false)
+                    && api.is_player_paused(id).is_ok()
                     && api.player_nickname(id) == Ok(Some(player.nickname))
                     && api.is_player_npc(id) == Ok(Some(player.is_npc))
                     && api.player_colour(id) == Ok(Some(player.colour))
@@ -1526,7 +1526,11 @@ fn emulate_when_ready(mut emulate: impl FnMut() -> RakSampResult) -> RakSampResu
 }
 
 fn encode_dialog_when_ready(api: HostApi) -> Result<EncodedPayload, EventError> {
-    let deadline = Instant::now() + HOST_WAIT_TIMEOUT;
+    // Encoding uses the host's captured R1 native string codec, which may not
+    // exist until the user has finished connecting. Keep the general host
+    // discovery timeout short, but give this opt-in live step the same
+    // two-minute window as the other connection-dependent checks.
+    let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
     loop {
         if STOP.load(Ordering::Acquire) {
             return Err(EventError::Host(RakSampResult::NotReady));

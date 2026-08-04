@@ -264,6 +264,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `CPlayerPool::GetName(pool, id)` target at `+0x13CE0`; its local-ID path
   explicitly addresses the packed string at `+0x0A`. No client address or
   nickname contents are recorded in runtime logs.
+- **R1 local snapshot readiness correction (2026-08-04):** the following live
+  run still held the snapshot in `NotReady` even though direct inspection
+  confirmed native game state `14` (`GAME_MODE_CONNECTED`), an assigned local
+  ID, a live local-player object, and a valid ped chain. Snapshot readiness had
+  been coupled to a separately captured `INIT_GAME` ID. The cache now uses the
+  fingerprinted native `CNetGame::GetGameState == 14` and the player pool's
+  bounded assigned ID directly, while the two-refresh identity check prevents
+  provisional or unstable publication. Crossing into or out of state `14`
+  also clears cached remote directory/state records.
 - **Direct R1 dialog signature:** the installed supported binaries identify
   GTA SA 1.0 US as image base `0x00400000`, image size `0x01177000`, and entry
   RVA `0x00424570`, and SA-MP R1 as timestamp `0x5542F47A` and entry RVA

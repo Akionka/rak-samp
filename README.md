@@ -48,8 +48,8 @@ and retrieve an owned cached snapshot with `HostApi::local_player()`. A successf
 means the host accepted one of its 32 queued requests, not that it was
 displayed. Neither UI helper emulates RPC traffic or exposes client pointers.
 `local_player` returns
-`NotReady` until the server's R1 `INIT_GAME` assignment matches the pool's
-local-player ID across two game-thread refreshes.
+`NotReady` until the fingerprinted native game state is R1 `CONNECTED` and the
+pool exposes a valid local-player ID across two game-thread refreshes.
 `HostApi` also exposes individual cached local-player ID, nickname, colour,
 spawned, health, armour, special-action, and animation-ID queries for the
 corresponding SF.lua local-player helpers, plus local score and ping.

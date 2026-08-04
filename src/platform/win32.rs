@@ -69,8 +69,7 @@ const MAX_SAMP_TEXT_LABELS: usize = 2048;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_SAMP_OBJECTS: usize = 1000;
 const MAX_SAMP_GANGZONES: usize = 1024;
-const R1_INIT_GAME_RPC_ID: u8 = 139;
-const UNASSIGNED_LOCAL_PLAYER_ID: u16 = u16::MAX;
+const R1_CONNECTED_GAME_STATE: i32 = 14;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
@@ -156,7 +155,6 @@ struct BackendState {
     player_max_id: AtomicI32,
     player_max_id_ready: AtomicBool,
     server_info_snapshot: Mutex<Option<ServerInfoSnapshot>>,
-    assigned_local_player_id: AtomicU16,
     samp_game_state: AtomicI32,
     samp_game_state_ready: AtomicBool,
     local_chat_display_mode: AtomicI32,
@@ -330,7 +328,6 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         player_max_id: AtomicI32::new(0),
         player_max_id_ready: AtomicBool::new(false),
         server_info_snapshot: Mutex::new(None),
-        assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
         samp_game_state: AtomicI32::new(0),
         samp_game_state_ready: AtomicBool::new(false),
         local_chat_display_mode: AtomicI32::new(0),
@@ -1799,15 +1796,13 @@ impl BackendState {
     }
 
     fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
-        let assigned_id = self.assigned_local_player_id.load(Ordering::Acquire);
-        if assigned_id == UNASSIGNED_LOCAL_PLAYER_ID {
+        if !self.samp_game_state_ready.load(Ordering::Acquire)
+            || !is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire))
+        {
             self.cache_local_player_snapshot(None);
             return;
         }
-        self.cache_local_player_snapshot(assigned_snapshot(
-            profile.local_player().ok(),
-            assigned_id,
-        ));
+        self.cache_local_player_snapshot(profile.local_player().ok());
     }
 
     fn refresh_player_info(&self, profile: R1ClientProfile) {
@@ -1969,8 +1964,12 @@ impl BackendState {
     fn refresh_samp_game_state(&self, profile: R1ClientProfile) {
         match profile.game_state() {
             Ok(game_state) => {
-                self.samp_game_state.store(game_state, Ordering::Release);
-                self.samp_game_state_ready.store(true, Ordering::Release);
+                let previous = self.samp_game_state.swap(game_state, Ordering::AcqRel);
+                let was_ready = self.samp_game_state_ready.swap(true, Ordering::AcqRel);
+                if crosses_r1_connection_boundary(was_ready, previous, game_state) {
+                    self.clear_player_info_cache();
+                    self.clear_remote_player_state_cache();
+                }
             }
             Err(DirectClientError::NotReady) => {
                 self.samp_game_state_ready.store(false, Ordering::Release);
@@ -2075,18 +2074,6 @@ impl BackendState {
         }
     }
 
-    fn record_r1_init_game_player_id(&self, player_id: Option<u16>) {
-        if self.r1_client.is_some()
-            && let Some(player_id) = player_id
-        {
-            self.cache_local_player_snapshot(None);
-            self.clear_player_info_cache();
-            self.clear_remote_player_state_cache();
-            self.assigned_local_player_id
-                .store(player_id, Ordering::Release);
-        }
-    }
-
     fn ready_client(&self) -> Result<*mut c_void, SendError> {
         let client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
         if client.is_null() {
@@ -2175,8 +2162,6 @@ impl BackendState {
         if let Ok(mut snapshot) = self.server_info_snapshot.try_lock() {
             *snapshot = None;
         }
-        self.assigned_local_player_id
-            .store(UNASSIGNED_LOCAL_PLAYER_ID, Ordering::Release);
         self.samp_game_state_ready.store(false, Ordering::Release);
         self.local_chat_display_mode_ready
             .store(false, Ordering::Release);
@@ -2200,16 +2185,6 @@ impl BackendState {
     }
 }
 
-fn assigned_snapshot(
-    snapshot: Option<LocalPlayerSnapshot>,
-    assigned_id: u16,
-) -> Option<LocalPlayerSnapshot> {
-    (assigned_id != UNASSIGNED_LOCAL_PLAYER_ID)
-        .then_some(snapshot)
-        .flatten()
-        .filter(|snapshot| snapshot.id == assigned_id)
-}
-
 fn player_info_from_local(player: &LocalPlayerSnapshot) -> PlayerInfoSnapshot {
     PlayerInfoSnapshot {
         id: player.id,
@@ -2224,6 +2199,16 @@ fn player_info_from_local(player: &LocalPlayerSnapshot) -> PlayerInfoSnapshot {
     }
 }
 
+fn is_r1_connected_game_state(game_state: i32) -> bool {
+    game_state == R1_CONNECTED_GAME_STATE
+}
+
+fn crosses_r1_connection_boundary(was_ready: bool, previous: i32, current: i32) -> bool {
+    was_ready
+        && previous != current
+        && (is_r1_connected_game_state(previous) || is_r1_connected_game_state(current))
+}
+
 fn cached_direct_client_value<T>(
     profile_available: bool,
     client_available: bool,
@@ -2236,33 +2221,6 @@ fn cached_direct_client_value<T>(
     } else {
         cached.ok_or(DirectClientError::NotReady)
     }
-}
-
-fn r1_init_game_player_id_from_rpc(input: &[u8]) -> Option<u16> {
-    let rpc_id = match input.first().copied()? {
-        ID_RPC => input.get(1).copied(),
-        ID_TIMESTAMP if input.get(5).copied() == Some(ID_RPC) => input.get(6).copied(),
-        _ => None,
-    }?;
-    if rpc_id != R1_INIT_GAME_RPC_ID {
-        return None;
-    }
-    let (_, mut payload, _) = parse_rpc_envelope(input).ok()?;
-    r1_init_game_player_id(&mut payload)
-}
-
-fn r1_init_game_player_id(payload: &mut BitStream) -> Option<u16> {
-    for _ in 0..4 {
-        payload.read_bool().ok()?;
-    }
-    payload.read_f32().ok()?;
-    payload.read_bool().ok()?;
-    payload.read_f32().ok()?;
-    payload.read_bool().ok()?;
-    payload.read_bool().ok()?;
-    payload.read_bool().ok()?;
-    payload.read_u32().ok()?;
-    payload.read_u16().ok()
 }
 
 #[repr(C)]
@@ -2601,7 +2559,6 @@ mod vtable_tests {
             player_max_id: AtomicI32::new(0),
             player_max_id_ready: AtomicBool::new(false),
             server_info_snapshot: Mutex::new(None),
-            assigned_local_player_id: AtomicU16::new(UNASSIGNED_LOCAL_PLAYER_ID),
             samp_game_state: AtomicI32::new(0),
             samp_game_state_ready: AtomicBool::new(false),
             local_chat_display_mode: AtomicI32::new(0),
@@ -3092,28 +3049,14 @@ mod vtable_tests {
     }
 
     #[test]
-    fn init_game_assignment_filters_local_player_snapshots() {
-        let mut payload = BitStream::new();
-        for value in [true, false, true, false] {
-            payload.write_bool(value).unwrap();
-        }
-        payload.write_f32(123.0).unwrap();
-        payload.write_bool(true).unwrap();
-        payload.write_f32(70.0).unwrap();
-        payload.write_bool(false).unwrap();
-        payload.write_bool(true).unwrap();
-        payload.write_bool(false).unwrap();
-        payload.write_u32(7).unwrap();
-        payload.write_u16(42).unwrap();
-
-        let envelope = build_rpc_envelope(R1_INIT_GAME_RPC_ID, &payload, None).unwrap();
-        assert_eq!(r1_init_game_player_id_from_rpc(&envelope), Some(42));
-        assert_eq!(
-            assigned_snapshot(Some(test_snapshot(42)), 42).map(|snapshot| snapshot.id),
-            Some(42)
-        );
-        assert!(assigned_snapshot(Some(test_snapshot(7)), 42).is_none());
-        assert!(assigned_snapshot(Some(test_snapshot(42)), UNASSIGNED_LOCAL_PLAYER_ID).is_none());
+    fn r1_connected_state_matches_the_fingerprinted_native_value() {
+        assert_eq!(R1_CONNECTED_GAME_STATE, 14);
+        assert!(is_r1_connected_game_state(14));
+        assert!(!is_r1_connected_game_state(13));
+        assert!(!crosses_r1_connection_boundary(false, 0, 14));
+        assert!(crosses_r1_connection_boundary(true, 13, 14));
+        assert!(crosses_r1_connection_boundary(true, 14, 18));
+        assert!(!crosses_r1_connection_boundary(true, 14, 14));
     }
 
     #[test]
@@ -3555,13 +3498,8 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
     }
     let original: IncomingRpcFn = unsafe { mem::transmute(original) };
     let input = unsafe { slice::from_raw_parts(data, length as usize) };
-    let assigned_local_player_id = r1_init_game_player_id_from_rpc(input);
     if !state.registry.has_rpc_listener(Direction::Incoming) {
-        let result = unsafe { original(receiver, data, length, player) };
-        if result {
-            state.record_r1_init_game_player_id(assigned_local_player_id);
-        }
-        return result;
+        return unsafe { original(receiver, data, length, player) };
     }
     let Ok((rpc_id, mut payload, timestamp)) = parse_rpc_envelope(input) else {
         return unsafe { original(receiver, data, length, player) };
@@ -3576,11 +3514,7 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
     let Ok(mut output) = build_rpc_envelope(rpc_id, &payload, timestamp) else {
         return unsafe { original(receiver, data, length, player) };
     };
-    let result = unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) };
-    if result {
-        state.record_r1_init_game_player_id(assigned_local_player_id);
-    }
-    result
+    unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }
 
 unsafe fn dispatch_packet_stream(
