@@ -55,7 +55,6 @@ const GANG_ZONE_POOL_CREATE_RVA: usize = 0x2170;
 const TEXT_LABEL_POOL_CREATE_RVA: usize = 0x11C0;
 const TEXTDRAW_CTOR_RVA: usize = 0xACF10;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
-const PLAYER_POOL_GET_LOCAL_NAME_RVA: usize = 0x13CD0;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
 const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6A200;
 const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
@@ -350,8 +349,9 @@ const PLAYER_POOL_GET_REMOTE_PLAYER_SIGNATURE: [u8; 16] = [
 const PLAYER_POOL_IS_NPC_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x77, 0x0B, 0x0F, 0xB7, 0xC0, 0x8B, 0x44,
 ];
-const PLAYER_POOL_GET_NAME_SIGNATURE: [u8; 16] = [
+const PLAYER_POOL_GET_NAME_SIGNATURE: [u8; 29] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3B, 0x41, 0x04, 0x75, 0x12, 0x83, 0x79, 0x1E, 0x10, 0x72,
+    0x06, 0x8B, 0x41, 0x0A, 0xC2, 0x04, 0x00, 0x8D, 0x41, 0x0A, 0xC2, 0x04, 0x00,
 ];
 const PLAYER_POOL_GET_SCORE_SIGNATURE: [u8; 16] = [
     0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3D, 0xEC, 0x03, 0x77, 0x0B, 0x0F, 0xB7, 0xC0, 0x8B, 0x44,
@@ -1257,8 +1257,8 @@ impl R1ClientProfile {
             return Err(DirectClientError::NotReady);
         }
 
-        let get_name: PlayerPoolGetLocalNameFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_NAME_RVA) };
+        let get_name: PlayerPoolGetPlayerNameFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_NAME_RVA) };
         let get_score: PlayerPoolGetLocalScoreFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_SCORE_RVA) };
         let get_ping: PlayerPoolGetLocalPingFn =
@@ -1270,8 +1270,8 @@ impl R1ClientProfile {
         let get_armour: PedGetStatFn =
             unsafe { mem::transmute(self.module_base + PED_GET_ARMOUR_RVA) };
 
-        let nickname =
-            unsafe { bounded_c_string(get_name(pool), 256) }.ok_or(DirectClientError::NotReady)?;
+        let nickname = unsafe { bounded_c_string(get_name(pool, id), 256) }
+            .ok_or(DirectClientError::NotReady)?;
         let current_vehicle =
             unsafe { read_unaligned::<u16>(local as usize + LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET) }
                 .ok_or(DirectClientError::NotReady)?;
@@ -1383,7 +1383,6 @@ type DeathWindowAddMessageFn =
 type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-type PlayerPoolGetLocalNameFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 type PlayerPoolGetLocalScoreFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolGetLocalPingFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
@@ -1580,7 +1579,6 @@ unsafe fn r1_targets_match(module_base: usize) -> bool {
         )
         && [
             PLAYER_POOL_GET_LOCAL_PLAYER_RVA,
-            PLAYER_POOL_GET_LOCAL_NAME_RVA,
             PLAYER_POOL_GET_LOCAL_SCORE_RVA,
             PLAYER_POOL_GET_LOCAL_PING_RVA,
             LOCAL_PLAYER_GET_PED_RVA,
@@ -2345,7 +2343,8 @@ mod tests {
             PLAYER_POOL_GET_NAME_SIGNATURE,
             [
                 0x66, 0x8B, 0x44, 0x24, 0x04, 0x66, 0x3B, 0x41, 0x04, 0x75, 0x12, 0x83, 0x79, 0x1E,
-                0x10, 0x72,
+                0x10, 0x72, 0x06, 0x8B, 0x41, 0x0A, 0xC2, 0x04, 0x00, 0x8D, 0x41, 0x0A, 0xC2, 0x04,
+                0x00,
             ]
         );
         assert_eq!(

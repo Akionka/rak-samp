@@ -159,8 +159,10 @@ fixtures, disassembly, or the E2E mock alone.
   The 2026-08-03 run and the first 2026-08-04 rerun were invalidated by host
   fingerprint bugs: the remote-animation signature anchor was eight bytes
   late, then the GTA PE entry RVA was misread as `0x00024570` instead of its
-  exact raw value `0x00424570`. Redeploy the post-fix host before recording any
-  result.
+  exact raw value `0x00424570`. The next run enabled the R1 profile and invoked
+  all three direct UI pumps, but exposed an invalid local-name accessor call;
+  redeploy the build that reuses `CPlayerPool::GetName(pool, id)` before
+  recording snapshot results.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.

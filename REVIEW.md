@@ -255,6 +255,15 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   They are not treated as live authority: the profile additionally checks the
   R1 PE timestamp/entry point, dialog target signature, GTA PE identity/code,
   and readable pointers before use.
+- **R1 local nickname accessor correction (2026-08-04):** live inspection
+  after a successful profile match found an assigned local ID and a valid
+  packed local nickname at player-pool offset `0x0A`. Calling the candidate
+  `samp.dll + 0x13CD0` target with the pool as `this` interpreted nickname
+  bytes as a pointer and kept the complete local snapshot in `NotReady`. The
+  snapshot now reuses the independently fingerprinted
+  `CPlayerPool::GetName(pool, id)` target at `+0x13CE0`; its local-ID path
+  explicitly addresses the packed string at `+0x0A`. No client address or
+  nickname contents are recorded in runtime logs.
 - **Direct R1 dialog signature:** the installed supported binaries identify
   GTA SA 1.0 US as image base `0x00400000`, image size `0x01177000`, and entry
   RVA `0x00424570`, and SA-MP R1 as timestamp `0x5542F47A` and entry RVA
