@@ -7,12 +7,14 @@ mod r1_client;
 
 use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
+    command::{CommandError, CommandId, CommandQueue, QueuedCommand},
     event::{HookAction, Registry},
     runtime::{
-        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
-        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-        LocalPlayerSnapshot, PacketPriority, PacketReliability, PlayerInfoSnapshot,
-        RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError, DirectClientError,
+        GangzoneSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+        LocalDialogSnapshot, LocalPlayerSnapshot, PacketPriority, PacketReliability,
+        PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+        TextdrawSnapshot,
     },
 };
 use minhook::MinHook;
@@ -23,12 +25,14 @@ use std::{
     mem, ptr, slice,
     sync::{
         Arc, Mutex, OnceLock, Weak,
-        atomic::{AtomicBool, AtomicI32, AtomicU16, AtomicU32, AtomicUsize, Ordering},
+        atomic::{AtomicBool, AtomicI32, AtomicU16, AtomicU32, AtomicU64, AtomicUsize, Ordering},
     },
+    time::Duration,
 };
 use windows_sys::Win32::System::{
     LibraryLoader::GetModuleHandleA,
     Memory::{PAGE_READWRITE, VirtualProtect},
+    Threading::GetCurrentThreadId,
 };
 
 const ID_TIMESTAMP: u8 = 40;
@@ -39,12 +43,6 @@ const DEALLOCATE_PACKET_SLOT: usize = 9;
 const OUTGOING_RPC_SLOT: usize = 25;
 const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
-const LOCAL_DIALOG_QUEUE_CAPACITY: usize = 32;
-const LOCAL_DIALOGS_PER_PUMP: usize = 4;
-const LOCAL_CHAT_QUEUE_CAPACITY: usize = 32;
-const LOCAL_CHAT_MESSAGES_PER_PUMP: usize = 4;
-const LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY: usize = 32;
-const LOCAL_DEATH_MESSAGES_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP: usize = 4;
@@ -59,6 +57,8 @@ const TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const TEXTDRAW_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const TEXTDRAW_REQUEST_QUEUE_CAPACITY: usize = 32;
 const TEXTDRAW_REQUESTS_PER_PUMP: usize = 4;
+const CHAT_ENTRY_REQUEST_QUEUE_CAPACITY: usize = 32;
+const CHAT_ENTRY_REQUESTS_PER_PUMP: usize = 4;
 const OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const OBJECT_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const GANGZONE_REQUEST_QUEUE_CAPACITY: usize = 32;
@@ -66,10 +66,16 @@ const GANGZONE_REQUESTS_PER_PUMP: usize = 4;
 const MAX_SAMP_PLAYERS: usize = 1004;
 const MAX_SAMP_VEHICLES: usize = 2000;
 const MAX_SAMP_TEXT_LABELS: usize = 2048;
+const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
+const MAX_CHAT_ENTRIES: usize = 100;
 const MAX_SAMP_OBJECTS: usize = 1000;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
+/// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
+/// module base and is supported only for the fixed GTA executable selected by
+/// the host's R1/GTA configuration.
+const GTA_SA_10_US_CGAME_PROCESS: usize = 0x53E4B0;
 
 #[repr(u32)]
 #[derive(Clone, Copy)]
@@ -114,11 +120,16 @@ struct BackendState {
     addresses: AddressSet,
     r1_client: Option<R1ClientProfile>,
     rak_client: AtomicUsize,
+    raw_player_pool: AtomicUsize,
+    raw_vehicle_pool: AtomicUsize,
+    raw_local_player: AtomicUsize,
     rpc_receiver: AtomicUsize,
     player_address: AtomicU32,
     player_port: AtomicU16,
     constructor_trampoline: AtomicUsize,
     incoming_rpc_trampoline: AtomicUsize,
+    game_process_trampoline: AtomicUsize,
+    game_thread_id: AtomicU32,
     outgoing_packet_original: AtomicUsize,
     incoming_packet_original: AtomicUsize,
     deallocate_packet_original: AtomicUsize,
@@ -126,9 +137,7 @@ struct BackendState {
     client_hook_status: AtomicU32,
     incoming_packet_diagnostic_logged: AtomicBool,
     string_codec: Mutex<()>,
-    local_dialogs: Mutex<VecDeque<LocalDialogRequest>>,
-    local_chat_messages: Mutex<VecDeque<LocalChatMessageRequest>>,
-    local_death_messages: Mutex<VecDeque<LocalDeathMessageRequest>>,
+    game_commands: CommandQueue<GameCommand, ()>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
     player_info_cache: Mutex<Vec<PlayerInfoCacheEntry>>,
@@ -145,6 +154,8 @@ struct BackendState {
     textdraw_exists_requests: Mutex<VecDeque<u16>>,
     textdraw_cache: Mutex<Vec<TextdrawCacheEntry>>,
     textdraw_requests: Mutex<VecDeque<u16>>,
+    chat_entry_cache: Mutex<Vec<ChatEntryCacheEntry>>,
+    chat_entry_requests: Mutex<VecDeque<u16>>,
     object_exists_cache: Mutex<Vec<ObjectExistsCacheEntry>>,
     object_exists_requests: Mutex<VecDeque<u16>>,
     gangzone_cache: Mutex<Vec<GangzoneCacheEntry>>,
@@ -169,7 +180,10 @@ struct BackendState {
     local_dialog_snapshot_ready: AtomicBool,
     local_chat_input_active: AtomicBool,
     local_chat_input_active_ready: AtomicBool,
+    local_chat_input_text: Mutex<Option<Vec<u8>>>,
+    local_chat_input_text_ready: AtomicBool,
     animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
+    cache_generation: AtomicU64,
     hooks: Mutex<HookStorage>,
 }
 
@@ -209,10 +223,16 @@ enum TextdrawExistsCacheEntry {
     Known(bool),
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 enum TextdrawCacheEntry {
     Unknown,
     Known(Option<TextdrawSnapshot>),
+}
+
+#[derive(Clone)]
+enum ChatEntryCacheEntry {
+    Unknown,
+    Known(ChatEntrySnapshot),
 }
 
 #[derive(Clone, Copy)]
@@ -231,7 +251,130 @@ enum GangzoneCacheEntry {
 struct HookStorage {
     constructor: Option<InlineHook>,
     incoming_rpc: Option<InlineHook>,
+    game_process: Option<InlineHook>,
     vtable: Option<VtableHook>,
+}
+
+#[derive(Debug)]
+enum GameCommand {
+    ShowDialog(LocalDialogRequest),
+    AddChatMessage(LocalChatMessageRequest),
+    AddDeathMessage(LocalDeathMessageRequest),
+    CloseDialog(u8),
+    SetChatInputText(Vec<u8>),
+    SetChatInputEnabled(bool),
+    ProcessChatInput(Vec<u8>),
+    SetChatDisplayMode(i32),
+    SetChatEntry {
+        id: u16,
+        text: Vec<u8>,
+        prefix: Vec<u8>,
+        text_colour: u32,
+        prefix_colour: u32,
+    },
+    SetCursorMode(i32),
+    ToggleCursor(bool),
+    SetScoreboardOpen(bool),
+    SetDialogClientSide(bool),
+    SetDialogSelectedItem(i32),
+    SetGameState(i32),
+    ConnectToServer {
+        address: Vec<u8>,
+        port: u16,
+    },
+    DisconnectWithReason(u32),
+    DeleteTextLabel(u16),
+    CreateTextLabel {
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    },
+    DeleteTextdraw(u16),
+    SetTextdrawPosition {
+        id: u16,
+        x: f32,
+        y: f32,
+    },
+    SetTextdrawLetterStyle {
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    },
+    SetTextdrawProportional {
+        id: u16,
+        proportional: bool,
+    },
+    SetTextdrawShadow {
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    },
+    SetTextdrawOutline {
+        id: u16,
+        outline: u8,
+        colour: u32,
+    },
+    SetTextdrawBox {
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    },
+    SetTextdrawAlignment {
+        id: u16,
+        alignment: u8,
+    },
+    SetTextdrawString {
+        id: u16,
+        text: Vec<u8>,
+    },
+    SetTextdrawModelStyle {
+        id: u16,
+        rotation: crate::runtime::Vector3,
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    },
+    SpawnLocalPlayer,
+    SetLocalPlayerSpecialAction(u8),
+    SetLocalPlayerName(Vec<u8>),
+    ForceUnoccupiedSync {
+        vehicle: u16,
+        seat: i32,
+    },
+    SetPlayerColour {
+        id: u16,
+        colour: u32,
+    },
+    SetSendRate {
+        kind: u8,
+        milliseconds: u32,
+    },
+    SendPacket {
+        id: u8,
+        payload: BitStream,
+        options: SendOptions,
+    },
+    SendRpc {
+        id: u8,
+        payload: BitStream,
+        options: SendOptions,
+    },
+    EmulateIncomingPacket {
+        id: u8,
+        payload: BitStream,
+    },
+    EmulateIncomingRpc {
+        id: u8,
+        payload: BitStream,
+    },
 }
 
 static ACTIVE_BACKEND: OnceLock<Mutex<Option<Weak<BackendState>>>> = OnceLock::new();
@@ -244,11 +387,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let addresses = AddressSet::for_version(version);
     let r1_client = R1ClientProfile::verify(module_base, entry_point);
     if r1_client.is_some() {
-        log::info!("direct R1 client helpers are enabled");
-    } else if version == SampVersion::R1 {
-        log::warn!(
-            "direct R1 client helpers are disabled because the native fingerprint did not match"
-        );
+        log::info!("direct R1 client helpers are enabled with fixed offsets");
     }
 
     let active = ACTIVE_BACKEND.get_or_init(|| Mutex::new(None));
@@ -264,11 +403,16 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         addresses,
         r1_client,
         rak_client: AtomicUsize::new(0),
+        raw_player_pool: AtomicUsize::new(0),
+        raw_vehicle_pool: AtomicUsize::new(0),
+        raw_local_player: AtomicUsize::new(0),
         rpc_receiver: AtomicUsize::new(0),
         player_address: AtomicU32::new(0),
         player_port: AtomicU16::new(0),
         constructor_trampoline: AtomicUsize::new(0),
         incoming_rpc_trampoline: AtomicUsize::new(0),
+        game_process_trampoline: AtomicUsize::new(0),
+        game_thread_id: AtomicU32::new(0),
         outgoing_packet_original: AtomicUsize::new(0),
         incoming_packet_original: AtomicUsize::new(0),
         deallocate_packet_original: AtomicUsize::new(0),
@@ -276,11 +420,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
-        local_dialogs: Mutex::new(VecDeque::with_capacity(LOCAL_DIALOG_QUEUE_CAPACITY)),
-        local_chat_messages: Mutex::new(VecDeque::with_capacity(LOCAL_CHAT_QUEUE_CAPACITY)),
-        local_death_messages: Mutex::new(VecDeque::with_capacity(
-            LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY,
-        )),
+        game_commands: CommandQueue::new(),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
         player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
@@ -316,6 +456,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         )),
         textdraw_cache: Mutex::new(vec![TextdrawCacheEntry::Unknown; MAX_SAMP_TEXTDRAWS]),
         textdraw_requests: Mutex::new(VecDeque::with_capacity(TEXTDRAW_REQUEST_QUEUE_CAPACITY)),
+        chat_entry_cache: Mutex::new(vec![ChatEntryCacheEntry::Unknown; MAX_CHAT_ENTRIES]),
+        chat_entry_requests: Mutex::new(VecDeque::with_capacity(CHAT_ENTRY_REQUEST_QUEUE_CAPACITY)),
         object_exists_cache: Mutex::new(vec![ObjectExistsCacheEntry::Unknown; MAX_SAMP_OBJECTS]),
         object_exists_requests: Mutex::new(VecDeque::with_capacity(
             OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY,
@@ -342,14 +484,21 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_dialog_snapshot_ready: AtomicBool::new(false),
         local_chat_input_active: AtomicBool::new(false),
         local_chat_input_active_ready: AtomicBool::new(false),
+        local_chat_input_text: Mutex::new(None),
+        local_chat_input_text_ready: AtomicBool::new(false),
         animation_catalog: Mutex::new(None),
+        cache_generation: AtomicU64::new(0),
         hooks: Mutex::new(HookStorage::default()),
     });
     *active = Some(Arc::downgrade(&state));
     drop(active);
 
-    if let Err(error) = state.install_constructor_hook() {
+    if let Err(error) = state.install_game_process_hook() {
         clear_active_backend(&state);
+        return Err(error);
+    }
+    if let Err(error) = state.install_constructor_hook() {
+        state.shutdown();
         return Err(error);
     }
     Ok(Backend { state })
@@ -363,6 +512,32 @@ impl Backend {
 
     pub(crate) fn samp_version(&self) -> SampVersion {
         self.state.version
+    }
+
+    pub(crate) fn raw_rakclient(&self) -> Option<*mut c_void> {
+        let client = self.state.rak_client.load(Ordering::Acquire) as *mut c_void;
+        (!client.is_null()).then_some(client)
+    }
+
+    pub(crate) fn raw_rakpeer(&self) -> Option<*mut c_void> {
+        let profile = self.state.r1_client?;
+        let client = self.raw_rakclient()?;
+        profile.rakpeer_address(client).ok()
+    }
+
+    pub(crate) fn raw_player_pool(&self) -> Option<*mut c_void> {
+        let pool = self.state.raw_player_pool.load(Ordering::Acquire) as *mut c_void;
+        (!pool.is_null()).then_some(pool)
+    }
+
+    pub(crate) fn raw_vehicle_pool(&self) -> Option<*mut c_void> {
+        let pool = self.state.raw_vehicle_pool.load(Ordering::Acquire) as *mut c_void;
+        (!pool.is_null()).then_some(pool)
+    }
+
+    pub(crate) fn raw_local_player(&self) -> Option<*mut c_void> {
+        let player = self.state.raw_local_player.load(Ordering::Acquire) as *mut c_void;
+        (!player.is_null()).then_some(player)
     }
 
     pub(crate) fn encode_string(&self, value: &[u8]) -> Result<BitStream, CodecError> {
@@ -395,6 +570,24 @@ impl Backend {
         self.state.send_rpc(rpc_id, payload, options)
     }
 
+    pub(crate) fn submit_packet(
+        &self,
+        packet_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        self.state.submit_packet(packet_id, payload, options)
+    }
+
+    pub(crate) fn submit_rpc(
+        &self,
+        rpc_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        self.state.submit_rpc(rpc_id, payload, options)
+    }
+
     pub(crate) fn emulate_incoming_packet(
         &self,
         packet_id: u8,
@@ -409,6 +602,23 @@ impl Backend {
         payload: BitStream,
     ) -> Result<bool, SendError> {
         self.state.emulate_incoming_rpc(rpc_id, payload)
+    }
+
+    pub(crate) fn submit_emulate_incoming_packet(
+        &self,
+        packet_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.state
+            .submit_emulate_incoming_packet(packet_id, payload)
+    }
+
+    pub(crate) fn submit_emulate_incoming_rpc(
+        &self,
+        rpc_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.state.submit_emulate_incoming_rpc(rpc_id, payload)
     }
 
     pub(crate) fn show_local_dialog(
@@ -430,6 +640,315 @@ impl Backend {
         request: LocalDeathMessageRequest,
     ) -> Result<(), DirectClientError> {
         self.state.show_local_death_message(request)
+    }
+
+    pub(crate) fn submit_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_dialog(request)
+    }
+
+    pub(crate) fn submit_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_chat_message(request)
+    }
+
+    pub(crate) fn submit_local_death_message(
+        &self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_death_message(request)
+    }
+
+    pub(crate) fn submit_local_cursor_mode(
+        &self,
+        mode: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_cursor_mode(mode)
+    }
+
+    pub(crate) fn submit_local_chat_display_mode(
+        &self,
+        mode: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_chat_display_mode(mode)
+    }
+
+    pub(crate) fn submit_local_chat_entry(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        prefix: Vec<u8>,
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_local_chat_entry(id, text, prefix, text_colour, prefix_colour)
+    }
+
+    pub(crate) fn submit_local_dialog_close(
+        &self,
+        button: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_dialog_close(button)
+    }
+
+    pub(crate) fn submit_local_chat_input_text(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_chat_input_text(text)
+    }
+
+    pub(crate) fn submit_local_chat_input_enabled(
+        &self,
+        enabled: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_chat_input_enabled(enabled)
+    }
+
+    pub(crate) fn submit_local_chat_input_process(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_chat_input_process(text)
+    }
+
+    pub(crate) fn submit_local_cursor_toggle(
+        &self,
+        show: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_cursor_toggle(show)
+    }
+
+    pub(crate) fn submit_local_scoreboard_open(
+        &self,
+        open: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_scoreboard_open(open)
+    }
+
+    pub(crate) fn submit_local_dialog_client_side(
+        &self,
+        client_side: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_dialog_client_side(client_side)
+    }
+
+    pub(crate) fn submit_local_dialog_selected_item(
+        &self,
+        selected: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_dialog_selected_item(selected)
+    }
+
+    pub(crate) fn submit_samp_game_state(
+        &self,
+        state: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_samp_game_state(state)
+    }
+
+    pub(crate) fn submit_connect_to_server(
+        &self,
+        address: Vec<u8>,
+        port: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_connect_to_server(address, port)
+    }
+
+    pub(crate) fn submit_disconnect_with_reason(
+        &self,
+        block_duration: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_disconnect_with_reason(block_duration)
+    }
+
+    pub(crate) fn submit_delete_textdraw(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        self.state.submit_delete_textdraw(id)
+    }
+
+    pub(crate) fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        self.state.submit_delete_text_label(id)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_create_text_label(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_create_text_label(
+            id,
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        )
+    }
+
+    pub(crate) fn submit_set_textdraw_position(
+        &self,
+        id: u16,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_position(id, x, y)
+    }
+
+    pub(crate) fn submit_set_textdraw_letter_style(
+        &self,
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_set_textdraw_letter_style(id, width, height, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_proportional(
+        &self,
+        id: u16,
+        proportional: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_set_textdraw_proportional(id, proportional)
+    }
+
+    pub(crate) fn submit_set_textdraw_shadow(
+        &self,
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_shadow(id, shadow, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_outline(
+        &self,
+        id: u16,
+        outline: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_outline(id, outline, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_box(
+        &self,
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_set_textdraw_box(id, enabled, colour, width, height)
+    }
+
+    pub(crate) fn submit_set_textdraw_alignment(
+        &self,
+        id: u16,
+        alignment: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_alignment(id, alignment)
+    }
+
+    pub(crate) fn submit_set_textdraw_string(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_string(id, text)
+    }
+
+    pub(crate) fn submit_set_textdraw_model_style(
+        &self,
+        id: u16,
+        rotation: crate::runtime::Vector3,
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
+    }
+
+    pub(crate) fn submit_local_player_spawn(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_player_spawn()
+    }
+
+    pub(crate) fn submit_local_player_special_action(
+        &self,
+        action: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_player_special_action(action)
+    }
+
+    pub(crate) fn submit_local_player_name(
+        &self,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_player_name(name)
+    }
+
+    pub(crate) fn submit_force_unoccupied_sync(
+        &self,
+        vehicle: u16,
+        seat: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_force_unoccupied_sync(vehicle, seat)
+    }
+
+    pub(crate) fn submit_send_rate(
+        &self,
+        kind: u8,
+        milliseconds: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_send_rate(kind, milliseconds)
+    }
+
+    pub(crate) fn submit_player_colour(
+        &self,
+        id: u16,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_player_colour(id, colour)
+    }
+
+    pub(crate) fn try_take_command(
+        &self,
+        id: CommandId,
+    ) -> Result<Option<Result<(), CommandError>>, CommandError> {
+        self.state.game_commands.try_take(id)
+    }
+
+    pub(crate) fn wait_for_command(
+        &self,
+        id: CommandId,
+        timeout: Duration,
+    ) -> Result<Result<(), CommandError>, CommandError> {
+        self.state.game_commands.wait(
+            id,
+            timeout,
+            !self.state.is_game_thread() && !self.state.registry.is_dispatching_on_current_thread(),
+        )
+    }
+
+    pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {
+        self.state.game_commands.detach(id)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
@@ -492,6 +1011,10 @@ impl Backend {
         self.state.textdraw(pool_index)
     }
 
+    pub(crate) fn chat_entry(&self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
+        self.state.chat_entry(id)
+    }
+
     pub(crate) fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.object_exists(id)
     }
@@ -530,8 +1053,26 @@ impl Backend {
         self.state.local_dialog_state()
     }
 
+    pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {
+        self.state
+            .local_dialog_state()?
+            .and_then(|snapshot| snapshot.selected_item)
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    pub(crate) fn local_dialog_list_item_count(&self) -> Result<i32, DirectClientError> {
+        self.state
+            .local_dialog_state()?
+            .and_then(|snapshot| snapshot.list_item_count)
+            .ok_or(DirectClientError::NotReady)
+    }
+
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         self.state.local_chat_input_active()
+    }
+
+    pub(crate) fn local_chat_input_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.state.local_chat_input_text()
     }
 
     pub(crate) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
@@ -552,6 +1093,27 @@ impl Backend {
 }
 
 impl BackendState {
+    fn install_game_process_hook(&self) -> Result<(), AttachError> {
+        let (mut detour, trampoline) = InlineHook::create(
+            GTA_SA_10_US_CGAME_PROCESS,
+            game_process_detour as *const () as usize,
+        )
+        .map_err(|_| AttachError::HookInstallFailed("CGame::Process detour"))?;
+        self.game_process_trampoline
+            .store(trampoline, Ordering::Release);
+        if detour.enable().is_err() {
+            self.game_process_trampoline.store(0, Ordering::Release);
+            return Err(AttachError::HookInstallFailed(
+                "enabling CGame::Process detour",
+            ));
+        }
+        self.hooks
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .game_process = Some(detour);
+        Ok(())
+    }
+
     fn install_constructor_hook(self: &Arc<Self>) -> Result<(), AttachError> {
         let target = self.module_base + self.addresses.rak_client_constructor as usize;
         let (mut detour, trampoline) =
@@ -622,7 +1184,7 @@ impl BackendState {
         Ok(())
     }
 
-    fn send_packet(
+    fn send_packet_native(
         &self,
         packet_id: u8,
         payload: &BitStream,
@@ -740,7 +1302,7 @@ impl BackendState {
         }
     }
 
-    fn send_rpc(
+    fn send_rpc_native(
         &self,
         rpc_id: u8,
         payload: &BitStream,
@@ -767,7 +1329,7 @@ impl BackendState {
         })
     }
 
-    fn emulate_incoming_packet(
+    fn emulate_incoming_packet_native(
         &self,
         packet_id: u8,
         payload: BitStream,
@@ -805,7 +1367,11 @@ impl BackendState {
         Ok(true)
     }
 
-    fn emulate_incoming_rpc(&self, rpc_id: u8, mut payload: BitStream) -> Result<bool, SendError> {
+    fn emulate_incoming_rpc_native(
+        &self,
+        rpc_id: u8,
+        mut payload: BitStream,
+    ) -> Result<bool, SendError> {
         if self
             .registry
             .dispatch_rpc(Direction::Incoming, rpc_id, &mut payload)
@@ -849,6 +1415,36 @@ impl BackendState {
     }
 
     fn show_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
+        let id = self.submit_local_dialog(request)?;
+        self.game_commands
+            .detach(id)
+            .map_err(|_| DirectClientError::NotReady)
+    }
+
+    fn show_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        let id = self.submit_local_chat_message(request)?;
+        self.game_commands
+            .detach(id)
+            .map_err(|_| DirectClientError::NotReady)
+    }
+
+    fn show_local_death_message(
+        &self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        let id = self.submit_local_death_message(request)?;
+        self.game_commands
+            .detach(id)
+            .map_err(|_| DirectClientError::NotReady)
+    }
+
+    fn submit_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<CommandId, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
@@ -858,10 +1454,10 @@ impl BackendState {
         self.queue_local_dialog(request)
     }
 
-    fn show_local_chat_message(
+    fn submit_local_chat_message(
         &self,
         request: LocalChatMessageRequest,
-    ) -> Result<(), DirectClientError> {
+    ) -> Result<CommandId, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
@@ -871,10 +1467,10 @@ impl BackendState {
         self.queue_local_chat_message(request)
     }
 
-    fn show_local_death_message(
+    fn submit_local_death_message(
         &self,
         request: LocalDeathMessageRequest,
-    ) -> Result<(), DirectClientError> {
+    ) -> Result<CommandId, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
@@ -884,46 +1480,644 @@ impl BackendState {
         self.queue_local_death_message(request)
     }
 
-    fn queue_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
-        let mut queue = self
-            .local_dialogs
-            .try_lock()
-            .map_err(|_| DirectClientError::QueueFull)?;
-        if queue.len() == LOCAL_DIALOG_QUEUE_CAPACITY {
-            return Err(DirectClientError::QueueFull);
+    fn submit_local_cursor_mode(&self, mode: i32) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
         }
-        queue.push_back(request);
-        Ok(())
+        if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(mode, 0..=4) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetCursorMode(mode))
+    }
+
+    fn submit_local_chat_display_mode(&self, mode: i32) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(mode, 0..=2) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetChatDisplayMode(mode))
+    }
+
+    fn submit_local_chat_entry(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        prefix: Vec<u8>,
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || id >= 100
+            || text.len() >= 144
+            || prefix.len() >= 28
+            || text.contains(&0)
+            || prefix.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetChatEntry {
+            id,
+            text,
+            prefix,
+            text_colour,
+            prefix_colour,
+        })
+    }
+
+    fn submit_local_dialog_close(&self, button: u8) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || button > 1 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::CloseDialog(button))
+    }
+
+    fn submit_local_chat_input_text(&self, text: Vec<u8>) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetChatInputText(text))
+    }
+
+    fn submit_local_chat_input_enabled(
+        &self,
+        enabled: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetChatInputEnabled(enabled))
+    }
+
+    fn submit_local_chat_input_process(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ProcessChatInput(text))
+    }
+
+    fn submit_local_cursor_toggle(&self, show: bool) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ToggleCursor(show))
+    }
+
+    fn submit_local_scoreboard_open(&self, open: bool) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetScoreboardOpen(open))
+    }
+
+    fn submit_local_dialog_client_side(
+        &self,
+        client_side: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetDialogClientSide(client_side))
+    }
+
+    fn submit_local_dialog_selected_item(
+        &self,
+        selected: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetDialogSelectedItem(selected))
+    }
+
+    fn submit_samp_game_state(&self, state: i32) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !matches!(state, 0 | 9 | 13 | 14 | 15 | 18)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetGameState(state))
+    }
+
+    fn submit_connect_to_server(
+        &self,
+        address: Vec<u8>,
+        port: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || address.is_empty()
+            || address.len() > 256
+            || address.contains(&0)
+            || port == 0
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ConnectToServer { address, port })
+    }
+
+    fn submit_disconnect_with_reason(
+        &self,
+        block_duration: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::DisconnectWithReason(block_duration))
+    }
+
+    fn submit_delete_textdraw(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::DeleteTextdraw(id))
+    }
+
+    fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXT_LABELS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::DeleteTextLabel(id))
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn submit_create_text_label(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none()
+            || self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXT_LABELS
+            || text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+            || text.contains(&0)
+            || !position.x.is_finite()
+            || !position.y.is_finite()
+            || !position.z.is_finite()
+            || !draw_distance.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::CreateTextLabel {
+            id,
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        })
+    }
+
+    fn submit_set_textdraw_position(
+        &self,
+        id: u16,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !x.is_finite()
+            || !y.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawPosition { id, x, y })
+    }
+
+    fn submit_set_textdraw_letter_style(
+        &self,
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !width.is_finite()
+            || !height.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawLetterStyle {
+            id,
+            width,
+            height,
+            colour,
+        })
+    }
+
+    fn submit_set_textdraw_proportional(
+        &self,
+        id: u16,
+        proportional: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawProportional { id, proportional })
+    }
+
+    fn submit_set_textdraw_shadow(
+        &self,
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawShadow { id, shadow, colour })
+    }
+
+    fn submit_set_textdraw_outline(
+        &self,
+        id: u16,
+        outline: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawOutline {
+            id,
+            outline,
+            colour,
+        })
+    }
+
+    fn submit_set_textdraw_box(
+        &self,
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !width.is_finite()
+            || !height.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawBox {
+            id,
+            enabled,
+            colour,
+            width,
+            height,
+        })
+    }
+
+    fn submit_set_textdraw_alignment(
+        &self,
+        id: u16,
+        alignment: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !(1..=3).contains(&alignment)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawAlignment { id, alignment })
+    }
+
+    fn submit_set_textdraw_string(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || text.len() > 1_601
+            || text.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawString { id, text })
+    }
+
+    fn submit_set_textdraw_model_style(
+        &self,
+        id: u16,
+        rotation: crate::runtime::Vector3,
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !rotation.x.is_finite()
+            || !rotation.y.is_finite()
+            || !rotation.z.is_finite()
+            || !zoom.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawModelStyle {
+            id,
+            rotation,
+            zoom,
+            colour1,
+            colour2,
+        })
+    }
+
+    fn submit_local_player_spawn(&self) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SpawnLocalPlayer)
+    }
+
+    fn submit_local_player_special_action(
+        &self,
+        action: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(action, 0..=12 | 20..=25 | 68)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetLocalPlayerSpecialAction(action))
+    }
+
+    fn submit_local_player_name(&self, name: Vec<u8>) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || name.len() > 255 || name.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetLocalPlayerName(name))
+    }
+
+    fn submit_force_unoccupied_sync(
+        &self,
+        vehicle: u16,
+        seat: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(vehicle) >= MAX_SAMP_VEHICLES
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ForceUnoccupiedSync { vehicle, seat })
+    }
+
+    fn submit_send_rate(
+        &self,
+        kind: u8,
+        milliseconds: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !matches!(kind, 0..=2)
+            || i32::try_from(milliseconds).is_err()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetSendRate { kind, milliseconds })
+    }
+
+    fn submit_player_colour(&self, id: u16, colour: u32) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetPlayerColour { id, colour })
+    }
+
+    fn queue_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.queue_game_command(GameCommand::ShowDialog(request))
     }
 
     fn queue_local_chat_message(
         &self,
         request: LocalChatMessageRequest,
-    ) -> Result<(), DirectClientError> {
-        let mut queue = self
-            .local_chat_messages
-            .try_lock()
-            .map_err(|_| DirectClientError::QueueFull)?;
-        if queue.len() == LOCAL_CHAT_QUEUE_CAPACITY {
-            return Err(DirectClientError::QueueFull);
-        }
-        queue.push_back(request);
-        Ok(())
+    ) -> Result<CommandId, DirectClientError> {
+        self.queue_game_command(GameCommand::AddChatMessage(request))
     }
 
     fn queue_local_death_message(
         &self,
         request: LocalDeathMessageRequest,
-    ) -> Result<(), DirectClientError> {
-        let mut queue = self
-            .local_death_messages
-            .try_lock()
-            .map_err(|_| DirectClientError::QueueFull)?;
-        if queue.len() == LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY {
-            return Err(DirectClientError::QueueFull);
-        }
-        queue.push_back(request);
-        Ok(())
+    ) -> Result<CommandId, DirectClientError> {
+        self.queue_game_command(GameCommand::AddDeathMessage(request))
+    }
+
+    fn queue_game_command(&self, command: GameCommand) -> Result<CommandId, DirectClientError> {
+        self.submit_game_command(command)
+            .map_err(|error| match error {
+                CommandError::QueueFull => DirectClientError::QueueFull,
+                CommandError::ShuttingDown
+                | CommandError::NativeFailure
+                | CommandError::UnknownReceipt
+                | CommandError::TimedOut
+                | CommandError::WaitRejected => DirectClientError::NotReady,
+            })
+    }
+
+    fn submit_game_command(&self, command: GameCommand) -> Result<CommandId, CommandError> {
+        self.game_commands.submit(command)
+    }
+
+    fn queue_network_command(&self, command: GameCommand) -> Result<bool, SendError> {
+        let id = self.submit_network_command(command)?;
+        self.game_commands.detach(id).map_err(command_send_error)?;
+        Ok(true)
+    }
+
+    fn submit_network_command(&self, command: GameCommand) -> Result<CommandId, SendError> {
+        self.submit_game_command(command)
+            .map_err(command_send_error)
+    }
+
+    fn send_packet(
+        &self,
+        packet_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<bool, SendError> {
+        self.queue_network_command(GameCommand::SendPacket {
+            id: packet_id,
+            payload: payload.clone(),
+            options,
+        })
+    }
+
+    fn send_rpc(
+        &self,
+        rpc_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<bool, SendError> {
+        self.queue_network_command(GameCommand::SendRpc {
+            id: rpc_id,
+            payload: payload.clone(),
+            options,
+        })
+    }
+
+    fn submit_packet(
+        &self,
+        packet_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        self.submit_network_command(GameCommand::SendPacket {
+            id: packet_id,
+            payload: payload.clone(),
+            options,
+        })
+    }
+
+    fn submit_rpc(
+        &self,
+        rpc_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        self.submit_network_command(GameCommand::SendRpc {
+            id: rpc_id,
+            payload: payload.clone(),
+            options,
+        })
+    }
+
+    fn emulate_incoming_packet(
+        &self,
+        packet_id: u8,
+        payload: BitStream,
+    ) -> Result<bool, SendError> {
+        self.queue_network_command(GameCommand::EmulateIncomingPacket {
+            id: packet_id,
+            payload,
+        })
+    }
+
+    fn emulate_incoming_rpc(&self, rpc_id: u8, payload: BitStream) -> Result<bool, SendError> {
+        self.queue_network_command(GameCommand::EmulateIncomingRpc {
+            id: rpc_id,
+            payload,
+        })
+    }
+
+    fn submit_emulate_incoming_packet(
+        &self,
+        packet_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.submit_network_command(GameCommand::EmulateIncomingPacket {
+            id: packet_id,
+            payload,
+        })
+    }
+
+    fn submit_emulate_incoming_rpc(
+        &self,
+        rpc_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.submit_network_command(GameCommand::EmulateIncomingRpc {
+            id: rpc_id,
+            payload,
+        })
     }
 
     fn queue_player_info_request(&self, id: u16) -> Result<(), DirectClientError> {
@@ -1031,6 +2225,21 @@ impl BackendState {
         Ok(())
     }
 
+    fn queue_chat_entry_request(&self, id: u16) -> Result<(), DirectClientError> {
+        let mut requests = self
+            .chat_entry_requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == CHAT_ENTRY_REQUEST_QUEUE_CAPACITY {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
     fn queue_object_exists_request(&self, id: u16) -> Result<(), DirectClientError> {
         let mut requests = self
             .object_exists_requests
@@ -1065,7 +2274,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         self.local_player_snapshot
@@ -1079,7 +2288,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_PLAYERS {
@@ -1131,7 +2340,10 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_PLAYERS {
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || usize::from(id) >= MAX_SAMP_PLAYERS
+        {
             return Err(DirectClientError::NotReady);
         }
         let cached = self
@@ -1139,7 +2351,7 @@ impl BackendState {
             .try_lock()
             .map_err(|_| DirectClientError::NotReady)?
             .get(usize::from(id))
-            .copied()
+            .cloned()
             .ok_or(DirectClientError::NotReady)?;
         match cached {
             RemotePlayerStateCacheEntry::Known(snapshot) => {
@@ -1163,6 +2375,7 @@ impl BackendState {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
             || !self.player_count_ready.load(Ordering::Acquire)
         {
             return Err(DirectClientError::NotReady);
@@ -1180,6 +2393,7 @@ impl BackendState {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
             || !self.player_max_id_ready.load(Ordering::Acquire)
         {
             return Err(DirectClientError::NotReady);
@@ -1192,7 +2406,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_VEHICLES {
@@ -1223,7 +2437,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_TEXT_LABELS {
@@ -1254,7 +2468,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_TEXT_LABELS {
@@ -1283,7 +2497,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(pool_index) >= MAX_SAMP_TEXTDRAWS {
@@ -1294,7 +2508,7 @@ impl BackendState {
             .try_lock()
             .map_err(|_| DirectClientError::NotReady)?
             .get(usize::from(pool_index))
-            .copied()
+            .cloned()
             .ok_or(DirectClientError::NotReady)?
         {
             TextdrawExistsCacheEntry::Known(exists) => {
@@ -1314,7 +2528,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(pool_index) >= MAX_SAMP_TEXTDRAWS {
@@ -1325,7 +2539,7 @@ impl BackendState {
             .try_lock()
             .map_err(|_| DirectClientError::NotReady)?
             .get(usize::from(pool_index))
-            .copied()
+            .cloned()
             .ok_or(DirectClientError::NotReady)?
         {
             TextdrawCacheEntry::Known(snapshot) => {
@@ -1339,11 +2553,41 @@ impl BackendState {
         }
     }
 
+    fn chat_entry(&self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
+            return Err(DirectClientError::NotReady);
+        }
+        let index = usize::from(id);
+        if index >= MAX_CHAT_ENTRIES {
+            return Err(DirectClientError::NotReady);
+        }
+        match self
+            .chat_entry_cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(index)
+            .cloned()
+            .ok_or(DirectClientError::NotReady)?
+        {
+            ChatEntryCacheEntry::Known(snapshot) => {
+                let _ = self.queue_chat_entry_request(id);
+                Ok(snapshot)
+            }
+            ChatEntryCacheEntry::Unknown => {
+                self.queue_chat_entry_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
     fn object_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_OBJECTS {
@@ -1372,7 +2616,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         if usize::from(id) >= MAX_SAMP_GANGZONES {
@@ -1401,7 +2645,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         self.server_info_snapshot
@@ -1415,6 +2659,7 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.samp_game_state_ready
                 .load(Ordering::Acquire)
                 .then(|| self.samp_game_state.load(Ordering::Acquire)),
@@ -1425,6 +2670,7 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.local_chat_display_mode_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_chat_display_mode.load(Ordering::Acquire)),
@@ -1435,6 +2681,7 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.local_cursor_mode_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_cursor_mode.load(Ordering::Acquire)),
@@ -1445,6 +2692,7 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.local_scoreboard_open_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_scoreboard_open.load(Ordering::Acquire)),
@@ -1455,6 +2703,7 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.local_dialog_active_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_dialog_active.load(Ordering::Acquire)),
@@ -1466,6 +2715,7 @@ impl BackendState {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
             || !self.local_dialog_snapshot_ready.load(Ordering::Acquire)
         {
             return Err(DirectClientError::NotReady);
@@ -1481,10 +2731,28 @@ impl BackendState {
         cached_direct_client_value(
             self.r1_client.is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
+            self.cache_is_published(),
             self.local_chat_input_active_ready
                 .load(Ordering::Acquire)
                 .then(|| self.local_chat_input_active.load(Ordering::Acquire)),
         )
+    }
+
+    fn local_chat_input_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || !self.local_chat_input_text_ready.load(Ordering::Acquire)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.local_chat_input_text
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone()
+            .ok_or(DirectClientError::NotReady)
     }
 
     fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
@@ -1512,7 +2780,7 @@ impl BackendState {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
-        if self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         self.animation_catalog
@@ -1522,13 +2790,23 @@ impl BackendState {
             .ok_or(DirectClientError::NotReady)
     }
 
-    fn pump_local_client(&self) {
+    fn prepare_game_tick(&self) -> Option<Vec<QueuedCommand<GameCommand>>> {
+        (self.rak_client.load(Ordering::Acquire) != 0)
+            .then(|| self.game_commands.take_tick_snapshot())
+    }
+
+    /// Executes one post-process game tick. `commands` is captured before the
+    /// native process call, so submissions made while that call or this drain
+    /// is running remain owned by the following tick.
+    fn pump_game_tick(&self, commands: Vec<QueuedCommand<GameCommand>>) {
+        self.execute_game_commands(commands);
         let Some(profile) = self.r1_client else {
             return;
         };
-        if self.rak_client.load(Ordering::Acquire) == 0 {
-            return;
-        }
+        // Odd generations are in-flight. Readers only observe the next even
+        // generation after every cache path below has had one tick to refresh.
+        self.cache_generation.fetch_add(1, Ordering::AcqRel);
+        self.refresh_raw_pool_addresses(profile);
         self.refresh_samp_game_state(profile);
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
@@ -1536,6 +2814,7 @@ impl BackendState {
         self.refresh_local_dialog_active(profile);
         self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(profile);
+        self.refresh_local_chat_input_text(profile);
         self.refresh_animation_catalog(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
@@ -1548,73 +2827,411 @@ impl BackendState {
         self.refresh_text_labels(profile);
         self.refresh_textdraw_exists(profile);
         self.refresh_textdraws(profile);
+        self.refresh_chat_entries(profile);
         self.refresh_object_exists(profile);
         self.refresh_gangzones(profile);
-        if profile.dialog_is_ready() {
-            let dialogs = self.take_local_dialogs();
-            for dialog in dialogs {
-                let dialog_id = dialog.id;
-                if let Err(error) = profile.show_dialog(dialog) {
-                    // The request is already copied and this is a game-thread-only
-                    // call; never log any user-provided dialog text.
-                    log::debug!(
-                        "direct local dialog pump call failed for id {dialog_id}: {error:?}"
-                    );
-                } else {
-                    log::debug!("direct local dialog pump invoked for id {dialog_id}");
+        self.cache_generation.fetch_add(1, Ordering::Release);
+    }
+
+    fn execute_game_commands(&self, commands: Vec<QueuedCommand<GameCommand>>) {
+        for queued in commands {
+            let result = match queued.command {
+                GameCommand::ShowDialog(request) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .dialog_is_ready()
+                            .then_some(())
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|()| {
+                                profile
+                                    .show_dialog(request)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            })
+                    }),
+                GameCommand::CloseDialog(button) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .close_dialog(button)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetChatInputText(text) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_chat_input_text(&text)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetChatInputEnabled(enabled) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_chat_input_enabled(enabled)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ProcessChatInput(text) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .process_chat_input(&text)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetChatDisplayMode(mode) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_chat_display_mode(mode)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetChatEntry {
+                    id,
+                    text,
+                    prefix,
+                    text_colour,
+                    prefix_colour,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_chat_entry(id, &text, &prefix, text_colour, prefix_colour)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::AddChatMessage(request) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .chat_is_ready()
+                            .then_some(())
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|()| {
+                                profile
+                                    .show_chat_message(request)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            })
+                    }),
+                GameCommand::AddDeathMessage(request) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .death_window_is_ready()
+                            .then_some(())
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|()| {
+                                profile
+                                    .show_death_message(request)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            })
+                    }),
+                GameCommand::SetCursorMode(mode) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_cursor_mode(mode)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ToggleCursor(show) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .toggle_cursor(show)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetScoreboardOpen(open) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_scoreboard_open(open)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetDialogClientSide(client_side) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_dialog_client_side(client_side)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetDialogSelectedItem(selected) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_dialog_selected_item(selected)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetGameState(state) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_game_state(state)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ConnectToServer { address, port } => {
+                    let result =
+                        self.r1_client
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|profile| {
+                                profile
+                                    .connect_to_server(&address, port)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            });
+                    if result.is_ok() {
+                        self.invalidate_connection_state();
+                    }
+                    result
+                }
+                GameCommand::DisconnectWithReason(block_duration) => {
+                    let rak_client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
+                    let result =
+                        self.r1_client
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|profile| {
+                                profile
+                                    .disconnect_with_reason(rak_client, block_duration)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            });
+                    if result.is_ok() {
+                        self.rak_client.store(0, Ordering::Release);
+                        self.rpc_receiver.store(0, Ordering::Release);
+                        self.player_address.store(0, Ordering::Release);
+                        self.player_port.store(0, Ordering::Release);
+                        self.invalidate_connection_state();
+                    }
+                    result
+                }
+                GameCommand::DeleteTextdraw(id) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .delete_textdraw(id)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::DeleteTextLabel(id) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .delete_text_label(id)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::CreateTextLabel {
+                    id,
+                    text,
+                    colour,
+                    position,
+                    draw_distance,
+                    behind_walls,
+                    attached_player_id,
+                    attached_vehicle_id,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .create_text_label(
+                                id,
+                                &text,
+                                colour,
+                                position,
+                                draw_distance,
+                                behind_walls,
+                                attached_player_id,
+                                attached_vehicle_id,
+                            )
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawPosition { id, x, y } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_position(id, x, y)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawLetterStyle {
+                    id,
+                    width,
+                    height,
+                    colour,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_letter_style(id, width, height, colour)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawProportional { id, proportional } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_proportional(id, proportional)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawShadow { id, shadow, colour } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_shadow(id, shadow, colour)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawOutline {
+                    id,
+                    outline,
+                    colour,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_outline(id, outline, colour)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawBox {
+                    id,
+                    enabled,
+                    colour,
+                    width,
+                    height,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_box(id, enabled, colour, width, height)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawAlignment { id, alignment } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_alignment(id, alignment)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawString { id, text } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_string(id, &text)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawModelStyle {
+                    id,
+                    rotation,
+                    zoom,
+                    colour1,
+                    colour2,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SpawnLocalPlayer => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .spawn_local_player()
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetLocalPlayerSpecialAction(action) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_local_player_special_action(action)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetLocalPlayerName(name) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_local_player_name(&name)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ForceUnoccupiedSync { vehicle, seat } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .force_unoccupied_sync(vehicle, seat)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetPlayerColour { id, colour } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_player_colour(id, colour)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetSendRate { kind, milliseconds } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_send_rate(kind, milliseconds)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SendPacket {
+                    id,
+                    payload,
+                    options,
+                } => self
+                    .send_packet_native(id, &payload, options)
+                    .and_then(sent_game_command_result)
+                    .map_err(|_| CommandError::NativeFailure),
+                GameCommand::SendRpc {
+                    id,
+                    payload,
+                    options,
+                } => self
+                    .send_rpc_native(id, &payload, options)
+                    .and_then(sent_game_command_result)
+                    .map_err(|_| CommandError::NativeFailure),
+                GameCommand::EmulateIncomingPacket { id, payload } => self
+                    .emulate_incoming_packet_native(id, payload)
+                    .map(|_| ())
+                    .map_err(|_| CommandError::NativeFailure),
+                GameCommand::EmulateIncomingRpc { id, payload } => self
+                    .emulate_incoming_rpc_native(id, payload)
+                    .map(|_| ())
+                    .map_err(|_| CommandError::NativeFailure),
+            };
+            match result {
+                Ok(()) => self.game_commands.complete(queued.id, Ok(())),
+                Err(error) => {
+                    // Every command owns its plugin-provided payload. Keep logs
+                    // free of dialog text, chat text, and death-window names.
+                    log::debug!("game command failed: {error:?}");
+                    self.game_commands
+                        .complete(queued.id, Err(CommandError::NativeFailure));
                 }
             }
         }
-        if profile.chat_is_ready() {
-            for message in self.take_local_chat_messages() {
-                if let Err(error) = profile.show_chat_message(message) {
-                    // Never log plugin-provided chat text or prefixes.
-                    log::debug!("direct local chat pump call failed: {error:?}");
-                } else {
-                    log::debug!("direct local chat pump invoked");
-                }
-            }
-        }
-        if profile.death_window_is_ready() {
-            for message in self.take_local_death_messages() {
-                if let Err(error) = profile.show_death_message(message) {
-                    // Never log plugin-provided death-window names.
-                    log::debug!("direct local death-window pump call failed: {error:?}");
-                } else {
-                    log::debug!("direct local death-window pump invoked");
-                }
-            }
-        }
-    }
-
-    fn take_local_dialogs(&self) -> Vec<LocalDialogRequest> {
-        self.local_dialogs
-            .try_lock()
-            .map(|mut queue| {
-                let count = queue.len().min(LOCAL_DIALOGS_PER_PUMP);
-                queue.drain(..count).collect()
-            })
-            .unwrap_or_default()
-    }
-
-    fn take_local_chat_messages(&self) -> Vec<LocalChatMessageRequest> {
-        self.local_chat_messages
-            .try_lock()
-            .map(|mut queue| {
-                let count = queue.len().min(LOCAL_CHAT_MESSAGES_PER_PUMP);
-                queue.drain(..count).collect()
-            })
-            .unwrap_or_default()
-    }
-
-    fn take_local_death_messages(&self) -> Vec<LocalDeathMessageRequest> {
-        self.local_death_messages
-            .try_lock()
-            .map(|mut queue| {
-                let count = queue.len().min(LOCAL_DEATH_MESSAGES_PER_PUMP);
-                queue.drain(..count).collect()
-            })
-            .unwrap_or_default()
     }
 
     fn take_player_info_requests(&self) -> Vec<u16> {
@@ -1682,6 +3299,16 @@ impl BackendState {
             .try_lock()
             .map(|mut queue| {
                 let count = queue.len().min(TEXTDRAW_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_chat_entry_requests(&self) -> Vec<u16> {
+        self.chat_entry_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(CHAT_ENTRY_REQUESTS_PER_PUMP);
                 queue.drain(..count).collect()
             })
             .unwrap_or_default()
@@ -1783,6 +3410,12 @@ impl BackendState {
         }
     }
 
+    fn clear_chat_entry_cache(&self) {
+        if let Ok(mut cache) = self.chat_entry_cache.try_lock() {
+            cache.fill(ChatEntryCacheEntry::Unknown);
+        }
+    }
+
     fn clear_object_exists_cache(&self) {
         if let Ok(mut cache) = self.object_exists_cache.try_lock() {
             cache.fill(ObjectExistsCacheEntry::Unknown);
@@ -1795,13 +3428,126 @@ impl BackendState {
         }
     }
 
+    /// Invalidates every cache tied to one server connection. This runs on the
+    /// game thread at a connection boundary and intentionally acquires each
+    /// host cache lock: serving a prior server's entity data is worse than a
+    /// short first-read `NotReady` while a plugin finishes copying a snapshot.
+    fn invalidate_connection_state(&self) {
+        self.raw_player_pool.store(0, Ordering::Release);
+        self.raw_vehicle_pool.store(0, Ordering::Release);
+        self.raw_local_player.store(0, Ordering::Release);
+        *self
+            .local_player_snapshot
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = None;
+        *self
+            .local_player_candidate
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = None;
+
+        self.player_info_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(PlayerInfoCacheEntry::Unknown);
+        self.player_info_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.remote_player_state_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(RemotePlayerStateCacheEntry::Unknown);
+        self.remote_player_state_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.vehicle_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(VehicleExistsCacheEntry::Unknown);
+        self.vehicle_exists_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.text_label_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(TextLabelExistsCacheEntry::Unknown);
+        self.text_label_exists_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.text_label_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(TextLabelCacheEntry::Unknown);
+        self.text_label_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.textdraw_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(TextdrawExistsCacheEntry::Unknown);
+        self.textdraw_exists_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.textdraw_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(TextdrawCacheEntry::Unknown);
+        self.textdraw_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.chat_entry_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(ChatEntryCacheEntry::Unknown);
+        self.chat_entry_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.object_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(ObjectExistsCacheEntry::Unknown);
+        self.object_exists_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.gangzone_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(GangzoneCacheEntry::Unknown);
+        self.gangzone_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+
+        self.player_count_ready.store(false, Ordering::Release);
+        self.player_max_id_ready.store(false, Ordering::Release);
+        *self
+            .server_info_snapshot
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = None;
+    }
+
     fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
         if !self.samp_game_state_ready.load(Ordering::Acquire)
             || !is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire))
         {
+            self.raw_local_player.store(0, Ordering::Release);
             self.cache_local_player_snapshot(None);
             return;
         }
+        self.raw_local_player.store(
+            profile
+                .local_player_address()
+                .map_or(0, |player| player as usize),
+            Ordering::Release,
+        );
         self.cache_local_player_snapshot(profile.local_player().ok());
     }
 
@@ -1854,6 +3600,13 @@ impl BackendState {
             }
             Err(_) => self.player_max_id_ready.store(false, Ordering::Release),
         }
+    }
+
+    fn refresh_raw_pool_addresses(&self, profile: R1ClientProfile) {
+        let player_pool = profile.player_pool().map_or(0, |pool| pool as usize);
+        let vehicle_pool = profile.vehicle_pool().map_or(0, |pool| pool as usize);
+        self.raw_player_pool.store(player_pool, Ordering::Release);
+        self.raw_vehicle_pool.store(vehicle_pool, Ordering::Release);
     }
 
     fn refresh_vehicle_exists(&self, profile: R1ClientProfile) {
@@ -1926,6 +3679,20 @@ impl BackendState {
         }
     }
 
+    fn refresh_chat_entries(&self, profile: R1ClientProfile) {
+        for id in self.take_chat_entry_requests() {
+            let Ok(snapshot) = profile.chat_entry(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.chat_entry_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = ChatEntryCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
     fn refresh_object_exists(&self, profile: R1ClientProfile) {
         for id in self.take_object_exists_requests() {
             let Ok(exists) = profile.object_exists(id) else {
@@ -1967,8 +3734,7 @@ impl BackendState {
                 let previous = self.samp_game_state.swap(game_state, Ordering::AcqRel);
                 let was_ready = self.samp_game_state_ready.swap(true, Ordering::AcqRel);
                 if crosses_r1_connection_boundary(was_ready, previous, game_state) {
-                    self.clear_player_info_cache();
-                    self.clear_remote_player_state_cache();
+                    self.invalidate_connection_state();
                 }
             }
             Err(DirectClientError::NotReady) => {
@@ -2065,6 +3831,25 @@ impl BackendState {
         }
     }
 
+    fn refresh_local_chat_input_text(&self, profile: R1ClientProfile) {
+        match profile.chat_input_text() {
+            Ok(text) => {
+                let Ok(mut snapshot) = self.local_chat_input_text.try_lock() else {
+                    self.local_chat_input_text_ready
+                        .store(false, Ordering::Release);
+                    return;
+                };
+                *snapshot = Some(text);
+                self.local_chat_input_text_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_chat_input_text_ready
+                    .store(false, Ordering::Release);
+            }
+        }
+    }
+
     fn refresh_animation_catalog(&self, profile: R1ClientProfile) {
         let Ok(mut catalog) = self.animation_catalog.try_lock() else {
             return;
@@ -2092,9 +3877,34 @@ impl BackendState {
         }
     }
 
+    fn cache_is_published(&self) -> bool {
+        let generation = self.cache_generation.load(Ordering::Acquire);
+        generation != 0 && generation.is_multiple_of(2)
+    }
+
+    fn is_game_thread(&self) -> bool {
+        let game_thread = self.game_thread_id.load(Ordering::Acquire);
+        game_thread != 0 && game_thread == unsafe { GetCurrentThreadId() }
+    }
+
+    unsafe fn run_game_process_tick(&self, game: *mut c_void, original: GameProcessFn) {
+        // Publish this before entering GTA so a plugin reached from the native
+        // process path cannot block the game thread on its own command receipt.
+        self.game_thread_id
+            .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
+        let commands = self.prepare_game_tick();
+        unsafe { original(game) };
+        if let Some(commands) = commands {
+            self.pump_game_tick(commands);
+        }
+    }
+
     fn shutdown(&self) {
         let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
         hooks.vtable.take();
+        if let Some(detour) = hooks.game_process.take() {
+            detour.disable();
+        }
         if let Some(detour) = hooks.incoming_rpc.take() {
             detour.disable();
         }
@@ -2107,16 +3917,12 @@ impl BackendState {
         // hooks have been removed. Existing detour calls hold an Arc from
         // active_state and can still reach their original functions safely.
         clear_active_backend(self);
+        self.game_thread_id.store(0, Ordering::Release);
         self.rak_client.store(0, Ordering::Release);
-        if let Ok(mut dialogs) = self.local_dialogs.try_lock() {
-            dialogs.clear();
-        }
-        if let Ok(mut messages) = self.local_chat_messages.try_lock() {
-            messages.clear();
-        }
-        if let Ok(mut messages) = self.local_death_messages.try_lock() {
-            messages.clear();
-        }
+        self.raw_player_pool.store(0, Ordering::Release);
+        self.raw_vehicle_pool.store(0, Ordering::Release);
+        self.raw_local_player.store(0, Ordering::Release);
+        self.game_commands.shutdown();
         if let Ok(mut snapshot) = self.local_player_snapshot.try_lock() {
             *snapshot = None;
         }
@@ -2151,6 +3957,10 @@ impl BackendState {
         if let Ok(mut requests) = self.textdraw_requests.try_lock() {
             requests.clear();
         }
+        self.clear_chat_entry_cache();
+        if let Ok(mut requests) = self.chat_entry_requests.try_lock() {
+            requests.clear();
+        }
         self.clear_object_exists_cache();
         if let Ok(mut requests) = self.object_exists_requests.try_lock() {
             requests.clear();
@@ -2177,6 +3987,11 @@ impl BackendState {
             .store(false, Ordering::Release);
         self.local_chat_input_active_ready
             .store(false, Ordering::Release);
+        self.local_chat_input_text_ready
+            .store(false, Ordering::Release);
+        if let Ok(mut snapshot) = self.local_chat_input_text.try_lock() {
+            *snapshot = None;
+        }
         self.player_count_ready.store(false, Ordering::Release);
         self.player_max_id_ready.store(false, Ordering::Release);
         if let Ok(mut catalog) = self.animation_catalog.try_lock() {
@@ -2203,6 +4018,20 @@ fn is_r1_connected_game_state(game_state: i32) -> bool {
     game_state == R1_CONNECTED_GAME_STATE
 }
 
+fn command_send_error(error: CommandError) -> SendError {
+    match error {
+        CommandError::QueueFull => SendError::QueueFull,
+        CommandError::ShuttingDown | CommandError::UnknownReceipt => SendError::ClientNotReady,
+        CommandError::NativeFailure | CommandError::TimedOut | CommandError::WaitRejected => {
+            SendError::NativeCallFailed
+        }
+    }
+}
+
+fn sent_game_command_result(sent: bool) -> Result<(), SendError> {
+    sent.then_some(()).ok_or(SendError::NativeCallFailed)
+}
+
 fn crosses_r1_connection_boundary(was_ready: bool, previous: i32, current: i32) -> bool {
     was_ready
         && previous != current
@@ -2212,11 +4041,12 @@ fn crosses_r1_connection_boundary(was_ready: bool, previous: i32, current: i32) 
 fn cached_direct_client_value<T>(
     profile_available: bool,
     client_available: bool,
+    cache_published: bool,
     cached: Option<T>,
 ) -> Result<T, DirectClientError> {
     if !profile_available {
         Err(DirectClientError::UnsupportedVersion)
-    } else if !client_available {
+    } else if !client_available || !cache_published {
         Err(DirectClientError::NotReady)
     } else {
         cached.ok_or(DirectClientError::NotReady)
@@ -2388,17 +4218,17 @@ mod layout_tests {
     use std::ptr;
 
     unsafe extern "C" {
-        fn rak_samp_fixture_player_id_size() -> usize;
-        fn rak_samp_fixture_player_id_alignment() -> usize;
-        fn rak_samp_fixture_packet_size() -> usize;
-        fn rak_samp_fixture_packet_alignment() -> usize;
-        fn rak_samp_fixture_packet_player_index_offset() -> usize;
-        fn rak_samp_fixture_packet_player_id_offset() -> usize;
-        fn rak_samp_fixture_packet_length_offset() -> usize;
-        fn rak_samp_fixture_packet_bit_size_offset() -> usize;
-        fn rak_samp_fixture_packet_data_offset() -> usize;
-        fn rak_samp_fixture_packet_delete_data_offset() -> usize;
-        fn rak_samp_fixture_initialize_packet(memory: *mut RawPacket, data: *mut u8);
+        fn samp_client_sdk_fixture_player_id_size() -> usize;
+        fn samp_client_sdk_fixture_player_id_alignment() -> usize;
+        fn samp_client_sdk_fixture_packet_size() -> usize;
+        fn samp_client_sdk_fixture_packet_alignment() -> usize;
+        fn samp_client_sdk_fixture_packet_player_index_offset() -> usize;
+        fn samp_client_sdk_fixture_packet_player_id_offset() -> usize;
+        fn samp_client_sdk_fixture_packet_length_offset() -> usize;
+        fn samp_client_sdk_fixture_packet_bit_size_offset() -> usize;
+        fn samp_client_sdk_fixture_packet_data_offset() -> usize;
+        fn samp_client_sdk_fixture_packet_delete_data_offset() -> usize;
+        fn samp_client_sdk_fixture_initialize_packet(memory: *mut RawPacket, data: *mut u8);
     }
 
     #[test]
@@ -2406,38 +4236,44 @@ mod layout_tests {
         unsafe {
             assert_eq!(
                 size_of::<PacketPlayerId>(),
-                rak_samp_fixture_player_id_size()
+                samp_client_sdk_fixture_player_id_size()
             );
             assert_eq!(
                 align_of::<PacketPlayerId>(),
-                rak_samp_fixture_player_id_alignment()
+                samp_client_sdk_fixture_player_id_alignment()
             );
 
-            assert_eq!(size_of::<RawPacket>(), rak_samp_fixture_packet_size());
-            assert_eq!(align_of::<RawPacket>(), rak_samp_fixture_packet_alignment());
+            assert_eq!(
+                size_of::<RawPacket>(),
+                samp_client_sdk_fixture_packet_size()
+            );
+            assert_eq!(
+                align_of::<RawPacket>(),
+                samp_client_sdk_fixture_packet_alignment()
+            );
             assert_eq!(
                 offset_of!(RawPacket, player_index),
-                rak_samp_fixture_packet_player_index_offset()
+                samp_client_sdk_fixture_packet_player_index_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, player_id),
-                rak_samp_fixture_packet_player_id_offset()
+                samp_client_sdk_fixture_packet_player_id_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, length),
-                rak_samp_fixture_packet_length_offset()
+                samp_client_sdk_fixture_packet_length_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, bit_size),
-                rak_samp_fixture_packet_bit_size_offset()
+                samp_client_sdk_fixture_packet_bit_size_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, data),
-                rak_samp_fixture_packet_data_offset()
+                samp_client_sdk_fixture_packet_data_offset()
             );
             assert_eq!(
                 offset_of!(RawPacket, delete_data),
-                rak_samp_fixture_packet_delete_data_offset()
+                samp_client_sdk_fixture_packet_delete_data_offset()
             );
         }
     }
@@ -2447,7 +4283,7 @@ mod layout_tests {
         let mut data = [0xAA, 0xBB, 0xCC];
         let mut packet = MaybeUninit::<RawPacket>::uninit();
         unsafe {
-            rak_samp_fixture_initialize_packet(packet.as_mut_ptr(), data.as_mut_ptr());
+            samp_client_sdk_fixture_initialize_packet(packet.as_mut_ptr(), data.as_mut_ptr());
             let packet = packet.assume_init();
             assert_eq!(ptr::addr_of!(packet.player_index).read_unaligned(), 0x1234);
             assert_eq!(
@@ -2472,10 +4308,12 @@ mod layout_tests {
 #[cfg(test)]
 mod vtable_tests {
     use super::*;
-    use std::sync::atomic::AtomicBool;
+    use crate::command::GAME_COMMAND_QUEUE_CAPACITY;
+    use std::sync::atomic::{AtomicBool, AtomicU32};
 
     const FAKE_VTABLE_SLOTS: usize = 55;
     static ORIGINAL_PACKET_CALLED: AtomicBool = AtomicBool::new(false);
+    static GAME_PROCESS_CALLS: AtomicU32 = AtomicU32::new(0);
 
     #[repr(C)]
     struct FakeClient {
@@ -2495,6 +4333,10 @@ mod vtable_tests {
         true
     }
 
+    unsafe extern "thiscall" fn fake_game_process(_game: *mut c_void) {
+        GAME_PROCESS_CALLS.fetch_add(1, Ordering::AcqRel);
+    }
+
     fn test_backend_state() -> BackendState {
         BackendState {
             registry: Registry::new(),
@@ -2503,11 +4345,16 @@ mod vtable_tests {
             addresses: AddressSet::for_version(SampVersion::R1),
             r1_client: None,
             rak_client: AtomicUsize::new(0),
+            raw_player_pool: AtomicUsize::new(0),
+            raw_vehicle_pool: AtomicUsize::new(0),
+            raw_local_player: AtomicUsize::new(0),
             rpc_receiver: AtomicUsize::new(0),
             player_address: AtomicU32::new(0),
             player_port: AtomicU16::new(0),
             constructor_trampoline: AtomicUsize::new(0),
             incoming_rpc_trampoline: AtomicUsize::new(0),
+            game_process_trampoline: AtomicUsize::new(0),
+            game_thread_id: AtomicU32::new(0),
             outgoing_packet_original: AtomicUsize::new(0),
             incoming_packet_original: AtomicUsize::new(0),
             deallocate_packet_original: AtomicUsize::new(0),
@@ -2515,9 +4362,7 @@ mod vtable_tests {
             client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
             incoming_packet_diagnostic_logged: AtomicBool::new(false),
             string_codec: Mutex::new(()),
-            local_dialogs: Mutex::new(VecDeque::new()),
-            local_chat_messages: Mutex::new(VecDeque::new()),
-            local_death_messages: Mutex::new(VecDeque::new()),
+            game_commands: CommandQueue::new(),
             local_player_snapshot: Mutex::new(None),
             local_player_candidate: Mutex::new(None),
             player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
@@ -2546,6 +4391,8 @@ mod vtable_tests {
             textdraw_exists_requests: Mutex::new(VecDeque::new()),
             textdraw_cache: Mutex::new(vec![TextdrawCacheEntry::Unknown; MAX_SAMP_TEXTDRAWS]),
             textdraw_requests: Mutex::new(VecDeque::new()),
+            chat_entry_cache: Mutex::new(vec![ChatEntryCacheEntry::Unknown; MAX_CHAT_ENTRIES]),
+            chat_entry_requests: Mutex::new(VecDeque::new()),
             object_exists_cache: Mutex::new(vec![
                 ObjectExistsCacheEntry::Unknown;
                 MAX_SAMP_OBJECTS
@@ -2573,7 +4420,10 @@ mod vtable_tests {
             local_dialog_snapshot_ready: AtomicBool::new(false),
             local_chat_input_active: AtomicBool::new(false),
             local_chat_input_active_ready: AtomicBool::new(false),
+            local_chat_input_text: Mutex::new(None),
+            local_chat_input_text_ready: AtomicBool::new(false),
             animation_catalog: Mutex::new(None),
+            cache_generation: AtomicU64::new(2),
             hooks: Mutex::new(HookStorage::default()),
         }
     }
@@ -2731,88 +4581,237 @@ mod vtable_tests {
     #[test]
     fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
         assert_eq!(
-            cached_direct_client_value(false, true, Some(14)),
+            cached_direct_client_value(false, true, true, Some(14)),
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
-            cached_direct_client_value(true, false, Some(14)),
+            cached_direct_client_value(true, false, true, Some(14)),
             Err(DirectClientError::NotReady)
         );
         assert_eq!(
-            cached_direct_client_value(true, true, None::<i32>),
+            cached_direct_client_value(true, true, true, None::<i32>),
             Err(DirectClientError::NotReady)
         );
-        assert_eq!(cached_direct_client_value(true, true, Some(14)), Ok(14));
+        assert_eq!(
+            cached_direct_client_value(true, true, true, Some(14)),
+            Ok(14)
+        );
+        assert_eq!(
+            cached_direct_client_value(true, true, false, Some(14)),
+            Err(DirectClientError::NotReady)
+        );
     }
 
     #[test]
     fn cached_chat_display_mode_requires_game_thread_publication() {
         assert_eq!(
-            cached_direct_client_value(true, true, None::<i32>),
+            cached_direct_client_value(true, true, true, None::<i32>),
             Err(DirectClientError::NotReady)
         );
-        assert_eq!(cached_direct_client_value(true, true, Some(2)), Ok(2));
+        assert_eq!(cached_direct_client_value(true, true, true, Some(2)), Ok(2));
     }
 
     #[test]
     fn cached_ui_flags_require_game_thread_publication() {
         assert_eq!(
-            cached_direct_client_value(true, true, None::<bool>),
+            cached_direct_client_value(true, true, true, None::<bool>),
             Err(DirectClientError::NotReady)
         );
-        assert_eq!(cached_direct_client_value(true, true, Some(true)), Ok(true));
-    }
-
-    #[test]
-    fn game_pump_drains_only_four_dialogs_per_entry() {
-        let state = test_backend_state();
-        for id in 0..LOCAL_DIALOG_QUEUE_CAPACITY as u16 {
-            state.queue_local_dialog(test_dialog(id)).unwrap();
-        }
         assert_eq!(
-            state.queue_local_dialog(test_dialog(99)),
-            Err(DirectClientError::QueueFull)
+            cached_direct_client_value(true, true, true, Some(true)),
+            Ok(true)
         );
-
-        let drained = state.take_local_dialogs();
-        assert_eq!(drained.len(), LOCAL_DIALOGS_PER_PUMP);
-        assert_eq!(drained.first().map(|dialog| dialog.id), Some(0));
-        assert_eq!(drained.last().map(|dialog| dialog.id), Some(3));
-        assert_eq!(state.local_dialogs.lock().unwrap().len(), 28);
     }
 
     #[test]
-    fn game_pump_drains_only_four_chat_messages_per_entry() {
+    fn game_command_queue_is_shared_fifo_and_bounded() {
         let state = test_backend_state();
-        for _ in 0..LOCAL_CHAT_QUEUE_CAPACITY {
-            state.queue_local_chat_message(test_chat_message()).unwrap();
+        state.queue_local_dialog(test_dialog(7)).unwrap();
+        state.queue_local_chat_message(test_chat_message()).unwrap();
+        state
+            .queue_local_death_message(test_death_message())
+            .unwrap();
+        for id in 3..GAME_COMMAND_QUEUE_CAPACITY as u16 {
+            state.queue_local_dialog(test_dialog(id)).unwrap();
         }
         assert_eq!(
             state.queue_local_chat_message(test_chat_message()),
             Err(DirectClientError::QueueFull)
         );
 
-        let drained = state.take_local_chat_messages();
-        assert_eq!(drained.len(), LOCAL_CHAT_MESSAGES_PER_PUMP);
-        assert_eq!(state.local_chat_messages.lock().unwrap().len(), 28);
+        let snapshot = state.game_commands.take_tick_snapshot();
+        assert_eq!(snapshot.len(), GAME_COMMAND_QUEUE_CAPACITY);
+        assert!(matches!(
+            &snapshot[0].command,
+            GameCommand::ShowDialog(request) if request.id == 7
+        ));
+        assert!(matches!(
+            &snapshot[1].command,
+            GameCommand::AddChatMessage(_)
+        ));
+        assert!(matches!(
+            &snapshot[2].command,
+            GameCommand::AddDeathMessage(_)
+        ));
+        assert!(matches!(
+            &snapshot[3].command,
+            GameCommand::ShowDialog(request) if request.id == 3
+        ));
     }
 
     #[test]
-    fn game_pump_drains_only_four_death_messages_per_entry() {
+    fn network_commands_copy_payloads_and_detach_the_legacy_waiter() {
         let state = test_backend_state();
-        for _ in 0..LOCAL_DEATH_MESSAGE_QUEUE_CAPACITY {
-            state
-                .queue_local_death_message(test_death_message())
-                .unwrap();
-        }
-        assert_eq!(
-            state.queue_local_death_message(test_death_message()),
-            Err(DirectClientError::QueueFull)
-        );
+        let mut payload = BitStream::new();
+        payload.write_u8(0xAB).unwrap();
 
-        let drained = state.take_local_death_messages();
-        assert_eq!(drained.len(), LOCAL_DEATH_MESSAGES_PER_PUMP);
-        assert_eq!(state.local_death_messages.lock().unwrap().len(), 28);
+        assert_eq!(
+            state.send_packet(99, &payload, SendOptions::default()),
+            Ok(true)
+        );
+        payload.write_u8(0xCD).unwrap();
+
+        let snapshot = state.game_commands.take_tick_snapshot();
+        assert_eq!(snapshot.len(), 1);
+        assert!(matches!(
+            &snapshot[0].command,
+            GameCommand::SendPacket {
+                id: 99,
+                payload: queued,
+                options: SendOptions { .. },
+            } if queued.as_bytes() == [0xAB]
+        ));
+    }
+
+    #[test]
+    fn game_tick_calls_original_once_and_marks_the_game_thread() {
+        let state = test_backend_state();
+        GAME_PROCESS_CALLS.store(0, Ordering::Release);
+
+        unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+
+        assert_eq!(GAME_PROCESS_CALLS.load(Ordering::Acquire), 1);
+        assert!(state.is_game_thread());
+    }
+
+    #[test]
+    fn command_wait_is_rejected_on_the_published_game_thread() {
+        let state = Arc::new(test_backend_state());
+        state
+            .game_thread_id
+            .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
+        let id = state
+            .game_commands
+            .submit(GameCommand::ShowDialog(test_dialog(1)))
+            .unwrap();
+        let backend = Backend {
+            state: Arc::clone(&state),
+        };
+
+        assert_eq!(
+            backend.wait_for_command(id, Duration::ZERO),
+            Err(CommandError::WaitRejected)
+        );
+    }
+
+    #[test]
+    fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
+        let state = test_backend_state();
+        state.cache_local_player_snapshot(Some(test_snapshot(42)));
+        state.cache_local_player_snapshot(Some(test_snapshot(42)));
+        state.player_info_cache.lock().unwrap()[7] =
+            PlayerInfoCacheEntry::Known(Some(player_info_from_local(&test_snapshot(7))));
+        state.remote_player_state_cache.lock().unwrap()[7] =
+            RemotePlayerStateCacheEntry::Known(Some(RemotePlayerStateSnapshot {
+                id: 7,
+                health: 90.0,
+                armour: 20.0,
+                special_action: 0,
+                animation_id: 0,
+            }));
+        state.vehicle_exists_cache.lock().unwrap()[7] = VehicleExistsCacheEntry::Known(true);
+        state.text_label_exists_cache.lock().unwrap()[7] = TextLabelExistsCacheEntry::Known(true);
+        state.text_label_cache.lock().unwrap()[7] = TextLabelCacheEntry::Known(None);
+        state.textdraw_exists_cache.lock().unwrap()[7] = TextdrawExistsCacheEntry::Known(true);
+        state.textdraw_cache.lock().unwrap()[7] = TextdrawCacheEntry::Known(None);
+        state.object_exists_cache.lock().unwrap()[7] = ObjectExistsCacheEntry::Known(true);
+        state.gangzone_cache.lock().unwrap()[7] = GangzoneCacheEntry::Known(None);
+        state.player_info_requests.lock().unwrap().push_back(7);
+        state
+            .remote_player_state_requests
+            .lock()
+            .unwrap()
+            .push_back(7);
+        state.vehicle_exists_requests.lock().unwrap().push_back(7);
+        state
+            .text_label_exists_requests
+            .lock()
+            .unwrap()
+            .push_back(7);
+        state.text_label_requests.lock().unwrap().push_back(7);
+        state.textdraw_exists_requests.lock().unwrap().push_back(7);
+        state.textdraw_requests.lock().unwrap().push_back(7);
+        state.object_exists_requests.lock().unwrap().push_back(7);
+        state.gangzone_requests.lock().unwrap().push_back(7);
+        state.player_count_ready.store(true, Ordering::Release);
+        state.player_max_id_ready.store(true, Ordering::Release);
+
+        state.invalidate_connection_state();
+
+        assert!(state.local_player_snapshot.lock().unwrap().is_none());
+        assert!(matches!(
+            state.player_info_cache.lock().unwrap()[7],
+            PlayerInfoCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.remote_player_state_cache.lock().unwrap()[7],
+            RemotePlayerStateCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.vehicle_exists_cache.lock().unwrap()[7],
+            VehicleExistsCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.text_label_exists_cache.lock().unwrap()[7],
+            TextLabelExistsCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.text_label_cache.lock().unwrap()[7],
+            TextLabelCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.textdraw_exists_cache.lock().unwrap()[7],
+            TextdrawExistsCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.textdraw_cache.lock().unwrap()[7],
+            TextdrawCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.object_exists_cache.lock().unwrap()[7],
+            ObjectExistsCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.gangzone_cache.lock().unwrap()[7],
+            GangzoneCacheEntry::Unknown
+        ));
+        assert!(state.player_info_requests.lock().unwrap().is_empty());
+        assert!(
+            state
+                .remote_player_state_requests
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(state.vehicle_exists_requests.lock().unwrap().is_empty());
+        assert!(state.text_label_exists_requests.lock().unwrap().is_empty());
+        assert!(state.text_label_requests.lock().unwrap().is_empty());
+        assert!(state.textdraw_exists_requests.lock().unwrap().is_empty());
+        assert!(state.textdraw_requests.lock().unwrap().is_empty());
+        assert!(state.object_exists_requests.lock().unwrap().is_empty());
+        assert!(state.gangzone_requests.lock().unwrap().is_empty());
+        assert!(!state.player_count_ready.load(Ordering::Acquire));
+        assert!(!state.player_max_id_ready.load(Ordering::Acquire));
     }
 
     #[test]
@@ -2963,6 +4962,27 @@ mod vtable_tests {
     }
 
     #[test]
+    fn chat_entry_requests_are_bounded_deduplicated_and_pump_limited() {
+        let state = test_backend_state();
+        state.queue_chat_entry_request(7).unwrap();
+        state.queue_chat_entry_request(7).unwrap();
+        assert_eq!(state.chat_entry_requests.lock().unwrap().len(), 1);
+        for id in 8..(7 + CHAT_ENTRY_REQUEST_QUEUE_CAPACITY as u16) {
+            state.queue_chat_entry_request(id).unwrap();
+        }
+        assert_eq!(
+            state.queue_chat_entry_request(99),
+            Err(DirectClientError::QueueFull)
+        );
+        let drained = state.take_chat_entry_requests();
+        assert_eq!(drained, vec![7, 8, 9, 10]);
+        assert_eq!(
+            state.chat_entry_requests.lock().unwrap().len(),
+            CHAT_ENTRY_REQUEST_QUEUE_CAPACITY - CHAT_ENTRY_REQUESTS_PER_PUMP
+        );
+    }
+
+    #[test]
     fn object_exists_requests_are_bounded_deduplicated_and_pump_limited() {
         let state = test_backend_state();
         state.queue_object_exists_request(7).unwrap();
@@ -3049,7 +5069,7 @@ mod vtable_tests {
     }
 
     #[test]
-    fn r1_connected_state_matches_the_fingerprinted_native_value() {
+    fn r1_connected_state_matches_the_fixed_native_value() {
         assert_eq!(R1_CONNECTED_GAME_STATE, 14);
         assert!(is_r1_connected_game_state(14));
         assert!(!is_r1_connected_game_state(13));
@@ -3350,6 +5370,7 @@ impl Drop for VtableHook {
 }
 
 type RakClientConstructorFn = unsafe extern "C" fn() -> *mut c_void;
+type GameProcessFn = unsafe extern "thiscall" fn(*mut c_void);
 type StringWriteEncoderFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, i32, *mut RawBitStream, i32);
 type StringReadDecoderFn =
@@ -3404,6 +5425,18 @@ unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     client
 }
 
+unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
+    let Some(state) = active_state() else {
+        return;
+    };
+    let trampoline = state.game_process_trampoline.load(Ordering::Acquire);
+    if trampoline == 0 {
+        return;
+    }
+    let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
+    unsafe { state.run_game_process_tick(game, original) };
+}
+
 unsafe extern "thiscall" fn outgoing_packet_detour(
     client: *mut c_void,
     native: *mut RawBitStream,
@@ -3428,7 +5461,6 @@ unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut 
     let Some(state) = active_state() else {
         return ptr::null_mut();
     };
-    state.pump_local_client();
     loop {
         let packet = call_incoming_packet(&state, client);
         if packet.is_null() {

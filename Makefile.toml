@@ -11,38 +11,10 @@ workspace = false
 command = "cargo"
 args = ["build"]
 
-[tasks.build-validation]
-workspace = false
-command = "cargo"
-args = ["build", "--release", "-p", "rak_samp_validation_plugin"]
-
-[tasks.build-validation-unloader]
-workspace = false
-command = "cargo"
-args = ["build", "--release", "-p", "rak_samp_validation_unloader"]
-
 [tasks.build-chat-command-example]
 workspace = false
 command = "cargo"
-args = ["build", "--release", "-p", "rak_samp_chat_command_example"]
-
-[tasks.build-e2e-fixture]
-workspace = false
-command = "cargo"
-args = [
-    "build",
-    "--release",
-    "-p",
-    "rak_samp_e2e_host",
-    "-p",
-    "rak_samp_e2e_plugin",
-]
-
-[tasks.test-e2e]
-workspace = false
-dependencies = ["build-e2e-fixture"]
-command = "cargo"
-args = ["run", "--release", "-p", "rak_samp_e2e_runner"]
+args = ["build", "--release", "-p", "samp-client-sdk-chat-command-example"]
 
 [tasks.require-gta-dir]
 command = "powershell"
@@ -55,42 +27,20 @@ args = [
 workspace = false
 dependencies = ["require-gta-dir", "build-asi"]
 script = [
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp.dll (Join-Path $env:GTA_DIR 'rak_samp.asi')\"",
-]
-
-[tasks.deploy-validation]
-workspace = false
-dependencies = ["require-gta-dir", "build-asi", "build-validation"]
-script = [
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp.dll (Join-Path $env:GTA_DIR 'rak_samp.asi')\"",
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp_validation_plugin.dll (Join-Path $env:GTA_DIR 'rak_samp_validation.asi')\"",
-]
-
-[tasks.deploy-validation-unload]
-workspace = false
-dependencies = [
-    "require-gta-dir",
-    "build-asi",
-    "build-validation",
-    "build-validation-unloader",
-]
-script = [
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp.dll (Join-Path $env:GTA_DIR 'rak_samp.asi')\"",
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp_validation_plugin.dll (Join-Path $env:GTA_DIR 'rak_samp_validation.asi')\"",
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp_validation_unloader.dll (Join-Path $env:GTA_DIR 'rak_samp_validation_unloader.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')\"",
 ]
 
 [tasks.deploy-chat-command-example]
 workspace = false
 dependencies = ["require-gta-dir", "build-asi", "build-chat-command-example"]
 script = [
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp.dll (Join-Path $env:GTA_DIR 'rak_samp.asi')\"",
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/rak_samp_chat_command_example.dll (Join-Path $env:GTA_DIR 'rak_samp_chat_command_example.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk_chat_command_example.dll (Join-Path $env:GTA_DIR 'samp_client_sdk_chat_command_example.asi')\"",
 ]
 
 [tasks.debug]
 workspace = false
 dependencies = ["require-gta-dir", "build-asi-debug"]
 script = [
-    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/debug/rak_samp.dll (Join-Path $env:GTA_DIR 'rak_samp.asi'); Copy-Item -Force target/i686-pc-windows-msvc/debug/rak_samp.pdb (Join-Path $env:GTA_DIR 'rak_samp.pdb')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/debug/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi'); Copy-Item -Force target/i686-pc-windows-msvc/debug/samp_client_sdk.pdb (Join-Path $env:GTA_DIR 'samp_client_sdk.pdb')\"",
 ]

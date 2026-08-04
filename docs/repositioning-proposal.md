@@ -59,7 +59,7 @@ explicit `unsafe` escape hatch. No function is left unclassified.
 | Artifact | Disposition |
 | --- | --- |
 | `tests/fixtures/raknet_layout.cpp` + `layout_tests` + `build.rs` cc wiring | Keep — C++↔Rust layout agreement checks |
-| Unit tests and the mock-ABI test support in `plugin_api` | Keep |
+| Unit tests and the mock-ABI test support in `sdk` | Keep |
 | Hooks, dispatch, codecs, cache machinery, bounded C ABI | Keep (restructured) |
 
 Rationale for the C++ layout fixture: it verifies that Rust `repr(C)` structs
@@ -93,7 +93,7 @@ queued closures later.
 ## 5. API design: struct facade over the C ABI
 
 The C ABI stays as internal plumbing (versioned, bounded, C-compatible). The
-public API is a Rust struct hierarchy living in `plugin_api`:
+public API is a Rust struct hierarchy living in `sdk`:
 
 ```rust
 samp.net()               // subscriptions, send_rpc/packet, bitstream, codecs

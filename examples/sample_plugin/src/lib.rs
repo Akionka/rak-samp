@@ -1,12 +1,11 @@
-//! Minimal independently loaded ASI plugin using the rak-samp host ABI.
+//! Minimal independently loaded ASI plugin using the samp-client-sdk host ABI.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
-compile_error!("rak_samp_sample_plugin supports only 32-bit Windows x86 targets");
+compile_error!("samp_client_sdk_sample_plugin supports only 32-bit Windows x86 targets");
 
-use rak_samp_plugin_api::{
-    RakSampDirection, Subscription,
+use samp_client_sdk::{
+    Samp, SampClientSdkDirection, Subscription,
     events::{RpcAction, rpc::incoming},
-    wait_for_default_host,
 };
 use std::{
     ffi::c_void,
@@ -71,7 +70,7 @@ unsafe extern "system" fn DllMain(
                 .unwrap_or_else(|error| error.into_inner())
                 .initializing = true;
             if std::thread::Builder::new()
-                .name("rak-samp-sample-init".into())
+                .name("samp-client-sdk-sample-init".into())
                 .spawn(initialize)
                 .is_err()
             {
@@ -91,7 +90,7 @@ unsafe extern "system" fn DllMain(
 fn initialize() {
     let _initialization = InitializationGuard;
     let deadline = Instant::now() + Duration::from_secs(30);
-    let api = loop {
+    let samp = loop {
         if STATE
             .lock()
             .unwrap_or_else(|error| error.into_inner())
@@ -103,9 +102,9 @@ fn initialize() {
         if remaining.is_zero() {
             return;
         }
-        match wait_for_default_host(remaining.min(Duration::from_millis(100))) {
-            Ok(api) => break api,
-            Err(rak_samp_plugin_api::ResolveError::TimedOut) => {}
+        match Samp::connect(remaining.min(Duration::from_millis(100))) {
+            Ok(samp) => break samp,
+            Err(samp_client_sdk::ResolveError::TimedOut) => {}
             Err(_) => return,
         }
     };
@@ -114,8 +113,8 @@ fn initialize() {
         return;
     }
 
-    let subscription = api.on_typed_rpc(
-        RakSampDirection::Incoming,
+    let subscription = samp.net().on_typed_rpc(
+        SampClientSdkDirection::Incoming,
         incoming::SERVER_MESSAGE,
         |_message| {
             SERVER_MESSAGES.fetch_add(1, Ordering::Relaxed);
@@ -129,9 +128,9 @@ fn initialize() {
 
 /// Stops callbacks before an unload manager calls `FreeLibrary`.
 ///
-/// This must be called from a worker thread, not from `DllMain` or a rak-samp callback.
+/// This must be called from a worker thread, not from `DllMain` or a samp-client-sdk callback.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakSampPlugin_Shutdown() -> BOOL {
+pub extern "system" fn SampClientSdkPlugin_Shutdown() -> BOOL {
     let subscription = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
@@ -160,6 +159,6 @@ pub extern "system" fn RakSampPlugin_Shutdown() -> BOOL {
 
 /// Returns how many typed `onServerMessage` events this sample observed.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakSampSample_ServerMessageCount() -> usize {
+pub extern "system" fn SampClientSdkSample_ServerMessageCount() -> usize {
     SERVER_MESSAGES.load(Ordering::Relaxed)
 }

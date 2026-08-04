@@ -4,159 +4,141 @@
 
 ```text
 GTA ASI loader
- ├─ rak_samp.asi (host and native hooks)
+ ├─ samp_client_sdk.asi (samp-client-sdk-host)
  ├─ feature-a.asi ─┐
- └─ feature-b.asi ─┴─> rak_samp_plugin_api ─> RakSamp_GetApiV1 ─> host
+ └─ feature-b.asi ─┴─> samp-client-sdk ─> SampClientSdk_GetApiV1 ─> host
 ```
 
 Each ASI loads independently. Only the host links the native hook backend;
-plugins use the versioned ABI client crate.
+plugins use the public, versioned SDK package.
 
 ## Components
 
 | Area | Location | Purpose |
 | --- | --- | --- |
-| Bootstrap and API | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start safely, publish attached-versus-ready host state, and log lifecycle events. |
-| Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Dispatch events, enforce bounded exact-bit payloads, and send exact typed protocol actions (including SCM events) and sync actions through original RakClient calls. |
-| Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Detect and retain the recognized SA-MP version, manage hooks, and cross the RakNet boundary. The R1 profile gates direct local and cached CNetGame helpers. |
-| Plugin API | `plugin_api/src/lib.rs`, `plugin_api/src/raknet.rs` | Define the versioned C-compatible ABI, safe filtered/typed callbacks, static protocol-name catalogs, owned bounded BitStreams, bounded native StringCompressor copies, and grouped subscription shutdown. Alpha releases may make explicit compatibility breaks. |
-| Typed events | `plugin_api/src/events/` | Provide R1 packet and RPC codecs, with shared mock ABI test support. |
-| Examples | `examples/` | Demonstrate one typed callback, grouped typed handlers, and validation lifecycle/self-tests. |
+| Bootstrap and ABI | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start outside `DllMain`, publish status, and export `SampClientSdkApiV1`. |
+| Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Own bounded event data, dispatch listeners, and send exact RakNet payloads. |
+| Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Select networking offsets, own hooks, and apply the fixed R1 bridge offsets with local validation. |
+| Public SDK | `sdk/src/lib.rs`, `sdk/src/facade.rs`, `sdk/src/raknet.rs`, `sdk/src/raw.rs` | Resolve the host through `Samp`, provide safe subsystem views, callback helpers, owned BitStreams, protocol catalogs, and explicit unsafe native-address access. |
+| Typed events | `sdk/src/events/` | Provide bounded R1 packet/RPC codecs and mock ABI support. |
+| Examples | `examples/` | Show a minimal subscription and a chat-command plugin. |
+| Layout fixture | `tests/fixtures/raknet_layout.cpp` | Independently verify native packing for boundary layouts. |
 
 ## Lifecycle
 
-1. `DllMain` starts a bootstrap worker and returns immediately.
-2. The worker waits for `samp.dll`, detects the client, and installs the
-   constructor hook.
-3. RakClient construction completes the client hooks; the host reports ready
-   or failed state.
-4. Plugin workers resolve the host, validate the API table, and register
-   callbacks, optionally as a `SubscriptionSet`.
-5. Before a plugin unloads, its worker unregisters and waits for every callback
-   to quiesce.
+1. `DllMain` starts a bootstrap worker and returns.
+2. The worker waits for `samp.dll`, recognizes the client build, and installs
+   the owned RakClient constructor hook.
+3. RakClient construction installs the owned networking hooks and publishes
+   ready state.
+4. Plugin workers resolve `SampClientSdk_GetApiV1`, validate the table, and
+   register owned subscriptions.
+5. Plugin workers unregister and wait for callbacks before their DLL unloads.
 
-## Event flow
+## Event and native boundaries
 
 ```text
-RakNet traffic -> native hook -> bounded event -> listeners
-                                      |             |
-                                      |       continue/block/replace
-                                      v
-                              original client path
+RakNet traffic -> owned hook -> bounded event -> listeners -> original client path
 ```
 
-Listeners run in registration order. A listener may inspect or replace an
-exact-bit payload; unmatched traffic is passed through. Typed descriptors first
-decode and validate the payload, then serialize a replacement before the host
-applies it atomically. Explicit sends intentionally bypass outgoing listeners.
-Incoming packet emulation is queued through the captured RakPeer receiver;
-incoming RPC emulation dispatches before the native receiver.
+Listener replacements are serialized before the atomic ABI replacement call.
+Callback values are never retained. The host captures the original hook state
+before it enables a detour and restores only its own vtable slots during
+shutdown.
 
-The incoming-packet vtable detour also performs a separate direct-client pump
-before packet handling. For a verified SA-MP R1 plus GTA SA 1.0 US profile it
-begins refreshing an owned local-player snapshot only after the fingerprinted
-native game state is R1 `CONNECTED` and the pool exposes a bounded assigned ID
-on two game-thread refreshes, then keeps it fresh from the verified player
-pool. Crossing that connected-state boundary clears player caches. The same
-entry caches R1's opaque
-`CNetGame` state scalar, copied current-server metadata, and the validated
-three-value local chat display mode, five-value local cursor mode, and
-scoreboard-open, dialog-active, and chat-input-active flags. It also copies the
-active dialog's fixed core—ID, typed style, bounded caption, and server-side
-flag—as an owned optional snapshot; it deliberately does not follow dynamic
-dialog text, button, edit-box, or list pointers. None of those caches drives
-snapshot readiness. It also makes one owned copy of the fingerprinted R1
-animation table. Demand-refreshed remote player-directory reads are drained
-from a separate bounded queue (at most four R1 accessor sequences per pump)
-and copied into a host-owned cache. It releases the dialog, chat, and death-window
-queue locks, then calls `CDialog::Show`, `CChat::AddEntry`, and
-`CDeathWindow::AddMessage` for no more than four copied requests from each
-queue. It clears the cache
-while the ID is still the provisional zero or SA-MP's unassigned `0xFFFF`
-sentinel. It neither consumes, creates, nor redispatches
-packet/RPC events. Non-R1 and failed GTA fingerprints do not dereference
-direct-client layouts and report `UnsupportedVersion` through the ABI.
-The plugin API's local-player convenience queries, including score and ping,
-are projections of this one host-owned cache; they do not create additional
-native reads. `HostApi::player_info` is the separate bounded directory cache:
-local IDs project that snapshot, remote IDs are demand-refreshed, and no native
-player/ped/pool/GTA handle reaches a plugin.
-`HostApi::is_player_defined` is a projection of that same directory cache. The
-profile calls the exact R1 remote-world-state accessor during a bounded refresh;
-it never exposes the remote object or ped used by that private call.
-`HostApi::is_player_paused` is another projection: the profile calls the exact
-R1 remote-status accessor during that same bounded refresh and retains only the
-status-zero boolean; local snapshots always publish false.
-`HostApi::remote_player_state` has an independent bounded demand queue and
-cache for copied remote health, armour, special action, and animation ID. Its
-private profile access is enabled only after the exact R1 update/process code
-signatures and GTA fingerprint have both passed.
-`HostApi::player_count` is a second scalar cache populated by the exact R1
-`CPlayerPool::GetCount` accessor in both NPC modes. The accessor scans the
-connection table without adding the separately assigned local ID, so zero is
-a valid solo-session result; it does not inspect the GTA world or expose
-streamed-ped counting.
-`HostApi::player_max_id` is a third cache containing only the bounded R1
-non-streamed maximum connected slot, refreshed by the same game-thread pump
-after the profile's `UpdateLargestId` signature and fixture-backed field offset
-have passed. Because the native update scans connection flags independently of
-the assigned local ID, this value may be lower than the local ID. It likewise
-does not inspect GTA peds.
-The opt-in direct validator consumes these nonblocking caches through a
-monotonic preflight: successful independent reads remain latched across
-transient `NotReady` results, while local identity/spawn and UI idleness are
-rechecked immediately before direct requests are queued.
-`HostApi::is_vehicle_defined` is a separate 2,000-slot boolean cache. Plugin
-threads enqueue unknown vehicle IDs; the pump drains at most four R1 accessor
-calls per entry and publishes only owned booleans, never a vehicle/pool/GTA
-pointer.
-`HostApi::is_text_label_defined` is a separate 2,048-slot boolean cache.
-Plugin threads enqueue unknown label IDs; the pump drains at most four bounded
-R1 pool-flag reads per entry and publishes only owned booleans, never label
-text or a label/pool pointer.
-`HostApi::text_label` uses its own 2,048-slot demand cache and drains at most
-four copied label records per pump entry. It checks the same existence flag,
-copies the protocol-bounded native text allocation and fixed scalar fields on
-the game thread, then publishes only owned bytes and scalars. No label/pool
-pointer crosses the ABI.
-`HostApi::is_textdraw_defined` is a separate 2,304-slot boolean cache, in the
-R1 raw order of 2,048 global followed by 256 local slots. Plugin threads enqueue
-unknown pool indexes; the pump drains at most four bounded pool-flag reads per
-entry and publishes only owned booleans, never textdraw data or a pool pointer.
-`HostApi::textdraw` uses a separate 2,304-slot numeric-record cache in the same
-raw order. Plugin threads enqueue unknown indexes; the pump drains at most four
-checked copies per entry and publishes only owned scalars. Native display-string
-storage and textdraw/pool pointers never cross the ABI.
-`HostApi::is_object_defined` is a separate 1,000-slot boolean cache. Plugin
-threads enqueue unknown object IDs; the pump drains at most four bounded pool-
-flag reads per entry and publishes only owned booleans, never object data, a
-pool pointer, or a GTA handle.
-`HostApi::gangzone` is a separate 1,024-slot cache of owned rectangle and colour
-records. Plugin threads enqueue unknown gangzone IDs; the pump drains at most
-four bounded pool reads per entry and publishes only scalars, never a gangzone
-or pool pointer.
+The R1 direct bridge never exports native pointers. It reads only after local
+pointer/range/capacity validation and publishes owned snapshots. Local UI
+requests are copied to the shared, bounded `GameCommand` queue; its receipt
+core preserves FIFO snapshots, retryable timeouts, detached waiters, and
+shutdown results. `SampClientSdkApiV1` appends typed UI submissions and common
+poll/wait/release slots using fixed receipt/result storage; `CommandReceipt<T>`
+owns release-on-drop on the Rust side. The owned `CGame::Process` detour at
+GTA SA 1.0 US address `0x53E4B0` retains its trampoline, calls the original
+once, and then drains the pre-tick command snapshot and refreshes snapshots.
+Incoming packet detours remain networking-only. The same post-tick dispatcher
+invokes the verified R1 `SCLocalPlayer::{Spawn, SetSpecialAction, SetColor,
+SendUnoccupiedData}` and `SCPlayerPool::SetLocalPlayerName` entry points,
+invokes connected `SCRemotePlayer::SetColor`, and writes the validated R1
+send-rate globals; none of those operations can run from a plugin thread. It
+also runs R1 `CGame::SetCursorMode` and, when
+hiding the cursor, `CGame::ProcessInputEnabling`, preserving the native input
+side effects instead of mutating the cursor field directly. Chat display-mode
+changes use the same dispatcher to write the validated `CChat::m_nMode` scalar,
+and dialog closes invoke R1 `CDialog::Close` with a validated response button.
+R1 connection control copies a bounded host and port before setting
+`GAME_MODE_WAITCONNECT`; disconnect validates and invokes RakClient's slot-2
+`Disconnect` with channel zero, then calls `CNetGame::ShutdownForRestart` and
+invalidates all captured connection state.
+Textdraw deletion validates the R1 pool and identifier before dispatching to
+`CTextDrawPool::Delete`; position updates require a present textdraw plus
+writable fixture-backed finite `x` and `y` fields. Letter-style updates use the
+same presence checks before writing the fixture-backed dimensions and colour;
+the proportional flag is likewise written only through its validated byte, and
+shadow or outline updates validate both their byte and background-colour fields.
+Box updates similarly validate finite fixture-backed dimensions, colour, and
+the native boolean byte before queuing their write.
+Alignment accepts only the three source-defined values and updates its three
+fixture-backed flags together on the dispatcher.
+Display-string updates own a NUL-free payload bounded by the independently
+mapped R1 `m_szString` capacity before clearing and copying the validated
+native storage.
+Reads copy the same fixture-backed fixed buffer into the cached textdraw ABI
+record, never exposing its native address.
+Model-style writes validate finite rotation and zoom values, then update the
+contiguous fixture-backed rotation, zoom, and vehicle-colour fields.
+Chat-entry writes own bounded text and prefix bytes before updating the
+validated fixed R1 history record on the dispatcher.
+Chat-entry reads demand-refresh one fixture-backed fixed history record on the
+dispatcher and return only its owned text, prefix, and colours from the cache.
+Selected-ID 3D label creation owns and NUL-terminates bounded input before
+calling `CLabelPool::Create` on the dispatcher with validated geometry.
+3D text-label deletion validates its pool pointer and source-documented
+`CLabelPool::Delete` result on the dispatcher before completing its receipt.
+Dialog list selection is cached from the validated DXUT listbox and queued
+writes validate the same selected-index field before mutation.
+The list-item count is likewise copied only after its fixture-backed signed
+field is readable and non-negative.
+Chat-input reads are copied into the game-thread cache and commands own their
+bounded text before invoking R1 DXUT edit-box and `CInput` methods on the
+dispatcher.
 
-## Native and ABI boundaries
+The explicit `raw` module exposes only opaque native R1 singleton/pool
+addresses plus host-captured RakClient, validated RakPeer, player-pool, and
+vehicle-pool addresses, including the 26 known RakClient vtable slots. Its accessors are
+unsafe, do not manufacture Rust references, and remain valid only while the
+matching client remains loaded.
 
-Native pointers, client addresses, vtables, and StringCompressor calls remain
-inside the host. The host patches only its RakClient slots and restores a slot
-only when it still owns it. The ABI passes copied bytes, capacities, statuses,
-and bit lengths, never Rust-owned values or client pointers. Owned string
-decoding also returns a scalar read cursor; the plugin API applies it to its
-own `BitStream` only after the host reports success.
+The same bounded queue owns copied UI requests, explicit RakClient sends, and
+incoming emulation. Public `Net` send and emulation methods return owned
+`CommandReceipt<()>` values, allowing a plugin worker to observe native
+success or failure on a later game tick; documentation-hidden legacy ABI calls
+remain submission-only. Callback-local event replacement remains synchronous.
+Typed `Net` helpers encode their owned RPC or packet payload before submitting
+through that same receipt-bearing path.
+The R1 cursor-mode, scoreboard, and dialog-client-side mutations validate their
+input and writable fixed-layout field ranges inside that queue before storing
+the new values. The dialog bridge maps its public client-side flag to the
+inverse native `server_side` field.
+R1 game-state writes are constrained to the established native enum values and
+the independently fixture-anchored `CNetGame` field.
+The server-settings pointer remains raw and opaque; its R1 packed layout is
+checked against the independent C++ fixture before it is exposed.
+The pickup-pool raw address uses the same fixture-verified R1 pool layout and
+is never converted into a Rust reference.
+The local-player raw address is captured only during the game-thread refresh
+and cleared at connection boundaries, so plugin threads never resolve it by
+calling client code.
+The raw bit-stream data address is a borrow of the SDK-owned bounded buffer,
+so it never exposes native RakNet allocation ownership across the plugin ABI.
+`Local` protocol actions are thin typed routes to the exact same queued `Net`
+operations, preserving the distinction between a server-bound send and a local
+native state change.
 
-Typed local-player protocol actions (`send_request_class`,
-`send_interior_change`, `send_spawn`, `send_enter_vehicle`, and
-`send_exit_vehicle`) follow that same boundary: they serialize the exact R1
-outbound RPC and call the original RakClient path, but never invoke native
-local-player methods or mutate client state.
+R1 cache refreshes are bracketed by a monotonic generation after each native
+game tick. A connection-state boundary invalidates player, vehicle, label,
+textdraw, object, and gangzone caches together with their pending heavy reads.
 
-The packet/local-profile layout fixture and live validation protect the Windows
-x86 boundary. R1 provides the authoritative typed layouts; detected non-R1
-clients are raw event targets pending validation. See [REVIEW.md](REVIEW.md)
-for evidence and [VALIDATION.md](VALIDATION.md) for the test procedure.
-
-`tests/e2e/` provides a separate fixture host, plugin, and runner. The runner
-loads the host as `rak_samp.asi`, loads the plugin independently, dispatches a
-test RPC, then verifies that synchronized shutdown removes the callback before
-the plugin DLL is released. CI runs it after the release build.
+The `sdk/` crate keeps protocol codecs and BitStreams independent of the native
+host. This lets exact wire-vector and callback behavior be tested without a
+live client, while the retained C++ fixture checks C++↔Rust packing at the
+native boundary.

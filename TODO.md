@@ -28,53 +28,53 @@ boundary.
 
 ### Phase 1 — cleanup and rebrand
 
-- [ ] Delete `tests/e2e/`, `examples/validation_plugin/`,
+- [x] Delete `tests/e2e/`, `examples/validation_plugin/`,
   `examples/validation_unloader/`, `REVIEW.md`, and `VALIDATION.md`.
-- [ ] Remove deleted workspace members, cargo-make tasks, CI jobs, release
+- [x] Remove deleted workspace members, cargo-make tasks, CI jobs, release
   inputs, validation references, and obsolete ABI self-tests.
-- [ ] Keep the C++ RakNet layout fixture, its Rust tests, and `build.rs` wiring.
-- [ ] Move the public crate to `sdk/` as package `samp-client-sdk`; rename the
+- [x] Keep the C++ RakNet layout fixture, its Rust tests, and `build.rs` wiring.
+- [x] Move the public crate to `sdk/` as package `samp-client-sdk`; rename the
   host package to `samp-client-sdk-host` and deploy `samp_client_sdk.asi`.
-- [ ] Rename crate imports, examples, logs, release archives, repository/docs.rs
+- [x] Rename crate imports, examples, logs, release archives, repository/docs.rs
   metadata, host discovery, ABI types, and the export to
   `SampClientSdk_GetApiV1`.
-- [ ] Replace R1 PE/signature/fingerprint feature gates with fixed offsets plus
+- [x] Replace R1 PE/signature/fingerprint feature gates with fixed offsets plus
   ordinary pointer, range, capacity, and enum validation. Keep build detection
   only for selecting the recognized networking offset table.
-- [ ] Rewrite `README.md`, `CORE.md`, `ARCHITECTURE.md`, and `AGENTS.md` for the
+- [x] Rewrite `README.md`, `CORE.md`, `ARCHITECTURE.md`, and `AGENTS.md` for the
   two-pillar SDK, R1 bridge compatibility, layout-fixture rule, and removal of
   the live-validation lifecycle.
-- [ ] Keep surviving behavior unchanged for SA-MP 0.3.7 R1 on GTA SA 1.0 US,
+- [x] Keep surviving behavior unchanged for SA-MP 0.3.7 R1 on GTA SA 1.0 US,
   apart from the intentional package/symbol compatibility break.
 
 ### Phase 2 — game-thread foundation
 
-- [ ] Hook `CGame::Process` at `0x53E4B0`, retain its trampoline, call the
+- [x] Hook `CGame::Process` at `0x53E4B0`, retain its trampoline, call the
   original exactly once per entry, and restore it during shutdown.
-- [ ] Remove cache and UI pumping from the incoming-packet detour.
-- [ ] Add the bounded 256-entry owned `GameCommand` queue and drain one accepted
+- [x] Remove cache and UI pumping from the incoming-packet detour.
+- [x] Add the bounded 256-entry owned `GameCommand` queue and drain one accepted
   snapshot after the original game process call on each tick.
-- [ ] Migrate dialog, chat, and death-window queues into `GameCommand`.
-- [ ] Queue every plugin-thread native mutation and explicit RakClient
+- [x] Migrate dialog, chat, and death-window queues into `GameCommand`.
+- [x] Queue every plugin-thread native mutation and explicit RakClient
   send/emulation; keep callback-local packet/RPC replacement synchronous.
-- [ ] Add host-owned command IDs, fixed `repr(C)` result storage, poll,
+- [x] Add host-owned command IDs, fixed `repr(C)` result storage, poll,
   timed-wait, release, detach-on-drop, timeout retry, and shutdown completion.
-- [ ] Reject waits from the game thread and listener callbacks.
-- [ ] Publish one coherent cache generation per tick: refresh lightweight
+- [x] Reject waits from the game thread and listener callbacks.
+- [x] Publish one coherent cache generation per tick: refresh lightweight
   global/pool directories eagerly and heavy requested/active records through
   bounded, deduplicated refresh queues.
-- [ ] Clear stale generations and pending heavy records across connection,
+- [x] Clear stale generations and pending heavy records across connection,
   version, and shutdown transitions.
 
 ### Phase 3 — facade and feature completion
 
 - [ ] Introduce `Samp::connect`, `Samp::connect_to`, subsystem facades, checked
   SA-MP ID newtypes, typed GTA handles, `CommandReceipt<T>`, and typed errors.
-- [ ] Make the raw ABI wrapper private or documentation-hidden and expose native
+- [x] Make the raw ABI wrapper private or documentation-hidden and expose native
   addresses only through the explicit `unsafe raw` module.
-- [ ] Move subscriptions, typed events, exact sends/emulation, string codecs,
+- [x] Move subscriptions, typed events, exact sends/emulation, string codecs,
   protocol catalogs, and owned `BitStream` behind `samp.net()`.
-- [ ] Migrate all existing cached reads to their facade targets without
+- [x] Migrate all existing cached reads to their facade targets without
   plugin-thread native calls.
 - [ ] Implement queued UI, player, pool/entity, connection, command-registry,
   sync, and dialog-response mutations in bounded vertical slices.
@@ -122,110 +122,110 @@ Tiers:
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetBase` | Unsafe raw | `raw::base` |
-| [ ] | `sampGetVersion` | Safe owned/read | `Samp::version` |
-| [ ] | `isSampLoaded` | Safe owned/read | `Samp::probe` host-loaded status |
-| [ ] | `isSampfuncsLuaLoaded` | Safe owned/read | `Samp::probe` recognized-build status |
-| [ ] | `isSampAvailable` | Safe owned/read | `Samp::probe` ready status |
+| [x] | `sampGetBase` | Unsafe raw | `raw::base` |
+| [x] | `sampGetVersion` | Safe owned/read | `Samp::version` |
+| [x] | `isSampLoaded` | Safe owned/read | `Samp::probe` host-loaded status |
+| [x] | `isSampfuncsLuaLoaded` | Safe owned/read | `Samp::probe` recognized-build status |
+| [x] | `isSampAvailable` | Safe owned/read | `Samp::probe` ready status |
 
 ### Chat and death window (`chat.lua`, `deathwindow.lua`) — 10
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetChatInfoPtr` | Unsafe raw | `raw::chat` |
-| [ ] | `sampAddChatMessage` | Queued mutation | `Chat::add` |
-| [ ] | `sampGetChatDisplayMode` | Safe owned/read | `Chat::display_mode` |
-| [ ] | `sampSetChatDisplayMode` | Queued mutation | `Chat::set_display_mode` |
-| [ ] | `sampGetChatString` | Safe owned/read | `Chat::entry` |
-| [ ] | `sampSetChatString` | Queued mutation | `Chat::set_entry` |
-| [ ] | `sampIsChatVisible` | Safe owned/read | `Chat::is_visible` |
-| [ ] | `sampAddChatMessageEx` | Queued mutation | `Chat::add_with_style` |
-| [ ] | `sampGetKillInfoPtr` | Unsafe raw | `raw::death_window` |
-| [ ] | `sampAddDeathMessage` | Queued mutation | `Chat::death_window().add` |
+| [x] | `sampGetChatInfoPtr` | Unsafe raw | `raw::chat` |
+| [x] | `sampAddChatMessage` | Queued mutation | `Chat::add` |
+| [x] | `sampGetChatDisplayMode` | Safe owned/read | `Chat::display_mode` |
+| [x] | `sampSetChatDisplayMode` | Queued mutation | `Chat::set_display_mode` |
+| [x] | `sampGetChatString` | Safe owned/read | `Chat::entry` |
+| [x] | `sampSetChatString` | Queued mutation | `Chat::set_entry` |
+| [x] | `sampIsChatVisible` | Safe owned/read | `Chat::is_visible` |
+| [x] | `sampAddChatMessageEx` | Queued mutation | `Chat::add_with_style` |
+| [x] | `sampGetKillInfoPtr` | Unsafe raw | `raw::death_window` |
+| [x] | `sampAddDeathMessage` | Queued mutation | `Chat::death_window().add` |
 
 ### Dialog (`dialog.lua`) — 16
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetDialogInfoPtr` | Unsafe raw | `raw::dialog` |
-| [ ] | `sampShowDialog` | Queued mutation | `Dialogs::show` |
-| [ ] | `sampCloseCurrentDialogWithButton` | Queued mutation | `Dialogs::close_with_button` |
-| [ ] | `sampGetCurrentDialogListItem` | Safe owned/read | `Dialogs::active().selected_item` |
-| [ ] | `sampSetCurrentDialogListItem` | Queued mutation | `Dialogs::set_selected_item` |
+| [x] | `sampGetDialogInfoPtr` | Unsafe raw | `raw::dialog` |
+| [x] | `sampShowDialog` | Queued mutation | `Dialogs::show` |
+| [x] | `sampCloseCurrentDialogWithButton` | Queued mutation | `Dialogs::close_with_button` |
+| [x] | `sampGetCurrentDialogListItem` | Safe owned/read | `Dialogs::selected_item` |
+| [x] | `sampSetCurrentDialogListItem` | Queued mutation | `Dialogs::set_selected_item` |
 | [ ] | `sampGetCurrentDialogEditboxText` | Safe owned/read | `Dialogs::active().editbox_text` |
 | [ ] | `sampSetCurrentDialogEditboxText` | Queued mutation | `Dialogs::set_editbox_text` |
-| [ ] | `sampIsDialogActive` | Safe owned/read | `Dialogs::is_active` |
-| [ ] | `sampGetCurrentDialogType` | Safe owned/read | `Dialogs::active().style` |
-| [ ] | `sampGetCurrentDialogId` | Safe owned/read | `Dialogs::active().id` |
-| [ ] | `sampGetDialogCaption` | Safe owned/read | `Dialogs::active().caption` |
+| [x] | `sampIsDialogActive` | Safe owned/read | `Dialogs::is_active` |
+| [x] | `sampGetCurrentDialogType` | Safe owned/read | `Dialogs::active().style` |
+| [x] | `sampGetCurrentDialogId` | Safe owned/read | `Dialogs::active().id` |
+| [x] | `sampGetDialogCaption` | Safe owned/read | `Dialogs::active().caption` |
 | [ ] | `sampGetDialogText` | Safe owned/read | `Dialogs::active().text` |
-| [ ] | `sampIsDialogClientside` | Safe owned/read | `Dialogs::active().is_client_side` |
-| [ ] | `sampSetDialogClientside` | Queued mutation | `Dialogs::set_client_side` |
-| [ ] | `sampGetListboxItemsCount` | Safe owned/read | `Dialogs::active().items().len` |
+| [x] | `sampIsDialogClientside` | Safe owned/read | `Dialogs::active().is_client_side` |
+| [x] | `sampSetDialogClientside` | Queued mutation | `Dialogs::set_client_side` |
+| [x] | `sampGetListboxItemsCount` | Safe owned/read | `Dialogs::list_item_count` |
 | [ ] | `sampGetListboxItemText` | Safe owned/read | `Dialogs::active().items().get` |
 
 ### Cursor and game (`game.lua`) — 5
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetMiscInfoPtr` | Unsafe raw | `raw::misc` |
-| [ ] | `sampToggleCursor` | Queued mutation | `Cursor::toggle` |
-| [ ] | `sampIsCursorActive` | Safe owned/read | `Cursor::is_active` |
-| [ ] | `sampGetCursorMode` | Safe owned/read | `Cursor::mode` |
-| [ ] | `sampSetCursorMode` | Queued mutation | `Cursor::set_mode` |
+| [x] | `sampGetMiscInfoPtr` | Unsafe raw | `raw::misc` |
+| [x] | `sampToggleCursor` | Queued mutation | `Cursor::toggle` |
+| [x] | `sampIsCursorActive` | Safe owned/read | `Cursor::is_active` |
+| [x] | `sampGetCursorMode` | Safe owned/read | `Cursor::mode` |
+| [x] | `sampSetCursorMode` | Queued mutation | `Cursor::set_mode` |
 
 ### Gangzones (`gangzone.lua`) — 1
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetGangzonePoolPtr` | Unsafe raw | `raw::gangzone_pool` |
+| [x] | `sampGetGangzonePoolPtr` | Unsafe raw | `raw::gangzone_pool` |
 
 ### Chat input (`input.lua`) — 9
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetInputInfoPtr` | Unsafe raw | `raw::chat_input` |
+| [x] | `sampGetInputInfoPtr` | Unsafe raw | `raw::chat_input` |
 | [ ] | `sampRegisterChatCommand` | Queued mutation | `ChatInput::register_command` returning a subscription |
 | [ ] | `sampUnregisterChatCommand` | Queued mutation | `ChatCommandSubscription::unregister_and_wait` |
-| [ ] | `sampSetChatInputText` | Queued mutation | `ChatInput::set_text` |
-| [ ] | `sampGetChatInputText` | Safe owned/read | `ChatInput::text` |
-| [ ] | `sampSetChatInputEnabled` | Queued mutation | `ChatInput::set_enabled` |
-| [ ] | `sampIsChatInputActive` | Safe owned/read | `ChatInput::is_active` |
+| [x] | `sampSetChatInputText` | Queued mutation | `ChatInput::set_text` |
+| [x] | `sampGetChatInputText` | Safe owned/read | `ChatInput::text` |
+| [x] | `sampSetChatInputEnabled` | Queued mutation | `ChatInput::set_enabled` |
+| [x] | `sampIsChatInputActive` | Safe owned/read | `ChatInput::is_active` |
 | [ ] | `sampIsChatCommandDefined` | Safe owned/read | `ChatInput::is_command_defined` |
-| [ ] | `sampProcessChatInput` | Queued mutation | `ChatInput::process` |
+| [x] | `sampProcessChatInput` | Queued mutation | `ChatInput::process` |
 
 ### 3D labels (`label.lua`) — 7
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetTextlabelPoolPtr` | Unsafe raw | `raw::text_label_pool` |
+| [x] | `sampGetTextlabelPoolPtr` | Unsafe raw | `raw::text_label_pool` |
 | [ ] | `sampCreate3dText` | Queued mutation | `Labels::create` |
-| [ ] | `sampIs3dTextDefined` | Safe owned/read | `Labels::exists` |
-| [ ] | `sampGet3dTextInfoById` | Safe owned/read | `Labels::get` |
+| [x] | `sampIs3dTextDefined` | Safe owned/read | `Labels::exists` |
+| [x] | `sampGet3dTextInfoById` | Safe owned/read | `Labels::get` |
 | [ ] | `sampSet3dTextString` | Queued mutation | `Label::set_text` |
-| [ ] | `sampDestroy3dText` | Queued mutation | `Label::destroy` |
-| [ ] | `sampCreate3dTextEx` | Queued mutation | `Labels::create_at` |
+| [x] | `sampDestroy3dText` | Queued mutation | `Labels::delete` |
+| [x] | `sampCreate3dTextEx` | Queued mutation | `Labels::create_at` |
 
 ### Net game and animation (`netgame.lua`) — 10
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetSampInfoPtr` | Unsafe raw | `raw::net_game` |
-| [ ] | `sampGetSampPoolsPtr` | Unsafe raw | `raw::pools` |
-| [ ] | `sampGetServerSettingsPtr` | Unsafe raw | `raw::server_settings` |
-| [ ] | `sampGetCurrentServerName` | Safe owned/read | `Server::hostname` |
-| [ ] | `sampGetCurrentServerAddress` | Safe owned/read | `Server::address` and `Server::port` |
-| [ ] | `sampGetGamestate` | Safe owned/read | `Samp::game_state` |
-| [ ] | `sampSetGamestate` | Queued mutation | `Samp::set_game_state` |
-| [ ] | `sampGetAnimationNameAndFile` | Safe owned/read | `Animations::get` |
-| [ ] | `sampFindAnimationIdByNameAndFile` | Safe owned/read | `Animations::find` |
-| [ ] | `sampSetSendrate` | Queued mutation | `Net::set_send_rate` |
+| [x] | `sampGetSampInfoPtr` | Unsafe raw | `raw::net_game` |
+| [x] | `sampGetSampPoolsPtr` | Unsafe raw | `raw::pools` |
+| [x] | `sampGetServerSettingsPtr` | Unsafe raw | `raw::server_settings` |
+| [x] | `sampGetCurrentServerName` | Safe owned/read | `Server::hostname` |
+| [x] | `sampGetCurrentServerAddress` | Safe owned/read | `Server::address` and `Server::port` |
+| [x] | `sampGetGamestate` | Safe owned/read | `Samp::game_state` |
+| [x] | `sampSetGamestate` | Queued mutation | `Samp::set_game_state` |
+| [x] | `sampGetAnimationNameAndFile` | Safe owned/read | `Animations::get` |
+| [x] | `sampFindAnimationIdByNameAndFile` | Safe owned/read | `Animations::find` |
+| [x] | `sampSetSendrate` | Queued mutation | `Net::set_send_rate` |
 
 ### Objects (`object.lua`) — 3
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetObjectPoolPtr` | Unsafe raw | `raw::object_pool` |
+| [x] | `sampGetObjectPoolPtr` | Unsafe raw | `raw::object_pool` |
 | [ ] | `sampGetObjectHandleBySampId` | Safe owned/read | `Object::handle` returning `ObjectHandle` |
 | [ ] | `sampGetObjectSampIdByHandle` | Safe owned/read | `ObjectHandle::to_id` |
 
@@ -233,7 +233,7 @@ Tiers:
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetPickupPoolPtr` | Unsafe raw | `raw::pickup_pool` |
+| [x] | `sampGetPickupPoolPtr` | Unsafe raw | `raw::pickup_pool` |
 | [ ] | `sampGetPickupHandleBySampId` | Safe owned/read | `Pickup::handle` returning `PickupHandle` |
 | [ ] | `sampGetPickupSampIdByHandle` | Safe owned/read | `PickupHandle::to_id` |
 
@@ -241,164 +241,164 @@ Tiers:
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetPlayerPoolPtr` | Unsafe raw | `raw::player_pool` |
-| [ ] | `sampIsPlayerConnected` | Safe owned/read | `Player::is_connected` |
-| [ ] | `sampGetPlayerNickname` | Safe owned/read | `Player::nickname` |
-| [ ] | `sampSpawnPlayer` | Queued mutation | `LocalPlayer::spawn` |
-| [ ] | `sampSendChat` | Queued mutation | `Net::send_chat` |
-| [ ] | `sampIsPlayerNpc` | Safe owned/read | `Player::is_npc` |
-| [ ] | `sampGetPlayerScore` | Safe owned/read | `Player::score` |
-| [ ] | `sampGetPlayerPing` | Safe owned/read | `Player::ping` |
-| [ ] | `sampRequestClass` | Queued mutation | `LocalPlayer::request_class` |
-| [ ] | `sampSendInteriorChange` | Queued mutation | `LocalPlayer::send_interior_change` |
-| [ ] | `sampForceUnoccupiedSyncSeatId` | Queued mutation | `LocalPlayer::force_unoccupied_sync` |
+| [x] | `sampGetPlayerPoolPtr` | Unsafe raw | `raw::player_pool` |
+| [x] | `sampIsPlayerConnected` | Safe owned/read | `Player::is_connected` |
+| [x] | `sampGetPlayerNickname` | Safe owned/read | `Player::nickname` |
+| [x] | `sampSpawnPlayer` | Queued mutation | `Local::spawn` |
+| [x] | `sampSendChat` | Queued mutation | `Net::send_chat` |
+| [x] | `sampIsPlayerNpc` | Safe owned/read | `Player::is_npc` |
+| [x] | `sampGetPlayerScore` | Safe owned/read | `Player::score` |
+| [x] | `sampGetPlayerPing` | Safe owned/read | `Player::ping` |
+| [x] | `sampRequestClass` | Queued mutation | `Local::request_class` |
+| [x] | `sampSendInteriorChange` | Queued mutation | `Local::send_interior_change` |
+| [x] | `sampForceUnoccupiedSyncSeatId` | Queued mutation | `Local::force_unoccupied_sync` |
 | [ ] | `sampGetCharHandleBySampPlayerId` | Safe owned/read | `Player::ped_handle` returning `PedHandle` |
 | [ ] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `PedHandle::to_id` |
-| [ ] | `sampGetPlayerArmor` | Safe owned/read | `Player::armour` |
-| [ ] | `sampGetPlayerHealth` | Safe owned/read | `Player::health` |
-| [ ] | `sampIsPlayerPaused` | Safe owned/read | `Player::is_paused` |
-| [ ] | `sampSetSpecialAction` | Queued mutation | `LocalPlayer::set_special_action` |
-| [ ] | `sampGetPlayerCount` | Safe owned/read | `Players::count` |
-| [ ] | `sampGetMaxPlayerId` | Safe owned/read | `Players::max_id` |
-| [ ] | `sampGetPlayerSpecialAction` | Safe owned/read | `Player::special_action` |
+| [x] | `sampGetPlayerArmor` | Safe owned/read | `Player::armour` |
+| [x] | `sampGetPlayerHealth` | Safe owned/read | `Player::health` |
+| [x] | `sampIsPlayerPaused` | Safe owned/read | `Player::is_paused` |
+| [x] | `sampSetSpecialAction` | Queued mutation | `Local::set_special_action` |
+| [x] | `sampGetPlayerCount` | Safe owned/read | `Players::count` |
+| [x] | `sampGetMaxPlayerId` | Safe owned/read | `Players::max_id` |
+| [x] | `sampGetPlayerSpecialAction` | Safe owned/read | `Player::special_action` |
 | [ ] | `sampStorePlayerOnfootData` | Safe owned/read | `Player::onfoot_sync` owned snapshot |
 | [ ] | `sampStorePlayerIncarData` | Safe owned/read | `Player::vehicle_sync` owned snapshot |
 | [ ] | `sampStorePlayerPassengerData` | Safe owned/read | `Player::passenger_sync` owned snapshot |
 | [ ] | `sampStorePlayerTrailerData` | Safe owned/read | `Player::trailer_sync` owned snapshot |
 | [ ] | `sampStorePlayerAimData` | Safe owned/read | `Player::aim_sync` owned snapshot |
-| [ ] | `sampSendSpawn` | Queued mutation | `LocalPlayer::send_spawn` |
-| [ ] | `sampGetPlayerAnimationId` | Safe owned/read | `Player::animation_id` |
-| [ ] | `sampSetLocalPlayerName` | Queued mutation | `LocalPlayer::set_nickname` |
-| [ ] | `sampGetPlayerStructPtr` | Unsafe raw | `raw::player` |
-| [ ] | `sampSendEnterVehicle` | Queued mutation | `LocalPlayer::send_enter_vehicle` |
-| [ ] | `sampSendExitVehicle` | Queued mutation | `LocalPlayer::send_exit_vehicle` |
-| [ ] | `sampIsLocalPlayerSpawned` | Safe owned/read | `LocalPlayer::is_spawned` |
-| [ ] | `sampGetPlayerColor` | Safe owned/read | `Player::colour` |
+| [x] | `sampSendSpawn` | Queued mutation | `Local::send_spawn` |
+| [x] | `sampGetPlayerAnimationId` | Safe owned/read | `Player::animation_id` |
+| [x] | `sampSetLocalPlayerName` | Queued mutation | `Local::set_nickname` |
+| [x] | `sampGetPlayerStructPtr` | Unsafe raw | `raw::player` |
+| [x] | `sampSendEnterVehicle` | Queued mutation | `Local::send_enter_vehicle` |
+| [x] | `sampSendExitVehicle` | Queued mutation | `Local::send_exit_vehicle` |
+| [x] | `sampIsLocalPlayerSpawned` | Safe owned/read | `LocalPlayer::is_spawned` |
+| [x] | `sampGetPlayerColor` | Safe owned/read | `Player::colour` |
 | [ ] | `sampForceAimSync` | Queued mutation | `LocalPlayer::force_aim_sync` |
 | [ ] | `sampForceOnfootSync` | Queued mutation | `LocalPlayer::force_onfoot_sync` |
 | [ ] | `sampForceStatsSync` | Queued mutation | `LocalPlayer::force_stats_sync` |
 | [ ] | `sampForceTrailerSync` | Queued mutation | `LocalPlayer::force_trailer_sync` |
 | [ ] | `sampForceVehicleSync` | Queued mutation | `LocalPlayer::force_vehicle_sync` |
-| [ ] | `sampGetLocalPlayerId` | Safe owned/read | `LocalPlayer::id` |
-| [ ] | `sampIsPlayerDefined` | Safe owned/read | `Player::is_defined` |
-| [ ] | `sampGetLocalPlayerNickname` | Safe owned/read | `LocalPlayer::nickname` |
-| [ ] | `sampGetLocalPlayerColor` | Safe owned/read | `LocalPlayer::colour` |
-| [ ] | `sampSetPlayerColor` | Queued mutation | `Player::set_colour` |
+| [x] | `sampGetLocalPlayerId` | Safe owned/read | `LocalPlayer::id` |
+| [x] | `sampIsPlayerDefined` | Safe owned/read | `Player::is_defined` |
+| [x] | `sampGetLocalPlayerNickname` | Safe owned/read | `LocalPlayer::nickname` |
+| [x] | `sampGetLocalPlayerColor` | Safe owned/read | `LocalPlayer::colour` |
+| [x] | `sampSetPlayerColor` | Queued mutation | `Player::set_colour` |
 
 ### RakNet and network actions (`raknet.lua`) — 65
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `raknetBitStreamReadBool` | Safe owned/read | `BitStream::read_bool` |
-| [ ] | `raknetBitStreamReadBuffer` | Safe owned/read | `BitStream::read_bits` / `read_bytes` |
-| [ ] | `raknetBitStreamReadInt8` | Safe owned/read | `BitStream::read_u8` |
-| [ ] | `raknetBitStreamReadInt16` | Safe owned/read | `BitStream::read_u16` |
-| [ ] | `raknetBitStreamReadInt32` | Safe owned/read | `BitStream::read_u32` |
-| [ ] | `raknetBitStreamReadFloat` | Safe owned/read | `BitStream::read_f32` |
-| [ ] | `raknetBitStreamReadString` | Safe owned/read | `BitStream::read_string` |
-| [ ] | `raknetBitStreamResetReadPointer` | Safe owned/read | `BitStream::reset_read` |
-| [ ] | `raknetBitStreamResetWritePointer` | Safe owned/read | `BitStream::reset_write` |
-| [ ] | `raknetBitStreamIgnoreBits` | Safe owned/read | `BitStream::ignore_bits` |
-| [ ] | `raknetBitStreamSetWriteOffset` | Safe owned/read | `BitStream::set_write_offset` |
-| [ ] | `raknetBitStreamSetReadOffset` | Safe owned/read | `BitStream::set_read_offset` |
-| [ ] | `raknetBitStreamGetNumberOfBitsUsed` | Safe owned/read | `BitStream::len_bits` |
-| [ ] | `raknetBitStreamGetNumberOfBytesUsed` | Safe owned/read | `BitStream::len_bytes` |
-| [ ] | `raknetBitStreamGetNumberOfUnreadBits` | Safe owned/read | `BitStream::remaining_bits` |
-| [ ] | `raknetBitStreamGetWriteOffset` | Safe owned/read | `BitStream::write_offset` |
-| [ ] | `raknetBitStreamGetReadOffset` | Safe owned/read | `BitStream::read_offset` |
-| [ ] | `raknetBitStreamGetDataPtr` | Unsafe raw | `raw::bitstream_data` |
-| [ ] | `raknetNewBitStream` | Safe owned/read | `BitStream::new` |
-| [ ] | `raknetDeleteBitStream` | Safe owned/read | `BitStream` ownership and `Drop` |
-| [ ] | `raknetResetBitStream` | Safe owned/read | `BitStream::clear` |
-| [ ] | `raknetBitStreamWriteBool` | Safe owned/read | `BitStream::write_bool` |
-| [ ] | `raknetBitStreamWriteInt8` | Safe owned/read | `BitStream::write_u8` |
-| [ ] | `raknetBitStreamWriteInt16` | Safe owned/read | `BitStream::write_u16` |
-| [ ] | `raknetBitStreamWriteInt32` | Safe owned/read | `BitStream::write_u32` |
-| [ ] | `raknetBitStreamWriteFloat` | Safe owned/read | `BitStream::write_f32` |
-| [ ] | `raknetBitStreamWriteBuffer` | Safe owned/read | `BitStream::write_bits` / `write_bytes` |
-| [ ] | `raknetBitStreamWriteString` | Safe owned/read | `BitStream::write_string` |
-| [ ] | `raknetBitStreamDecodeString` | Safe owned/read | `Net::decode_string` |
-| [ ] | `raknetBitStreamEncodeString` | Safe owned/read | `Net::encode_string` |
-| [ ] | `raknetBitStreamWriteBitStream` | Safe owned/read | `BitStream::write_stream` |
-| [ ] | `raknetSendRpcEx` | Queued mutation | `Net::send_rpc_with_options` |
-| [ ] | `raknetSendBitStreamEx` | Queued mutation | `Net::send_packet_with_options` |
-| [ ] | `raknetSendRpc` | Queued mutation | `Net::send_rpc` |
-| [ ] | `raknetSendBitStream` | Queued mutation | `Net::send_packet` |
-| [ ] | `raknetGetRpcName` | Safe owned/read | `Net::rpc_name` |
-| [ ] | `raknetGetPacketName` | Safe owned/read | `Net::packet_name` |
-| [ ] | `sampGetRakclientInterface` | Unsafe raw | `raw::rakclient` |
-| [ ] | `sampGetRakpeer` | Unsafe raw | `raw::rakpeer` |
-| [ ] | `sampSendAimData` | Queued mutation | `Net::send_aim_sync` |
-| [ ] | `sampSendBulletData` | Queued mutation | `Net::send_bullet_sync` |
-| [ ] | `sampSendIncarData` | Queued mutation | `Net::send_vehicle_sync` |
-| [ ] | `sampSendOnfootData` | Queued mutation | `Net::send_player_sync` |
-| [ ] | `sampSendSpectatorData` | Queued mutation | `Net::send_spectator_sync` |
-| [ ] | `sampSendTrailerData` | Queued mutation | `Net::send_trailer_sync` |
-| [ ] | `sampSendPassengerData` | Queued mutation | `Net::send_passenger_sync` |
-| [ ] | `sampSendUnoccupiedData` | Queued mutation | `Net::send_unoccupied_sync` |
-| [ ] | `sampSendDamageVehicle` | Queued mutation | `Net::send_vehicle_damage` |
-| [ ] | `sampSendScmEvent` | Queued mutation | `Net::send_scm_event` |
-| [ ] | `sampSendGiveDamage` | Queued mutation | `Net::send_give_damage` |
-| [ ] | `sampSendTakeDamage` | Queued mutation | `Net::send_take_damage` |
-| [ ] | `sampSendRequestSpawn` | Queued mutation | `Net::send_request_spawn` |
-| [ ] | `sampSendClickPlayer` | Queued mutation | `Net::send_click_player` |
-| [ ] | `sampSendClickTextdraw` | Queued mutation | `Net::send_click_textdraw` |
-| [ ] | `sampSendDeathByPlayer` | Queued mutation | `Net::send_death_by_player` |
-| [ ] | `sampSendDialogResponse` | Queued mutation | `Net::send_dialog_response` |
-| [ ] | `sampSendEditAttachedObject` | Queued mutation | `Net::send_edit_attached_object` |
-| [ ] | `sampSendEditObject` | Queued mutation | `Net::send_edit_object` |
-| [ ] | `sampSendMenuQuit` | Queued mutation | `Net::send_menu_quit` |
-| [ ] | `sampSendMenuSelectRow` | Queued mutation | `Net::send_menu_select_row` |
-| [ ] | `sampSendPickedUpPickup` | Queued mutation | `Net::send_picked_up_pickup` |
-| [ ] | `sampSendRconCommand` | Queued mutation | `Net::send_rcon_command` |
-| [ ] | `sampSendVehicleDestroyed` | Queued mutation | `Net::send_vehicle_destroyed` |
-| [ ] | `sampDisconnectWithReason` | Queued mutation | `Net::disconnect` |
-| [ ] | `sampConnectToServer` | Queued mutation | `Net::connect` |
+| [x] | `raknetBitStreamReadBool` | Safe owned/read | `BitStream::read_bool` |
+| [x] | `raknetBitStreamReadBuffer` | Safe owned/read | `BitStream::read_bits` / `read_bytes` |
+| [x] | `raknetBitStreamReadInt8` | Safe owned/read | `BitStream::read_u8` |
+| [x] | `raknetBitStreamReadInt16` | Safe owned/read | `BitStream::read_u16` |
+| [x] | `raknetBitStreamReadInt32` | Safe owned/read | `BitStream::read_u32` |
+| [x] | `raknetBitStreamReadFloat` | Safe owned/read | `BitStream::read_f32` |
+| [x] | `raknetBitStreamReadString` | Safe owned/read | `BitStream::read_string` |
+| [x] | `raknetBitStreamResetReadPointer` | Safe owned/read | `BitStream::reset_read` |
+| [x] | `raknetBitStreamResetWritePointer` | Safe owned/read | `BitStream::reset_write` |
+| [x] | `raknetBitStreamIgnoreBits` | Safe owned/read | `BitStream::ignore_bits` |
+| [x] | `raknetBitStreamSetWriteOffset` | Safe owned/read | `BitStream::set_write_offset` |
+| [x] | `raknetBitStreamSetReadOffset` | Safe owned/read | `BitStream::set_read_offset` |
+| [x] | `raknetBitStreamGetNumberOfBitsUsed` | Safe owned/read | `BitStream::len_bits` |
+| [x] | `raknetBitStreamGetNumberOfBytesUsed` | Safe owned/read | `BitStream::len_bytes` |
+| [x] | `raknetBitStreamGetNumberOfUnreadBits` | Safe owned/read | `BitStream::remaining_bits` |
+| [x] | `raknetBitStreamGetWriteOffset` | Safe owned/read | `BitStream::write_offset` |
+| [x] | `raknetBitStreamGetReadOffset` | Safe owned/read | `BitStream::read_offset` |
+| [x] | `raknetBitStreamGetDataPtr` | Unsafe raw | `raw::bitstream_data` |
+| [x] | `raknetNewBitStream` | Safe owned/read | `BitStream::new` |
+| [x] | `raknetDeleteBitStream` | Safe owned/read | `BitStream` ownership and `Drop` |
+| [x] | `raknetResetBitStream` | Safe owned/read | `BitStream::clear` |
+| [x] | `raknetBitStreamWriteBool` | Safe owned/read | `BitStream::write_bool` |
+| [x] | `raknetBitStreamWriteInt8` | Safe owned/read | `BitStream::write_u8` |
+| [x] | `raknetBitStreamWriteInt16` | Safe owned/read | `BitStream::write_u16` |
+| [x] | `raknetBitStreamWriteInt32` | Safe owned/read | `BitStream::write_u32` |
+| [x] | `raknetBitStreamWriteFloat` | Safe owned/read | `BitStream::write_f32` |
+| [x] | `raknetBitStreamWriteBuffer` | Safe owned/read | `BitStream::write_bits` / `write_bytes` |
+| [x] | `raknetBitStreamWriteString` | Safe owned/read | `BitStream::write_string` |
+| [x] | `raknetBitStreamDecodeString` | Safe owned/read | `Net::decode_string` |
+| [x] | `raknetBitStreamEncodeString` | Safe owned/read | `Net::encode_string` |
+| [x] | `raknetBitStreamWriteBitStream` | Safe owned/read | `BitStream::write_stream` |
+| [x] | `raknetSendRpcEx` | Queued mutation | `Net::send_rpc_with_options` |
+| [x] | `raknetSendBitStreamEx` | Queued mutation | `Net::send_packet_with_options` |
+| [x] | `raknetSendRpc` | Queued mutation | `Net::send_rpc` |
+| [x] | `raknetSendBitStream` | Queued mutation | `Net::send_packet` |
+| [x] | `raknetGetRpcName` | Safe owned/read | `Net::rpc_name` |
+| [x] | `raknetGetPacketName` | Safe owned/read | `Net::packet_name` |
+| [x] | `sampGetRakclientInterface` | Unsafe raw | `raw::rakclient` |
+| [x] | `sampGetRakpeer` | Unsafe raw | `raw::rakpeer` |
+| [x] | `sampSendAimData` | Queued mutation | `Net::send_aim_sync` |
+| [x] | `sampSendBulletData` | Queued mutation | `Net::send_bullet_sync` |
+| [x] | `sampSendIncarData` | Queued mutation | `Net::send_vehicle_sync` |
+| [x] | `sampSendOnfootData` | Queued mutation | `Net::send_player_sync` |
+| [x] | `sampSendSpectatorData` | Queued mutation | `Net::send_spectator_sync` |
+| [x] | `sampSendTrailerData` | Queued mutation | `Net::send_trailer_sync` |
+| [x] | `sampSendPassengerData` | Queued mutation | `Net::send_passenger_sync` |
+| [x] | `sampSendUnoccupiedData` | Queued mutation | `Net::send_unoccupied_sync` |
+| [x] | `sampSendDamageVehicle` | Queued mutation | `Net::send_vehicle_damage` |
+| [x] | `sampSendScmEvent` | Queued mutation | `Net::send_scm_event` |
+| [x] | `sampSendGiveDamage` | Queued mutation | `Net::send_give_damage` |
+| [x] | `sampSendTakeDamage` | Queued mutation | `Net::send_take_damage` |
+| [x] | `sampSendRequestSpawn` | Queued mutation | `Net::send_request_spawn` |
+| [x] | `sampSendClickPlayer` | Queued mutation | `Net::send_click_player` |
+| [x] | `sampSendClickTextdraw` | Queued mutation | `Net::send_click_textdraw` |
+| [x] | `sampSendDeathByPlayer` | Queued mutation | `Net::send_death_by_player` |
+| [x] | `sampSendDialogResponse` | Queued mutation | `Net::send_dialog_response` |
+| [x] | `sampSendEditAttachedObject` | Queued mutation | `Net::send_edit_attached_object` |
+| [x] | `sampSendEditObject` | Queued mutation | `Net::send_edit_object` |
+| [x] | `sampSendMenuQuit` | Queued mutation | `Net::send_menu_quit` |
+| [x] | `sampSendMenuSelectRow` | Queued mutation | `Net::send_menu_select_row` |
+| [x] | `sampSendPickedUpPickup` | Queued mutation | `Net::send_picked_up_pickup` |
+| [x] | `sampSendRconCommand` | Queued mutation | `Net::send_rcon_command` |
+| [x] | `sampSendVehicleDestroyed` | Queued mutation | `Net::send_vehicle_destroyed` |
+| [x] | `sampDisconnectWithReason` | Queued mutation | `Net::disconnect` |
+| [x] | `sampConnectToServer` | Queued mutation | `Net::connect` |
 
 ### Scoreboard (`scoreboard.lua`) — 2
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampToggleScoreboard` | Queued mutation | `Scoreboard::toggle` |
-| [ ] | `sampIsScoreboardOpen` | Safe owned/read | `Scoreboard::is_open` |
+| [x] | `sampToggleScoreboard` | Queued mutation | `Scoreboard::toggle` |
+| [x] | `sampIsScoreboardOpen` | Safe owned/read | `Scoreboard::is_open` |
 
 ### Textdraws (`textdraw.lua`) — 24
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetTextdrawPoolPtr` | Unsafe raw | `raw::textdraw_pool` |
-| [ ] | `sampTextdrawIsExists` | Safe owned/read | `Textdraws::exists` |
+| [x] | `sampGetTextdrawPoolPtr` | Unsafe raw | `raw::textdraw_pool` |
+| [x] | `sampTextdrawIsExists` | Safe owned/read | `Textdraws::exists` |
 | [ ] | `sampTextdrawCreate` | Queued mutation | `Textdraws::create` |
-| [ ] | `sampTextdrawSetBoxColorAndSize` | Queued mutation | `Textdraw::set_box` |
-| [ ] | `sampTextdrawGetString` | Safe owned/read | `Textdraw::text` |
-| [ ] | `sampTextdrawDelete` | Queued mutation | `Textdraw::delete` |
-| [ ] | `sampTextdrawGetLetterSizeAndColor` | Safe owned/read | `Textdraw::letter_style` |
-| [ ] | `sampTextdrawGetPos` | Safe owned/read | `Textdraw::position` |
-| [ ] | `sampTextdrawGetShadowColor` | Safe owned/read | `Textdraw::shadow` |
-| [ ] | `sampTextdrawGetOutlineColor` | Safe owned/read | `Textdraw::outline` |
-| [ ] | `sampTextdrawGetStyle` | Safe owned/read | `Textdraw::style` |
-| [ ] | `sampTextdrawGetProportional` | Safe owned/read | `Textdraw::is_proportional` |
-| [ ] | `sampTextdrawGetAlign` | Safe owned/read | `Textdraw::alignment` |
-| [ ] | `sampTextdrawGetBoxEnabledColorAndSize` | Safe owned/read | `Textdraw::box_style` |
-| [ ] | `sampTextdrawGetModelRotationZoomVehColor` | Safe owned/read | `Textdraw::model_style` |
-| [ ] | `sampTextdrawSetLetterSizeAndColor` | Queued mutation | `Textdraw::set_letter_style` |
-| [ ] | `sampTextdrawSetPos` | Queued mutation | `Textdraw::set_position` |
-| [ ] | `sampTextdrawSetString` | Queued mutation | `Textdraw::set_text` |
-| [ ] | `sampTextdrawSetModelRotationZoomVehColor` | Queued mutation | `Textdraw::set_model_style` |
-| [ ] | `sampTextdrawSetOutlineColor` | Queued mutation | `Textdraw::set_outline` |
-| [ ] | `sampTextdrawSetShadow` | Queued mutation | `Textdraw::set_shadow` |
+| [x] | `sampTextdrawSetBoxColorAndSize` | Queued mutation | `Textdraws::set_box` |
+| [x] | `sampTextdrawGetString` | Safe owned/read | `Textdraw::text` |
+| [x] | `sampTextdrawDelete` | Queued mutation | `Textdraws::delete` |
+| [x] | `sampTextdrawGetLetterSizeAndColor` | Safe owned/read | `Textdraw::letter_style` |
+| [x] | `sampTextdrawGetPos` | Safe owned/read | `Textdraw::position` |
+| [x] | `sampTextdrawGetShadowColor` | Safe owned/read | `Textdraw::shadow` |
+| [x] | `sampTextdrawGetOutlineColor` | Safe owned/read | `Textdraw::outline` |
+| [x] | `sampTextdrawGetStyle` | Safe owned/read | `Textdraw::style` |
+| [x] | `sampTextdrawGetProportional` | Safe owned/read | `Textdraw::is_proportional` |
+| [x] | `sampTextdrawGetAlign` | Safe owned/read | `Textdraw::alignment` |
+| [x] | `sampTextdrawGetBoxEnabledColorAndSize` | Safe owned/read | `Textdraw::box_style` |
+| [x] | `sampTextdrawGetModelRotationZoomVehColor` | Safe owned/read | `Textdraw::model_style` |
+| [x] | `sampTextdrawSetLetterSizeAndColor` | Queued mutation | `Textdraws::set_letter_style` |
+| [x] | `sampTextdrawSetPos` | Queued mutation | `Textdraws::set_position` |
+| [x] | `sampTextdrawSetString` | Queued mutation | `Textdraws::set_text` |
+| [x] | `sampTextdrawSetModelRotationZoomVehColor` | Queued mutation | `Textdraws::set_model_style` |
+| [x] | `sampTextdrawSetOutlineColor` | Queued mutation | `Textdraws::set_outline` |
+| [x] | `sampTextdrawSetShadow` | Queued mutation | `Textdraws::set_shadow` |
 | [ ] | `sampTextdrawSetStyle` | Queued mutation | `Textdraw::set_style` |
-| [ ] | `sampTextdrawSetProportional` | Queued mutation | `Textdraw::set_proportional` |
-| [ ] | `sampTextdrawSetAlign` | Queued mutation | `Textdraw::set_alignment` |
+| [x] | `sampTextdrawSetProportional` | Queued mutation | `Textdraws::set_proportional` |
+| [x] | `sampTextdrawSetAlign` | Queued mutation | `Textdraws::set_alignment` |
 
 ### Vehicles (`vehicle.lua`) — 4
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampGetVehiclePoolPtr` | Unsafe raw | `raw::vehicle_pool` |
+| [x] | `sampGetVehiclePoolPtr` | Unsafe raw | `raw::vehicle_pool` |
 | [ ] | `sampGetCarHandleBySampVehicleId` | Safe owned/read | `Vehicle::handle` returning `VehicleHandle` |
 | [ ] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `VehicleHandle::to_id` |
-| [ ] | `sampIsVehicleDefined` | Safe owned/read | `Vehicles::exists` |
+| [x] | `sampIsVehicleDefined` | Safe owned/read | `Vehicles::exists` |
 <!-- sf-lua-baseline:end -->
 
 ## SF.lua `init.lua` extension map — 14
@@ -412,14 +412,14 @@ remains permanently excluded.
 | [ ] | `sampHasDialogRespond` | Safe owned/read | `Dialogs::last_response` |
 | [ ] | `sampForcePassengerSyncSeatId` | Queued mutation | `LocalPlayer::force_passenger_sync` |
 | [ ] | `sampForceWeaponsSync` | Queued mutation | `LocalPlayer::force_weapons_sync` |
-| [ ] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |
+| [x] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |
 | [ ] | `sampGetRpcCallbackByRpcId` | Unsafe raw | `raw::rpc_callback` |
 | [ ] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
-| [ ] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
-| [ ] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
+| [x] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
+| [x] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
 | [ ] | `sampSetClientCommandDescription` | Queued mutation | `ChatInput::set_command_description` |
 | [ ] | `sampGetStreamedOutPlayerPos` | Safe owned/read | `Player::streamed_out_position` |
-| [ ] | `onSendRpc` | Safe owned/read | `Net::on_rpc(Direction::Outgoing, ...)` |
-| [ ] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
-| [ ] | `onReceiveRpc` | Safe owned/read | `Net::on_rpc(Direction::Incoming, ...)` |
-| [ ] | `onReceivePacket` | Safe owned/read | `Net::on_packet(Direction::Incoming, ...)` |
+| [x] | `onSendRpc` | Safe owned/read | `Net::on_rpc(Direction::Outgoing, ...)` |
+| [x] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
+| [x] | `onReceiveRpc` | Safe owned/read | `Net::on_rpc(Direction::Incoming, ...)` |
+| [x] | `onReceivePacket` | Safe owned/read | `Net::on_packet(Direction::Incoming, ...)` |

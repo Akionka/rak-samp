@@ -37,4 +37,8 @@ rust-project.json
 .history
 .ionide
 
+# Local upstream native-reference checkouts used while maintaining the R1 bridge.
+# These are research inputs and must never be committed with the SDK.
+.native-references/
+
 # End of https://www.toptal.com/developers/gitignore/api/rust,rust-analyzer,visualstudiocode

@@ -334,6 +334,21 @@ struct FixtureR1ScoreboardPrefix {
     int is_enabled;
 };
 
+struct FixtureR1ChatEntry {
+    int timestamp;
+    char prefix[28];
+    char text[144];
+    unsigned char unused[64];
+    int type;
+    unsigned int text_colour;
+    unsigned int prefix_colour;
+};
+
+struct FixtureR1ChatPrefix {
+    unsigned char pad[0x132];
+    FixtureR1ChatEntry entries[100];
+};
+
 struct FixtureR1DialogSnapshot {
     void* device;
     unsigned int position[2];
@@ -350,6 +365,15 @@ struct FixtureR1DialogSnapshot {
     char caption[65];
     int server_side;
 };
+
+#pragma pack(push, 1)
+struct FixtureDxutListBoxSelection {
+    unsigned char pad[0x143];
+    int selected;
+    unsigned char pad_0[0x09];
+    int item_count;
+};
+#pragma pack(pop)
 
 struct FixtureR1InputPrefix {
     unsigned char pad_0[0x14E0];
@@ -383,11 +407,13 @@ static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
 static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
 static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
 static_assert(offsetof(FixtureR1NetGamePrefix, game_state) == 0x3BD);
+static_assert(offsetof(FixtureR1NetGamePrefix, settings) == 0x3C5);
 static_assert(offsetof(FixtureR1NetGamePrefix, pools) == 0x3CD);
 static_assert(offsetof(FixtureR1NetGamePools, label) == 0x0C);
 static_assert(offsetof(FixtureR1NetGamePools, text_draw) == 0x10);
 static_assert(offsetof(FixtureR1NetGamePools, object) == 0x04);
 static_assert(offsetof(FixtureR1NetGamePools, gang_zone) == 0x08);
+static_assert(offsetof(FixtureR1NetGamePools, pickup) == 0x20);
 static_assert(sizeof(FixtureR1TextLabel) == 29);
 static_assert(offsetof(FixtureR1TextLabel, text) == 0x00);
 static_assert(offsetof(FixtureR1TextLabel, colour) == 0x04);
@@ -401,6 +427,7 @@ static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty) == 0);
 static_assert(sizeof(FixtureR1TextDrawPoolExistsPrefix) == 0x4800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, objects) == 0x2400);
 static_assert(offsetof(FixtureR1TextDraw, data) == 0x963);
+static_assert(offsetof(FixtureR1TextDraw, string) == 801);
 static_assert(offsetof(FixtureR1TextDrawData, letter_width) == 0x00);
 static_assert(offsetof(FixtureR1TextDrawData, letter_height) == 0x04);
 static_assert(offsetof(FixtureR1TextDrawData, letter_colour) == 0x08);
@@ -428,7 +455,12 @@ static_assert(sizeof(FixtureR1Gangzone) == 0x18);
 static_assert(offsetof(FixtureR1GangzonePoolPrefix, not_empty) == 0x1000);
 static_assert(offsetof(FixtureR1GamePrefix, cursor_mode) == 0x55);
 static_assert(offsetof(FixtureR1ScoreboardPrefix, is_enabled) == 0x00);
+static_assert(sizeof(FixtureR1ChatEntry) == 0xFC);
+static_assert(offsetof(FixtureR1ChatPrefix, entries) == 0x132);
 static_assert(offsetof(FixtureR1DialogSnapshot, is_active) == 0x28);
+static_assert(offsetof(FixtureR1DialogSnapshot, listbox) == 0x20);
+static_assert(offsetof(FixtureDxutListBoxSelection, selected) == 0x143);
+static_assert(offsetof(FixtureDxutListBoxSelection, item_count) == 0x150);
 static_assert(offsetof(FixtureR1DialogSnapshot, type) == 0x2C);
 static_assert(offsetof(FixtureR1DialogSnapshot, id) == 0x30);
 static_assert(offsetof(FixtureR1DialogSnapshot, caption) == 0x40);
@@ -437,47 +469,47 @@ static_assert(offsetof(FixtureR1InputPrefix, is_enabled) == 0x14E0);
 
 extern "C" {
 
-std::size_t rak_samp_fixture_player_id_size() {
+std::size_t samp_client_sdk_fixture_player_id_size() {
     return sizeof(FixturePlayerId);
 }
 
-std::size_t rak_samp_fixture_player_id_alignment() {
+std::size_t samp_client_sdk_fixture_player_id_alignment() {
     return alignof(FixturePlayerId);
 }
 
-std::size_t rak_samp_fixture_packet_size() {
+std::size_t samp_client_sdk_fixture_packet_size() {
     return sizeof(FixturePacket);
 }
 
-std::size_t rak_samp_fixture_packet_alignment() {
+std::size_t samp_client_sdk_fixture_packet_alignment() {
     return alignof(FixturePacket);
 }
 
-std::size_t rak_samp_fixture_packet_player_index_offset() {
+std::size_t samp_client_sdk_fixture_packet_player_index_offset() {
     return offsetof(FixturePacket, player_index);
 }
 
-std::size_t rak_samp_fixture_packet_player_id_offset() {
+std::size_t samp_client_sdk_fixture_packet_player_id_offset() {
     return offsetof(FixturePacket, player_id);
 }
 
-std::size_t rak_samp_fixture_packet_length_offset() {
+std::size_t samp_client_sdk_fixture_packet_length_offset() {
     return offsetof(FixturePacket, length);
 }
 
-std::size_t rak_samp_fixture_packet_bit_size_offset() {
+std::size_t samp_client_sdk_fixture_packet_bit_size_offset() {
     return offsetof(FixturePacket, bit_size);
 }
 
-std::size_t rak_samp_fixture_packet_data_offset() {
+std::size_t samp_client_sdk_fixture_packet_data_offset() {
     return offsetof(FixturePacket, data);
 }
 
-std::size_t rak_samp_fixture_packet_delete_data_offset() {
+std::size_t samp_client_sdk_fixture_packet_delete_data_offset() {
     return offsetof(FixturePacket, delete_data);
 }
 
-void rak_samp_fixture_initialize_packet(void* memory, unsigned char* data) {
+void samp_client_sdk_fixture_initialize_packet(void* memory, unsigned char* data) {
     auto* packet = static_cast<FixturePacket*>(memory);
     *packet = {};
     packet->player_index = 0x1234;
@@ -489,283 +521,315 @@ void rak_samp_fixture_initialize_packet(void* memory, unsigned char* data) {
     packet->delete_data = true;
 }
 
-std::size_t rak_samp_fixture_r1_onfoot_size() {
+std::size_t samp_client_sdk_fixture_r1_onfoot_size() {
     return sizeof(FixtureR1OnfootData);
 }
 
-std::size_t rak_samp_fixture_r1_incar_size() {
+std::size_t samp_client_sdk_fixture_r1_incar_size() {
     return sizeof(FixtureR1IncarData);
 }
 
-std::size_t rak_samp_fixture_r1_local_player_prefix_size() {
+std::size_t samp_client_sdk_fixture_r1_local_player_prefix_size() {
     return sizeof(FixtureR1LocalPlayerPrefix);
 }
 
-std::size_t rak_samp_fixture_r1_local_active_offset() {
+std::size_t samp_client_sdk_fixture_r1_local_active_offset() {
     return offsetof(FixtureR1LocalPlayerPrefix, active);
 }
 
-std::size_t rak_samp_fixture_r1_local_current_vehicle_offset() {
+std::size_t samp_client_sdk_fixture_r1_local_current_vehicle_offset() {
     return offsetof(FixtureR1LocalPlayerPrefix, current_vehicle);
 }
 
-std::size_t rak_samp_fixture_r1_local_onfoot_offset() {
+std::size_t samp_client_sdk_fixture_r1_local_onfoot_offset() {
     return offsetof(FixtureR1LocalPlayerPrefix, onfoot);
 }
 
-std::size_t rak_samp_fixture_r1_onfoot_position_offset() {
+std::size_t samp_client_sdk_fixture_r1_onfoot_position_offset() {
     return offsetof(FixtureR1OnfootData, position);
 }
 
-std::size_t rak_samp_fixture_r1_onfoot_speed_offset() {
+std::size_t samp_client_sdk_fixture_r1_onfoot_speed_offset() {
     return offsetof(FixtureR1OnfootData, speed);
 }
 
-std::size_t rak_samp_fixture_r1_onfoot_special_action_offset() {
+std::size_t samp_client_sdk_fixture_r1_onfoot_special_action_offset() {
     return offsetof(FixtureR1OnfootData, special_action);
 }
 
-std::size_t rak_samp_fixture_r1_onfoot_animation_offset() {
+std::size_t samp_client_sdk_fixture_r1_onfoot_animation_offset() {
     return offsetof(FixtureR1OnfootData, animation);
 }
 
-std::size_t rak_samp_fixture_r1_incar_position_offset() {
+std::size_t samp_client_sdk_fixture_r1_incar_position_offset() {
     return offsetof(FixtureR1IncarData, position);
 }
 
-std::size_t rak_samp_fixture_r1_incar_speed_offset() {
+std::size_t samp_client_sdk_fixture_r1_incar_speed_offset() {
     return offsetof(FixtureR1IncarData, speed);
 }
 
-std::size_t rak_samp_fixture_r1_ped_game_ped_offset() {
+std::size_t samp_client_sdk_fixture_r1_ped_game_ped_offset() {
     return offsetof(FixtureR1Ped, game_ped);
 }
 
-std::size_t rak_samp_fixture_r1_player_pool_local_id_offset() {
+std::size_t samp_client_sdk_fixture_r1_player_pool_local_id_offset() {
     return offsetof(FixtureR1PlayerPoolPrefix, local_id);
 }
 
-std::size_t rak_samp_fixture_r1_player_pool_largest_id_offset() {
+std::size_t samp_client_sdk_fixture_r1_player_pool_largest_id_offset() {
     return offsetof(FixtureR1PlayerPoolPrefix, largest_id);
 }
 
-std::size_t rak_samp_fixture_r1_vehicle_pool_not_empty_offset() {
+std::size_t samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset() {
     return offsetof(FixtureR1VehiclePoolExistsPrefix, not_empty);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_host_address_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_host_address_offset() {
     return offsetof(FixtureR1NetGamePrefix, host_address);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_hostname_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_hostname_offset() {
     return offsetof(FixtureR1NetGamePrefix, hostname);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_port_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_port_offset() {
     return offsetof(FixtureR1NetGamePrefix, port);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_game_state_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_game_state_offset() {
     return offsetof(FixtureR1NetGamePrefix, game_state);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_pools_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_server_settings_offset() {
+    return offsetof(FixtureR1NetGamePrefix, settings);
+}
+
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_offset() {
     return offsetof(FixtureR1NetGamePrefix, pools);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_pools_label_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_label_offset() {
     return offsetof(FixtureR1NetGamePools, label);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_pools_text_draw_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_text_draw_offset() {
     return offsetof(FixtureR1NetGamePools, text_draw);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_pools_object_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_object_offset() {
     return offsetof(FixtureR1NetGamePools, object);
 }
 
-std::size_t rak_samp_fixture_r1_net_game_pools_gang_zone_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_gang_zone_offset() {
     return offsetof(FixtureR1NetGamePools, gang_zone);
 }
 
-std::size_t rak_samp_fixture_r1_label_pool_not_empty_offset() {
+std::size_t samp_client_sdk_fixture_r1_net_game_pools_pickup_offset() {
+    return offsetof(FixtureR1NetGamePools, pickup);
+}
+
+std::size_t samp_client_sdk_fixture_r1_label_pool_not_empty_offset() {
     return offsetof(FixtureR1LabelPoolExistsPrefix, not_empty);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_size() {
+std::size_t samp_client_sdk_fixture_r1_text_label_size() {
     return sizeof(FixtureR1TextLabel);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_text_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_text_offset() {
     return offsetof(FixtureR1TextLabel, text);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_colour_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_colour_offset() {
     return offsetof(FixtureR1TextLabel, colour);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_position_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_position_offset() {
     return offsetof(FixtureR1TextLabel, position);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_draw_distance_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_draw_distance_offset() {
     return offsetof(FixtureR1TextLabel, draw_distance);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_behind_walls_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_behind_walls_offset() {
     return offsetof(FixtureR1TextLabel, behind_walls);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_attached_player_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_attached_player_offset() {
     return offsetof(FixtureR1TextLabel, attached_player);
 }
 
-std::size_t rak_samp_fixture_r1_text_label_attached_vehicle_offset() {
+std::size_t samp_client_sdk_fixture_r1_text_label_attached_vehicle_offset() {
     return offsetof(FixtureR1TextLabel, attached_vehicle);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_pool_not_empty_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_pool_not_empty_offset() {
     return offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_pool_objects_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_pool_objects_offset() {
     return offsetof(FixtureR1TextDrawPoolExistsPrefix, objects);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_data_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_data_offset() {
     return offsetof(FixtureR1TextDraw, data);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_letter_width_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_string_offset() {
+    return offsetof(FixtureR1TextDraw, string);
+}
+
+std::size_t samp_client_sdk_fixture_r1_textdraw_letter_width_offset() {
     return offsetof(FixtureR1TextDrawData, letter_width);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_letter_height_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_letter_height_offset() {
     return offsetof(FixtureR1TextDrawData, letter_height);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_letter_colour_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_letter_colour_offset() {
     return offsetof(FixtureR1TextDrawData, letter_colour);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_align_center_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_align_center_offset() {
     return offsetof(FixtureR1TextDrawData, align_center);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_box_enabled_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_box_enabled_offset() {
     return offsetof(FixtureR1TextDrawData, box_enabled);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_box_width_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_box_width_offset() {
     return offsetof(FixtureR1TextDrawData, box_width);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_box_height_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_box_height_offset() {
     return offsetof(FixtureR1TextDrawData, box_height);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_box_colour_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_box_colour_offset() {
     return offsetof(FixtureR1TextDrawData, box_colour);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_proportional_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_proportional_offset() {
     return offsetof(FixtureR1TextDrawData, proportional);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_background_colour_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_background_colour_offset() {
     return offsetof(FixtureR1TextDrawData, background_colour);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_shadow_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_shadow_offset() {
     return offsetof(FixtureR1TextDrawData, shadow);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_outline_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_outline_offset() {
     return offsetof(FixtureR1TextDrawData, outline);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_align_left_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_align_left_offset() {
     return offsetof(FixtureR1TextDrawData, align_left);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_align_right_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_align_right_offset() {
     return offsetof(FixtureR1TextDrawData, align_right);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_style_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_style_offset() {
     return offsetof(FixtureR1TextDrawData, style);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_x_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_x_offset() {
     return offsetof(FixtureR1TextDrawData, x);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_y_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_y_offset() {
     return offsetof(FixtureR1TextDrawData, y);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_model_id_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_model_id_offset() {
     return offsetof(FixtureR1TextDrawData, model_id);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_rotation_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_rotation_offset() {
     return offsetof(FixtureR1TextDrawData, rotation);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_zoom_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_zoom_offset() {
     return offsetof(FixtureR1TextDrawData, zoom);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_model_colour1_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_model_colour1_offset() {
     return offsetof(FixtureR1TextDrawData, model_colour1);
 }
 
-std::size_t rak_samp_fixture_r1_textdraw_model_colour2_offset() {
+std::size_t samp_client_sdk_fixture_r1_textdraw_model_colour2_offset() {
     return offsetof(FixtureR1TextDrawData, model_colour2);
 }
 
-std::size_t rak_samp_fixture_r1_object_pool_not_empty_offset() {
+std::size_t samp_client_sdk_fixture_r1_object_pool_not_empty_offset() {
     return offsetof(FixtureR1ObjectPoolExistsPrefix, not_empty);
 }
 
-std::size_t rak_samp_fixture_r1_gangzone_pool_not_empty_offset() {
+std::size_t samp_client_sdk_fixture_r1_gangzone_pool_not_empty_offset() {
     return offsetof(FixtureR1GangzonePoolPrefix, not_empty);
 }
 
-std::size_t rak_samp_fixture_r1_gangzone_size() {
+std::size_t samp_client_sdk_fixture_r1_gangzone_size() {
     return sizeof(FixtureR1Gangzone);
 }
 
-std::size_t rak_samp_fixture_r1_game_cursor_mode_offset() {
+std::size_t samp_client_sdk_fixture_r1_game_cursor_mode_offset() {
     return offsetof(FixtureR1GamePrefix, cursor_mode);
 }
 
-std::size_t rak_samp_fixture_r1_scoreboard_enabled_offset() {
+std::size_t samp_client_sdk_fixture_r1_scoreboard_enabled_offset() {
     return offsetof(FixtureR1ScoreboardPrefix, is_enabled);
 }
 
-std::size_t rak_samp_fixture_r1_dialog_active_offset() {
+std::size_t samp_client_sdk_fixture_r1_chat_entries_offset() {
+    return offsetof(FixtureR1ChatPrefix, entries);
+}
+
+std::size_t samp_client_sdk_fixture_r1_chat_entry_size() {
+    return sizeof(FixtureR1ChatEntry);
+}
+
+std::size_t samp_client_sdk_fixture_r1_dialog_active_offset() {
     return offsetof(FixtureR1DialogSnapshot, is_active);
 }
 
-std::size_t rak_samp_fixture_r1_dialog_type_offset() {
+std::size_t samp_client_sdk_fixture_r1_dialog_listbox_offset() {
+    return offsetof(FixtureR1DialogSnapshot, listbox);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_listbox_selected_offset() {
+    return offsetof(FixtureDxutListBoxSelection, selected);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_listbox_item_count_offset() {
+    return offsetof(FixtureDxutListBoxSelection, item_count);
+}
+
+std::size_t samp_client_sdk_fixture_r1_dialog_type_offset() {
     return offsetof(FixtureR1DialogSnapshot, type);
 }
 
-std::size_t rak_samp_fixture_r1_dialog_id_offset() {
+std::size_t samp_client_sdk_fixture_r1_dialog_id_offset() {
     return offsetof(FixtureR1DialogSnapshot, id);
 }
 
-std::size_t rak_samp_fixture_r1_dialog_caption_offset() {
+std::size_t samp_client_sdk_fixture_r1_dialog_caption_offset() {
     return offsetof(FixtureR1DialogSnapshot, caption);
 }
 
-std::size_t rak_samp_fixture_r1_dialog_server_side_offset() {
+std::size_t samp_client_sdk_fixture_r1_dialog_server_side_offset() {
     return offsetof(FixtureR1DialogSnapshot, server_side);
 }
 
-std::size_t rak_samp_fixture_r1_input_enabled_offset() {
+std::size_t samp_client_sdk_fixture_r1_input_enabled_offset() {
     return offsetof(FixtureR1InputPrefix, is_enabled);
 }
 

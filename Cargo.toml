@@ -1,14 +1,14 @@
 [package]
-name = "rak-samp"
-version = "0.1.0-alpha.3"
+name = "samp-client-sdk-host"
+version = "0.1.0-alpha.4"
 edition = "2024"
 rust-version = "1.87"
-description = "Windows x86 SA-MP RakNet host for Rust ASI plugins"
+description = "Windows x86 SA-MP client bridge host for samp-client-sdk plugins"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/Akionka/rak-samp"
-homepage = "https://github.com/Akionka/rak-samp"
-documentation = "https://docs.rs/rak-samp"
+repository = "https://github.com/Akionka/samp-client-sdk"
+homepage = "https://github.com/Akionka/samp-client-sdk"
+documentation = "https://docs.rs/samp-client-sdk-host"
 keywords = ["samp", "raknet", "gta-sa", "asi", "windows"]
 categories = ["api-bindings", "game-development", "os::windows-apis"]
 include = [
@@ -26,25 +26,20 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
-    "plugin_api",
+    "sdk",
     "examples/chat_command_plugin",
     "examples/sample_plugin",
-    "examples/validation_plugin",
-    "examples/validation_unloader",
-    "tests/e2e/host",
-    "tests/e2e/plugin",
-    "tests/e2e/runner",
 ]
 default-members = ["."]
 resolver = "2"
 
 [lib]
-name = "rak_samp"
+name = "samp_client_sdk"
 crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4"
-rak_samp_plugin_api = { package = "rak_samp_plugin_api", version = "=0.1.0-alpha.3", path = "plugin_api" }
+sdk_abi = { package = "samp-client-sdk", version = "=0.1.0-alpha.4", path = "sdk" }
 simplelog = "0.12"
 
 [build-dependencies]
@@ -57,4 +52,5 @@ windows-sys = { version = "0.61", features = [
     "Win32_System_LibraryLoader",
     "Win32_System_Memory",
     "Win32_System_SystemServices",
+    "Win32_System_Threading",
 ] }

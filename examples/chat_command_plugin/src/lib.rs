@@ -1,13 +1,13 @@
-//! Example ASI that handles `/raksamp` through the process-wide rak-samp host.
+//! Example ASI that handles `/sampclientsdk` through the process-wide samp-client-sdk host.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
-compile_error!("rak_samp_chat_command_example supports only 32-bit Windows x86 targets");
+compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Windows x86 targets");
 
-use rak_samp_plugin_api::{
-    ABI_VERSION_V1, HostApi, LocalDialog, LocalDialogStyle, RakSampDirection, RakSampResult,
-    SubscriptionSet,
+use samp_client_sdk::{
+    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkDirection,
+    SampClientSdkResult, SubscriptionSet,
     events::{RpcAction, rpc::outgoing},
-    register_handlers, wait_for_default_host,
+    register_handlers,
 };
 use std::{
     ffi::c_void,
@@ -26,8 +26,8 @@ use windows_sys::Win32::{
 };
 use windows_sys::core::BOOL;
 
-const COMMAND: &[u8] = b"/raksamp";
-const CHAT_MESSAGE: &[u8] = b"rak-samp example: SEND_CHAT RPC works";
+const COMMAND: &[u8] = b"/sampclientsdk";
+const CHAT_MESSAGE: &[u8] = b"samp-client-sdk example: SEND_CHAT RPC works";
 const DIALOG_ID: u16 = 0x7F00;
 const NOT_RUN: u32 = u32::MAX;
 
@@ -78,7 +78,7 @@ unsafe extern "system" fn DllMain(
                 .unwrap_or_else(|error| error.into_inner())
                 .initializing = true;
             if std::thread::Builder::new()
-                .name("rak-samp-chat-command-init".into())
+                .name("samp-client-sdk-chat-command-init".into())
                 .spawn(initialize)
                 .is_err()
             {
@@ -98,7 +98,7 @@ unsafe extern "system" fn DllMain(
 fn initialize() {
     let _initialization = InitializationGuard;
     let deadline = Instant::now() + Duration::from_secs(30);
-    let api = loop {
+    let samp = loop {
         if STATE
             .lock()
             .unwrap_or_else(|error| error.into_inner())
@@ -110,9 +110,9 @@ fn initialize() {
         if remaining.is_zero() {
             return;
         }
-        match wait_for_default_host(remaining.min(Duration::from_millis(100))) {
-            Ok(api) => break api,
-            Err(rak_samp_plugin_api::ResolveError::TimedOut) => {}
+        match Samp::connect(remaining.min(Duration::from_millis(100))) {
+            Ok(samp) => break samp,
+            Err(samp_client_sdk::ResolveError::TimedOut) => {}
             Err(_) => return,
         }
     };
@@ -121,13 +121,14 @@ fn initialize() {
     if state.shutting_down {
         return;
     }
-    let subscriptions = match register_handlers!(api;
+    let net = samp.net();
+    let subscriptions = match register_handlers!(net;
         typed_rpc(
-            RakSampDirection::Outgoing,
+            SampClientSdkDirection::Outgoing,
             outgoing::SEND_COMMAND,
             move |command| {
-                if is_raksamp_command(&command) {
-                    run_example(api);
+                if is_samp_client_sdk_command(&command) {
+                    run_example(samp);
                     RpcAction::Block
                 } else {
                     RpcAction::Continue
@@ -146,44 +147,50 @@ fn initialize() {
     state.subscriptions = subscriptions;
 }
 
-fn run_example(api: HostApi) {
-    let chat_result = send_chat(api);
+fn run_example(samp: Samp) {
+    let chat_result = send_chat(samp);
     LAST_CHAT_RESULT.store(chat_result as u32, Ordering::Release);
 
     let info = format!(
-        "rak-samp host status: {:?}\nABI version: {}\nSEND_CHAT result: {:?}\n\nThis dialog is direct and local; it does not emulate RPC 61 or intercept a dialog response.",
-        api.status(),
+        "samp-client-sdk host status: {:?}\nABI version: {}\nSEND_CHAT result: {:?}\n\nThis dialog is direct and local; it does not emulate RPC 61 or intercept a dialog response.",
+        samp.status(),
         ABI_VERSION_V1,
         chat_result,
     );
-    let dialog_result = show_local_dialog(api, info.into_bytes());
+    let dialog_result = show_local_dialog(samp, info.into_bytes());
     LAST_DIALOG_RESULT.store(dialog_result as u32, Ordering::Release);
 }
 
-fn send_chat(api: HostApi) -> RakSampResult {
-    api.send_chat(CHAT_MESSAGE)
+fn send_chat(samp: Samp) -> SampClientSdkResult {
+    match samp.net().send_chat(CHAT_MESSAGE) {
+        Ok(_receipt) => SampClientSdkResult::Ok,
+        Err(error) => error,
+    }
 }
 
-fn show_local_dialog(api: HostApi, text: Vec<u8>) -> RakSampResult {
-    api.show_local_dialog(LocalDialog {
+fn show_local_dialog(samp: Samp, text: Vec<u8>) -> SampClientSdkResult {
+    match samp.dialogs().show(LocalDialog {
         id: DIALOG_ID,
         style: LocalDialogStyle::MessageBox,
-        title: b"rak-samp example",
+        title: b"samp-client-sdk example",
         text: &text,
         button1: b"Close",
         button2: b"",
-    })
+    }) {
+        Ok(_receipt) => SampClientSdkResult::Ok,
+        Err(error) => error,
+    }
 }
 
-fn is_raksamp_command(command: &[u8]) -> bool {
+fn is_samp_client_sdk_command(command: &[u8]) -> bool {
     command.eq_ignore_ascii_case(COMMAND)
 }
 
 /// Stops the callback before an unload manager calls `FreeLibrary`.
 ///
-/// Call this from a worker thread, never from `DllMain` or a rak-samp callback.
+/// Call this from a worker thread, never from `DllMain` or a samp-client-sdk callback.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
+pub extern "system" fn SampClientSdkChatCommand_Shutdown() -> BOOL {
     let subscriptions = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
@@ -212,13 +219,13 @@ pub extern "system" fn RakSampChatCommand_Shutdown() -> BOOL {
 
 /// Returns the numeric result of the most recent explicit `SEND_CHAT`, or `u32::MAX` if unused.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakSampChatCommand_LastChatResult() -> u32 {
+pub extern "system" fn SampClientSdkChatCommand_LastChatResult() -> u32 {
     LAST_CHAT_RESULT.load(Ordering::Acquire)
 }
 
 /// Returns the numeric result of the most recent direct local-dialog request, or `u32::MAX` if unused.
 #[unsafe(no_mangle)]
-pub extern "system" fn RakSampChatCommand_LastDialogResult() -> u32 {
+pub extern "system" fn SampClientSdkChatCommand_LastDialogResult() -> u32 {
     LAST_DIALOG_RESULT.load(Ordering::Acquire)
 }
 
@@ -228,9 +235,9 @@ mod tests {
 
     #[test]
     fn recognizes_only_the_local_command() {
-        assert!(is_raksamp_command(b"/raksamp"));
-        assert!(is_raksamp_command(b"/RAKSAMP"));
-        assert!(!is_raksamp_command(b"/raksamp extra"));
-        assert!(!is_raksamp_command(b"raksamp"));
+        assert!(is_samp_client_sdk_command(b"/sampclientsdk"));
+        assert!(is_samp_client_sdk_command(b"/SAMPCLIENTSDK"));
+        assert!(!is_samp_client_sdk_command(b"/sampclientsdk extra"));
+        assert!(!is_samp_client_sdk_command(b"sampclientsdk"));
     }
 }

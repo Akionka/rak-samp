@@ -326,6 +326,14 @@ impl Registry {
         self.has_listener(direction, ListenerKind::Rpc)
     }
 
+    /// Reports whether the current thread is executing any host listener.
+    ///
+    /// Blocking for a game command from such a callback can deadlock the
+    /// detour, so the command ABI rejects timed waits in this context.
+    pub(crate) fn is_dispatching_on_current_thread(&self) -> bool {
+        self.dispatch_gate.is_owned_by_current_thread()
+    }
+
     fn register(self: &Arc<Self>, listener: Listener) -> ListenerHandle {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         let id = ListenerId(state.next_id);

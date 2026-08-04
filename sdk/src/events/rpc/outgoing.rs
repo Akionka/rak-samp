@@ -1,0 +1,853 @@
+//! Outgoing client-to-server RPC helpers.
+
+use crate::events::core::{PayloadWriter, handle};
+use crate::{
+    HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
+    events::{EncodedPayload, Event, EventError, MAX_STRING32_BYTES, Rpc, RpcAction, Vector3},
+};
+
+/// MoonLoader's `onSendDialogResponse` payload (RPC 62).
+#[derive(Clone, Debug, PartialEq)]
+pub struct DialogResponse {
+    pub dialog_id: u16,
+    pub button: u8,
+    pub list_item: u16,
+    pub input: Vec<u8>,
+}
+
+/// MoonLoader's `onSendEnterVehicle` payload (RPC 26).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EnterVehicle {
+    pub vehicle_id: u16,
+    pub passenger: bool,
+}
+
+/// MoonLoader's `onSendDeathNotification` payload (RPC 53).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DeathNotification {
+    pub reason: u8,
+    pub killer_id: u16,
+}
+
+/// MoonLoader's `onSendClickPlayer` payload (RPC 23).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClickPlayer {
+    pub player_id: u16,
+    pub source: u8,
+}
+
+/// MoonLoader's `onSendClientJoin` payload (RPC 25).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ClientJoin {
+    pub version: i32,
+    pub mod_id: u8,
+    pub nickname: Vec<u8>,
+    pub challenge_response: i32,
+    pub join_auth_key: Vec<u8>,
+    pub client_version: Vec<u8>,
+    pub challenge_response2: i32,
+}
+
+/// MoonLoader's `onSendEnterEditObject` payload (RPC 27).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EnterEditObject {
+    pub object_type: i32,
+    pub object_id: u16,
+    pub model_id: i32,
+    pub position: Vector3,
+}
+
+/// MoonLoader's `onSendVehicleTuningNotification` payload (RPC 96).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleTuning {
+    pub vehicle_id: i32,
+    pub param1: i32,
+    pub param2: i32,
+    pub event: i32,
+}
+
+/// MoonLoader's `onSendClientCheckResponse` payload (RPC 103).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClientCheckResponse {
+    pub request_type: u8,
+    pub result1: i32,
+    pub result2: u8,
+}
+
+/// MoonLoader's `onSendVehicleDamaged` payload (RPC 106).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleDamage {
+    pub vehicle_id: u16,
+    pub panel_damage: i32,
+    pub door_damage: i32,
+    pub lights: u8,
+    pub tires: u8,
+}
+
+/// MoonLoader's `onSendEditAttachedObject` payload (RPC 116).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EditAttachedObject {
+    pub response: i32,
+    pub index: i32,
+    pub model_id: i32,
+    pub bone: i32,
+    pub position: Vector3,
+    pub rotation: Vector3,
+    pub scale: Vector3,
+    pub color1: i32,
+    pub color2: i32,
+}
+
+/// MoonLoader's `onSendEditObject` payload (RPC 117).
+///
+/// `player_object` is a one-bit RakNet boolean; replacements preserve that exact-bit layout.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EditObject {
+    pub player_object: bool,
+    pub object_id: u16,
+    pub response: i32,
+    pub position: Vector3,
+    pub rotation: Vector3,
+}
+
+/// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
+///
+/// `take` is a one-bit RakNet boolean. `false` identifies give-damage traffic and `true`
+/// identifies take-damage traffic.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Damage {
+    pub player_id: u16,
+    pub damage: f32,
+    pub weapon: i32,
+    pub body_part: i32,
+    pub take: bool,
+}
+
+/// MoonLoader's `onSendMoneyIncreaseNotification` payload (RPC 31).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MoneyIncrease {
+    pub amount: i32,
+    pub increase_type: i32,
+}
+
+/// MoonLoader's `onSendNPCJoin` payload (RPC 54).
+#[derive(Clone, Debug, PartialEq)]
+pub struct NpcJoin {
+    pub version: i32,
+    pub mod_id: u8,
+    pub nickname: Vec<u8>,
+    pub challenge_response: i32,
+}
+
+/// MoonLoader's `onSendCameraTargetUpdate` payload (RPC 168).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CameraTargetUpdate {
+    pub object_id: u16,
+    pub vehicle_id: u16,
+    pub player_id: u16,
+    pub actor_id: u16,
+}
+
+/// MoonLoader's `onSendGiveActorDamage` payload (RPC 177).
+///
+/// `unused` is a one-bit RakNet boolean retained for wire compatibility.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActorDamage {
+    pub unused: bool,
+    pub actor_id: u16,
+    pub damage: f32,
+    pub weapon: i32,
+    pub body_part: i32,
+}
+
+/// The `onSendChat` descriptor.
+pub const SEND_CHAT: Rpc<Vec<u8>> = Rpc::new(101, decode_string8, encode_string8);
+/// The `onSendCommand` descriptor.
+pub const SEND_COMMAND: Rpc<Vec<u8>> = Rpc::new(50, decode_string32, encode_string32);
+/// The `onSendDialogResponse` descriptor.
+pub const SEND_DIALOG_RESPONSE: Rpc<DialogResponse> =
+    Rpc::new(62, decode_dialog_response, encode_dialog_response);
+/// The `onSendEnterVehicle` descriptor.
+pub const SEND_ENTER_VEHICLE: Rpc<EnterVehicle> =
+    Rpc::new(26, decode_enter_vehicle, encode_enter_vehicle);
+/// The `onSendExitVehicle` descriptor.
+pub const SEND_EXIT_VEHICLE: Rpc<u16> = Rpc::new(154, decode_u16, encode_u16);
+/// The `onSendSpawn` descriptor.
+pub const SEND_SPAWN: Rpc<()> = Rpc::new(52, decode_empty, encode_empty);
+/// The `onSendDeathNotification` descriptor.
+pub const SEND_DEATH_NOTIFICATION: Rpc<DeathNotification> =
+    Rpc::new(53, decode_death_notification, encode_death_notification);
+/// The `onSendMapMarker` descriptor.
+pub const SEND_MAP_MARKER: Rpc<Vector3> = Rpc::new(119, decode_vector3, encode_vector3);
+/// The `onSendClickPlayer` descriptor.
+pub const SEND_CLICK_PLAYER: Rpc<ClickPlayer> =
+    Rpc::new(23, decode_click_player, encode_click_player);
+/// The `onSendInteriorChange` descriptor.
+pub const SEND_INTERIOR_CHANGE: Rpc<u8> = Rpc::new(118, decode_u8, encode_u8);
+/// The `onSendRequestClass` descriptor.
+pub const SEND_REQUEST_CLASS: Rpc<i32> = Rpc::new(128, decode_i32, encode_i32);
+/// The `onSendRequestSpawn` descriptor.
+pub const SEND_REQUEST_SPAWN: Rpc<()> = Rpc::new(129, decode_empty, encode_empty);
+/// The `onSendMenuSelect` descriptor.
+pub const SEND_MENU_SELECT: Rpc<u8> = Rpc::new(132, decode_u8, encode_u8);
+/// The `onSendVehicleDestroyed` descriptor.
+pub const SEND_VEHICLE_DESTROYED: Rpc<u16> = Rpc::new(136, decode_u16, encode_u16);
+/// The `onSendClickTextDraw` descriptor.
+pub const SEND_CLICK_TEXT_DRAW: Rpc<u16> = Rpc::new(83, decode_u16, encode_u16);
+/// The `onSendUpdateScoresAndPings` descriptor.
+pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
+/// The `onSendClientJoin` descriptor.
+pub const SEND_CLIENT_JOIN: Rpc<ClientJoin> = Rpc::new(25, decode_client_join, encode_client_join);
+/// The `onSendEnterEditObject` descriptor.
+pub const SEND_ENTER_EDIT_OBJECT: Rpc<EnterEditObject> =
+    Rpc::new(27, decode_enter_edit_object, encode_enter_edit_object);
+/// The `onSendMoneyIncreaseNotification` descriptor.
+pub const SEND_MONEY_INCREASE: Rpc<MoneyIncrease> =
+    Rpc::new(31, decode_money_increase, encode_money_increase);
+/// The `onSendNPCJoin` descriptor.
+pub const SEND_NPC_JOIN: Rpc<NpcJoin> = Rpc::new(54, decode_npc_join, encode_npc_join);
+/// The `onSendVehicleTuningNotification` descriptor.
+pub const SEND_VEHICLE_TUNING: Rpc<VehicleTuning> =
+    Rpc::new(96, decode_vehicle_tuning, encode_vehicle_tuning);
+/// The `onSendPickedUpWeapon` descriptor.
+pub const SEND_PICKED_UP_WEAPON: Rpc<u16> = Rpc::new(97, decode_u16, encode_u16);
+/// The `onSendServerStatisticsRequest` descriptor.
+pub const SEND_SERVER_STATISTICS_REQUEST: Rpc<()> = Rpc::new(102, decode_empty, encode_empty);
+/// The `onSendClientCheckResponse` descriptor.
+pub const SEND_CLIENT_CHECK_RESPONSE: Rpc<ClientCheckResponse> = Rpc::new(
+    103,
+    decode_client_check_response,
+    encode_client_check_response,
+);
+/// The `onSendVehicleDamaged` descriptor.
+pub const SEND_VEHICLE_DAMAGED: Rpc<VehicleDamage> =
+    Rpc::new(106, decode_vehicle_damage, encode_vehicle_damage);
+/// The shared `onSendGiveDamage` / `onSendTakeDamage` descriptor.
+pub const SEND_DAMAGE: Rpc<Damage> = Rpc::new_bits(115, decode_damage, encode_damage);
+/// The `onSendEditAttachedObject` descriptor.
+pub const SEND_EDIT_ATTACHED_OBJECT: Rpc<EditAttachedObject> = Rpc::new(
+    116,
+    decode_edit_attached_object,
+    encode_edit_attached_object,
+);
+/// The `onSendEditObject` descriptor.
+pub const SEND_EDIT_OBJECT: Rpc<EditObject> =
+    Rpc::new_bits(117, decode_edit_object, encode_edit_object);
+/// The `onSendPickedUpPickup` descriptor.
+pub const SEND_PICKED_UP_PICKUP: Rpc<i32> = Rpc::new(131, decode_i32, encode_i32);
+/// The `onSendQuitMenu` descriptor.
+pub const SEND_QUIT_MENU: Rpc<()> = Rpc::new(140, decode_empty, encode_empty);
+/// The `onSendCameraTargetUpdate` descriptor.
+pub const SEND_CAMERA_TARGET_UPDATE: Rpc<CameraTargetUpdate> = Rpc::new(
+    168,
+    decode_camera_target_update,
+    encode_camera_target_update,
+);
+/// The `onSendGiveActorDamage` descriptor.
+pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
+    Rpc::new_bits(177, decode_actor_damage, encode_actor_damage);
+
+/// Handles `onSendChat` from an outgoing raw RPC callback.
+///
+/// # Safety
+///
+/// See [`crate::events::handle`].
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_chat(
+    api: HostApi,
+    raw: *mut SampClientSdkEventV1,
+    handler: impl FnOnce(Vec<u8>) -> RpcAction<Vec<u8>>,
+) -> Result<SampClientSdkHookAction, EventError> {
+    unsafe { handle(api, raw, SEND_CHAT, handler) }
+}
+
+macro_rules! rpc_helper {
+    ($name:ident, $value:ty, $rpc:ident, $event_name:literal) => {
+        #[doc = concat!("Handles MoonLoader's `", $event_name, "` from an outgoing raw RPC callback.")]
+        ///
+        /// # Safety
+        ///
+        /// See [`crate::events::handle`].
+        #[allow(dead_code)]
+        pub(crate) unsafe fn $name(
+            api: HostApi,
+            raw: *mut SampClientSdkEventV1,
+            handler: impl FnOnce($value) -> RpcAction<$value>,
+        ) -> Result<SampClientSdkHookAction, EventError> {
+            unsafe { handle(api, raw, $rpc, handler) }
+        }
+    };
+}
+
+rpc_helper!(on_send_command, Vec<u8>, SEND_COMMAND, "onSendCommand");
+rpc_helper!(
+    on_send_dialog_response,
+    DialogResponse,
+    SEND_DIALOG_RESPONSE,
+    "onSendDialogResponse"
+);
+rpc_helper!(
+    on_send_enter_vehicle,
+    EnterVehicle,
+    SEND_ENTER_VEHICLE,
+    "onSendEnterVehicle"
+);
+rpc_helper!(
+    on_send_exit_vehicle,
+    u16,
+    SEND_EXIT_VEHICLE,
+    "onSendExitVehicle"
+);
+rpc_helper!(on_send_spawn, (), SEND_SPAWN, "onSendSpawn");
+rpc_helper!(
+    on_send_death_notification,
+    DeathNotification,
+    SEND_DEATH_NOTIFICATION,
+    "onSendDeathNotification"
+);
+rpc_helper!(
+    on_send_map_marker,
+    Vector3,
+    SEND_MAP_MARKER,
+    "onSendMapMarker"
+);
+rpc_helper!(
+    on_send_click_player,
+    ClickPlayer,
+    SEND_CLICK_PLAYER,
+    "onSendClickPlayer"
+);
+rpc_helper!(
+    on_send_interior_change,
+    u8,
+    SEND_INTERIOR_CHANGE,
+    "onSendInteriorChange"
+);
+rpc_helper!(
+    on_send_request_class,
+    i32,
+    SEND_REQUEST_CLASS,
+    "onSendRequestClass"
+);
+rpc_helper!(
+    on_send_request_spawn,
+    (),
+    SEND_REQUEST_SPAWN,
+    "onSendRequestSpawn"
+);
+rpc_helper!(
+    on_send_menu_select,
+    u8,
+    SEND_MENU_SELECT,
+    "onSendMenuSelect"
+);
+rpc_helper!(
+    on_send_vehicle_destroyed,
+    u16,
+    SEND_VEHICLE_DESTROYED,
+    "onSendVehicleDestroyed"
+);
+rpc_helper!(
+    on_send_click_text_draw,
+    u16,
+    SEND_CLICK_TEXT_DRAW,
+    "onSendClickTextDraw"
+);
+rpc_helper!(
+    on_send_update_scores_and_pings,
+    (),
+    SEND_UPDATE_SCORES_AND_PINGS,
+    "onSendUpdateScoresAndPings"
+);
+rpc_helper!(
+    on_send_client_join,
+    ClientJoin,
+    SEND_CLIENT_JOIN,
+    "onSendClientJoin"
+);
+rpc_helper!(
+    on_send_enter_edit_object,
+    EnterEditObject,
+    SEND_ENTER_EDIT_OBJECT,
+    "onSendEnterEditObject"
+);
+rpc_helper!(
+    on_send_money_increase,
+    MoneyIncrease,
+    SEND_MONEY_INCREASE,
+    "onSendMoneyIncreaseNotification"
+);
+rpc_helper!(on_send_npc_join, NpcJoin, SEND_NPC_JOIN, "onSendNPCJoin");
+rpc_helper!(
+    on_send_vehicle_tuning,
+    VehicleTuning,
+    SEND_VEHICLE_TUNING,
+    "onSendVehicleTuningNotification"
+);
+rpc_helper!(
+    on_send_picked_up_weapon,
+    u16,
+    SEND_PICKED_UP_WEAPON,
+    "onSendPickedUpWeapon"
+);
+rpc_helper!(
+    on_send_server_statistics_request,
+    (),
+    SEND_SERVER_STATISTICS_REQUEST,
+    "onSendServerStatisticsRequest"
+);
+rpc_helper!(
+    on_send_client_check_response,
+    ClientCheckResponse,
+    SEND_CLIENT_CHECK_RESPONSE,
+    "onSendClientCheckResponse"
+);
+rpc_helper!(
+    on_send_vehicle_damaged,
+    VehicleDamage,
+    SEND_VEHICLE_DAMAGED,
+    "onSendVehicleDamaged"
+);
+rpc_helper!(
+    on_send_edit_attached_object,
+    EditAttachedObject,
+    SEND_EDIT_ATTACHED_OBJECT,
+    "onSendEditAttachedObject"
+);
+rpc_helper!(
+    on_send_edit_object,
+    EditObject,
+    SEND_EDIT_OBJECT,
+    "onSendEditObject"
+);
+rpc_helper!(
+    on_send_picked_up_pickup,
+    i32,
+    SEND_PICKED_UP_PICKUP,
+    "onSendPickedUpPickup"
+);
+rpc_helper!(on_send_quit_menu, (), SEND_QUIT_MENU, "onSendQuitMenu");
+rpc_helper!(
+    on_send_camera_target_update,
+    CameraTargetUpdate,
+    SEND_CAMERA_TARGET_UPDATE,
+    "onSendCameraTargetUpdate"
+);
+rpc_helper!(
+    on_send_give_actor_damage,
+    ActorDamage,
+    SEND_GIVE_ACTOR_DAMAGE,
+    "onSendGiveActorDamage"
+);
+
+/// Handles `onSendGiveDamage` from an outgoing raw RPC callback.
+///
+/// # Safety
+///
+/// See [`crate::events::handle`].
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_give_damage(
+    api: HostApi,
+    raw: *mut SampClientSdkEventV1,
+    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
+) -> Result<SampClientSdkHookAction, EventError> {
+    unsafe {
+        handle(api, raw, SEND_DAMAGE, |value| {
+            if value.take {
+                RpcAction::Continue
+            } else {
+                handler(value)
+            }
+        })
+    }
+}
+
+/// Handles `onSendTakeDamage` from an outgoing raw RPC callback.
+///
+/// # Safety
+///
+/// See [`crate::events::handle`].
+#[allow(dead_code)]
+pub(crate) unsafe fn on_send_take_damage(
+    api: HostApi,
+    raw: *mut SampClientSdkEventV1,
+    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
+) -> Result<SampClientSdkHookAction, EventError> {
+    unsafe {
+        handle(api, raw, SEND_DAMAGE, |value| {
+            if value.take {
+                handler(value)
+            } else {
+                RpcAction::Continue
+            }
+        })
+    }
+}
+
+fn decode_string8(event: &mut Event<'_>) -> Result<Vec<u8>, EventError> {
+    event.read_string8()
+}
+
+fn encode_string8(value: Vec<u8>) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.string8(&value)?;
+    Ok(writer.finish())
+}
+
+fn decode_string32(event: &mut Event<'_>) -> Result<Vec<u8>, EventError> {
+    event.read_string32(MAX_STRING32_BYTES)
+}
+
+fn encode_string32(value: Vec<u8>) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.string32(&value)?;
+    Ok(writer.finish())
+}
+
+fn decode_dialog_response(event: &mut Event<'_>) -> Result<DialogResponse, EventError> {
+    Ok(DialogResponse {
+        dialog_id: event.read_u16()?,
+        button: event.read_u8()?,
+        list_item: event.read_u16()?,
+        input: event.read_string8()?,
+    })
+}
+
+fn encode_dialog_response(value: DialogResponse) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u16(value.dialog_id);
+    writer.u8(value.button);
+    writer.u16(value.list_item);
+    writer.string8(&value.input)?;
+    Ok(writer.finish())
+}
+
+fn decode_enter_vehicle(event: &mut Event<'_>) -> Result<EnterVehicle, EventError> {
+    Ok(EnterVehicle {
+        vehicle_id: event.read_u16()?,
+        passenger: event.read_u8()? != 0,
+    })
+}
+
+fn encode_enter_vehicle(value: EnterVehicle) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u16(value.vehicle_id);
+    writer.u8(u8::from(value.passenger));
+    Ok(writer.finish())
+}
+
+fn decode_click_player(event: &mut Event<'_>) -> Result<ClickPlayer, EventError> {
+    Ok(ClickPlayer {
+        player_id: event.read_u16()?,
+        source: event.read_u8()?,
+    })
+}
+
+fn encode_click_player(value: ClickPlayer) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u16(value.player_id);
+    writer.u8(value.source);
+    Ok(writer.finish())
+}
+
+fn decode_client_join(event: &mut Event<'_>) -> Result<ClientJoin, EventError> {
+    Ok(ClientJoin {
+        version: decode_i32(event)?,
+        mod_id: event.read_u8()?,
+        nickname: event.read_string8()?,
+        challenge_response: decode_i32(event)?,
+        join_auth_key: event.read_string8()?,
+        client_version: event.read_string8()?,
+        challenge_response2: decode_i32(event)?,
+    })
+}
+
+fn encode_client_join(value: ClientJoin) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.version as u32);
+    writer.u8(value.mod_id);
+    writer.string8(&value.nickname)?;
+    writer.u32(value.challenge_response as u32);
+    writer.string8(&value.join_auth_key)?;
+    writer.string8(&value.client_version)?;
+    writer.u32(value.challenge_response2 as u32);
+    Ok(writer.finish())
+}
+
+fn decode_enter_edit_object(event: &mut Event<'_>) -> Result<EnterEditObject, EventError> {
+    Ok(EnterEditObject {
+        object_type: decode_i32(event)?,
+        object_id: event.read_u16()?,
+        model_id: decode_i32(event)?,
+        position: decode_vector3(event)?,
+    })
+}
+
+fn encode_enter_edit_object(value: EnterEditObject) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.object_type as u32);
+    writer.u16(value.object_id);
+    writer.u32(value.model_id as u32);
+    writer.vector3(value.position);
+    Ok(writer.finish())
+}
+
+fn decode_money_increase(event: &mut Event<'_>) -> Result<MoneyIncrease, EventError> {
+    Ok(MoneyIncrease {
+        amount: decode_i32(event)?,
+        increase_type: decode_i32(event)?,
+    })
+}
+
+fn encode_money_increase(value: MoneyIncrease) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.amount as u32);
+    writer.u32(value.increase_type as u32);
+    Ok(writer.finish())
+}
+
+fn decode_npc_join(event: &mut Event<'_>) -> Result<NpcJoin, EventError> {
+    Ok(NpcJoin {
+        version: decode_i32(event)?,
+        mod_id: event.read_u8()?,
+        nickname: event.read_string8()?,
+        challenge_response: decode_i32(event)?,
+    })
+}
+
+fn encode_npc_join(value: NpcJoin) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.version as u32);
+    writer.u8(value.mod_id);
+    writer.string8(&value.nickname)?;
+    writer.u32(value.challenge_response as u32);
+    Ok(writer.finish())
+}
+
+fn decode_vehicle_tuning(event: &mut Event<'_>) -> Result<VehicleTuning, EventError> {
+    Ok(VehicleTuning {
+        vehicle_id: decode_i32(event)?,
+        param1: decode_i32(event)?,
+        param2: decode_i32(event)?,
+        event: decode_i32(event)?,
+    })
+}
+
+fn encode_vehicle_tuning(value: VehicleTuning) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.vehicle_id as u32);
+    writer.u32(value.param1 as u32);
+    writer.u32(value.param2 as u32);
+    writer.u32(value.event as u32);
+    Ok(writer.finish())
+}
+
+fn decode_client_check_response(event: &mut Event<'_>) -> Result<ClientCheckResponse, EventError> {
+    Ok(ClientCheckResponse {
+        request_type: event.read_u8()?,
+        result1: decode_i32(event)?,
+        result2: event.read_u8()?,
+    })
+}
+
+fn encode_client_check_response(value: ClientCheckResponse) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u8(value.request_type);
+    writer.u32(value.result1 as u32);
+    writer.u8(value.result2);
+    Ok(writer.finish())
+}
+
+fn decode_vehicle_damage(event: &mut Event<'_>) -> Result<VehicleDamage, EventError> {
+    Ok(VehicleDamage {
+        vehicle_id: event.read_u16()?,
+        panel_damage: decode_i32(event)?,
+        door_damage: decode_i32(event)?,
+        lights: event.read_u8()?,
+        tires: event.read_u8()?,
+    })
+}
+
+fn encode_vehicle_damage(value: VehicleDamage) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u16(value.vehicle_id);
+    writer.u32(value.panel_damage as u32);
+    writer.u32(value.door_damage as u32);
+    writer.u8(value.lights);
+    writer.u8(value.tires);
+    Ok(writer.finish())
+}
+
+fn decode_edit_attached_object(event: &mut Event<'_>) -> Result<EditAttachedObject, EventError> {
+    Ok(EditAttachedObject {
+        response: decode_i32(event)?,
+        index: decode_i32(event)?,
+        model_id: decode_i32(event)?,
+        bone: decode_i32(event)?,
+        position: decode_vector3(event)?,
+        rotation: decode_vector3(event)?,
+        scale: decode_vector3(event)?,
+        color1: decode_i32(event)?,
+        color2: decode_i32(event)?,
+    })
+}
+
+fn encode_edit_attached_object(value: EditAttachedObject) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u32(value.response as u32);
+    writer.u32(value.index as u32);
+    writer.u32(value.model_id as u32);
+    writer.u32(value.bone as u32);
+    writer.vector3(value.position);
+    writer.vector3(value.rotation);
+    writer.vector3(value.scale);
+    writer.u32(value.color1 as u32);
+    writer.u32(value.color2 as u32);
+    Ok(writer.finish())
+}
+
+fn decode_bool(event: &mut Event<'_>) -> Result<bool, EventError> {
+    Ok(event.read_bits(1)?[0] & 0x80 != 0)
+}
+
+fn decode_edit_object(event: &mut Event<'_>) -> Result<EditObject, EventError> {
+    Ok(EditObject {
+        player_object: decode_bool(event)?,
+        object_id: event.read_u16()?,
+        response: decode_i32(event)?,
+        position: decode_vector3(event)?,
+        rotation: decode_vector3(event)?,
+    })
+}
+
+fn encode_edit_object(_api: HostApi, value: EditObject) -> Result<EncodedPayload, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.bit(value.player_object);
+    writer.u16(value.object_id);
+    writer.u32(value.response as u32);
+    writer.vector3(value.position);
+    writer.vector3(value.rotation);
+    Ok(writer.finish_bits())
+}
+
+fn decode_damage(event: &mut Event<'_>) -> Result<Damage, EventError> {
+    Ok(Damage {
+        take: decode_bool(event)?,
+        player_id: event.read_u16()?,
+        damage: event.read_f32()?,
+        weapon: decode_i32(event)?,
+        body_part: decode_i32(event)?,
+    })
+}
+
+fn encode_damage(_api: HostApi, value: Damage) -> Result<EncodedPayload, EventError> {
+    encode_damage_payload(value)
+}
+
+pub(super) fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.bit(value.take);
+    writer.u16(value.player_id);
+    writer.f32(value.damage);
+    writer.u32(value.weapon as u32);
+    writer.u32(value.body_part as u32);
+    Ok(writer.finish_bits())
+}
+
+fn decode_camera_target_update(event: &mut Event<'_>) -> Result<CameraTargetUpdate, EventError> {
+    Ok(CameraTargetUpdate {
+        object_id: event.read_u16()?,
+        vehicle_id: event.read_u16()?,
+        player_id: event.read_u16()?,
+        actor_id: event.read_u16()?,
+    })
+}
+
+fn encode_camera_target_update(value: CameraTargetUpdate) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u16(value.object_id);
+    writer.u16(value.vehicle_id);
+    writer.u16(value.player_id);
+    writer.u16(value.actor_id);
+    Ok(writer.finish())
+}
+
+fn decode_actor_damage(event: &mut Event<'_>) -> Result<ActorDamage, EventError> {
+    Ok(ActorDamage {
+        unused: decode_bool(event)?,
+        actor_id: event.read_u16()?,
+        damage: event.read_f32()?,
+        weapon: decode_i32(event)?,
+        body_part: decode_i32(event)?,
+    })
+}
+
+fn encode_actor_damage(_api: HostApi, value: ActorDamage) -> Result<EncodedPayload, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.bit(value.unused);
+    writer.u16(value.actor_id);
+    writer.f32(value.damage);
+    writer.u32(value.weapon as u32);
+    writer.u32(value.body_part as u32);
+    Ok(writer.finish_bits())
+}
+
+fn decode_u8(event: &mut Event<'_>) -> Result<u8, EventError> {
+    event.read_u8()
+}
+
+fn encode_u8(value: u8) -> Result<Vec<u8>, EventError> {
+    Ok(vec![value])
+}
+
+fn decode_i32(event: &mut Event<'_>) -> Result<i32, EventError> {
+    Ok(event.read_u32()? as i32)
+}
+
+fn encode_i32(value: i32) -> Result<Vec<u8>, EventError> {
+    Ok(value.to_le_bytes().to_vec())
+}
+
+fn decode_u16(event: &mut Event<'_>) -> Result<u16, EventError> {
+    event.read_u16()
+}
+
+fn encode_u16(value: u16) -> Result<Vec<u8>, EventError> {
+    Ok(value.to_le_bytes().to_vec())
+}
+
+fn decode_empty(_event: &mut Event<'_>) -> Result<(), EventError> {
+    Ok(())
+}
+
+fn encode_empty(_value: ()) -> Result<Vec<u8>, EventError> {
+    Ok(Vec::new())
+}
+
+fn decode_death_notification(event: &mut Event<'_>) -> Result<DeathNotification, EventError> {
+    Ok(DeathNotification {
+        reason: event.read_u8()?,
+        killer_id: event.read_u16()?,
+    })
+}
+
+fn encode_death_notification(value: DeathNotification) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.u8(value.reason);
+    writer.u16(value.killer_id);
+    Ok(writer.finish())
+}
+
+fn decode_vector3(event: &mut Event<'_>) -> Result<Vector3, EventError> {
+    Ok(Vector3 {
+        x: event.read_f32()?,
+        y: event.read_f32()?,
+        z: event.read_f32()?,
+    })
+}
+
+fn encode_vector3(value: Vector3) -> Result<Vec<u8>, EventError> {
+    let mut writer = PayloadWriter::new();
+    writer.vector3(value);
+    Ok(writer.finish())
+}

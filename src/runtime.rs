@@ -1,9 +1,11 @@
 use crate::{
-    BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, SampVersion, event::Registry,
+    BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, SampVersion,
+    command::{CommandError, CommandId},
+    event::Registry,
     platform,
 };
 use core::fmt;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 /// A copied dialog request that is safe to retain until the game-thread pump
 /// can call the private native client backend.
@@ -101,6 +103,8 @@ pub(crate) struct LocalDialogSnapshot {
     pub(crate) style: LocalDialogStyle,
     pub(crate) title: Vec<u8>,
     pub(crate) server_side: bool,
+    pub(crate) selected_item: Option<i32>,
+    pub(crate) list_item_count: Option<i32>,
 }
 
 /// Host-owned directory data copied for either the local or one remote R1
@@ -157,12 +161,13 @@ pub(crate) struct TextLabelSnapshot {
     pub(crate) attached_vehicle_id: Option<u16>,
 }
 
-/// Host-owned numeric data copied from one R1 textdraw record on the verified
-/// game thread. The display-string buffers are deliberately excluded until
-/// their distinct native semantics are separately proven.
-#[derive(Clone, Copy, Debug, PartialEq)]
+/// Host-owned data copied from one R1 textdraw record on the verified game
+/// thread. The fixed native display-string buffer is copied before this value
+/// crosses the private profile boundary.
+#[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TextdrawSnapshot {
     pub(crate) pool_index: u16,
+    pub(crate) text: Vec<u8>,
     pub(crate) letter_width: f32,
     pub(crate) letter_height: f32,
     pub(crate) letter_colour: u32,
@@ -185,6 +190,17 @@ pub(crate) struct TextdrawSnapshot {
     pub(crate) zoom: f32,
     pub(crate) model_colour1: u16,
     pub(crate) model_colour2: u16,
+}
+
+/// Host-owned data copied from one R1 fixed chat-history entry on the
+/// verified game thread. No native chat or UI pointer crosses this boundary.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct ChatEntrySnapshot {
+    pub(crate) id: u16,
+    pub(crate) text: Vec<u8>,
+    pub(crate) prefix: Vec<u8>,
+    pub(crate) text_colour: u32,
+    pub(crate) prefix_colour: u32,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -258,7 +274,7 @@ impl fmt::Display for AttachError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::UnsupportedPlatform => {
-                formatter.write_str("rak_samp requires a 32-bit Windows process")
+                formatter.write_str("samp_client_sdk requires a 32-bit Windows process")
             }
             Self::SampNotLoaded => formatter.write_str("samp.dll is not loaded"),
             Self::UnsupportedClient { entry_point } => {
@@ -268,7 +284,9 @@ impl fmt::Display for AttachError {
                 )
             }
             Self::ClientNotReady => formatter.write_str("the SA-MP RakClient is not ready yet"),
-            Self::AlreadyAttached => formatter.write_str("a rak_samp runtime is already attached"),
+            Self::AlreadyAttached => {
+                formatter.write_str("a samp_client_sdk runtime is already attached")
+            }
             Self::HookInstallFailed(detail) => {
                 write!(formatter, "failed to install SA-MP hook: {detail}")
             }
@@ -321,6 +339,7 @@ impl Default for SendOptions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SendError {
     ClientNotReady,
+    QueueFull,
     PayloadTooLarge,
     NativeCallFailed,
     TimestampedPacketUnsupported,
@@ -338,6 +357,7 @@ impl fmt::Display for SendError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ClientNotReady => formatter.write_str("the SA-MP client hook is not ready"),
+            Self::QueueFull => formatter.write_str("the game-thread command queue is full"),
             Self::PayloadTooLarge => {
                 formatter.write_str("the payload does not fit into the native bit stream")
             }
@@ -399,7 +419,7 @@ impl Runtime {
         self.registry.register_rpc(direction, callback)
     }
 
-    /// Sends a packet through the original SA-MP RakClient method.
+    /// Queues a packet for the original SA-MP RakClient method on the game thread.
     ///
     /// This bypasses outgoing listeners to prevent recursive hook dispatch.
     pub fn send_packet(&self, packet_id: u8, payload: &BitStream) -> Result<bool, SendError> {
@@ -407,7 +427,7 @@ impl Runtime {
             .send_packet(packet_id, payload, SendOptions::default())
     }
 
-    /// Sends a packet with explicit RakNet delivery settings.
+    /// Queues a packet with explicit RakNet delivery settings for the game thread.
     pub fn send_packet_with_options(
         &self,
         packet_id: u8,
@@ -418,7 +438,7 @@ impl Runtime {
         self.backend.send_packet(packet_id, payload, options)
     }
 
-    /// Sends an RPC through the original SA-MP RakClient method.
+    /// Queues an RPC for the original SA-MP RakClient method on the game thread.
     ///
     /// This bypasses outgoing listeners to prevent recursive hook dispatch.
     pub fn send_rpc(&self, rpc_id: u8, payload: &BitStream) -> Result<bool, SendError> {
@@ -426,7 +446,7 @@ impl Runtime {
             .send_rpc(rpc_id, payload, SendOptions::default())
     }
 
-    /// Sends an RPC with explicit RakNet delivery settings.
+    /// Queues an RPC with explicit RakNet delivery settings for the game thread.
     pub fn send_rpc_with_options(
         &self,
         rpc_id: u8,
@@ -436,7 +456,26 @@ impl Runtime {
         self.backend.send_rpc(rpc_id, payload, options)
     }
 
-    /// Queues a packet for the client; incoming listeners run once when it is dequeued.
+    pub(crate) fn submit_packet_with_options(
+        &self,
+        packet_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        validate_packet_options(options)?;
+        self.backend.submit_packet(packet_id, payload, options)
+    }
+
+    pub(crate) fn submit_rpc_with_options(
+        &self,
+        rpc_id: u8,
+        payload: &BitStream,
+        options: SendOptions,
+    ) -> Result<CommandId, SendError> {
+        self.backend.submit_rpc(rpc_id, payload, options)
+    }
+
+    /// Queues a packet for game-thread emulation; incoming listeners run once then.
     pub fn emulate_incoming_packet(
         &self,
         packet_id: u8,
@@ -445,13 +484,50 @@ impl Runtime {
         self.backend.emulate_incoming_packet(packet_id, payload)
     }
 
-    /// Delivers an RPC to the client after incoming listeners run.
+    /// Queues an RPC for game-thread delivery after incoming listeners run.
     pub fn emulate_incoming_rpc(&self, rpc_id: u8, payload: BitStream) -> Result<bool, SendError> {
         self.backend.emulate_incoming_rpc(rpc_id, payload)
     }
 
+    pub(crate) fn submit_emulate_incoming_packet(
+        &self,
+        packet_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.backend
+            .submit_emulate_incoming_packet(packet_id, payload)
+    }
+
+    pub(crate) fn submit_emulate_incoming_rpc(
+        &self,
+        rpc_id: u8,
+        payload: BitStream,
+    ) -> Result<CommandId, SendError> {
+        self.backend.submit_emulate_incoming_rpc(rpc_id, payload)
+    }
+
     pub(crate) fn client_hook_status(&self) -> ClientHookStatus {
         self.backend.client_hook_status()
+    }
+
+    pub(crate) fn raw_rakclient(&self) -> Option<*mut core::ffi::c_void> {
+        self.backend.raw_rakclient()
+    }
+
+    pub(crate) fn raw_rakpeer(&self) -> Option<*mut core::ffi::c_void> {
+        self.backend.raw_rakpeer()
+    }
+
+    pub(crate) fn raw_player_pool(&self) -> Option<*mut core::ffi::c_void> {
+        self.backend.raw_player_pool()
+    }
+
+    pub(crate) fn raw_vehicle_pool(&self) -> Option<*mut core::ffi::c_void> {
+        self.backend.raw_vehicle_pool()
+    }
+
+    pub(crate) fn raw_local_player(&self) -> Option<*mut core::ffi::c_void> {
+        self.backend.raw_local_player()
     }
 
     pub(crate) fn samp_version(&self) -> SampVersion {
@@ -489,6 +565,312 @@ impl Runtime {
         request: LocalDeathMessageRequest,
     ) -> Result<(), DirectClientError> {
         self.backend.show_local_death_message(request)
+    }
+
+    pub(crate) fn submit_local_dialog(
+        &self,
+        request: LocalDialogRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_dialog(request)
+    }
+
+    pub(crate) fn submit_local_chat_message(
+        &self,
+        request: LocalChatMessageRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_chat_message(request)
+    }
+
+    pub(crate) fn submit_local_death_message(
+        &self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_death_message(request)
+    }
+
+    pub(crate) fn submit_local_cursor_mode(
+        &self,
+        mode: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_cursor_mode(mode)
+    }
+
+    pub(crate) fn submit_local_chat_display_mode(
+        &self,
+        mode: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_chat_display_mode(mode)
+    }
+
+    pub(crate) fn submit_local_chat_entry(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        prefix: Vec<u8>,
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_local_chat_entry(id, text, prefix, text_colour, prefix_colour)
+    }
+
+    pub(crate) fn submit_local_dialog_close(
+        &self,
+        button: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_dialog_close(button)
+    }
+
+    pub(crate) fn submit_local_chat_input_text(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_chat_input_text(text)
+    }
+
+    pub(crate) fn submit_local_chat_input_enabled(
+        &self,
+        enabled: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_chat_input_enabled(enabled)
+    }
+
+    pub(crate) fn submit_local_chat_input_process(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_chat_input_process(text)
+    }
+
+    pub(crate) fn submit_local_cursor_toggle(
+        &self,
+        show: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_cursor_toggle(show)
+    }
+
+    pub(crate) fn submit_local_scoreboard_open(
+        &self,
+        open: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_scoreboard_open(open)
+    }
+
+    pub(crate) fn submit_local_dialog_client_side(
+        &self,
+        client_side: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_dialog_client_side(client_side)
+    }
+
+    pub(crate) fn submit_local_dialog_selected_item(
+        &self,
+        selected: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_dialog_selected_item(selected)
+    }
+
+    pub(crate) fn submit_samp_game_state(
+        &self,
+        state: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_samp_game_state(state)
+    }
+
+    pub(crate) fn submit_connect_to_server(
+        &self,
+        address: Vec<u8>,
+        port: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_connect_to_server(address, port)
+    }
+
+    pub(crate) fn submit_disconnect_with_reason(
+        &self,
+        block_duration: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_disconnect_with_reason(block_duration)
+    }
+
+    pub(crate) fn submit_delete_textdraw(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_delete_textdraw(id)
+    }
+
+    pub(crate) fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_delete_text_label(id)
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_create_text_label(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_create_text_label(
+            id,
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        )
+    }
+
+    pub(crate) fn submit_set_textdraw_position(
+        &self,
+        id: u16,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_set_textdraw_position(id, x, y)
+    }
+
+    pub(crate) fn submit_set_textdraw_letter_style(
+        &self,
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_set_textdraw_letter_style(id, width, height, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_proportional(
+        &self,
+        id: u16,
+        proportional: bool,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_set_textdraw_proportional(id, proportional)
+    }
+
+    pub(crate) fn submit_set_textdraw_shadow(
+        &self,
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_set_textdraw_shadow(id, shadow, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_outline(
+        &self,
+        id: u16,
+        outline: u8,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_set_textdraw_outline(id, outline, colour)
+    }
+
+    pub(crate) fn submit_set_textdraw_box(
+        &self,
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_set_textdraw_box(id, enabled, colour, width, height)
+    }
+
+    pub(crate) fn submit_set_textdraw_alignment(
+        &self,
+        id: u16,
+        alignment: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_set_textdraw_alignment(id, alignment)
+    }
+
+    pub(crate) fn submit_set_textdraw_string(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_set_textdraw_string(id, text)
+    }
+
+    pub(crate) fn submit_set_textdraw_model_style(
+        &self,
+        id: u16,
+        rotation: Vector3,
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend
+            .submit_set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
+    }
+
+    pub(crate) fn submit_local_player_spawn(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_player_spawn()
+    }
+
+    pub(crate) fn submit_local_player_special_action(
+        &self,
+        action: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_player_special_action(action)
+    }
+
+    pub(crate) fn submit_local_player_name(
+        &self,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_player_name(name)
+    }
+
+    pub(crate) fn submit_force_unoccupied_sync(
+        &self,
+        vehicle: u16,
+        seat: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_force_unoccupied_sync(vehicle, seat)
+    }
+
+    pub(crate) fn submit_send_rate(
+        &self,
+        kind: u8,
+        milliseconds: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_send_rate(kind, milliseconds)
+    }
+
+    pub(crate) fn submit_player_colour(
+        &self,
+        id: u16,
+        colour: u32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_player_colour(id, colour)
+    }
+
+    pub(crate) fn try_take_command(
+        &self,
+        id: CommandId,
+    ) -> Result<Option<Result<(), CommandError>>, CommandError> {
+        self.backend.try_take_command(id)
+    }
+
+    pub(crate) fn wait_for_command(
+        &self,
+        id: CommandId,
+        timeout: Duration,
+    ) -> Result<Result<(), CommandError>, CommandError> {
+        self.backend.wait_for_command(id, timeout)
+    }
+
+    pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {
+        self.backend.release_command(id)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
@@ -559,6 +941,10 @@ impl Runtime {
         self.backend.textdraw(pool_index)
     }
 
+    pub(crate) fn chat_entry(&self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
+        self.backend.chat_entry(id)
+    }
+
     pub(crate) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
         self.backend.server_info()
     }
@@ -589,8 +975,20 @@ impl Runtime {
         self.backend.local_dialog_state()
     }
 
+    pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {
+        self.backend.local_dialog_selected_item()
+    }
+
+    pub(crate) fn local_dialog_list_item_count(&self) -> Result<i32, DirectClientError> {
+        self.backend.local_dialog_list_item_count()
+    }
+
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         self.backend.local_chat_input_active()
+    }
+
+    pub(crate) fn local_chat_input_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.backend.local_chat_input_text()
     }
 
     pub(crate) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {

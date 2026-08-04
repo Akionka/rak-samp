@@ -45,6 +45,3 @@ jobs:
 
       - name: Check release build
         run: cargo build --workspace --release --locked
-
-      - name: Run ASI ABI end-to-end fixture
-        run: cargo run --release --locked -p rak_samp_e2e_runner

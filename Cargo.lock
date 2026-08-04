@@ -98,77 +98,37 @@ dependencies = [
 ]
 
 [[package]]
-name = "rak-samp"
-version = "0.1.0-alpha.3"
+name = "samp-client-sdk"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "windows-sys",
+]
+
+[[package]]
+name = "samp-client-sdk-chat-command-example"
+version = "0.1.0"
+dependencies = [
+ "samp-client-sdk",
+ "windows-sys",
+]
+
+[[package]]
+name = "samp-client-sdk-host"
+version = "0.1.0-alpha.4"
 dependencies = [
  "cc",
  "log",
  "minhook",
- "rak_samp_plugin_api",
+ "samp-client-sdk",
  "simplelog",
  "windows-sys",
 ]
 
 [[package]]
-name = "rak_samp_chat_command_example"
+name = "samp-client-sdk-sample-plugin"
 version = "0.1.0"
 dependencies = [
- "rak_samp_plugin_api",
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_e2e_host"
-version = "0.0.0"
-dependencies = [
- "rak_samp_plugin_api",
-]
-
-[[package]]
-name = "rak_samp_e2e_plugin"
-version = "0.0.0"
-dependencies = [
- "rak_samp_plugin_api",
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_e2e_runner"
-version = "0.0.0"
-dependencies = [
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_plugin_api"
-version = "0.1.0-alpha.3"
-dependencies = [
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_sample_plugin"
-version = "0.1.0"
-dependencies = [
- "rak_samp_plugin_api",
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_validation_plugin"
-version = "0.1.0"
-dependencies = [
- "log",
- "rak_samp_plugin_api",
- "simplelog",
- "windows-sys",
-]
-
-[[package]]
-name = "rak_samp_validation_unloader"
-version = "0.1.0"
-dependencies = [
- "time",
+ "samp-client-sdk",
  "windows-sys",
 ]
 
