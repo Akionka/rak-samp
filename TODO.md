@@ -458,7 +458,7 @@ safe Rust ABI; those require an explicit unsafe/experimental design.
   independent packed remote-player fixture, exact complete update-path
   signatures for every copied field. The on-foot health/armour/special-action
   signature is now pinned at `Update(OnfootData) + 0x2F` (RVA `0x139CF`);
-  `CRemotePlayer::Process + 0x1AE` (RVA `0x1309E`) now also pins the write to
+  `CRemotePlayer::Process + 0x1A6` (RVA `0x13096`) now also pins the write to
   `+0x1C0`. `HostApi::remote_player_state` and scalar projections now copy all
   four fields through their own 32-request, four-per-pump cache; remain
   provisional until the second-client live scenario exercises damage, special

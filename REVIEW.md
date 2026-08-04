@@ -138,7 +138,7 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   `0x1B8`/`0x1BC`, and animation word `0x1C0`. The R1 profile additionally
   requires the complete 104-byte `CRemotePlayer::Update(OnfootData) + 0x2F`
   signature for the health/armour/action writes and the 43-byte
-  `CRemotePlayer::Process + 0x1AE` signature for the animation publication.
+  `CRemotePlayer::Process + 0x1A6` signature for the animation publication.
   `HostApi::remote_player_state` copies only those scalars through a bounded
   game-thread cache. Live transition evidence remains required before release.
 - **R1 player-count accessor target:** the installed SA-MP 0.3.7 R1 `samp.dll`
