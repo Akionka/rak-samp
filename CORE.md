@@ -104,6 +104,11 @@ non-streamed maximum connected slot only and does not walk GTA peds. The R1
 update routine scans the connection table independently of the assigned local
 ID, so this scalar is not required to be at least the local ID.
 
+The opt-in direct validator never turns transient cache contention into a
+blocking plugin-thread read. Its preflight retains each independently copied
+success across polls, then rechecks only current local identity/spawn and UI
+idleness before it queues direct UI work.
+
 `HostApi::is_vehicle_defined` is a bounded demand-refreshed cache of the exact
 R1 `CVehiclePool::DoesExist` boolean accessor. Queries enqueue an ID for the
 game-thread pump and return `NotReady` until its first owned result; neither a

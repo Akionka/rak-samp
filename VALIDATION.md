@@ -42,7 +42,7 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Waits for a populated, spawned local-player snapshot and an idle dialog state, then queues one direct local message dialog, chat entry, and death-window entry. It verifies cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and IDs; if preflight waits, it records only the blocker category. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Waits for a populated, spawned local-player snapshot, latches each independent nonblocking cache-read success, then rechecks the current snapshot and idle dialog/input state before queueing one direct local message dialog, chat entry, and death-window entry. It verifies cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and IDs; if preflight waits, it records only the blocker category. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected and in-world, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections, including the exact R1 world-defined state, and logs only the outcome and remote player ID. |
 | R1 remote player state | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-remote-player-state.enabled') -ItemType File -Force` | With a second player connected and in-world, finds one copied remote snapshot and waits for a health-or-armour change, a special-action change, and an animation-ID change. Logs only the outcome and remote ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
@@ -55,17 +55,19 @@ starting GTA and remove them afterwards.
 | Coordinated shutdown | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-shutdown.enabled') -ItemType File -Force` | Stops validator workers and waits for subscriptions. |
 
 For the direct-helper check, finish the server's normal login and spawn flow.
-The validator waits for a spawned snapshot and no active dialog before it logs
-`queued after spawned preflight` and displays its own dialog. If a later server
-dialog interrupts that dialog, handle and dismiss the server dialog normally;
-the validator waits for the dialog state to clear and requeues its local dialog
-within the same bounded validation window. Leave the direct dialog visible
-until the validator logs `observing`, then dismiss it. Within the next two
-minutes, walk, take enough damage to change both armour and health, enter or
-leave a vehicle, and press F7 until the chat window has cycled through off,
-no-shadow, and normal display modes. Open and close the scoreboard with Tab,
-then activate and dismiss an ordinary local cursor state (for example, open and
-close chat input).
+Transient `NotReady` cache reads are expected under packet load; the validator
+retains each successful prerequisite instead of requiring all cache locks in a
+single poll. It then rechecks the current spawned identity and no active dialog
+or chat input before it logs `queued after spawned preflight` and displays its
+own dialog. If a later server dialog interrupts that dialog, handle and dismiss
+the server dialog normally; the validator waits for the dialog state to clear
+and requeues its local dialog within the same bounded validation window. Leave
+the direct dialog visible until the validator logs `observing`, then dismiss
+it. Within the next two minutes, walk, take enough damage to change both armour
+and health, enter or leave a vehicle, and press F7 until the chat window has
+cycled through off, no-shadow, and normal display modes. Open and close the
+scoreboard with Tab, then activate and dismiss an ordinary local cursor state
+(for example, open and close chat input).
 Confirm its `direct-client self-test passed` line includes `active_dialog=Ok`,
 then confirm its `direct-client state validation passed` line records each chat
 mode, both cursor categories, both scoreboard, dialog, active-dialog-core, and

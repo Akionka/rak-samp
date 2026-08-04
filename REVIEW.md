@@ -311,6 +311,19 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   preflight condition changes. This run contains no direct-call traffic
   evidence because the direct queues were never reached; a fresh run remains
   required.
+- **R1 direct-validator cache-contention correction (2026-08-04):** the first
+  diagnostic build confirmed a valid spawned snapshot, then alternated between
+  `server-info-cache` and `animation-table-cache` blockers, with occasional
+  expected chat-input activity. Normal packet traffic drives the game-thread
+  pump frequently, while copied cache readers deliberately use `try_lock` and
+  may return transient `NotReady`; requiring all cache locks in one validator
+  poll made progress statistically fragile. The validator now retains every
+  successful independent read, treats the animation entry and reverse lookup
+  as separate nonblocking stages, and rechecks only the current spawned
+  identity plus dialog/input idleness immediately before queueing. Identity
+  changes reset the retained preflight state. No host cache was made blocking,
+  and no client pointer or payload is logged. The diagnostic run queued no
+  direct work, so fresh live evidence remains required.
 - **Direct R1 dialog signature:** the installed supported binaries identify
   GTA SA 1.0 US as image base `0x00400000`, image size `0x01177000`, and entry
   RVA `0x00424570`, and SA-MP R1 as timestamp `0x5542F47A` and entry RVA

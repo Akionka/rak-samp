@@ -258,6 +258,35 @@ impl DirectPreflightReporter {
     }
 }
 
+#[derive(Default)]
+struct DirectPreflightProgress {
+    snapshot: Option<LocalPlayer>,
+    game_state: bool,
+    server_info: bool,
+    chat_display_mode: bool,
+    cursor_mode: bool,
+    scoreboard_state: bool,
+    animation_table: bool,
+    player_directory: bool,
+    player_count: bool,
+    player_max_id: Option<u16>,
+}
+
+impl DirectPreflightProgress {
+    fn cached_reads_complete(&self) -> bool {
+        self.snapshot.is_some()
+            && self.game_state
+            && self.server_info
+            && self.chat_display_mode
+            && self.cursor_mode
+            && self.scoreboard_state
+            && self.animation_table
+            && self.player_directory
+            && self.player_count
+            && self.player_max_id.is_some()
+    }
+}
+
 pub(crate) fn rewrite_test_packet(event: &mut Event<'_>) -> RakSampHookAction {
     rewrite_test_event(
         event,
@@ -951,63 +980,315 @@ fn run_direct_client(api: HostApi) {
     );
     let deadline = Instant::now() + DIRECT_SNAPSHOT_STATE_TIMEOUT;
     let mut preflight_reporter = DirectPreflightReporter::default();
+    let mut preflight = DirectPreflightProgress::default();
     while !STOP.load(Ordering::Acquire) && Instant::now() < deadline {
-        match api.local_player() {
+        let snapshot_result = match preflight.snapshot.clone() {
+            Some(snapshot) => Ok(snapshot),
+            None => api.local_player(),
+        };
+        match snapshot_result {
             Ok(snapshot) if snapshot.spawned && !snapshot.nickname.is_empty() => {
-                match api.samp_game_state() {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("game-state-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test game-state returned {error:?}"
-                        ));
-                        return;
+                if preflight.snapshot.is_none() {
+                    preflight.snapshot = Some(snapshot.clone());
+                }
+                if !preflight.game_state {
+                    match api.samp_game_state() {
+                        Ok(_) => preflight.game_state = true,
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("game-state-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test game-state returned {error:?}"
+                            ));
+                            return;
+                        }
                     }
                 }
-                match api.server_info() {
-                    Ok(info) if !info.address.is_empty() && info.port != 0 => {}
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("server-info-cache");
+                if !preflight.server_info {
+                    match api.server_info() {
+                        Ok(info) if !info.address.is_empty() && info.port != 0 => {
+                            preflight.server_info = true;
+                        }
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("server-info-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Ok(_) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(
+                                "direct-client self-test server-info snapshot was empty",
+                            );
+                            return;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test server-info returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.chat_display_mode {
+                    match api.local_chat_display_mode() {
+                        Ok(_) => preflight.chat_display_mode = true,
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("chat-display-mode-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test chat-display-mode returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.cursor_mode {
+                    match api.local_cursor_mode() {
+                        Ok(_) => preflight.cursor_mode = true,
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("cursor-mode-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test cursor-mode returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.scoreboard_state {
+                    match api.is_local_scoreboard_open() {
+                        Ok(_) => preflight.scoreboard_state = true,
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("scoreboard-state-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test scoreboard-state returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.animation_table {
+                    match api.local_animation(0) {
+                        Ok(animation)
+                            if animation.name == b"AIRPORT"
+                                && animation.file == b"THRW_BARL_THRW" =>
+                        {
+                            match api.local_animation_id(&animation.name, &animation.file) {
+                                Ok(Some(0)) => preflight.animation_table = true,
+                                Err(RakSampResult::NotReady) => {
+                                    preflight_reporter.log("animation-table-reverse-cache");
+                                    std::thread::sleep(Duration::from_millis(10));
+                                    continue;
+                                }
+                                Ok(_) => {
+                                    SELF_TESTS.direct_client.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    SELF_TESTS.direct_snapshot_state.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    logging::write(
+                                        "direct-client self-test animation-table reverse lookup did not match the R1 fingerprint",
+                                    );
+                                    return;
+                                }
+                                Err(error) => {
+                                    SELF_TESTS.direct_client.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    SELF_TESTS.direct_snapshot_state.store(
+                                        SelfTestStatus::CallFailed.as_raw(),
+                                        Ordering::Release,
+                                    );
+                                    logging::write(&format!(
+                                        "direct-client self-test animation-table reverse lookup returned {error:?}"
+                                    ));
+                                    return;
+                                }
+                            }
+                        }
+                        Ok(_) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(
+                                "direct-client self-test animation-table entry did not match the R1 fingerprint",
+                            );
+                            return;
+                        }
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("animation-table-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test animation-table returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.player_directory {
+                    match api.player_info(snapshot.id) {
+                        Ok(Some(player))
+                            if player.is_local
+                                && !player.is_npc
+                                && player.nickname == snapshot.nickname
+                                && player.colour == snapshot.colour =>
+                        {
+                            preflight.player_directory = true;
+                        }
+                        Ok(_) | Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("local-player-directory-consistency");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test player-directory returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if !preflight.player_count {
+                    match api.player_count(true) {
+                        Ok(_) => preflight.player_count = true,
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("player-count-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test player-count returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+                if preflight.player_max_id.is_none() {
+                    match api.player_max_id() {
+                        Ok(max_id) => preflight.player_max_id = Some(max_id),
+                        Err(RakSampResult::NotReady) => {
+                            preflight_reporter.log("player-max-id-cache");
+                            std::thread::sleep(Duration::from_millis(10));
+                            continue;
+                        }
+                        Err(error) => {
+                            SELF_TESTS
+                                .direct_client
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            SELF_TESTS
+                                .direct_snapshot_state
+                                .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
+                            logging::write(&format!(
+                                "direct-client self-test player-max-id returned {error:?}"
+                            ));
+                            return;
+                        }
+                    }
+                }
+
+                debug_assert!(preflight.cached_reads_complete());
+                let snapshot = match api.local_player() {
+                    Ok(current)
+                        if current.id == snapshot.id
+                            && current.spawned
+                            && !current.nickname.is_empty() =>
+                    {
+                        current
+                    }
+                    Ok(current) if current.id != snapshot.id => {
+                        preflight = DirectPreflightProgress::default();
+                        if current.spawned && !current.nickname.is_empty() {
+                            preflight.snapshot = Some(current);
+                        }
+                        preflight_reporter.log("local-player-identity-stability");
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
                     }
                     Ok(_) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write("direct-client self-test server-info snapshot was empty");
-                        return;
+                        preflight.snapshot = None;
+                        preflight_reporter.log("current-local-player-spawned-state");
+                        std::thread::sleep(Duration::from_millis(10));
+                        continue;
                     }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test server-info returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
-                match api.local_chat_display_mode() {
-                    Ok(_) => {}
                     Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("chat-display-mode-cache");
+                        preflight_reporter.log("current-local-player-snapshot");
                         std::thread::sleep(Duration::from_millis(10));
                         continue;
                     }
@@ -1019,51 +1300,11 @@ fn run_direct_client(api: HostApi) {
                             .direct_snapshot_state
                             .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
                         logging::write(&format!(
-                            "direct-client self-test chat-display-mode returned {error:?}"
+                            "direct-client self-test current snapshot returned {error:?}"
                         ));
                         return;
                     }
-                }
-                match api.local_cursor_mode() {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("cursor-mode-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test cursor-mode returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
-                match api.is_local_scoreboard_open() {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("scoreboard-state-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test scoreboard-state returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
+                };
                 match api.is_local_dialog_active() {
                     Ok(false) => {}
                     Ok(true) => {
@@ -1139,107 +1380,10 @@ fn run_direct_client(api: HostApi) {
                         return;
                     }
                 }
-                match api.local_animation(0) {
-                    Ok(animation)
-                        if animation.name == b"AIRPORT"
-                            && animation.file == b"THRW_BARL_THRW"
-                            && api.local_animation_id(&animation.name, &animation.file)
-                                == Ok(Some(0)) => {}
-                    Ok(_) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(
-                            "direct-client self-test animation-table entry did not match the R1 fingerprint",
-                        );
-                        return;
-                    }
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("animation-table-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test animation-table returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
-                match api.player_info(snapshot.id) {
-                    Ok(Some(player))
-                        if player.is_local
-                            && !player.is_npc
-                            && player.nickname == snapshot.nickname
-                            && player.colour == snapshot.colour
-                            && player.score == snapshot.score
-                            && player.ping == snapshot.ping => {}
-                    Ok(_) | Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("local-player-directory-consistency");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test player-directory returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
-                match api.player_count(true) {
-                    Ok(_) => {}
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("player-count-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test player-count returned {error:?}"
-                        ));
-                        return;
-                    }
-                }
-                let player_max_id = match api.player_max_id() {
-                    Ok(max_id) => max_id,
-                    Err(RakSampResult::NotReady) => {
-                        preflight_reporter.log("player-max-id-cache");
-                        std::thread::sleep(Duration::from_millis(10));
-                        continue;
-                    }
-                    Err(error) => {
-                        SELF_TESTS
-                            .direct_client
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        SELF_TESTS
-                            .direct_snapshot_state
-                            .store(SelfTestStatus::CallFailed.as_raw(), Ordering::Release);
-                        logging::write(&format!(
-                            "direct-client self-test player-max-id returned {error:?}"
-                        ));
-                        return;
-                    }
+                let Some(player_max_id) = preflight.player_max_id else {
+                    preflight_reporter.log("player-max-id-cache");
+                    std::thread::sleep(Duration::from_millis(10));
+                    continue;
                 };
 
                 let dialog_result = api.show_local_dialog(direct_validation_dialog());
@@ -1743,9 +1887,9 @@ fn mark_timeout(status: &AtomicU8) {
 mod tests {
     use super::{
         DirectChatDisplayModes, DirectCursorStates, DirectDialogAction, DirectDialogWaitState,
-        DirectPreflightReporter, DirectScoreboardStates, DirectSnapshotChanges, DirectUiStates,
-        DirectVisibilityStates, RemotePlayerStateChanges, direct_validation_dialog,
-        is_direct_validation_dialog,
+        DirectPreflightProgress, DirectPreflightReporter, DirectScoreboardStates,
+        DirectSnapshotChanges, DirectUiStates, DirectVisibilityStates, RemotePlayerStateChanges,
+        direct_validation_dialog, is_direct_validation_dialog,
     };
     use rak_samp_plugin_api::{
         LocalChatDisplayMode, LocalCursorMode, LocalDialogState, LocalDialogStyle, LocalPlayer,
@@ -1944,5 +2088,25 @@ mod tests {
         assert!(!reporter.observe("local-player-snapshot"));
         assert!(reporter.observe("player-max-id-cache"));
         assert!(!reporter.observe("player-max-id-cache"));
+    }
+
+    #[test]
+    fn direct_preflight_latches_independent_cache_successes() {
+        let mut progress = DirectPreflightProgress {
+            snapshot: Some(snapshot()),
+            game_state: true,
+            server_info: true,
+            chat_display_mode: true,
+            cursor_mode: true,
+            scoreboard_state: true,
+            animation_table: true,
+            player_directory: true,
+            player_count: true,
+            player_max_id: None,
+        };
+        assert!(!progress.cached_reads_complete());
+
+        progress.player_max_id = Some(0);
+        assert!(progress.cached_reads_complete());
     }
 }

@@ -181,7 +181,14 @@ fixtures, disassembly, or the E2E mock alone.
   then found two false scalar gates: `GetCount` may validly return zero when
   only the local player is present, and `m_nLargestId` may be below the
   separately assigned local ID. Both value assumptions are removed; every
-  remaining wait now logs only its blocker category.
+  remaining wait now logs only its blocker category. The following instrumented
+  run showed `server-info-cache` and `animation-table-cache` alternating under
+  high packet load: each individual nonblocking read succeeded at times, but
+  the validator restarted the whole sequence after every transient `NotReady`.
+  Preflight now latches independent cache successes, separates the animation
+  forward/reverse reads, then rechecks only current local identity/spawn and
+  dialog/input idleness immediately before queueing. A fresh live run of this
+  corrected build remains required.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.

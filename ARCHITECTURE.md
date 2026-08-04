@@ -102,6 +102,10 @@ after the profile's `UpdateLargestId` signature and fixture-backed field offset
 have passed. Because the native update scans connection flags independently of
 the assigned local ID, this value may be lower than the local ID. It likewise
 does not inspect GTA peds.
+The opt-in direct validator consumes these nonblocking caches through a
+monotonic preflight: successful independent reads remain latched across
+transient `NotReady` results, while local identity/spawn and UI idleness are
+rechecked immediately before direct requests are queued.
 `HostApi::is_vehicle_defined` is a separate 2,000-slot boolean cache. Plugin
 threads enqueue unknown vehicle IDs; the pump drains at most four R1 accessor
 calls per entry and publishes only owned booleans, never a vehicle/pool/GTA

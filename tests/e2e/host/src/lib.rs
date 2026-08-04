@@ -1,4 +1,4 @@
-//! Minimal in-process host used only by the ASI ABI end-to-end fixture.
+//! Minimal in-process host used only by the ASI ABI loader smoke fixture.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("rak_samp_e2e_host supports only 32-bit Windows x86 targets");
