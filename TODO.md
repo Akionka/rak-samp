@@ -62,8 +62,10 @@ fixtures, disassembly, or the E2E mock alone.
    `HostApi::player_count(include_npcs)`. The static implementation has an
    exact target signature and publishes scalar counts only on the game-thread
    pump; it deliberately covers SF.lua's non-streamed count path, not the
-   GTA-ped-based streamed count. Keep provisional until the direct validator
-   records a nonzero count and normal shutdown.
+   GTA-ped-based streamed count. The accessor scans connected slots without
+   adding the separately assigned local ID, so zero is valid on a solo session.
+   Keep provisional until the direct validator records a readable bounded
+   count and normal shutdown.
 3. [~] Cache R1 `CPlayerPool::m_nLargestId` through
    `HostApi::player_max_id()`. The static implementation reads the fixture
    checked pool-prefix scalar only on the game-thread pump after the exact R1
@@ -174,7 +176,12 @@ fixtures, disassembly, or the E2E mock alone.
   flow. The validator now waits for a populated spawned snapshot plus an idle
   dialog state before queueing direct UI work, and boundedly requeues the local
   dialog if a later non-validation dialog interrupts it. Redeploy before the
-  next live run.
+  next live run. That run remained pending even though packet/RPC evidence
+  proved the client was spawned and no real server dialog arrived. Inspection
+  then found two false scalar gates: `GetCount` may validly return zero when
+  only the local player is present, and `m_nLargestId` may be below the
+  separately assigned local ID. Both value assumptions are removed; every
+  remaining wait now logs only its blocker category.
 - [ ] During that run, prove the three direct UI calls cause no incoming or
   outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
   intentional incoming RPC 61 emulation from direct-helper activity.
@@ -209,14 +216,17 @@ fixtures, disassembly, or the E2E mock alone.
   colour, score, and ping values, a disconnected result becomes `None` after
   refresh, it generates no packet/RPC traffic, and shutdown is stable.
 - [ ] Confirm the direct validator records `player_count=Ok` after joining a
-  server and that the cached including-NPC count is nonzero and sensible for
-  the visible player list. It must not generate packet/RPC traffic or make
-  shutdown unstable. Streamed-ped count remains out of scope pending separate
-  GTA-ped evidence.
-- [ ] Confirm the direct validator records `player_max_id=Ok` after joining a
-  server and that the non-streamed maximum ID is at least the assigned local
-  ID. It must generate no packet/RPC traffic and leave normal shutdown stable;
-  the streamed-GTA-ped branch remains out of scope pending separate evidence.
+  server and that the cached including-NPC connected-slot count is bounded and
+  readable. Zero is valid when no remote slots are connected because the
+  accessor does not add the local assignment. It must not generate packet/RPC
+  traffic or make shutdown unstable. Streamed-ped count remains out of scope
+  pending separate GTA-ped evidence.
+- [ ] Confirm the direct validator records both `player_max_id` and
+  `local_player_id` after joining a server. The non-streamed maximum is the
+  greatest connected-table slot and may be below the independently assigned
+  local ID. It must generate no packet/RPC traffic and leave normal shutdown
+  stable; the streamed-GTA-ped branch remains out of scope pending separate
+  evidence.
 - [ ] With the vehicle-exists marker enabled, confirm the validator records
   only `vehicle-exists self-test passed` and one defined vehicle ID. It must
   tolerate initial `NotReady` while the bounded queue is pumped, generate no
@@ -272,7 +282,7 @@ fixtures, disassembly, or the E2E mock alone.
   scenarios on the exact release artifacts before declaring the backlog done.
 
 - [ ] Re-record the GTA SA 1.0 US + SA-MP 0.3.7 R1 direct-client live gate
-  after the 2026-08-04 readiness corrections:
+  after the 2026-08-04 readiness and scalar-preflight corrections:
   dialog display, populated snapshot, walking/damage/armour/vehicle field
   changes, no direct-dialog RPC 61/62 traffic, and stable normal shutdown.
   Snapshot publication starts only when the fingerprinted native state is R1

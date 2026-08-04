@@ -74,15 +74,19 @@ armour, special action, and animation ID. Its scalar projections are
 at most four records per game-thread pump, so it never blocks plugin threads.
 
 `HostApi::player_count(include_npcs)` returns the latest game-thread-cached R1
-player-pool scalar, including or excluding NPCs. It covers SF.lua's
-non-streamed count path only; counting streamed GTA peds requires separate
-native evidence and is not exposed. Like every direct R1 read, it is
+connected-slot scalar, including or excluding NPCs. The native accessor scans
+the pool's connection table rather than adding the separately assigned local
+ID, so a connected solo client may legitimately observe zero. It covers
+SF.lua's non-streamed count path only; counting streamed GTA peds requires
+separate native evidence and is not exposed. Like every direct R1 read, it is
 provisional until live validation is recorded.
 
 `HostApi::player_max_id()` returns the latest game-thread-cached R1
-non-streamed player-pool maximum ID. It intentionally does not inspect GTA
-peds for SF.lua's streamed alternative, and remains provisional until its
-direct live validation is recorded.
+non-streamed maximum connected slot. R1 updates this field by scanning the
+connection table independently of the assigned local ID, so it may be lower
+than the local ID. It intentionally does not inspect GTA peds for SF.lua's
+streamed alternative, and remains provisional until its direct live validation
+is recorded.
 
 `HostApi::is_vehicle_defined(id)` demand-refreshes a bounded, cached R1
 vehicle-pool existence flag. A first lookup may return `NotReady` until the

@@ -54,14 +54,16 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   shutdown before release.
 - **Cached R1 player-count live gate:** `HostApi::player_count` calls the two
   `CPlayerPool::GetCount` accessor modes only from the game-thread pump and
-  publishes bounded scalar values. A legal R1 run must confirm a sensible
-  nonzero count, no generated traffic, and stable shutdown; streamed GTA-ped
-  counting is intentionally not claimed.
+  publishes bounded scalar values. The accessor scans connected slots without
+  adding the separately assigned local ID, so zero is valid on a solo session.
+  A legal R1 run must confirm a readable bounded count, no generated traffic,
+  and stable shutdown; streamed GTA-ped counting is intentionally not claimed.
 - **Cached R1 player-max-ID live gate:** `HostApi::player_max_id` reads only
-  the bounded non-streamed R1 player-pool maximum from the game-thread pump.
-  A legal R1 run must confirm it is at least the assigned local ID, produces
-  no generated traffic, and exits normally; streamed GTA-ped maximum-ID
-  semantics are intentionally not claimed.
+  the bounded non-streamed R1 maximum connected slot from the game-thread pump.
+  The update routine scans the connection table independently of the assigned
+  local ID, so the maximum may be lower than the local ID. A legal R1 run must
+  record both IDs, produce no generated traffic, and exit normally; streamed
+  GTA-ped maximum-ID semantics are intentionally not claimed.
 - **Cached R1 vehicle-existence live gate:** `HostApi::is_vehicle_defined`
   demand-refreshes a bounded `CVehiclePool::DoesExist` boolean only from the
   game-thread pump. A legal R1 run must observe a defined ID through the
@@ -146,17 +148,24 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
 - **R1 player-count accessor target:** the installed SA-MP 0.3.7 R1 `samp.dll`
   audit confirms `CPlayerPool::GetCount(BOOL)` at RVA `0x10520`, with leading
   bytes `8B 54 24 04 56 33 C0 85 D2 57 74 71 33 D2 8B FF`. The profile verifies
-  this exact signature before enabling any direct R1 helper. It is a native
-  accessor call, not a new native-memory layout, so no C++ layout fixture is
-  claimed.
+  this exact signature before enabling any direct R1 helper. The full R1 body
+  scans 1,004 connection-table entries at pool offset `0xFDE`; the
+  excluding-NPC branch additionally follows the matching remote-player slots.
+  It does not add the separately stored local ID, so zero is a valid result
+  when no remote slot is connected. It is a native accessor call, not a new
+  native-memory layout, so no C++ layout fixture is claimed.
 - **R1 player-max-ID field and update target:** the independent C++ fixture
   places the R1 player-pool `m_nLargestId` prefix field at offset `0x00` before
   the already checked local-ID field at `0x04`. The installed SA-MP 0.3.7 R1
   `samp.dll` audit identifies `CPlayerPool::UpdateLargestId` at RVA `0x102B0`
   with leading bytes `56 57 33 F6 B8 02 00 00 00 8D 91 E2 0F 00 00 90`; the
   profile requires that exact target signature before its game-thread pump
-  copies the signed field. Values outside the R1 player-ID range are rejected,
-  and neither the pool pointer nor a GTA ped reaches the ABI.
+  copies the signed field. The complete 75-byte body scans the same 1,004
+  connection flags four at a time, stores the greatest set slot at pool offset
+  zero, and never reads the separately stored local ID at offset `0x04`.
+  Therefore this scalar may be lower than the assigned local ID. Values outside
+  the R1 player-ID range are rejected, and neither the pool pointer nor a GTA
+  ped reaches the ABI.
 - **R1 vehicle-pool existence targets and layout:** the installed SA-MP 0.3.7
   R1 `samp.dll` audit confirms `CNetGame::GetVehiclePool` at RVA `0x1170` with
   bytes `8B 81 CD 03 00 00 8B 40 1C C3`, and
@@ -288,6 +297,20 @@ Implementation history belongs in Git; planned work belongs in [TODO.md](TODO.md
   interrupts it, the validator waits for that state to clear and requeues only
   the local dialog within a bounded two-minute window. A fresh live run is
   still required.
+- **R1 direct-validator scalar preflight correction (2026-08-04):** the next
+  live run loaded the corrected sequencing build and passed the automatic
+  packet/RPC/dialog checks, while normal outgoing spawn, player-sync,
+  enter-vehicle, vehicle-sync, and exit-vehicle traffic proved active gameplay.
+  Only the validator's intentional incoming RPC 61 was present and no outgoing
+  RPC 62 appeared, yet the direct test remained pending and queued no UI work.
+  Reinspection of the full installed-R1 `GetCount` and `UpdateLargestId` bodies
+  exposed invalid validator predicates: a connected-slot count may be zero in
+  a solo session, and the largest connected slot need not be at least the
+  separately assigned local ID. The validator now accepts every bounded cached
+  result and logs the exact non-sensitive blocker category whenever a remaining
+  preflight condition changes. This run contains no direct-call traffic
+  evidence because the direct queues were never reached; a fresh run remains
+  required.
 - **Direct R1 dialog signature:** the installed supported binaries identify
   GTA SA 1.0 US as image base `0x00400000`, image size `0x01177000`, and entry
   RVA `0x00424570`, and SA-MP R1 as timestamp `0x5542F47A` and entry RVA

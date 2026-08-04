@@ -92,13 +92,17 @@ and exposes only owned scalars.
 `HostApi::player_count(include_npcs)` is a separate cached scalar pair from
 the exact R1 `CPlayerPool::GetCount` accessor. The pump calls its two boolean
 modes, bounds each result to the R1 player capacity, and publishes them
-atomically. It represents the non-streamed player-pool count only; it does not
-walk GTA peds to approximate SF.lua's streamed-count branch.
+atomically. The accessor scans the pool connection table and does not add the
+separately assigned local ID, so zero is a valid solo-session result. It
+represents the non-streamed player-pool count only; it does not walk GTA peds
+to approximate SF.lua's streamed-count branch.
 
 `HostApi::player_max_id` is a separate cached scalar from the independently
 fixture-checked R1 `CPlayerPool` prefix. The pump reads it only after the
 exact `UpdateLargestId` target passes profile verification; it exposes the
-non-streamed maximum ID only and does not walk GTA peds.
+non-streamed maximum connected slot only and does not walk GTA peds. The R1
+update routine scans the connection table independently of the assigned local
+ID, so this scalar is not required to be at least the local ID.
 
 `HostApi::is_vehicle_defined` is a bounded demand-refreshed cache of the exact
 R1 `CVehiclePool::DoesExist` boolean accessor. Queries enqueue an ID for the

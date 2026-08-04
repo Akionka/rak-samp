@@ -42,7 +42,7 @@ starting GTA and remove them afterwards.
 | Scenario | Command | Effect |
 | --- | --- | --- |
 | Explicit send | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-send.enabled') -ItemType File -Force` | Sends one test packet and RPC; use only on a permitted server. |
-| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Waits for a populated, spawned local-player snapshot and an idle dialog state, then queues one direct local message dialog, chat entry, and death-window entry. It verifies cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and the local player ID. |
+| Direct R1 client helpers | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-direct-client.enabled') -ItemType File -Force` | Waits for a populated, spawned local-player snapshot and an idle dialog state, then queues one direct local message dialog, chat entry, and death-window entry. It verifies cached game-state, current-server, chat-display, cursor, scoreboard, dialog, active-dialog core, chat-input, known animation-table, player-directory, non-streamed player-count, and non-streamed player-max-ID results. It then monitors position, health, armour, vehicle-state, all three chat display modes, cursor active/inactive, scoreboard open/closed, dialog active/inactive, active-dialog-core `Some`/`None`, and chat-input active/inactive for two minutes. Use only on SA-MP 0.3.7 R1 with the fingerprinted GTA SA 1.0 US executable. The log records only outcomes and IDs; if preflight waits, it records only the blocker category. |
 | R1 player directory | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-player-directory.enabled') -ItemType File -Force` | With a second player connected and in-world, demand-refreshes IDs through the R1 game-thread pump until one remote directory entry is copied. It checks the copied projections, including the exact R1 world-defined state, and logs only the outcome and remote player ID. |
 | R1 remote player state | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-remote-player-state.enabled') -ItemType File -Force` | With a second player connected and in-world, finds one copied remote snapshot and waits for a health-or-armour change, a special-action change, and an animation-ID change. Logs only the outcome and remote ID. |
 | R1 vehicle existence | `New-Item (Join-Path $env:GTA_DIR 'rak-samp-validation-vehicle-exists.enabled') -ItemType File -Force` | Demand-refreshes bounded vehicle IDs through the R1 game-thread pump until a defined vehicle is copied. It logs only the outcome and vehicle ID. |
@@ -127,13 +127,14 @@ and gangzone ID, no packet/RPC traffic is generated, then exit normally and
 remove the marker.
 
 The direct R1 helper scenario also reports `player_count=Ok` once the cached
-including-NPC player-pool count is nonzero. Check that it is sensible for the
-server's visible player list; it is not a streamed-GTA-ped count and does not
-send traffic.
+including-NPC connected-slot count is readable. The R1 accessor does not add
+the separately assigned local ID, so zero is valid on a solo session. It is not
+a streamed-GTA-ped count and does not send traffic.
 
-The same outcome line reports `player_max_id=Ok`. Confirm its non-streamed
-player-pool value is at least the assigned local-player ID; it is not the
-separate streamed-GTA-ped maximum and does not send traffic.
+The same outcome line records both `player_max_id` and `local_player_id`. R1
+updates the former by scanning the connection table independently of the local
+assignment, so the maximum connected slot may be below the local ID. It is not
+the separate streamed-GTA-ped maximum and does not send traffic.
 
 For the vehicle-existence check, create the vehicle marker before launching
 the validator and remain connected for up to two minutes. Confirm

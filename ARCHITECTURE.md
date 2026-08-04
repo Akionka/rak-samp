@@ -92,12 +92,16 @@ cache for copied remote health, armour, special action, and animation ID. Its
 private profile access is enabled only after the exact R1 update/process code
 signatures and GTA fingerprint have both passed.
 `HostApi::player_count` is a second scalar cache populated by the exact R1
-`CPlayerPool::GetCount` accessor in both NPC modes; it does not inspect the
-GTA world or expose streamed-ped counting.
+`CPlayerPool::GetCount` accessor in both NPC modes. The accessor scans the
+connection table without adding the separately assigned local ID, so zero is
+a valid solo-session result; it does not inspect the GTA world or expose
+streamed-ped counting.
 `HostApi::player_max_id` is a third cache containing only the bounded R1
-non-streamed player-pool maximum ID, refreshed by the same game-thread pump
+non-streamed maximum connected slot, refreshed by the same game-thread pump
 after the profile's `UpdateLargestId` signature and fixture-backed field offset
-have passed. It likewise does not inspect GTA peds.
+have passed. Because the native update scans connection flags independently of
+the assigned local ID, this value may be lower than the local ID. It likewise
+does not inspect GTA peds.
 `HostApi::is_vehicle_defined` is a separate 2,000-slot boolean cache. Plugin
 threads enqueue unknown vehicle IDs; the pump drains at most four R1 accessor
 calls per entry and publishes only owned booleans, never a vehicle/pool/GTA
