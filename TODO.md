@@ -1,620 +1,418 @@
-# Pending work
+# Repositioning TODO
 
-## Completion checklist (preserve across context compaction)
+[PLAN.md](PLAN.md) is the decision-complete implementation plan. The approved
+[repositioning proposal](docs/repositioning-proposal.md) records the motivation
+and product decisions; when wording differs, follow `PLAN.md`.
 
-The module inventories below are the authoritative SF.lua function scope. Work
-them in this order; do not mark an item complete merely because a public header
-or another client build supplies an offset.
+The target release is the breaking `0.1.0-alpha.4` cutover to
+`samp-client-sdk`. Check an SF.lua mapping only when it is available through the
+new facade (or the explicit `unsafe raw` tier), covered by tests, and documented.
+An existing `HostApi` helper is reusable implementation material, not completion
+of the renamed public API.
 
-- [ ] For every remaining `[ ]` function, classify it as one of: pure owned
-  Rust helper, exact existing R1 wire codec, copied R1 game-thread read, queued
-  R1 UI call, client-state mutation, force-sync, or raw-pointer API. Record
-  the chosen safe replacement or the reason it remains excluded from the safe
-  ABI beside its module entry.
-- [ ] For every copied R1 read or queued R1 UI call, obtain all of: R1 PE/GTA
-  fingerprint, exact target-code signature or independently verified field
-  layout, bounded owned ABI model, unavailable/teardown result, unit/mock/E2E
-  coverage, and an entry in `REVIEW.md`. Never access it from plugin threads,
-  callbacks, bootstrap workers, or `DllMain`.
-- [ ] For every existing R1 packet/RPC codec that corresponds to an SF.lua
-  helper, add a named `HostApi` convenience only when its behaviour is
-  accurately labelled protocol-only. Require exact byte/bit vectors and never
-  claim native local-state mutation or force-sync.
-- [ ] Keep raw client pointers, memory writes, client-state mutation,
-  reconnect/disconnect, and force-sync outside the safe ABI unless a separate
-  explicit unsafe/experimental design is approved. Do not silently turn them
-  into safe helpers.
-- [ ] Keep the independent C++ fixture limited to native-memory layouts. Add
-  or update it for every new field access; a serialized wire vector is not a
-  native-layout proof.
-- [ ] Keep the ABI mock host and independent E2E plugin current for every
-  appended safe wrapper. Check append offsets/size, copied-buffer validation,
-  queue back-pressure, unsupported/not-ready paths, and game-pump draining.
-- [ ] After each bounded implementation batch, run `cargo fmt --check`,
-  `cargo test --workspace --target i686-pc-windows-msvc`,
-  `cargo clippy --workspace --target i686-pc-windows-msvc -- -D warnings`,
-  `cargo make test-e2e`,
-  `cargo build --workspace --release --target i686-pc-windows-msvc`, and
-  `git diff --check`; commit the passing batch separately.
+## Delivery checklist
 
-### Static-first resumption order
+### Baseline
 
-This is the concrete order for autonomous work while live GTA evidence is
-unavailable. A completed static batch stays `[~]` until its matching item in
-the live-evidence section is recorded; it must not be promoted to `[x]` from
-fixtures, disassembly, or the E2E mock alone.
+- [x] Commit the pre-repositioning working tree unchanged on `feature/helpers`.
+- [x] Record the approved roadmap in [PLAN.md](PLAN.md).
+- [x] Confirm the baseline passes formatting, 136 workspace tests, and Clippy
+  with warnings denied.
 
-1. [~] Build a bounded, demand-refreshed R1 remote-player directory from
-   verified `CPlayerPool` accessors. The static implementation exposes only
-   copied ID, connection, nickname bytes, NPC flag, score, ping, and ARGB
-   colour through `HostApi::player_info` and projections. Requests are queued
-   to the game-thread pump, return `NotReady` until the first copy, refresh
-   cached requested IDs incrementally, and never expose a ped, pool, or player
-   pointer. Exact R1 code signatures, unit/mock/E2E coverage, and an opt-in
-   second-player validator are present; retain `[~]` until its R1 lifecycle,
-   cache-refresh, disconnect, and shutdown evidence is recorded.
-   The adjacent remote volatile-state batch is also statically complete:
-   `HostApi::remote_player_state` copies health, armour, special action, and
-   animation ID through a separate 32-ID/four-per-pump cache after complete
-   R1 update/process signatures and fixture offsets pass. It shares the same
-   second-client lifecycle gate but must exercise field transitions separately.
-2. [~] Cache the two accessor-only R1 `CPlayerPool::GetCount` modes through
-   `HostApi::player_count(include_npcs)`. The static implementation has an
-   exact target signature and publishes scalar counts only on the game-thread
-   pump; it deliberately covers SF.lua's non-streamed count path, not the
-   GTA-ped-based streamed count. The accessor scans connected slots without
-   adding the separately assigned local ID, so zero is valid on a solo session.
-   Keep provisional until the direct validator records a readable bounded
-   count and normal shutdown.
-3. [~] Cache R1 `CPlayerPool::m_nLargestId` through
-   `HostApi::player_max_id()`. The static implementation reads the fixture
-   checked pool-prefix scalar only on the game-thread pump after the exact R1
-   `UpdateLargestId` signature passes, and publishes a bounded ID. It covers
-   only SF.lua's non-streamed branch; the streamed GTA-ped form remains out of
-   scope. Keep provisional until the direct validator records a maximum ID at
-   least as large as the assigned local ID and normal shutdown.
-4. [~] Cache R1 `CVehiclePool::DoesExist` through
-   `HostApi::is_vehicle_defined(id)`. The static implementation has exact R1
-   `CNetGame::GetVehiclePool` and `DoesExist` signatures, an independent
-   packed vehicle-pool fixture for the touched boolean-array offset, and a
-   32-ID demand queue drained at four copied booleans per pump. It exposes no
-   vehicle or GTA handle. Keep provisional until the opt-in vehicle scan finds
-   a defined ID without traffic and normal shutdown.
-5. [~] Cache the bounded active R1 dialog core through
-   `HostApi::active_local_dialog()`: ID, six-way style, fixed 65-byte caption,
-   and server-side flag. The static implementation verifies the exact
-   `CDialog::Show` core-field stores and independent packed fixture offsets,
-   refreshes only on the game-thread pump, and exposes an owned copy or
-   `Ok(None)` when inactive. Keep provisional until the opt-in dialog lifecycle
-   validator records its matching active core, post-dismissal `None`, no
-   traffic, and normal shutdown.
-6. [ ] Evaluate dynamic bounded dialog and chat-input snapshots separately.
-   Do not begin until the exact R1 pointer ownership, string/list bounds,
-   active-state interaction, and update lifecycle are independently proven.
-   Candidate outputs are copied dialog text/buttons/list selection and copied
-   chat draft text only; close/select/edit/open/command registration remain
-   mutations and are excluded.
-   Static audit note (2026-08-03): the upstream R1 headers identify candidate
-   `CDialog` pointers at `m_pListbox=0x20` and `m_pEditbox=0x24`, while
-   SF.lua reads the selected item via the foreign `CDXUTListBox + 0x143` and
-   obtains edit text through a `CDXUTIMEEditBox` method. This is lead-only
-   evidence: before a safe copy, independently reconstruct both R1 prefixes,
-   pin the exact R1 producer/lifetime paths, bound the returned text, and run
-   an active/inactive list/input live transition. Do not expose these pointers
-   or rely solely on the headers.
-7. [ ] Evaluate read-only pool snapshots one module at a time: player-derived
-    state first, then labels, textdraws, objects, and pickups. Each needs a
-   bounded copied model, independent native-layout
-   fixture, direct target/field fingerprint, pump refresh budget, and a
-    dedicated opt-in validator. Do not group unrelated pool layouts into one
-    profile change.
-   The first bounded label sub-batch is `HostApi::is_text_label_defined(id)`,
-   a 2,048-ID demand-refreshed cache of only `CLabelPool::m_bNotEmpty[id]`.
-   Its fixture, `ResetLabelPool` field signature, four-per-pump budget, and
-   opt-in scan are ready; retain `[~]` until a legal R1 run finds a defined
-   label without traffic and exits normally.
-   The second bounded textdraw sub-batch is
-   `HostApi::is_textdraw_defined(pool_index)`, a 2,304-slot demand-refreshed
-   cache of only `CTextDrawPool::m_bNotEmpty[pool_index]`. It preserves the raw
-   2,048-global then 256-local R1 pool order. Its fixture,
-   `ResetTextDrawPool` field signature, four-per-pump budget, and opt-in scan
-   are ready; retain `[~]` until a legal R1 run finds a defined textdraw without
-   traffic and exits normally.
-   The sixth bounded textdraw sub-batch is `HostApi::textdraw(pool_index)`, a
-   2,304-slot demand-refreshed numeric copy. Its independent data-layout
-   fixture, constructor store signatures, four-per-pump budget, E2E mock, and
-   opt-in snapshot scan are ready; retain `[~]` until a legal R1 run verifies a
-   visible textdraw without traffic and exits normally. Display strings remain
-   a separate pending semantic investigation.
-   The third bounded object sub-batch is `HostApi::is_object_defined(id)`, a
-   1,000-ID demand-refreshed cache of only `CObjectPool::m_bNotEmpty[id]`. Its
-   fixture, `ResetObjectPool` field signature, four-per-pump budget, and opt-in
-   scan are ready; retain `[~]` until a legal R1 run finds a defined object
-   without traffic and exits normally.
-   The fourth bounded gangzone sub-batch is `HostApi::gangzone(id)`, a
-   1,024-ID demand-refreshed cache of fixed rectangle and draw-colour scalars.
-   Its fixture, `ResetGangZonePool` and `CGangZonePool::Create` field signatures,
-   four-per-pump budget, and opt-in scan are ready; retain `[~]` until a legal R1
-   run finds a gangzone with correct copied fields, no traffic, and normal exit.
-   The fifth bounded label sub-batch is `HostApi::text_label(id)`, a 2,048-ID
-   demand-refreshed cache of copied text, colour, position, distance, LOS, and
-   attachment-ID fields. Its fixture, `CLabelPool::Create` allocation/copy/
-   scalar-store signatures, four-per-pump budget, and opt-in scan are ready;
-   retain `[~]` until a legal R1 run finds one visible record, no traffic, and
-   exits normally.
-8. [ ] Reconcile the remaining typed protocol names below against the existing
-   event codecs. Add a named safe convenience only when its exact R1 wire
-   vector already exists or can be independently tested. Do not emulate a
-   client-side native action merely because it sends the same RPC.
-9. [ ] When the static-only list is exhausted, prepare release artifacts and
-   validation instructions, then wait for the live R1 scenarios below. Do not
-   start mutations, force-sync, reconnection, raw pointer, or raw callback
-   APIs without a new explicit experimental/unsafe design.
+### Phase 1 — cleanup and rebrand
 
-### Pending live R1 evidence
+- [ ] Delete `tests/e2e/`, `examples/validation_plugin/`,
+  `examples/validation_unloader/`, `REVIEW.md`, and `VALIDATION.md`.
+- [ ] Remove deleted workspace members, cargo-make tasks, CI jobs, release
+  inputs, validation references, and obsolete ABI self-tests.
+- [ ] Keep the C++ RakNet layout fixture, its Rust tests, and `build.rs` wiring.
+- [ ] Move the public crate to `sdk/` as package `samp-client-sdk`; rename the
+  host package to `samp-client-sdk-host` and deploy `samp_client_sdk.asi`.
+- [ ] Rename crate imports, examples, logs, release archives, repository/docs.rs
+  metadata, host discovery, ABI types, and the export to
+  `SampClientSdk_GetApiV1`.
+- [ ] Replace R1 PE/signature/fingerprint feature gates with fixed offsets plus
+  ordinary pointer, range, capacity, and enum validation. Keep build detection
+  only for selecting the recognized networking offset table.
+- [ ] Rewrite `README.md`, `CORE.md`, `ARCHITECTURE.md`, and `AGENTS.md` for the
+  two-pillar SDK, R1 bridge compatibility, layout-fixture rule, and removal of
+  the live-validation lifecycle.
+- [ ] Keep surviving behavior unchanged for SA-MP 0.3.7 R1 on GTA SA 1.0 US,
+  apart from the intentional package/symbol compatibility break.
 
-- [ ] Deploy the current validation plugin to the fingerprinted GTA SA 1.0 US
-  + SA-MP 0.3.7 R1 installation with the direct-client marker enabled. Confirm
-  that the queued dialog, chat entry, and death-window entry are all visible,
-  dismiss the dialog, and exit normally. Preserve only outcome/ID logs; never
-  record UI, packet, or RPC payloads.
-  The 2026-08-03 run and the first 2026-08-04 rerun were invalidated by host
-  fingerprint bugs: the remote-animation signature anchor was eight bytes
-  late, then the GTA PE entry RVA was misread as `0x00024570` instead of its
-  exact raw value `0x00424570`. The next run enabled the R1 profile and invoked
-  all three direct UI pumps, but exposed an invalid local-name accessor call;
-  the following run exposed a stale packet-derived assignment gate after that
-  accessor was corrected. Redeploy the build that gates the native pool ID on
-  R1 `CONNECTED` state before recording snapshot results. That run also took
-  longer than 30 seconds to install the client hooks, so dialog self-test
-  encoding now shares the two-minute connection-dependent validation window.
-  The directory validator also now accepts either defined
-  `is_player_paused` boolean instead of incorrectly requiring every selected
-  remote player to be unpaused. The next live run populated the local snapshot
-  and passed the remote directory check, but the validator had queued its local
-  dialog before spawn; a real server RPC 61 replaced it during the login/spawn
-  flow. The validator now waits for a populated spawned snapshot plus an idle
-  dialog state before queueing direct UI work, and boundedly requeues the local
-  dialog if a later non-validation dialog interrupts it. Redeploy before the
-  next live run. That run remained pending even though packet/RPC evidence
-  proved the client was spawned and no real server dialog arrived. Inspection
-  then found two false scalar gates: `GetCount` may validly return zero when
-  only the local player is present, and `m_nLargestId` may be below the
-  separately assigned local ID. Both value assumptions are removed; every
-  remaining wait now logs only its blocker category. The following instrumented
-  run showed `server-info-cache` and `animation-table-cache` alternating under
-  high packet load: each individual nonblocking read succeeded at times, but
-  the validator restarted the whole sequence after every transient `NotReady`.
-  Preflight now latches independent cache successes, separates the animation
-  forward/reverse reads, then rechecks only current local identity/spawn and
-  dialog/input idleness immediately before queueing. A fresh live run of this
-  corrected build remains required.
-- [ ] During that run, prove the three direct UI calls cause no incoming or
-  outgoing RPC 61/62 and no packet/RPC emission. Distinguish the validator's
-  intentional incoming RPC 61 emulation from direct-helper activity.
-- [ ] Verify `local_player` after server assignment, then while walking,
-  taking armour and health damage, and entering/leaving a vehicle. Confirm the
-  ID remains stable, all required fields change, and teardown clears cached
-  data without a crash.
-- [ ] Verify `server_info` against the selected server's displayed address,
-  hostname, and port, then exit normally.
-- [ ] With the direct-client marker enabled, cycle the R1 chat display mode
-  through off, no-shadow, and normal (F7) while the validator is observing.
-  Confirm its outcome line records all three cached modes, that no packet/RPC
-  traffic was generated, and that normal shutdown remains stable.
-- [ ] In the same run, open and close the scoreboard (Tab) and activate then
-  dismiss any normal local cursor state. Confirm the validator records both
-  cached scoreboard states and both cursor categories without packet/RPC
-  emission or an unstable shutdown.
-- [ ] Leave the validator's direct dialog open until it begins observing, then
-  dismiss it; open and close chat input as well. Confirm its initial
-  `active_dialog=Ok` result matches the queued dialog core, its outcome records
-  both active-dialog-core `Some`/`None` states alongside cached dialog and
-  chat-input active/inactive pairs, with no packet/RPC emission or shutdown
-  instability.
-- [ ] Confirm the direct-client validator reads R1 animation entry zero as
-  `AIRPORT:THRW_BARL_THRW` and resolves those byte strings back to zero. It is
-  an automatic static-table check, but must still be recorded with the normal
-  R1 lifecycle and shutdown evidence.
-- [ ] With a second player connected, enable the player-directory marker and
-  confirm the validator records only `player-directory self-test passed` and
-  that remote player ID. Verify the first read is nonblocking/possibly
-  `NotReady`, a later cached result has the observed connected nickname/NPC,
-  colour, score, and ping values, a disconnected result becomes `None` after
-  refresh, it generates no packet/RPC traffic, and shutdown is stable.
-- [ ] Confirm the direct validator records `player_count=Ok` after joining a
-  server and that the cached including-NPC connected-slot count is bounded and
-  readable. Zero is valid when no remote slots are connected because the
-  accessor does not add the local assignment. It must not generate packet/RPC
-  traffic or make shutdown unstable. Streamed-ped count remains out of scope
-  pending separate GTA-ped evidence.
-- [ ] Confirm the direct validator records both `player_max_id` and
-  `local_player_id` after joining a server. The non-streamed maximum is the
-  greatest connected-table slot and may be below the independently assigned
-  local ID. It must generate no packet/RPC traffic and leave normal shutdown
-  stable; the streamed-GTA-ped branch remains out of scope pending separate
-  evidence.
-- [ ] With the vehicle-exists marker enabled, confirm the validator records
-  only `vehicle-exists self-test passed` and one defined vehicle ID. It must
-  tolerate initial `NotReady` while the bounded queue is pumped, generate no
-  packet/RPC traffic, and leave normal shutdown stable.
-- [ ] With the text-label-exists marker enabled on a server that displays a
-  3D label, confirm the validator records only
-  `text-label-exists self-test passed` and one defined label ID. It must
-  tolerate initial `NotReady` while the bounded queue is pumped, generate no
-  packet/RPC traffic, and leave normal shutdown stable.
-- [ ] With the text-label marker enabled on a server that displays a 3D label,
-  confirm the validator records only `text-label self-test passed` and one
-  label ID. Independently compare the copied content and scalar fields to the
-  visible label without logging any label text or fields. It must tolerate
-  initial `NotReady`, generate no packet/RPC traffic, and leave normal shutdown
-  stable.
-- [ ] With the textdraw-exists marker enabled on a server that displays a
-  textdraw, confirm the validator records only `textdraw-exists self-test
-  passed` and one defined raw pool index. It must tolerate initial `NotReady`
-  while the bounded queue is pumped, generate no packet/RPC traffic, and leave
-  normal shutdown stable.
-- [ ] With the textdraw marker enabled on a server that displays a textdraw,
-  confirm the validator records only `textdraw self-test passed` and one raw
-  pool index. Independently compare the copied numeric record to the visible
-  textdraw without logging its content or fields. It must tolerate initial
-  `NotReady`, generate no packet/RPC traffic, and leave normal shutdown stable.
-- [ ] With the object-exists marker enabled on a server that displays a
-  streamed object, confirm the validator records only `object-exists self-test
-  passed` and one defined object ID. It must tolerate initial `NotReady` while
-  the bounded queue is pumped, generate no packet/RPC traffic, and leave normal
-  shutdown stable.
-- [ ] With the gangzone marker enabled on a server that displays a gangzone,
-  confirm the validator records only `gangzone self-test passed` and one ID.
-  Independently confirm the copied rectangle and both colours match the visible
-  gangzone. It must tolerate initial `NotReady`, generate no packet/RPC traffic,
-  and leave normal shutdown stable.
-- [ ] For every newly added direct native surface, add an opt-in validator
-  action before asking for its live run. Record the exact client identity,
-  observed outcome, shutdown result, and any RPC/packet absence evidence in
-  `REVIEW.md`; move only that helper from `[~]` to `[x]`.
-- [ ] Run the same full lifecycle separately on legal R2, R3.1, R4.2, R5.1,
-  and DL installations before enabling any direct helper for those builds.
+### Phase 2 — game-thread foundation
 
-### Release audit
+- [ ] Hook `CGame::Process` at `0x53E4B0`, retain its trampoline, call the
+  original exactly once per entry, and restore it during shutdown.
+- [ ] Remove cache and UI pumping from the incoming-packet detour.
+- [ ] Add the bounded 256-entry owned `GameCommand` queue and drain one accepted
+  snapshot after the original game process call on each tick.
+- [ ] Migrate dialog, chat, and death-window queues into `GameCommand`.
+- [ ] Queue every plugin-thread native mutation and explicit RakClient
+  send/emulation; keep callback-local packet/RPC replacement synchronous.
+- [ ] Add host-owned command IDs, fixed `repr(C)` result storage, poll,
+  timed-wait, release, detach-on-drop, timeout retry, and shutdown completion.
+- [ ] Reject waits from the game thread and listener callbacks.
+- [ ] Publish one coherent cache generation per tick: refresh lightweight
+  global/pool directories eagerly and heavy requested/active records through
+  bounded, deduplicated refresh queues.
+- [ ] Clear stale generations and pending heavy records across connection,
+  version, and shutdown transitions.
 
-- [ ] Reconcile every one of the 207 pinned SF.lua globals below with a safe
-  implementation, a documented protocol-only approximation, or an explicit
-  safe-ABI exclusion. Do not leave an unclassified function hidden in a
-  comma-separated list.
-- [ ] Re-read `README.md`, `CORE.md`, `ARCHITECTURE.md`, `VALIDATION.md`, and
-  `REVIEW.md` against the final API. Remove provisional language only when its
-  matching live evidence is recorded.
-- [ ] Perform the final Windows x86 build/E2E suite and the required live R1
-  scenarios on the exact release artifacts before declaring the backlog done.
+### Phase 3 — facade and feature completion
 
-- [ ] Re-record the GTA SA 1.0 US + SA-MP 0.3.7 R1 direct-client live gate
-  after the 2026-08-04 readiness and scalar-preflight corrections:
-  dialog display, populated snapshot, walking/damage/armour/vehicle field
-  changes, no direct-dialog RPC 61/62 traffic, and stable normal shutdown.
-  Snapshot publication starts only when the fingerprinted native state is R1
-  `CONNECTED` and the pool exposes an assigned local-player ID; it reports
-  `NotReady` beforehand.
-- [ ] Validate the complete lifecycle on legal R2, R3.1, R4.2, R5.1, and DL
-  installations. Keep direct client helpers unsupported until each profile has
-  its own fingerprints, fixture, and live evidence.
+- [ ] Introduce `Samp::connect`, `Samp::connect_to`, subsystem facades, checked
+  SA-MP ID newtypes, typed GTA handles, `CommandReceipt<T>`, and typed errors.
+- [ ] Make the raw ABI wrapper private or documentation-hidden and expose native
+  addresses only through the explicit `unsafe raw` module.
+- [ ] Move subscriptions, typed events, exact sends/emulation, string codecs,
+  protocol catalogs, and owned `BitStream` behind `samp.net()`.
+- [ ] Migrate all existing cached reads to their facade targets without
+  plugin-thread native calls.
+- [ ] Implement queued UI, player, pool/entity, connection, command-registry,
+  sync, and dialog-response mutations in bounded vertical slices.
+- [ ] Complete every baseline and extension mapping below; leave no provisional,
+  excluded, duplicate, or unclassified function.
 
-## SF.lua-compatible R1 backlog
+### Verification and finalization
 
-This is the implementation target, taken from [SF.lua]
-at commit `d869b8fb2ac9b527209e05376c19f3c96ee318e5`: its `SFlua/*.lua`
-modules define 207 distinct global functions. The list is organized by source
-module so it stays auditable against that reference, rather than claiming a
-larger SAMPFUNCS opcode catalog. A compatible result does not imply that raw
-pointers, memory writes, force-sync, or Lua callback ownership will cross this
-safe Rust ABI; those require an explicit unsafe/experimental design.
+- [ ] Test game-hook lifecycle and ordering, queue FIFO/frame boundaries,
+  capacity, result/error/timeout paths, deadlock rejection, and shutdown.
+- [ ] Test coherent cache generations, transition invalidation, eager directory
+  refresh, bounded heavy refresh, and absence of plugin-thread native reads.
+- [ ] Add mock-ABI facade coverage for every subsystem, ID/handle bounds, owned
+  strings, command result types, and unsafe boundaries.
+- [ ] Preserve exact packet/RPC vectors, exactly-once incoming emulation,
+  listener ordering, unload synchronization, and C++↔Rust layout tests.
+- [ ] Run `cargo fmt --all -- --check`,
+  `cargo test --workspace --all-targets --locked`,
+  `cargo clippy --workspace --all-targets --locked -- -D warnings`, and
+  `cargo build --workspace --release --locked`.
+- [ ] Mark the proposal implemented and audit the renamed release archive,
+  examples, symbols, checksums, README, and license.
+- [ ] Create a recoverable backup branch, squash `feature/helpers` since
+  `master` into one repositioning commit, verify tree identity, and retain the
+  backup until review. Do not rewrite `master` or the existing alpha tags.
 
-[SF.lua]: https://github.com/SF-lua/SF.lua/tree/d869b8fb2ac9b527209e05376c19f3c96ee318e5
+## SF.lua compatibility map
 
-- [~] `sampGetGamestate`: first implementation. Expose it as the nonblocking,
-  cached scalar `HostApi::samp_game_state`, refreshed by the verified R1 game
-  thread only.
-- [ ] Implement each item below only with an R1 fingerprint, narrow fixture,
-  safe ABI data model, automated test, and live-client evidence.
+Source: [`SF.lua` at `d869b8fb2ac9b527209e05376c19f3c96ee318e5`](https://github.com/SF-lua/SF.lua/tree/d869b8fb2ac9b527209e05376c19f3c96ee318e5).
+The baseline contains 207 declared functions. The conditional
+`isSampfuncsConsoleActive` fallback and `isSampfuncsLoaded` alias are compatibility
+stubs rather than SDK targets. The 14 names commented as future work in
+`SFlua/init.lua` are classified separately after the baseline.
 
-### Basic (`basic.lua`)
+Tiers:
 
-- [x] `sampGetVersion` — safe `HostApi::samp_version` reports the host's
-  verified SA-MP build identity without a client-memory read.
-- [x] `isSampAvailable` — safe `HostApi::is_samp_available` reports that the
-  host attached and its RakClient hooks are ready, without dereferencing
-  `CNetGame` on the plugin thread.
-- [ ] `sampGetBase` — the raw module base remains outside the safe ABI.
-- [x] `isSampLoaded` — `HostApi::is_samp_loaded` reports a recognized host
-  attachment before RakClient hook readiness; use `is_samp_available` when
-  ready hooks are required.
+- **Safe owned/read** — cached reads, owned `BitStream` operations, pure
+  catalogs, typed handle conversion, and owned subscriptions.
+- **Queued mutation** — bounded native state/UI changes, connection actions,
+  sends, emulation, and native command registration executed on the game tick.
+- **Unsafe raw** — native pointers, code addresses, and callback-table access.
 
-### Chat and death window (`chat.lua`, `deathwindow.lua`)
+<!-- sf-lua-baseline:start -->
+### Basic (`basic.lua`) — 5
 
-- [ ] `sampGetChatInfoPtr` — raw pointer API; permanently excluded from the
-  safe ABI. `sampSetChatDisplayMode` and `sampSetChatString` are client UI
-  mutations; excluded pending an explicit experimental policy. `sampGetChatString`
-  is a future copied read only after the R1 chat-ring layout, string capacity,
-  and lifecycle are independently proven; it belongs to static-first step 6.
-- [~] `sampGetChatDisplayMode`, `sampIsChatVisible` —
-  `HostApi::local_chat_display_mode` and its derived
-  `HostApi::is_local_chat_visible` return a game-thread-cached R1 enum only.
-  Keep provisional until the dedicated three-mode and shutdown live check.
-- [~] `sampAddChatMessage`, `sampAddChatMessageEx` —
-  `HostApi::show_local_chat_message` copies one bounded R1 chat/info/debug
-  entry for the game-thread pump without sending any packet or RPC. Keep this
-  provisional until the dedicated live R1 UI and shutdown scenario runs.
-- [ ] `sampGetKillInfoPtr` — raw death-window pointer; permanently excluded
-  from the safe ABI.
-- [~] `sampAddDeathMessage` — `HostApi::show_local_death_message` copies one
-  bounded R1 death-window entry for the game-thread pump without packet/RPC
-  emulation. Keep this provisional until its dedicated live UI/shutdown check.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetBase` | Unsafe raw | `raw::base` |
+| [ ] | `sampGetVersion` | Safe owned/read | `Samp::version` |
+| [ ] | `isSampLoaded` | Safe owned/read | `Samp::probe` host-loaded status |
+| [ ] | `isSampfuncsLuaLoaded` | Safe owned/read | `Samp::probe` recognized-build status |
+| [ ] | `isSampAvailable` | Safe owned/read | `Samp::probe` ready status |
 
-### Dialog, cursor, and input (`dialog.lua`, `game.lua`, `input.lua`)
+### Chat and death window (`chat.lua`, `deathwindow.lua`) — 10
 
-- [x] `sampShowDialog` — represented by safe queued
-  `HostApi::show_local_dialog`.
-- [ ] `sampGetDialogInfoPtr` — raw pointer API; excluded.
-  `sampCloseCurrentDialogWithButton`, `sampSetCurrentDialogListItem`,
-  `sampSetCurrentDialogEditboxText`, and `sampSetDialogClientside` mutate
-  client UI; excluded.
-- [~] `sampGetCurrentDialogType`, `sampGetCurrentDialogId`,
-  `sampGetDialogCaption`, and `sampIsDialogClientside` —
-  `HostApi::active_local_dialog` returns their bounded copied active-dialog
-  core only. Keep provisional until the exact active/dismissed lifecycle,
-  no-traffic, and shutdown live check is recorded.
-- [ ] `sampGetCurrentDialogListItem`, `sampGetCurrentDialogEditboxText`,
-  `sampGetDialogText`, `sampGetListboxItemsCount`, and
-  `sampGetListboxItemText` require dynamic pointer/string/list ownership and
-  bounds evidence before a separate copied snapshot in static-first step 6.
-- [~] `sampIsDialogActive` — `HostApi::is_local_dialog_active` is a cached
-  R1 game-thread read only. Keep provisional until direct-dialog active and
-  dismissal states are observed in the live lifecycle test.
-- [ ] `sampGetMiscInfoPtr`, `sampToggleCursor`, `sampSetCursorMode` — pointer
-  access and UI mutations remain outside the safe ABI.
-- [~] `sampIsCursorActive`, `sampGetCursorMode` —
-  `HostApi::local_cursor_mode` and its derived
-  `HostApi::is_local_cursor_active` copy a cached R1 cursor state only. Keep
-  provisional until the dedicated cursor transition and shutdown live check.
-- [ ] `sampGetInputInfoPtr` — raw pointer API; excluded. `sampRegisterChatCommand`,
-  `sampUnregisterChatCommand`, `sampSetChatInputText`, `sampSetChatInputEnabled`,
-  and `sampProcessChatInput` mutate client state or retain a foreign callback;
-  excluded. `sampGetChatInputText` is the copied bounded read candidate in
-  static-first step 6. `sampIsChatCommandDefined` requires an owned command
-  registry design and verified native ownership rules; do not infer it from a
-  raw map or a plugin callback pointer.
-- [~] `sampIsChatInputActive` — `HostApi::is_local_chat_input_active` is a
-  cached R1 game-thread read only. Keep provisional until normal chat-input
-  open/close and shutdown live evidence is recorded.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetChatInfoPtr` | Unsafe raw | `raw::chat` |
+| [ ] | `sampAddChatMessage` | Queued mutation | `Chat::add` |
+| [ ] | `sampGetChatDisplayMode` | Safe owned/read | `Chat::display_mode` |
+| [ ] | `sampSetChatDisplayMode` | Queued mutation | `Chat::set_display_mode` |
+| [ ] | `sampGetChatString` | Safe owned/read | `Chat::entry` |
+| [ ] | `sampSetChatString` | Queued mutation | `Chat::set_entry` |
+| [ ] | `sampIsChatVisible` | Safe owned/read | `Chat::is_visible` |
+| [ ] | `sampAddChatMessageEx` | Queued mutation | `Chat::add_with_style` |
+| [ ] | `sampGetKillInfoPtr` | Unsafe raw | `raw::death_window` |
+| [ ] | `sampAddDeathMessage` | Queued mutation | `Chat::death_window().add` |
 
-### Pools, labels, objects, pickups, vehicles, textdraws (`gangzone.lua`, `label.lua`, `object.lua`, `pickup.lua`, `vehicle.lua`, `textdraw.lua`)
+### Dialog (`dialog.lua`) — 16
 
-- [ ] `sampGetGangzonePoolPtr` — raw pointer API; excluded.
-- [~] Safe replacement for a useful read-only gangzone view:
-  `HostApi::gangzone(id)` demand-refreshes an owned R1 rectangle and two draw
-  colours. It never exposes a gangzone/pool pointer. Keep provisional until the
-  opt-in gangzone scan verifies one visible record, no traffic, and normal
-  shutdown.
-- [ ] With the remote-player-state marker enabled and a second player in-world,
-  confirm the validator observes a health-or-armour transition, special-action
-  transition, and animation-ID transition without logging values or traffic.
-  Repeat after that player disconnects to confirm the cached result becomes
-  `None`, then exit normally.
-- [ ] `sampGetTextlabelPoolPtr` — raw pointer API; excluded.
-  `sampCreate3dText`, `sampSet3dTextString`, `sampDestroy3dText`, and
-  `sampCreate3dTextEx` mutate the native label pool; excluded.
-- [~] `sampIs3dTextDefined` — `HostApi::is_text_label_defined(id)` uses a
-  bounded demand-refreshed R1 `CLabelPool::m_bNotEmpty` cache. It exposes only
-  the copied boolean, never a label/pool pointer or label text. Keep provisional
-  until the opt-in label scan records a defined ID, no traffic, and normal
-  shutdown.
-- [~] `sampGet3dTextInfoById` — `HostApi::text_label(id)` demand-refreshes a
-  bounded copied R1 label snapshot (byte text, ARGB colour, position, distance,
-  LOS, and optional attachment IDs). The R1 `CLabelPool::Create` allocation,
-  copy, and scalar-store signatures plus an independent packed fixture prove
-  the narrow profile. Keep provisional until the opt-in visible-label scan,
-  no-traffic result, and normal shutdown are recorded.
-- [ ] `sampGetObjectPoolPtr`, `sampGetObjectHandleBySampId`, and
-  `sampGetObjectSampIdByHandle` expose native/GTA pointers or handles; excluded
-  from the safe ABI rather than wrapped as integer addresses.
-- [~] Safe read-only prerequisite for `sampGetObjectHandleBySampId`:
-  `HostApi::is_object_defined(id)` is a bounded demand-refreshed R1
-  `CObjectPool::m_bNotEmpty` cache. It exposes only the copied boolean, never an
-  object/pool pointer or GTA handle. Keep provisional until the opt-in object
-  scan records a defined ID, no traffic, and normal shutdown.
-- [ ] `sampGetPickupPoolPtr`, `sampGetPickupHandleBySampId`, and
-  `sampGetPickupSampIdByHandle` expose native/GTA pointers or handles; excluded.
-- [ ] `sampGetVehiclePoolPtr`, `sampGetCarHandleBySampVehicleId`, and
-  `sampGetVehicleIdByCarHandle` expose native/GTA pointers or handles; excluded.
-- [~] `sampIsVehicleDefined` — `HostApi::is_vehicle_defined(id)` uses a
-  bounded, demand-refreshed R1 `CVehiclePool::DoesExist` boolean cache. It
-  never exposes the pool, vehicle, or GTA handle. Keep provisional until the
-  opt-in vehicle scan records a defined ID, no traffic, and normal shutdown.
-- [ ] `sampGetTextdrawPoolPtr` — raw pointer API; excluded. `sampTextdrawCreate`,
-  `sampTextdrawSetBoxColorAndSize`, `sampTextdrawDelete`,
-  `sampTextdrawSetLetterSizeAndColor`, `sampTextdrawSetPos`,
-  `sampTextdrawSetString`, `sampTextdrawSetModelRotationZoomVehColor`,
-  `sampTextdrawSetOutlineColor`, `sampTextdrawSetShadow`, `sampTextdrawSetStyle`,
-  `sampTextdrawSetProportional`, and `sampTextdrawSetAlign` mutate native UI;
-  excluded.
-- [~] `sampTextdrawIsExists` — `HostApi::is_textdraw_defined(pool_index)` uses
-  a bounded demand-refreshed R1 `CTextDrawPool::m_bNotEmpty` cache. It preserves
-  the raw 2,048-global then 256-local slot order and exposes only the copied
-  boolean. Keep provisional until the opt-in textdraw scan records a defined
-  slot, no traffic, and normal shutdown.
-- [~] `sampTextdrawGetLetterSizeAndColor`, `sampTextdrawGetPos`,
-  `sampTextdrawGetShadowColor`, `sampTextdrawGetOutlineColor`,
-  `sampTextdrawGetStyle`, `sampTextdrawGetProportional`, `sampTextdrawGetAlign`,
-  `sampTextdrawGetBoxEnabledColorAndSize`, and
-  `sampTextdrawGetModelRotationZoomVehColor` — `HostApi::textdraw(pool_index)`
-  copies the proven numeric R1 fields through a bounded game-thread cache.
-  Keep provisional until its dedicated live snapshot scan confirms a visible
-  record without traffic or shutdown instability.
-- [ ] `sampTextdrawGetString` needs a distinct fixed bounded-copy design after
-  the R1 display-string allocation, replacement, and lifetime semantics are
-  independently proven. Do not expose a native string or pool pointer.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetDialogInfoPtr` | Unsafe raw | `raw::dialog` |
+| [ ] | `sampShowDialog` | Queued mutation | `Dialogs::show` |
+| [ ] | `sampCloseCurrentDialogWithButton` | Queued mutation | `Dialogs::close_with_button` |
+| [ ] | `sampGetCurrentDialogListItem` | Safe owned/read | `Dialogs::active().selected_item` |
+| [ ] | `sampSetCurrentDialogListItem` | Queued mutation | `Dialogs::set_selected_item` |
+| [ ] | `sampGetCurrentDialogEditboxText` | Safe owned/read | `Dialogs::active().editbox_text` |
+| [ ] | `sampSetCurrentDialogEditboxText` | Queued mutation | `Dialogs::set_editbox_text` |
+| [ ] | `sampIsDialogActive` | Safe owned/read | `Dialogs::is_active` |
+| [ ] | `sampGetCurrentDialogType` | Safe owned/read | `Dialogs::active().style` |
+| [ ] | `sampGetCurrentDialogId` | Safe owned/read | `Dialogs::active().id` |
+| [ ] | `sampGetDialogCaption` | Safe owned/read | `Dialogs::active().caption` |
+| [ ] | `sampGetDialogText` | Safe owned/read | `Dialogs::active().text` |
+| [ ] | `sampIsDialogClientside` | Safe owned/read | `Dialogs::active().is_client_side` |
+| [ ] | `sampSetDialogClientside` | Queued mutation | `Dialogs::set_client_side` |
+| [ ] | `sampGetListboxItemsCount` | Safe owned/read | `Dialogs::active().items().len` |
+| [ ] | `sampGetListboxItemText` | Safe owned/read | `Dialogs::active().items().get` |
 
-### Net game and scoreboard (`netgame.lua`, `scoreboard.lua`)
+### Cursor and game (`game.lua`) — 5
 
-- [ ] `sampGetSampInfoPtr`, `sampGetSampPoolsPtr`, and
-  `sampGetServerSettingsPtr` are raw pointers; excluded. `sampSetGamestate`
-  and `sampSetSendrate` directly mutate client state/timing; excluded pending
-  an explicit unsafe experimental design.
-- [~] `sampGetAnimationNameAndFile`, `sampFindAnimationIdByNameAndFile` —
-  `HostApi::local_animation` and `HostApi::local_animation_id` read an owned
-  cached copy of the fingerprinted fixed R1 table. Keep provisional until the
-  automatic known-entry lookup and normal shutdown live check are recorded.
-- [~] `sampGetCurrentServerName`, `sampGetCurrentServerAddress` —
-  `HostApi::server_info` provides an owned cached R1 address, hostname, and
-  port. Keep this status until its dedicated live R1 scenario records a match
-  with the selected server and stable normal shutdown.
-- [ ] `sampToggleScoreboard` — direct scoreboard mutation remains outside the
-  safe ABI pending separate native-call evidence and an explicit policy.
-- [~] `sampIsScoreboardOpen` — `HostApi::is_local_scoreboard_open` returns a
-  cached R1 game-thread read only. Keep provisional until the open/close and
-  shutdown live check.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetMiscInfoPtr` | Unsafe raw | `raw::misc` |
+| [ ] | `sampToggleCursor` | Queued mutation | `Cursor::toggle` |
+| [ ] | `sampIsCursorActive` | Safe owned/read | `Cursor::is_active` |
+| [ ] | `sampGetCursorMode` | Safe owned/read | `Cursor::mode` |
+| [ ] | `sampSetCursorMode` | Queued mutation | `Cursor::set_mode` |
 
-### Players (`player.lua`)
+### Gangzones (`gangzone.lua`) — 1
 
-- [ ] `sampGetPlayerPoolPtr`, `sampGetCharHandleBySampPlayerId`,
-  `sampGetPlayerIdByCharHandle`, and `sampGetPlayerStructPtr` expose native or
-  GTA pointers/handles; excluded. `sampSpawnPlayer`, `sampSetSpecialAction`,
-  `sampSetLocalPlayerName`, `sampForceUnoccupiedSyncSeatId`,
-  `sampForceAimSync`, `sampForceOnfootSync`, `sampForceStatsSync`,
-  `sampForceTrailerSync`, and `sampForceVehicleSync` are native mutations or
-  force-sync APIs; excluded. `sampStorePlayerOnfootData`, `sampStorePlayerIncarData`,
-  `sampStorePlayerPassengerData`, `sampStorePlayerTrailerData`, and
-  `sampStorePlayerAimData` may only become owned typed sync copies after exact
-  source-field/layout proof; they must never write to a plugin-supplied pointer.
-  Preparation audit (not implementation evidence): the installed R1 DLL's
-  `CRemotePlayer::Update(OnfootData, TICK)` at RVA `0x139A0` copies the
-  fixture-sized 68-byte on-foot record to `this + 0xC8`, converts its health
-  and armour bytes into reported floats at `+0x1BC` and `+0x1B8`, and writes
-  its special-action byte to `+0xBB`. Before exposing any snapshot, add an
-  independent packed remote-player fixture, exact complete update-path
-  signatures for every copied field. The on-foot health/armour/special-action
-  signature is now pinned at `Update(OnfootData) + 0x2F` (RVA `0x139CF`);
-  `CRemotePlayer::Process + 0x1A6` (RVA `0x13096`) now also pins the write to
-  `+0x1C0`. `HostApi::remote_player_state` and scalar projections now copy all
-  four fields through their own 32-request, four-per-pump cache; remain
-  provisional until the second-client live scenario exercises damage, special
-  action, animation transitions, disconnect, and shutdown.
-- [~] `sampGetPlayerCount` — `HostApi::player_count(include_npcs)` caches the
-  two R1 `CPlayerPool::GetCount` scalar modes, covering SF.lua's non-streamed
-  `GetCount(true)` path. The streamed-ped form remains pending GTA-ped layout
-  evidence. Keep this scalar cache provisional until its direct live check.
-- [~] `sampGetMaxPlayerId` — `HostApi::player_max_id()` caches the exact R1
-  `CPlayerPool::m_nLargestId` scalar and covers SF.lua's non-streamed branch.
-  Its streamed-GTA-ped branch remains pending separate native-layout evidence.
-  Keep this cache provisional until its direct live check.
-- [~] `sampIsPlayerConnected`, `sampGetPlayerNickname`, `sampIsPlayerNpc`,
-  remote forms of `sampGetPlayerScore`, `sampGetPlayerPing`, and
-  `sampGetPlayerColor` — `HostApi::player_info` plus its projections use a
-  bounded, demand-refreshed R1 accessor-only directory. The local-ID path is
-  derived from the existing local snapshot. Keep provisional until a second
-  connected player, refresh/disconnect transition, no-traffic result, and
-  shutdown are recorded by the opt-in validator.
-- [x] `sampGetLocalPlayerId`, `sampGetLocalPlayerNickname`,
-  `sampGetLocalPlayerColor`, `sampIsLocalPlayerSpawned`,
-  `sampGetPlayerArmor`, `sampGetPlayerHealth`, `sampGetPlayerSpecialAction`,
-  `sampGetPlayerAnimationId` — explicit safe local-player query methods reuse
-  the single cached `HostApi::local_player` snapshot.
-- [~] Remote `sampGetPlayerArmor`, `sampGetPlayerHealth`,
-  `sampGetPlayerSpecialAction`, and `sampGetPlayerAnimationId` —
-  `HostApi::remote_player_state` plus scalar projections expose a copied,
-  bounded R1 game-thread cache. Keep provisional pending the prepared
-  second-client lifecycle validation.
-- [~] `sampGetPlayerScore`, `sampGetPlayerPing` — `HostApi::player_score` and
-  `HostApi::player_ping` cover cached local and demand-refreshed remote IDs;
-  the existing `local_player_*` projections remain available. Keep provisional
-  with the player-directory live gate.
-- [~] `sampIsPlayerPaused` — `HostApi::is_player_paused(id)` reuses the
-  bounded player directory and fingerprinted R1 `CRemotePlayer::GetStatus`
-  accessor; it maps only `PLAYER_STATE_NONE` to true and always returns false
-  for the local player. Keep provisional with the second-player live gate.
-- [~] `sampRequestClass`, `sampSendInteriorChange`, `sampSendSpawn`,
-  `sampSendEnterVehicle`, `sampSendExitVehicle` — the corresponding
-  `HostApi::send_*` methods serialize the exact R1 outbound RPCs, but remain
-  protocol-only and do not invoke SF.lua's native local-player state changes.
-- [x] `sampSendChat` — `HostApi::send_chat` serializes the typed, bounded
-  server-bound RPC 101 payload, or RPC 50 for slash-prefixed commands, through
-  the original RakClient send path.
-- [~] `sampIsPlayerDefined` — `HostApi::is_player_defined(id)` reuses the
-  bounded directory cache and the fingerprinted R1 `CRemotePlayer::DoesExist`
-  accessor. It distinguishes a connected remote player from a defined
-  client-world object without exposing either native object or ped. Keep
-  provisional with the second-player directory live gate. `sampSetPlayerColor`
-  mutates a remote client entity and is excluded.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetGangzonePoolPtr` | Unsafe raw | `raw::gangzone_pool` |
 
-### RakNet and network actions (`raknet.lua`)
+### Chat input (`input.lua`) — 9
 
-- [x] `raknetGetRpcName`, `raknetGetPacketName` — pure catalog lookups are
-  available as `rak_samp_plugin_api::raknet::{rpc_name, packet_name}`.
-- [x] `raknetNewBitStream`, `raknetDeleteBitStream`, `raknetResetBitStream`,
-  `raknetBitStreamReadBool`, `raknetBitStreamReadBuffer`,
-  `raknetBitStreamReadInt8`, `raknetBitStreamReadInt16`,
-  `raknetBitStreamReadInt32`, `raknetBitStreamReadFloat`,
-  `raknetBitStreamReadString`, `raknetBitStreamResetReadPointer`,
-  `raknetBitStreamResetWritePointer`, `raknetBitStreamIgnoreBits`,
-  `raknetBitStreamSetWriteOffset`, `raknetBitStreamSetReadOffset`,
-  `raknetBitStreamGetNumberOfBitsUsed`, `raknetBitStreamGetNumberOfBytesUsed`,
-  `raknetBitStreamGetNumberOfUnreadBits`, `raknetBitStreamGetWriteOffset`,
-  `raknetBitStreamGetReadOffset`,
-  `raknetBitStreamWriteBool`, `raknetBitStreamWriteInt8`,
-  `raknetBitStreamWriteInt16`, `raknetBitStreamWriteInt32`,
-  `raknetBitStreamWriteFloat`, `raknetBitStreamWriteBuffer`,
-  `raknetBitStreamWriteString`, `raknetBitStreamWriteBitStream` — safe owned
-  equivalents are in `rak_samp_plugin_api::raknet::BitStream`; raw data pointers
-  and invalid/uninitialized cursor states are intentionally unavailable.
-- [x] `raknetBitStreamEncodeString` — use `HostApi::encode_string` then
-  `BitStream::write_encoded_string`.
-- [~] `raknetBitStreamDecodeString` — `HostApi::decode_string` decodes through
-  copied, owned `BitStream` storage and advances its cursor only on success;
-  retain this status until the dedicated direct-ABI R1 live scenario runs.
-- [ ] `raknetBitStreamGetDataPtr` — raw client/plugin memory pointers remain
-  outside the safe ABI.
-- [x] `raknetSendRpcEx`, `raknetSendRpc` — safe stream convenience methods are
-  `HostApi::send_rpc_stream` and `HostApi::send_rpc`; timestamped sends remain
-  rejected by the host policy.
-- [x] `raknetSendBitStreamEx`, `raknetSendBitStream` — represented by
-  `HostApi::send_packet_stream` and `HostApi::send_packet` with the packet ID
-  explicit rather than embedded in an unchecked native bitstream.
-- [ ] `sampGetRakclientInterface` and `sampGetRakpeer` are raw client pointers;
-  excluded. `sampDisconnectWithReason` and `sampConnectToServer` change
-  connection state and are excluded from this in-process host policy.
-- [x] `sampSendRequestSpawn` — `HostApi::send_request_spawn` sends the exact
-  empty, server-bound RPC 129 without invoking native local-player methods.
-- [x] `sampSendDialogResponse`, `sampSendClickPlayer`,
-  `sampSendClickTextdraw`, `sampSendDeathByPlayer`, `sampSendMenuQuit`,
-  `sampSendMenuSelectRow`, `sampSendPickedUpPickup`,
-  `sampSendVehicleDestroyed` — matching `HostApi::send_*` helpers serialize
-  the typed outgoing RPCs and send them through the original RakClient path.
-- [x] `sampSendDamageVehicle`, `sampSendGiveDamage`, `sampSendTakeDamage`,
-  `sampSendEditAttachedObject`, `sampSendEditObject`, `sampSendRconCommand` —
-  matching `HostApi::send_*` helpers serialize the exact bounded outgoing RPC
-  or packet. Attached-object edits require the complete typed payload,
-  including both colours omitted by SF.lua's partial helper signature.
-- [x] `sampSendScmEvent` — `HostApi::send_scm_event` maps the complete typed
-  R1 RPC 96 payload into its required wire order.
-- [x] `sampSendAimData`, `sampSendBulletData`, `sampSendIncarData`,
-  `sampSendOnfootData`, `sampSendSpectatorData`, `sampSendTrailerData`,
-  `sampSendPassengerData`, `sampSendUnoccupiedData` — matching complete typed
-  `HostApi::send_*_sync` helpers serialize the fixed-layout packet and send it
-  through the original RakClient path. They do not force or mutate local sync
-  state.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetInputInfoPtr` | Unsafe raw | `raw::chat_input` |
+| [ ] | `sampRegisterChatCommand` | Queued mutation | `ChatInput::register_command` returning a subscription |
+| [ ] | `sampUnregisterChatCommand` | Queued mutation | `ChatCommandSubscription::unregister_and_wait` |
+| [ ] | `sampSetChatInputText` | Queued mutation | `ChatInput::set_text` |
+| [ ] | `sampGetChatInputText` | Safe owned/read | `ChatInput::text` |
+| [ ] | `sampSetChatInputEnabled` | Queued mutation | `ChatInput::set_enabled` |
+| [ ] | `sampIsChatInputActive` | Safe owned/read | `ChatInput::is_active` |
+| [ ] | `sampIsChatCommandDefined` | Safe owned/read | `ChatInput::is_command_defined` |
+| [ ] | `sampProcessChatInput` | Queued mutation | `ChatInput::process` |
 
-### SF.lua’s explicit future items (`init.lua`)
+### 3D labels (`label.lua`) — 7
 
-- [ ] `sampHasDialogRespond` requires a response-lifecycle model and remains a
-  future copied-state candidate only after a dedicated dialog profile. The
-  force-sync functions `sampForcePassengerSyncSeatId` and
-  `sampForceWeaponsSync` are excluded. `sampGetRakclientFuncAddressByIndex`,
-  `sampGetRpcCallbackByRpcId`, and `sampGetRpcNodeByRpcId` expose raw code or
-  callback pointers; excluded. `raknetEmulRpcReceiveBitStream` and
-  `raknetEmulPacketReceiveBitStream` require an explicit event-emulation design
-  and cannot bypass the host's exactly-once listener path. `sampSetClientCommandDescription`
-  mutates native command state; excluded. `sampGetStreamedOutPlayerPos` is a
-  future copied remote-player query only after a separate R1 layout proof.
-  `onSendRpc`, `onSendPacket`, `onReceiveRpc`, and `onReceivePacket` are
-  already represented by the owned, scoped host subscription API; no Lua-style
-  global callback or raw event pointer will be added.
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetTextlabelPoolPtr` | Unsafe raw | `raw::text_label_pool` |
+| [ ] | `sampCreate3dText` | Queued mutation | `Labels::create` |
+| [ ] | `sampIs3dTextDefined` | Safe owned/read | `Labels::exists` |
+| [ ] | `sampGet3dTextInfoById` | Safe owned/read | `Labels::get` |
+| [ ] | `sampSet3dTextString` | Queued mutation | `Label::set_text` |
+| [ ] | `sampDestroy3dText` | Queued mutation | `Label::destroy` |
+| [ ] | `sampCreate3dTextEx` | Queued mutation | `Labels::create_at` |
+
+### Net game and animation (`netgame.lua`) — 10
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetSampInfoPtr` | Unsafe raw | `raw::net_game` |
+| [ ] | `sampGetSampPoolsPtr` | Unsafe raw | `raw::pools` |
+| [ ] | `sampGetServerSettingsPtr` | Unsafe raw | `raw::server_settings` |
+| [ ] | `sampGetCurrentServerName` | Safe owned/read | `Server::hostname` |
+| [ ] | `sampGetCurrentServerAddress` | Safe owned/read | `Server::address` and `Server::port` |
+| [ ] | `sampGetGamestate` | Safe owned/read | `Samp::game_state` |
+| [ ] | `sampSetGamestate` | Queued mutation | `Samp::set_game_state` |
+| [ ] | `sampGetAnimationNameAndFile` | Safe owned/read | `Animations::get` |
+| [ ] | `sampFindAnimationIdByNameAndFile` | Safe owned/read | `Animations::find` |
+| [ ] | `sampSetSendrate` | Queued mutation | `Net::set_send_rate` |
+
+### Objects (`object.lua`) — 3
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetObjectPoolPtr` | Unsafe raw | `raw::object_pool` |
+| [ ] | `sampGetObjectHandleBySampId` | Safe owned/read | `Object::handle` returning `ObjectHandle` |
+| [ ] | `sampGetObjectSampIdByHandle` | Safe owned/read | `ObjectHandle::to_id` |
+
+### Pickups (`pickup.lua`) — 3
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetPickupPoolPtr` | Unsafe raw | `raw::pickup_pool` |
+| [ ] | `sampGetPickupHandleBySampId` | Safe owned/read | `Pickup::handle` returning `PickupHandle` |
+| [ ] | `sampGetPickupSampIdByHandle` | Safe owned/read | `PickupHandle::to_id` |
+
+### Players (`player.lua`) — 43
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetPlayerPoolPtr` | Unsafe raw | `raw::player_pool` |
+| [ ] | `sampIsPlayerConnected` | Safe owned/read | `Player::is_connected` |
+| [ ] | `sampGetPlayerNickname` | Safe owned/read | `Player::nickname` |
+| [ ] | `sampSpawnPlayer` | Queued mutation | `LocalPlayer::spawn` |
+| [ ] | `sampSendChat` | Queued mutation | `Net::send_chat` |
+| [ ] | `sampIsPlayerNpc` | Safe owned/read | `Player::is_npc` |
+| [ ] | `sampGetPlayerScore` | Safe owned/read | `Player::score` |
+| [ ] | `sampGetPlayerPing` | Safe owned/read | `Player::ping` |
+| [ ] | `sampRequestClass` | Queued mutation | `LocalPlayer::request_class` |
+| [ ] | `sampSendInteriorChange` | Queued mutation | `LocalPlayer::send_interior_change` |
+| [ ] | `sampForceUnoccupiedSyncSeatId` | Queued mutation | `LocalPlayer::force_unoccupied_sync` |
+| [ ] | `sampGetCharHandleBySampPlayerId` | Safe owned/read | `Player::ped_handle` returning `PedHandle` |
+| [ ] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `PedHandle::to_id` |
+| [ ] | `sampGetPlayerArmor` | Safe owned/read | `Player::armour` |
+| [ ] | `sampGetPlayerHealth` | Safe owned/read | `Player::health` |
+| [ ] | `sampIsPlayerPaused` | Safe owned/read | `Player::is_paused` |
+| [ ] | `sampSetSpecialAction` | Queued mutation | `LocalPlayer::set_special_action` |
+| [ ] | `sampGetPlayerCount` | Safe owned/read | `Players::count` |
+| [ ] | `sampGetMaxPlayerId` | Safe owned/read | `Players::max_id` |
+| [ ] | `sampGetPlayerSpecialAction` | Safe owned/read | `Player::special_action` |
+| [ ] | `sampStorePlayerOnfootData` | Safe owned/read | `Player::onfoot_sync` owned snapshot |
+| [ ] | `sampStorePlayerIncarData` | Safe owned/read | `Player::vehicle_sync` owned snapshot |
+| [ ] | `sampStorePlayerPassengerData` | Safe owned/read | `Player::passenger_sync` owned snapshot |
+| [ ] | `sampStorePlayerTrailerData` | Safe owned/read | `Player::trailer_sync` owned snapshot |
+| [ ] | `sampStorePlayerAimData` | Safe owned/read | `Player::aim_sync` owned snapshot |
+| [ ] | `sampSendSpawn` | Queued mutation | `LocalPlayer::send_spawn` |
+| [ ] | `sampGetPlayerAnimationId` | Safe owned/read | `Player::animation_id` |
+| [ ] | `sampSetLocalPlayerName` | Queued mutation | `LocalPlayer::set_nickname` |
+| [ ] | `sampGetPlayerStructPtr` | Unsafe raw | `raw::player` |
+| [ ] | `sampSendEnterVehicle` | Queued mutation | `LocalPlayer::send_enter_vehicle` |
+| [ ] | `sampSendExitVehicle` | Queued mutation | `LocalPlayer::send_exit_vehicle` |
+| [ ] | `sampIsLocalPlayerSpawned` | Safe owned/read | `LocalPlayer::is_spawned` |
+| [ ] | `sampGetPlayerColor` | Safe owned/read | `Player::colour` |
+| [ ] | `sampForceAimSync` | Queued mutation | `LocalPlayer::force_aim_sync` |
+| [ ] | `sampForceOnfootSync` | Queued mutation | `LocalPlayer::force_onfoot_sync` |
+| [ ] | `sampForceStatsSync` | Queued mutation | `LocalPlayer::force_stats_sync` |
+| [ ] | `sampForceTrailerSync` | Queued mutation | `LocalPlayer::force_trailer_sync` |
+| [ ] | `sampForceVehicleSync` | Queued mutation | `LocalPlayer::force_vehicle_sync` |
+| [ ] | `sampGetLocalPlayerId` | Safe owned/read | `LocalPlayer::id` |
+| [ ] | `sampIsPlayerDefined` | Safe owned/read | `Player::is_defined` |
+| [ ] | `sampGetLocalPlayerNickname` | Safe owned/read | `LocalPlayer::nickname` |
+| [ ] | `sampGetLocalPlayerColor` | Safe owned/read | `LocalPlayer::colour` |
+| [ ] | `sampSetPlayerColor` | Queued mutation | `Player::set_colour` |
+
+### RakNet and network actions (`raknet.lua`) — 65
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `raknetBitStreamReadBool` | Safe owned/read | `BitStream::read_bool` |
+| [ ] | `raknetBitStreamReadBuffer` | Safe owned/read | `BitStream::read_bits` / `read_bytes` |
+| [ ] | `raknetBitStreamReadInt8` | Safe owned/read | `BitStream::read_u8` |
+| [ ] | `raknetBitStreamReadInt16` | Safe owned/read | `BitStream::read_u16` |
+| [ ] | `raknetBitStreamReadInt32` | Safe owned/read | `BitStream::read_u32` |
+| [ ] | `raknetBitStreamReadFloat` | Safe owned/read | `BitStream::read_f32` |
+| [ ] | `raknetBitStreamReadString` | Safe owned/read | `BitStream::read_string` |
+| [ ] | `raknetBitStreamResetReadPointer` | Safe owned/read | `BitStream::reset_read` |
+| [ ] | `raknetBitStreamResetWritePointer` | Safe owned/read | `BitStream::reset_write` |
+| [ ] | `raknetBitStreamIgnoreBits` | Safe owned/read | `BitStream::ignore_bits` |
+| [ ] | `raknetBitStreamSetWriteOffset` | Safe owned/read | `BitStream::set_write_offset` |
+| [ ] | `raknetBitStreamSetReadOffset` | Safe owned/read | `BitStream::set_read_offset` |
+| [ ] | `raknetBitStreamGetNumberOfBitsUsed` | Safe owned/read | `BitStream::len_bits` |
+| [ ] | `raknetBitStreamGetNumberOfBytesUsed` | Safe owned/read | `BitStream::len_bytes` |
+| [ ] | `raknetBitStreamGetNumberOfUnreadBits` | Safe owned/read | `BitStream::remaining_bits` |
+| [ ] | `raknetBitStreamGetWriteOffset` | Safe owned/read | `BitStream::write_offset` |
+| [ ] | `raknetBitStreamGetReadOffset` | Safe owned/read | `BitStream::read_offset` |
+| [ ] | `raknetBitStreamGetDataPtr` | Unsafe raw | `raw::bitstream_data` |
+| [ ] | `raknetNewBitStream` | Safe owned/read | `BitStream::new` |
+| [ ] | `raknetDeleteBitStream` | Safe owned/read | `BitStream` ownership and `Drop` |
+| [ ] | `raknetResetBitStream` | Safe owned/read | `BitStream::clear` |
+| [ ] | `raknetBitStreamWriteBool` | Safe owned/read | `BitStream::write_bool` |
+| [ ] | `raknetBitStreamWriteInt8` | Safe owned/read | `BitStream::write_u8` |
+| [ ] | `raknetBitStreamWriteInt16` | Safe owned/read | `BitStream::write_u16` |
+| [ ] | `raknetBitStreamWriteInt32` | Safe owned/read | `BitStream::write_u32` |
+| [ ] | `raknetBitStreamWriteFloat` | Safe owned/read | `BitStream::write_f32` |
+| [ ] | `raknetBitStreamWriteBuffer` | Safe owned/read | `BitStream::write_bits` / `write_bytes` |
+| [ ] | `raknetBitStreamWriteString` | Safe owned/read | `BitStream::write_string` |
+| [ ] | `raknetBitStreamDecodeString` | Safe owned/read | `Net::decode_string` |
+| [ ] | `raknetBitStreamEncodeString` | Safe owned/read | `Net::encode_string` |
+| [ ] | `raknetBitStreamWriteBitStream` | Safe owned/read | `BitStream::write_stream` |
+| [ ] | `raknetSendRpcEx` | Queued mutation | `Net::send_rpc_with_options` |
+| [ ] | `raknetSendBitStreamEx` | Queued mutation | `Net::send_packet_with_options` |
+| [ ] | `raknetSendRpc` | Queued mutation | `Net::send_rpc` |
+| [ ] | `raknetSendBitStream` | Queued mutation | `Net::send_packet` |
+| [ ] | `raknetGetRpcName` | Safe owned/read | `Net::rpc_name` |
+| [ ] | `raknetGetPacketName` | Safe owned/read | `Net::packet_name` |
+| [ ] | `sampGetRakclientInterface` | Unsafe raw | `raw::rakclient` |
+| [ ] | `sampGetRakpeer` | Unsafe raw | `raw::rakpeer` |
+| [ ] | `sampSendAimData` | Queued mutation | `Net::send_aim_sync` |
+| [ ] | `sampSendBulletData` | Queued mutation | `Net::send_bullet_sync` |
+| [ ] | `sampSendIncarData` | Queued mutation | `Net::send_vehicle_sync` |
+| [ ] | `sampSendOnfootData` | Queued mutation | `Net::send_player_sync` |
+| [ ] | `sampSendSpectatorData` | Queued mutation | `Net::send_spectator_sync` |
+| [ ] | `sampSendTrailerData` | Queued mutation | `Net::send_trailer_sync` |
+| [ ] | `sampSendPassengerData` | Queued mutation | `Net::send_passenger_sync` |
+| [ ] | `sampSendUnoccupiedData` | Queued mutation | `Net::send_unoccupied_sync` |
+| [ ] | `sampSendDamageVehicle` | Queued mutation | `Net::send_vehicle_damage` |
+| [ ] | `sampSendScmEvent` | Queued mutation | `Net::send_scm_event` |
+| [ ] | `sampSendGiveDamage` | Queued mutation | `Net::send_give_damage` |
+| [ ] | `sampSendTakeDamage` | Queued mutation | `Net::send_take_damage` |
+| [ ] | `sampSendRequestSpawn` | Queued mutation | `Net::send_request_spawn` |
+| [ ] | `sampSendClickPlayer` | Queued mutation | `Net::send_click_player` |
+| [ ] | `sampSendClickTextdraw` | Queued mutation | `Net::send_click_textdraw` |
+| [ ] | `sampSendDeathByPlayer` | Queued mutation | `Net::send_death_by_player` |
+| [ ] | `sampSendDialogResponse` | Queued mutation | `Net::send_dialog_response` |
+| [ ] | `sampSendEditAttachedObject` | Queued mutation | `Net::send_edit_attached_object` |
+| [ ] | `sampSendEditObject` | Queued mutation | `Net::send_edit_object` |
+| [ ] | `sampSendMenuQuit` | Queued mutation | `Net::send_menu_quit` |
+| [ ] | `sampSendMenuSelectRow` | Queued mutation | `Net::send_menu_select_row` |
+| [ ] | `sampSendPickedUpPickup` | Queued mutation | `Net::send_picked_up_pickup` |
+| [ ] | `sampSendRconCommand` | Queued mutation | `Net::send_rcon_command` |
+| [ ] | `sampSendVehicleDestroyed` | Queued mutation | `Net::send_vehicle_destroyed` |
+| [ ] | `sampDisconnectWithReason` | Queued mutation | `Net::disconnect` |
+| [ ] | `sampConnectToServer` | Queued mutation | `Net::connect` |
+
+### Scoreboard (`scoreboard.lua`) — 2
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampToggleScoreboard` | Queued mutation | `Scoreboard::toggle` |
+| [ ] | `sampIsScoreboardOpen` | Safe owned/read | `Scoreboard::is_open` |
+
+### Textdraws (`textdraw.lua`) — 24
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetTextdrawPoolPtr` | Unsafe raw | `raw::textdraw_pool` |
+| [ ] | `sampTextdrawIsExists` | Safe owned/read | `Textdraws::exists` |
+| [ ] | `sampTextdrawCreate` | Queued mutation | `Textdraws::create` |
+| [ ] | `sampTextdrawSetBoxColorAndSize` | Queued mutation | `Textdraw::set_box` |
+| [ ] | `sampTextdrawGetString` | Safe owned/read | `Textdraw::text` |
+| [ ] | `sampTextdrawDelete` | Queued mutation | `Textdraw::delete` |
+| [ ] | `sampTextdrawGetLetterSizeAndColor` | Safe owned/read | `Textdraw::letter_style` |
+| [ ] | `sampTextdrawGetPos` | Safe owned/read | `Textdraw::position` |
+| [ ] | `sampTextdrawGetShadowColor` | Safe owned/read | `Textdraw::shadow` |
+| [ ] | `sampTextdrawGetOutlineColor` | Safe owned/read | `Textdraw::outline` |
+| [ ] | `sampTextdrawGetStyle` | Safe owned/read | `Textdraw::style` |
+| [ ] | `sampTextdrawGetProportional` | Safe owned/read | `Textdraw::is_proportional` |
+| [ ] | `sampTextdrawGetAlign` | Safe owned/read | `Textdraw::alignment` |
+| [ ] | `sampTextdrawGetBoxEnabledColorAndSize` | Safe owned/read | `Textdraw::box_style` |
+| [ ] | `sampTextdrawGetModelRotationZoomVehColor` | Safe owned/read | `Textdraw::model_style` |
+| [ ] | `sampTextdrawSetLetterSizeAndColor` | Queued mutation | `Textdraw::set_letter_style` |
+| [ ] | `sampTextdrawSetPos` | Queued mutation | `Textdraw::set_position` |
+| [ ] | `sampTextdrawSetString` | Queued mutation | `Textdraw::set_text` |
+| [ ] | `sampTextdrawSetModelRotationZoomVehColor` | Queued mutation | `Textdraw::set_model_style` |
+| [ ] | `sampTextdrawSetOutlineColor` | Queued mutation | `Textdraw::set_outline` |
+| [ ] | `sampTextdrawSetShadow` | Queued mutation | `Textdraw::set_shadow` |
+| [ ] | `sampTextdrawSetStyle` | Queued mutation | `Textdraw::set_style` |
+| [ ] | `sampTextdrawSetProportional` | Queued mutation | `Textdraw::set_proportional` |
+| [ ] | `sampTextdrawSetAlign` | Queued mutation | `Textdraw::set_alignment` |
+
+### Vehicles (`vehicle.lua`) — 4
+
+| Done | SF.lua global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampGetVehiclePoolPtr` | Unsafe raw | `raw::vehicle_pool` |
+| [ ] | `sampGetCarHandleBySampVehicleId` | Safe owned/read | `Vehicle::handle` returning `VehicleHandle` |
+| [ ] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `VehicleHandle::to_id` |
+| [ ] | `sampIsVehicleDefined` | Safe owned/read | `Vehicles::exists` |
+<!-- sf-lua-baseline:end -->
+
+## SF.lua `init.lua` extension map — 14
+
+These names are comments in the pinned source rather than part of the 207
+declared-function baseline. They are still in scope under the rule that nothing
+remains permanently excluded.
+
+| Done | Future global | Tier | `samp-client-sdk` target |
+| --- | --- | --- | --- |
+| [ ] | `sampHasDialogRespond` | Safe owned/read | `Dialogs::last_response` |
+| [ ] | `sampForcePassengerSyncSeatId` | Queued mutation | `LocalPlayer::force_passenger_sync` |
+| [ ] | `sampForceWeaponsSync` | Queued mutation | `LocalPlayer::force_weapons_sync` |
+| [ ] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |
+| [ ] | `sampGetRpcCallbackByRpcId` | Unsafe raw | `raw::rpc_callback` |
+| [ ] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
+| [ ] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
+| [ ] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
+| [ ] | `sampSetClientCommandDescription` | Queued mutation | `ChatInput::set_command_description` |
+| [ ] | `sampGetStreamedOutPlayerPos` | Safe owned/read | `Player::streamed_out_position` |
+| [ ] | `onSendRpc` | Safe owned/read | `Net::on_rpc(Direction::Outgoing, ...)` |
+| [ ] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
+| [ ] | `onReceiveRpc` | Safe owned/read | `Net::on_rpc(Direction::Incoming, ...)` |
+| [ ] | `onReceivePacket` | Safe owned/read | `Net::on_packet(Direction::Incoming, ...)` |
