@@ -24,9 +24,10 @@ const SAMP_R1_ENTRY_POINT: u32 = 0x31DF13;
 // have a different SizeOfImage and are intentionally rejected.
 const GTA_SA_10_US_IMAGE_BASE: u32 = 0x0040_0000;
 const GTA_SA_10_US_IMAGE_SIZE: u32 = 0x0117_7000;
-// PE OptionalHeader.AddressOfEntryPoint is an RVA, not an image-base-adjusted
-// address. The loaded entry address is `0x0040_0000 + 0x0002_4570`.
-const GTA_SA_10_US_ENTRY_POINT: u32 = 0x0002_4570;
+// PE OptionalHeader.AddressOfEntryPoint is an RVA. This executable's code
+// entry lies 0x0042_4570 bytes into the image, so its loaded address is
+// `0x0040_0000 + 0x0042_4570 = 0x0082_4570`.
+const GTA_SA_10_US_ENTRY_POINT: u32 = 0x0042_4570;
 
 const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 const DIALOG_SHOW_RVA: usize = 0x6B9C0;
@@ -2244,12 +2245,12 @@ mod tests {
     }
 
     #[test]
-    fn gta_sa_10_us_entry_point_is_the_pe_rva_not_the_loaded_address() {
+    fn gta_sa_10_us_entry_point_matches_the_fingerprinted_pe_value() {
         assert_eq!(
             GTA_SA_10_US_IMAGE_BASE + GTA_SA_10_US_ENTRY_POINT,
-            0x0042_4570
+            0x0082_4570
         );
-        assert_eq!(GTA_SA_10_US_ENTRY_POINT, 0x0002_4570);
+        assert_eq!(GTA_SA_10_US_ENTRY_POINT, 0x0042_4570);
     }
 
     #[test]
