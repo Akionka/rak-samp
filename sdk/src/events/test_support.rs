@@ -1522,6 +1522,57 @@ unsafe extern "system" fn test_local_dialog_list_item_count(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_local_dialog_text(
+    output: *mut crate::SampClientSdkDialogTextV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let mut bytes = [0; 4096];
+    bytes[..7].copy_from_slice(b"fixture");
+    *output = crate::SampClientSdkDialogTextV1 { len: 7, bytes };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_dialog_editbox_text(
+    output: *mut crate::SampClientSdkDialogEditboxTextV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let mut bytes = [0; 128];
+    bytes[..7].copy_from_slice(b"fixture");
+    *output = crate::SampClientSdkDialogEditboxTextV1 { len: 7, bytes };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_dialog_listbox_item(
+    index: u32,
+    output: *mut crate::SampClientSdkDialogListItemV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    if index >= crate::MAX_SAMP_DIALOG_LISTBOX_ITEMS as u32 {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let mut bytes = [0; 256];
+    bytes[..7].copy_from_slice(b"fixture");
+    *output = crate::SampClientSdkDialogListItemV1 { len: 7, bytes };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_submit_local_dialog_editbox_text(
+    text: *const u8,
+    text_len: usize,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || text.is_null() || text_len > crate::MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 40) }
+}
+
 unsafe extern "system" fn test_submit_set_textdraw_model_style(
     id: u16,
     x: f32,
@@ -1732,6 +1783,10 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     submit_local_chat_entry: test_submit_local_chat_entry,
     chat_entry_info: test_chat_entry_info,
     submit_create_text_label: test_submit_create_text_label,
+    local_dialog_text: test_local_dialog_text,
+    local_dialog_editbox_text: test_local_dialog_editbox_text,
+    local_dialog_listbox_item: test_local_dialog_listbox_item,
+    submit_local_dialog_editbox_text: test_submit_local_dialog_editbox_text,
 };
 
 pub(crate) fn test_api() -> HostApi {

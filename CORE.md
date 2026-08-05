@@ -80,6 +80,9 @@ The active dialog's list-item count is copied as a non-negative scalar from
 the validated DXUT listbox; no native item container crosses the ABI.
 Active dialog list selections are copied from the game-thread snapshot and can
 be updated through the same receipt-bearing queue after listbox validation.
+The active dialog snapshot also carries bounded copies of the dialog body
+text, the DXUT editbox text, and the validated listbox item strings; the
+editbox text can be replaced through a bounded receipt-bearing mutation.
 `Cursor::toggle` uses the native R1 cursor transition and re-enables input when
 hiding the cursor, rather than writing the cursor-mode field directly. The
 R1 chat display mode is likewise changed only by a queued, validated
@@ -123,9 +126,12 @@ RakNet calls. It restores only the vtable slots and detours it owns, and calls
 original hook targets through captured backend state.
 
 `tests/fixtures/raknet_layout.cpp`, compiled by `build.rs` for Windows x86,
-remains the independent C++↔Rust layout oracle. Unit tests preserve exact
-packet/RPC vectors, exact-bit replacement, listener ordering, subscription
-shutdown, and layout coverage.
+remains the independent C++↔Rust layout oracle. It includes the full native
+`DXUTComboBoxItem` signature (256-byte text, `void*` data, windef `RECT`
+active rectangle, and visibility flag) using the real `windows.h` `RECT` and
+default alignment, matching the pinned SF.lua declaration. Unit tests preserve
+exact packet/RPC vectors, exact-bit replacement, listener ordering,
+subscription shutdown, and layout coverage.
 
 Before a runtime plugin unload, remove every subscription with
 `unregister_and_wait` from a worker thread. Do not wait in `DllMain`, a

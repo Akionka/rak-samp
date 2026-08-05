@@ -13,15 +13,17 @@ use crate::{
 };
 use log::{debug, error, info};
 use sdk_abi::{
-    ABI_VERSION_V1, MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
-    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, SampClientSdkActiveDialogV1,
-    SampClientSdkAnimationV1, SampClientSdkApiV1, SampClientSdkChatEntryV1,
-    SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt, SampClientSdkCommandResultV1,
-    SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
-    SampClientSdkGangzoneV1, SampClientSdkHookAction, SampClientSdkHostStatus,
-    SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
-    SampClientSdkResult, SampClientSdkSendOptions, SampClientSdkServerInfoV1,
-    SampClientSdkSubscription, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
+    ABI_VERSION_V1, MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_DIALOG_LISTBOX_ITEMS, MAX_SAMP_GANGZONES,
+    MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
+    MAX_SAMP_VEHICLES, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
+    SampClientSdkChatEntryV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
+    SampClientSdkCommandResultV1, SampClientSdkDialogEditboxTextV1, SampClientSdkDialogListItemV1,
+    SampClientSdkDialogTextV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
+    SampClientSdkEventV1, SampClientSdkGangzoneV1, SampClientSdkHookAction,
+    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkSendOptions,
+    SampClientSdkServerInfoV1, SampClientSdkSubscription, SampClientSdkTextDrawV1,
+    SampClientSdkTextLabelV1, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -228,6 +230,10 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_chat_entry,
     chat_entry_info,
     submit_create_text_label,
+    local_dialog_text,
+    local_dialog_editbox_text,
+    local_dialog_listbox_item,
+    submit_local_dialog_editbox_text,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {
@@ -1569,6 +1575,102 @@ unsafe extern "system" fn local_dialog_list_item_count(output: *mut i32) -> Samp
     match runtime.local_dialog_list_item_count() {
         Ok(value) => {
             unsafe { output.write(value) };
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn local_dialog_text(
+    output: *mut SampClientSdkDialogTextV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.local_dialog_text() {
+        Ok(text) => {
+            if text.len() > output.bytes.len() {
+                return SampClientSdkResult::NativeCallFailed;
+            }
+            *output = SampClientSdkDialogTextV1::default();
+            output.len = text.len() as u16;
+            output.bytes[..text.len()].copy_from_slice(&text);
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn local_dialog_editbox_text(
+    output: *mut SampClientSdkDialogEditboxTextV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.local_dialog_editbox_text() {
+        Ok(text) => {
+            if text.len() > output.bytes.len() {
+                return SampClientSdkResult::NativeCallFailed;
+            }
+            *output = SampClientSdkDialogEditboxTextV1::default();
+            output.len = text.len() as u8;
+            output.bytes[..text.len()].copy_from_slice(&text);
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn local_dialog_listbox_item(
+    index: u32,
+    output: *mut SampClientSdkDialogListItemV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    if index >= MAX_SAMP_DIALOG_LISTBOX_ITEMS as u32 {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.local_dialog_listbox_item_text(index) {
+        Ok(text) => {
+            if text.len() > output.bytes.len() {
+                return SampClientSdkResult::NativeCallFailed;
+            }
+            *output = SampClientSdkDialogListItemV1::default();
+            output.len = text.len() as u8;
+            output.bytes[..text.len()].copy_from_slice(&text);
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn submit_local_dialog_editbox_text(
+    text: *const u8,
+    text_len: usize,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.submit_local_dialog_editbox_text(text) {
+        Ok(id) => {
+            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
         }
         Err(error) => direct_client_result(error),

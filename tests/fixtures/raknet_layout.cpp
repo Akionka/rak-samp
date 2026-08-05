@@ -1,4 +1,7 @@
 #include <cstddef>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 // Minimal independent equivalents of RakNet 2.52's PlayerID and Packet declarations:
 // https://github.com/openmultiplayer/RakNet/blob/master/Include/raknet/NetworkTypes.h
@@ -366,11 +369,26 @@ struct FixtureR1DialogSnapshot {
     int server_side;
 };
 
+// Mirrors the SF.lua `DXUTComboBoxItem` declaration at the pinned commit:
+// https://github.com/SF-lua/SF.lua/blob/d869b8fb2ac9b527209e05376c19f3c96ee318e5/SFlua/cdef/dxut.lua
+// `SCRect` is the windef `RECT` (four `long`s), so the fixture uses the real
+// `RECT` from `windows.h` and the struct's default (non-packed) alignment,
+// exactly as LuaJIT's `ffi.cdef` lays it out.
+#pragma pack(pop)
+struct FixtureDxutComboBoxItem {
+    char str_text[256];
+    void* data;
+    RECT active_rect;
+    bool visible;
+};
+#pragma pack(push, 1)
+
 #pragma pack(push, 1)
 struct FixtureDxutListBoxSelection {
     unsigned char pad[0x143];
     int selected;
-    unsigned char pad_0[0x09];
+    unsigned char pad_0[0x05];
+    void* items;
     int item_count;
 };
 #pragma pack(pop)
@@ -459,8 +477,18 @@ static_assert(sizeof(FixtureR1ChatEntry) == 0xFC);
 static_assert(offsetof(FixtureR1ChatPrefix, entries) == 0x132);
 static_assert(offsetof(FixtureR1DialogSnapshot, is_active) == 0x28);
 static_assert(offsetof(FixtureR1DialogSnapshot, listbox) == 0x20);
+static_assert(offsetof(FixtureR1DialogSnapshot, editbox) == 0x24);
+static_assert(offsetof(FixtureR1DialogSnapshot, text) == 0x34);
 static_assert(offsetof(FixtureDxutListBoxSelection, selected) == 0x143);
+static_assert(offsetof(FixtureDxutListBoxSelection, items) == 0x14C);
 static_assert(offsetof(FixtureDxutListBoxSelection, item_count) == 0x150);
+static_assert(offsetof(FixtureDxutComboBoxItem, str_text) == 0x00);
+static_assert(offsetof(FixtureDxutComboBoxItem, data) == 0x100);
+static_assert(offsetof(FixtureDxutComboBoxItem, active_rect) == 0x104);
+static_assert(offsetof(FixtureDxutComboBoxItem, visible) == 0x114);
+static_assert(sizeof(FixtureDxutComboBoxItem::str_text) == 256);
+static_assert(sizeof(FixtureDxutComboBoxItem::active_rect) == 16);
+static_assert(sizeof(FixtureDxutComboBoxItem) == 0x118);
 static_assert(offsetof(FixtureR1DialogSnapshot, type) == 0x2C);
 static_assert(offsetof(FixtureR1DialogSnapshot, id) == 0x30);
 static_assert(offsetof(FixtureR1DialogSnapshot, caption) == 0x40);
@@ -827,6 +855,42 @@ std::size_t samp_client_sdk_fixture_r1_dialog_caption_offset() {
 
 std::size_t samp_client_sdk_fixture_r1_dialog_server_side_offset() {
     return offsetof(FixtureR1DialogSnapshot, server_side);
+}
+
+std::size_t samp_client_sdk_fixture_r1_dialog_editbox_offset() {
+    return offsetof(FixtureR1DialogSnapshot, editbox);
+}
+
+std::size_t samp_client_sdk_fixture_r1_dialog_text_offset() {
+    return offsetof(FixtureR1DialogSnapshot, text);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_listbox_items_offset() {
+    return offsetof(FixtureDxutListBoxSelection, items);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_text_offset() {
+    return offsetof(FixtureDxutComboBoxItem, str_text);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_text_capacity() {
+    return sizeof(FixtureDxutComboBoxItem::str_text);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_data_offset() {
+    return offsetof(FixtureDxutComboBoxItem, data);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_active_rect_offset() {
+    return offsetof(FixtureDxutComboBoxItem, active_rect);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_visible_offset() {
+    return offsetof(FixtureDxutComboBoxItem, visible);
+}
+
+std::size_t samp_client_sdk_fixture_dxut_combobox_item_size() {
+    return sizeof(FixtureDxutComboBoxItem);
 }
 
 std::size_t samp_client_sdk_fixture_r1_input_enabled_offset() {

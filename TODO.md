@@ -152,17 +152,17 @@ Tiers:
 | [x] | `sampCloseCurrentDialogWithButton` | Queued mutation | `Dialogs::close_with_button` |
 | [x] | `sampGetCurrentDialogListItem` | Safe owned/read | `Dialogs::selected_item` |
 | [x] | `sampSetCurrentDialogListItem` | Queued mutation | `Dialogs::set_selected_item` |
-| [ ] | `sampGetCurrentDialogEditboxText` | Safe owned/read | `Dialogs::active().editbox_text` |
-| [ ] | `sampSetCurrentDialogEditboxText` | Queued mutation | `Dialogs::set_editbox_text` |
+| [x] | `sampGetCurrentDialogEditboxText` | Safe owned/read | `Dialogs::active().editbox_text` |
+| [x] | `sampSetCurrentDialogEditboxText` | Queued mutation | `Dialogs::set_editbox_text` |
 | [x] | `sampIsDialogActive` | Safe owned/read | `Dialogs::is_active` |
 | [x] | `sampGetCurrentDialogType` | Safe owned/read | `Dialogs::active().style` |
 | [x] | `sampGetCurrentDialogId` | Safe owned/read | `Dialogs::active().id` |
 | [x] | `sampGetDialogCaption` | Safe owned/read | `Dialogs::active().caption` |
-| [ ] | `sampGetDialogText` | Safe owned/read | `Dialogs::active().text` |
+| [x] | `sampGetDialogText` | Safe owned/read | `Dialogs::active().text` |
 | [x] | `sampIsDialogClientside` | Safe owned/read | `Dialogs::active().is_client_side` |
 | [x] | `sampSetDialogClientside` | Queued mutation | `Dialogs::set_client_side` |
 | [x] | `sampGetListboxItemsCount` | Safe owned/read | `Dialogs::list_item_count` |
-| [ ] | `sampGetListboxItemText` | Safe owned/read | `Dialogs::active().items().get` |
+| [x] | `sampGetListboxItemText` | Safe owned/read | `Dialogs::active().items().get` |
 
 ### Cursor and game (`game.lua`) — 5
 

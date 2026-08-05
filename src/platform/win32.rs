@@ -70,6 +70,7 @@ const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_CHAT_ENTRIES: usize = 100;
 const MAX_SAMP_OBJECTS: usize = 1000;
+const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
 /// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
@@ -277,6 +278,7 @@ enum GameCommand {
     SetScoreboardOpen(bool),
     SetDialogClientSide(bool),
     SetDialogSelectedItem(i32),
+    SetDialogEditboxText(Vec<u8>),
     SetGameState(i32),
     ConnectToServer {
         address: Vec<u8>,
@@ -1067,6 +1069,28 @@ impl Backend {
             .ok_or(DirectClientError::NotReady)
     }
 
+    pub(crate) fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.state.local_dialog_text()
+    }
+
+    pub(crate) fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.state.local_dialog_editbox_text()
+    }
+
+    pub(crate) fn local_dialog_listbox_item_text(
+        &self,
+        index: u32,
+    ) -> Result<Vec<u8>, DirectClientError> {
+        self.state.local_dialog_listbox_item_text(index)
+    }
+
+    pub(crate) fn submit_local_dialog_editbox_text(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_local_dialog_editbox_text(text)
+    }
+
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         self.state.local_chat_input_active()
     }
@@ -1619,6 +1643,19 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::SetDialogSelectedItem(selected))
+    }
+
+    fn submit_local_dialog_editbox_text(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetDialogEditboxText(text))
     }
 
     fn submit_samp_game_state(&self, state: i32) -> Result<CommandId, DirectClientError> {
@@ -2727,6 +2764,27 @@ impl BackendState {
             .clone())
     }
 
+    fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.local_dialog_state()?
+            .map(|snapshot| snapshot.text)
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.local_dialog_state()?
+            .and_then(|snapshot| snapshot.editbox_text)
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    fn local_dialog_listbox_item_text(&self, index: u32) -> Result<Vec<u8>, DirectClientError> {
+        if index >= MAX_DIALOG_LISTBOX_ITEMS as u32 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.local_dialog_state()?
+            .and_then(|snapshot| snapshot.listbox_items.get(index as usize).cloned())
+            .ok_or(DirectClientError::NotReady)
+    }
+
     fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         cached_direct_client_value(
             self.r1_client.is_some(),
@@ -2970,6 +3028,14 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_dialog_selected_item(selected)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetDialogEditboxText(text) => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_dialog_editbox_text(&text)
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetGameState(state) => self
@@ -4561,6 +4627,22 @@ mod vtable_tests {
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
+            state.local_dialog_text(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_dialog_editbox_text(),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.local_dialog_listbox_item_text(0),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
+            state.submit_local_dialog_editbox_text(b"fixture".to_vec()),
+            Err(DirectClientError::UnsupportedVersion)
+        );
+        assert_eq!(
             state.local_chat_input_active(),
             Err(DirectClientError::UnsupportedVersion)
         );
@@ -4576,6 +4658,96 @@ mod vtable_tests {
             state.server_info(),
             Err(DirectClientError::UnsupportedVersion)
         );
+    }
+
+    #[test]
+    fn dialog_heavy_text_reads_serve_the_published_snapshot() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        state.cache_generation.store(2, Ordering::Release);
+        *state.local_dialog_snapshot.lock().unwrap() = Some(LocalDialogSnapshot {
+            id: 7,
+            style: crate::runtime::LocalDialogStyle::List,
+            title: b"fixture".to_vec(),
+            server_side: false,
+            selected_item: Some(1),
+            list_item_count: Some(2),
+            text: b"body".to_vec(),
+            editbox_text: Some(b"edit".to_vec()),
+            listbox_items: vec![b"one".to_vec(), b"two".to_vec()],
+        });
+        state
+            .local_dialog_snapshot_ready
+            .store(true, Ordering::Release);
+
+        assert_eq!(state.local_dialog_text(), Ok(b"body".to_vec()));
+        assert_eq!(state.local_dialog_editbox_text(), Ok(b"edit".to_vec()));
+        assert_eq!(state.local_dialog_listbox_item_text(0), Ok(b"one".to_vec()));
+        assert_eq!(state.local_dialog_listbox_item_text(1), Ok(b"two".to_vec()));
+        assert_eq!(
+            state.local_dialog_listbox_item_text(2),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(
+            state.local_dialog_listbox_item_text(100),
+            Err(DirectClientError::NotReady)
+        );
+    }
+
+    #[test]
+    fn dialog_without_editbox_or_listbox_reports_missing_heavy_text() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        state.cache_generation.store(2, Ordering::Release);
+        *state.local_dialog_snapshot.lock().unwrap() = Some(LocalDialogSnapshot {
+            id: 7,
+            style: crate::runtime::LocalDialogStyle::MessageBox,
+            title: b"fixture".to_vec(),
+            server_side: false,
+            selected_item: None,
+            list_item_count: None,
+            text: Vec::new(),
+            editbox_text: None,
+            listbox_items: Vec::new(),
+        });
+        state
+            .local_dialog_snapshot_ready
+            .store(true, Ordering::Release);
+
+        assert_eq!(state.local_dialog_text(), Ok(Vec::new()));
+        assert_eq!(
+            state.local_dialog_editbox_text(),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(
+            state.local_dialog_listbox_item_text(0),
+            Err(DirectClientError::NotReady)
+        );
+    }
+
+    #[test]
+    fn dialog_editbox_text_command_is_bounded_and_queued() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        let mut oversized = vec![b'x'; 129];
+        oversized.push(0);
+        assert_eq!(
+            state.submit_local_dialog_editbox_text(oversized),
+            Err(DirectClientError::NotReady)
+        );
+        let id = state
+            .submit_local_dialog_editbox_text(b"fixture".to_vec())
+            .unwrap();
+        let snapshot = state.game_commands.take_tick_snapshot();
+        assert_eq!(snapshot.len(), 1);
+        assert_eq!(snapshot[0].id, id);
+        assert!(matches!(
+            &snapshot[0].command,
+            GameCommand::SetDialogEditboxText(text) if text == b"fixture"
+        ));
     }
 
     #[test]

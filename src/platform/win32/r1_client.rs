@@ -147,11 +147,27 @@ const DIALOG_ACTIVE_OFFSET: usize = 0x28;
 const DIALOG_TYPE_OFFSET: usize = 0x2C;
 const DIALOG_ID_OFFSET: usize = 0x30;
 const DIALOG_LISTBOX_OFFSET: usize = 0x20;
+const DIALOG_EDITBOX_OFFSET: usize = 0x24;
+const DIALOG_TEXT_OFFSET: usize = 0x34;
 const DIALOG_CAPTION_OFFSET: usize = 0x40;
 const DIALOG_CAPTION_CAPACITY: usize = 65;
 const DIALOG_SERVER_SIDE_OFFSET: usize = 0x81;
 const DXUT_LISTBOX_SELECTED_OFFSET: usize = 0x143;
+const DXUT_LISTBOX_ITEMS_OFFSET: usize = 0x14C;
 const DXUT_LISTBOX_ITEM_COUNT_OFFSET: usize = 0x150;
+const DXUT_LISTBOX_ITEM_TEXT_OFFSET: usize = 0x00;
+const DXUT_LISTBOX_ITEM_TEXT_CAPACITY: usize = 256;
+#[cfg(test)]
+const DXUT_LISTBOX_ITEM_DATA_OFFSET: usize = 0x100;
+#[cfg(test)]
+const DXUT_LISTBOX_ITEM_ACTIVE_RECT_OFFSET: usize = 0x104;
+#[cfg(test)]
+const DXUT_LISTBOX_ITEM_VISIBLE_OFFSET: usize = 0x114;
+#[cfg(test)]
+const DXUT_LISTBOX_ITEM_SIZE: usize = 0x118;
+const MAX_DIALOG_TEXT_BYTES: usize = 4_096;
+const MAX_DIALOG_EDITBOX_TEXT_BYTES: usize = 128;
+const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
 const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 const INPUT_EDIT_BOX_OFFSET: usize = 0x08;
 const MAX_CHAT_INPUT_TEXT_BYTES: usize = 128;
@@ -199,6 +215,32 @@ const INVALID_ID: u16 = u16::MAX;
 #[derive(Clone, Copy, Debug)]
 pub(super) struct R1ClientProfile {
     module_base: usize,
+}
+
+/// Rust mirror of the native `DXUTComboBoxItem` layout declared by SF.lua at
+/// the pinned commit (`SFlua/cdef/dxut.lua`) and asserted against the
+/// independent C++ fixture using the real windef `RECT`:
+///
+/// ```c
+/// struct DXUTComboBoxItem {
+///     char   strText[256];
+///     void*  pData;
+///     SCRect rcActive;   // == RECT from windef.h
+///     bool   bVisible;
+/// };
+/// ```
+///
+/// The host reads only `str_text`; the remaining fields pin the overall
+/// default-aligned packing so a future consumer cannot silently disagree with
+/// the fixture. This type never crosses the plugin ABI.
+#[cfg(test)]
+#[repr(C)]
+#[derive(Clone, Copy)]
+struct NativeDxutComboBoxItem {
+    str_text: [u8; DXUT_LISTBOX_ITEM_TEXT_CAPACITY],
+    data: *mut c_void,
+    active_rect: windows_sys::Win32::Foundation::RECT,
+    visible: bool,
 }
 
 impl R1ClientProfile {
@@ -571,9 +613,9 @@ impl R1ClientProfile {
         Ok(())
     }
 
-    /// Copies bounded core metadata from an active R1 dialog on the game
-    /// thread. It deliberately excludes the dynamically allocated text and
-    /// DXUT control contents.
+    /// Copies bounded metadata and dynamic text from an active R1 dialog on
+    /// the game thread. All text and item strings are bounded copies; no
+    /// native or DXUT pointer crosses this boundary.
     pub(super) fn dialog_state(self) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         if !readable_range(
@@ -599,10 +641,12 @@ impl R1ClientProfile {
         }
         .ok_or(DirectClientError::NotReady)?;
         let server_side = read_r1_bool(dialog as usize + DIALOG_SERVER_SIDE_OFFSET)?;
+        let text = self.dialog_text()?;
+        let editbox_text = self.dialog_editbox_text()?;
         let listbox = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_LISTBOX_OFFSET) }
             .ok_or(DirectClientError::NotReady)?;
-        let (selected_item, list_item_count) = if listbox == 0 {
-            (None, None)
+        let (selected_item, list_item_count, listbox_items) = if listbox == 0 {
+            (None, None, Vec::new())
         } else {
             let selected = (listbox + DXUT_LISTBOX_SELECTED_OFFSET) as *const i32;
             let item_count = (listbox + DXUT_LISTBOX_ITEM_COUNT_OFFSET) as *const i32;
@@ -615,7 +659,14 @@ impl R1ClientProfile {
             let list_item_count = unsafe { read_unaligned::<i32>(item_count as usize) }
                 .filter(|count| *count >= 0)
                 .ok_or(DirectClientError::NotReady)?;
-            (selected_item, Some(list_item_count))
+            let mut items = Vec::new();
+            for index in 0..usize::try_from(list_item_count)
+                .map_err(|_| DirectClientError::NotReady)?
+                .min(MAX_DIALOG_LISTBOX_ITEMS)
+            {
+                items.push(self.dialog_listbox_item_text(index)?);
+            }
+            (selected_item, Some(list_item_count), items)
         };
         Ok(Some(LocalDialogSnapshot {
             id,
@@ -624,7 +675,87 @@ impl R1ClientProfile {
             server_side,
             selected_item,
             list_item_count,
+            text,
+            editbox_text,
+            listbox_items,
         }))
+    }
+
+    /// Copies the bounded R1 dialog body text on the game thread. The native
+    /// `m_szText` pointer is validated and read through a bounded copy.
+    pub(super) fn dialog_text(self) -> Result<Vec<u8>, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let text = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_TEXT_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        if text == 0 {
+            return Ok(Vec::new());
+        }
+        unsafe { bounded_c_string(text as *const u8, MAX_DIALOG_TEXT_BYTES + 1) }
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    /// Copies the bounded R1 dialog editbox text on the game thread. Dialogs
+    /// without an editbox report `None` rather than failing the snapshot.
+    pub(super) fn dialog_editbox_text(self) -> Result<Option<Vec<u8>>, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let editbox = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_EDITBOX_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        if editbox == 0 {
+            return Ok(None);
+        }
+        let get_text: DxutEditBoxGetTextFn =
+            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_GET_TEXT_RVA) };
+        unsafe {
+            bounded_c_string(
+                get_text(editbox as *mut c_void).cast(),
+                MAX_DIALOG_EDITBOX_TEXT_BYTES + 1,
+            )
+        }
+        .map(Some)
+        .ok_or(DirectClientError::NotReady)
+    }
+
+    /// Replaces the R1 dialog editbox text through its native DXUT method.
+    pub(super) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
+        if text.len() > MAX_DIALOG_EDITBOX_TEXT_BYTES || text.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let editbox = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_EDITBOX_OFFSET) }
+            .filter(|editbox| *editbox != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(editbox as *const u8, 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let text = nul_terminated(text.to_vec());
+        let set_text: DxutEditBoxSetTextFn =
+            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_SET_TEXT_RVA) };
+        unsafe { set_text(editbox as *mut c_void, text.as_ptr().cast(), false) };
+        Ok(())
+    }
+
+    /// Copies one bounded R1 dialog listbox item string on the game thread.
+    pub(super) fn dialog_listbox_item_text(
+        self,
+        index: usize,
+    ) -> Result<Vec<u8>, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let listbox = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_LISTBOX_OFFSET) }
+            .filter(|listbox| *listbox != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let items = unsafe { read_unaligned::<usize>(listbox + DXUT_LISTBOX_ITEMS_OFFSET) }
+            .filter(|items| *items != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let item = unsafe { read_unaligned::<usize>(items + index * mem::size_of::<usize>()) }
+            .filter(|item| *item != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            bounded_c_string(
+                (item + DXUT_LISTBOX_ITEM_TEXT_OFFSET) as *const u8,
+                DXUT_LISTBOX_ITEM_TEXT_CAPACITY + 1,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)
     }
 
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
@@ -2512,32 +2643,36 @@ fn writable_range(address: *const u8, length: usize) -> bool {
 mod tests {
     use super::{
         CHAT_ENTRIES_OFFSET, CHAT_ENTRY_SIZE, DIALOG_ACTIVE_OFFSET, DIALOG_CAPTION_OFFSET,
-        DIALOG_ID_OFFSET, DIALOG_LISTBOX_OFFSET, DIALOG_SERVER_SIDE_OFFSET, DIALOG_TYPE_OFFSET,
-        DXUT_LISTBOX_ITEM_COUNT_OFFSET, DXUT_LISTBOX_SELECTED_OFFSET, GAME_CURSOR_MODE_OFFSET,
-        GANGZONE_POOL_NOT_EMPTY_OFFSET, INPUT_ENABLED_OFFSET, LABEL_ATTACHED_PLAYER_OFFSET,
-        LABEL_ATTACHED_VEHICLE_OFFSET, LABEL_BEHIND_WALLS_OFFSET, LABEL_COLOUR_OFFSET,
-        LABEL_DRAW_DISTANCE_OFFSET, LABEL_POOL_NOT_EMPTY_OFFSET, LABEL_POSITION_OFFSET, LABEL_SIZE,
-        LABEL_TEXT_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET,
-        LOCAL_PLAYER_INCAR_OFFSET, LOCAL_PLAYER_INCAR_POSITION_OFFSET,
-        LOCAL_PLAYER_INCAR_SPEED_OFFSET, LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_OFFSET, LOCAL_PLAYER_ONFOOT_POSITION_OFFSET,
-        LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET, LOCAL_PLAYER_ONFOOT_SPEED_OFFSET,
-        MAX_TEXT_LABEL_TEXT_BYTES, NET_GAME_GAME_STATE_OFFSET, NET_GAME_HOST_ADDRESS_OFFSET,
-        NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_GANGZONE_POOL_OFFSET,
-        NET_GAME_POOLS_LABEL_POOL_OFFSET, NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
+        DIALOG_EDITBOX_OFFSET, DIALOG_ID_OFFSET, DIALOG_LISTBOX_OFFSET, DIALOG_SERVER_SIDE_OFFSET,
+        DIALOG_TEXT_OFFSET, DIALOG_TYPE_OFFSET, DXUT_LISTBOX_ITEM_ACTIVE_RECT_OFFSET,
+        DXUT_LISTBOX_ITEM_COUNT_OFFSET, DXUT_LISTBOX_ITEM_DATA_OFFSET, DXUT_LISTBOX_ITEM_SIZE,
+        DXUT_LISTBOX_ITEM_TEXT_CAPACITY, DXUT_LISTBOX_ITEM_TEXT_OFFSET,
+        DXUT_LISTBOX_ITEM_VISIBLE_OFFSET, DXUT_LISTBOX_ITEMS_OFFSET, DXUT_LISTBOX_SELECTED_OFFSET,
+        GAME_CURSOR_MODE_OFFSET, GANGZONE_POOL_NOT_EMPTY_OFFSET, INPUT_ENABLED_OFFSET,
+        LABEL_ATTACHED_PLAYER_OFFSET, LABEL_ATTACHED_VEHICLE_OFFSET, LABEL_BEHIND_WALLS_OFFSET,
+        LABEL_COLOUR_OFFSET, LABEL_DRAW_DISTANCE_OFFSET, LABEL_POOL_NOT_EMPTY_OFFSET,
+        LABEL_POSITION_OFFSET, LABEL_SIZE, LABEL_TEXT_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
+        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
+        LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
+        LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
+        LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, MAX_TEXT_LABEL_TEXT_BYTES, NET_GAME_GAME_STATE_OFFSET,
+        NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
+        NET_GAME_POOLS_GANGZONE_POOL_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
+        NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
         NET_GAME_POOLS_PICKUP_POOL_OFFSET, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET,
-        NET_GAME_PORT_OFFSET, NET_GAME_SERVER_SETTINGS_OFFSET, OBJECT_POOL_NOT_EMPTY_OFFSET,
-        PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
-        SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET, TEXTDRAW_ALIGN_LEFT_OFFSET,
-        TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET, TEXTDRAW_BOX_COLOUR_OFFSET,
-        TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET, TEXTDRAW_BOX_WIDTH_OFFSET,
-        TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET, TEXTDRAW_LETTER_HEIGHT_OFFSET,
-        TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET, TEXTDRAW_MODEL_COLOUR2_OFFSET,
-        TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
-        TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET, TEXTDRAW_ROTATION_OFFSET,
-        TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
-        TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id, bounded_c_string,
-        nul_terminated,
+        NET_GAME_PORT_OFFSET, NET_GAME_SERVER_SETTINGS_OFFSET, NativeDxutComboBoxItem,
+        OBJECT_POOL_NOT_EMPTY_OFFSET, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET,
+        TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
+        TEXTDRAW_BOX_COLOUR_OFFSET, TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET,
+        TEXTDRAW_BOX_WIDTH_OFFSET, TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET,
+        TEXTDRAW_LETTER_HEIGHT_OFFSET, TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET,
+        TEXTDRAW_MODEL_COLOUR2_OFFSET, TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET,
+        TEXTDRAW_POOL_NOT_EMPTY_OFFSET, TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET,
+        TEXTDRAW_ROTATION_OFFSET, TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET,
+        TEXTDRAW_Y_OFFSET, TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id,
+        bounded_c_string, mem, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -2609,8 +2744,17 @@ mod tests {
         fn samp_client_sdk_fixture_r1_scoreboard_enabled_offset() -> usize;
         fn samp_client_sdk_fixture_r1_dialog_active_offset() -> usize;
         fn samp_client_sdk_fixture_r1_dialog_listbox_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_dialog_editbox_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_dialog_text_offset() -> usize;
         fn samp_client_sdk_fixture_dxut_listbox_selected_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_listbox_items_offset() -> usize;
         fn samp_client_sdk_fixture_dxut_listbox_item_count_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_text_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_text_capacity() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_data_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_active_rect_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_visible_offset() -> usize;
+        fn samp_client_sdk_fixture_dxut_combobox_item_size() -> usize;
         fn samp_client_sdk_fixture_r1_dialog_type_offset() -> usize;
         fn samp_client_sdk_fixture_r1_dialog_id_offset() -> usize;
         fn samp_client_sdk_fixture_r1_dialog_caption_offset() -> usize;
@@ -2890,12 +3034,48 @@ mod tests {
                 DIALOG_LISTBOX_OFFSET
             );
             assert_eq!(
+                samp_client_sdk_fixture_r1_dialog_editbox_offset(),
+                DIALOG_EDITBOX_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_r1_dialog_text_offset(),
+                DIALOG_TEXT_OFFSET
+            );
+            assert_eq!(
                 samp_client_sdk_fixture_dxut_listbox_selected_offset(),
                 DXUT_LISTBOX_SELECTED_OFFSET
             );
             assert_eq!(
+                samp_client_sdk_fixture_dxut_listbox_items_offset(),
+                DXUT_LISTBOX_ITEMS_OFFSET
+            );
+            assert_eq!(
                 samp_client_sdk_fixture_dxut_listbox_item_count_offset(),
                 DXUT_LISTBOX_ITEM_COUNT_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_text_offset(),
+                DXUT_LISTBOX_ITEM_TEXT_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_text_capacity(),
+                DXUT_LISTBOX_ITEM_TEXT_CAPACITY
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_data_offset(),
+                DXUT_LISTBOX_ITEM_DATA_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_active_rect_offset(),
+                DXUT_LISTBOX_ITEM_ACTIVE_RECT_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_visible_offset(),
+                DXUT_LISTBOX_ITEM_VISIBLE_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_dxut_combobox_item_size(),
+                DXUT_LISTBOX_ITEM_SIZE
             );
             assert_eq!(
                 samp_client_sdk_fixture_r1_dialog_type_offset(),
@@ -2950,6 +3130,32 @@ mod tests {
             },
             None
         );
+    }
+
+    #[test]
+    fn native_dxut_combobox_item_mirror_matches_the_fixture_layout() {
+        assert_eq!(
+            mem::offset_of!(NativeDxutComboBoxItem, str_text),
+            DXUT_LISTBOX_ITEM_TEXT_OFFSET
+        );
+        assert_eq!(
+            mem::offset_of!(NativeDxutComboBoxItem, data),
+            DXUT_LISTBOX_ITEM_DATA_OFFSET
+        );
+        assert_eq!(
+            mem::offset_of!(NativeDxutComboBoxItem, active_rect),
+            DXUT_LISTBOX_ITEM_ACTIVE_RECT_OFFSET
+        );
+        assert_eq!(
+            mem::offset_of!(NativeDxutComboBoxItem, visible),
+            DXUT_LISTBOX_ITEM_VISIBLE_OFFSET
+        );
+        assert_eq!(
+            mem::size_of::<NativeDxutComboBoxItem>(),
+            DXUT_LISTBOX_ITEM_SIZE
+        );
+        assert_eq!(mem::size_of::<windows_sys::Win32::Foundation::RECT>(), 16);
+        assert_eq!(mem::align_of::<NativeDxutComboBoxItem>(), 4);
     }
 
     #[test]

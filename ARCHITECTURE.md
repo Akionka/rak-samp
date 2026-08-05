@@ -98,6 +98,10 @@ Dialog list selection is cached from the validated DXUT listbox and queued
 writes validate the same selected-index field before mutation.
 The list-item count is likewise copied only after its fixture-backed signed
 field is readable and non-negative.
+The active dialog snapshot also copies the fixture-anchored dynamic dialog
+text, the DXUT editbox text through the native GetText path, and each bounded
+listbox item string; the editbox replacement queues a bounded NUL-free write
+through the same dispatcher.
 Chat-input reads are copied into the game-thread cache and commands own their
 bounded text before invoking R1 DXUT edit-box and `CInput` methods on the
 dispatcher.

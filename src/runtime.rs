@@ -95,8 +95,8 @@ pub(crate) struct LocalPlayerSnapshot {
 }
 
 /// Host-owned metadata copied from one active R1 dialog. The dynamic dialog
-/// text and control contents intentionally remain outside this narrow first
-/// snapshot until their ownership and bounds have separate evidence.
+/// text, editbox contents, and listbox item strings are bounded copies made on
+/// the verified game thread; no native or DXUT pointer crosses this boundary.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct LocalDialogSnapshot {
     pub(crate) id: i32,
@@ -105,6 +105,13 @@ pub(crate) struct LocalDialogSnapshot {
     pub(crate) server_side: bool,
     pub(crate) selected_item: Option<i32>,
     pub(crate) list_item_count: Option<i32>,
+    /// Bounded copy of the active dialog's dynamically allocated text.
+    pub(crate) text: Vec<u8>,
+    /// Bounded copy of the active dialog's editbox text. `None` marks dialogs
+    /// without an editbox (for example a message box).
+    pub(crate) editbox_text: Option<Vec<u8>>,
+    /// Bounded copies of the active dialog's listbox item strings.
+    pub(crate) listbox_items: Vec<Vec<u8>>,
 }
 
 /// Host-owned directory data copied for either the local or one remote R1
@@ -670,6 +677,13 @@ impl Runtime {
         self.backend.submit_local_dialog_selected_item(selected)
     }
 
+    pub(crate) fn submit_local_dialog_editbox_text(
+        &self,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_local_dialog_editbox_text(text)
+    }
+
     pub(crate) fn submit_samp_game_state(
         &self,
         state: i32,
@@ -973,6 +987,21 @@ impl Runtime {
         &self,
     ) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
         self.backend.local_dialog_state()
+    }
+
+    pub(crate) fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.backend.local_dialog_text()
+    }
+
+    pub(crate) fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
+        self.backend.local_dialog_editbox_text()
+    }
+
+    pub(crate) fn local_dialog_listbox_item_text(
+        &self,
+        index: u32,
+    ) -> Result<Vec<u8>, DirectClientError> {
+        self.backend.local_dialog_listbox_item_text(index)
     }
 
     pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {

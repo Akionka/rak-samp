@@ -3,12 +3,12 @@
 use crate::{
     ChatEntry, CommandReceipt, Gangzone, HostApi, LocalAnimation, LocalChatDisplayMode,
     LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState,
-    LocalPlayer, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS,
-    MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, PlayerInfo, RemotePlayerState, ResolveError,
-    SampClientSdkClientVersion, SampClientSdkDirection, SampClientSdkEncodedString,
-    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkResult,
-    SampClientSdkSendOptions, SampGameState, SendRateKind, ServerInfo, SpecialAction, Subscription,
-    TextDraw, TextLabel,
+    LocalPlayer, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS,
+    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, PlayerInfo,
+    RemotePlayerState, ResolveError, SampClientSdkClientVersion, SampClientSdkDirection,
+    SampClientSdkEncodedString, SampClientSdkHookAction, SampClientSdkHostStatus,
+    SampClientSdkResult, SampClientSdkSendOptions, SampGameState, SendRateKind, ServerInfo,
+    SpecialAction, Subscription, TextDraw, TextLabel,
 };
 use std::time::Duration;
 
@@ -1269,6 +1269,14 @@ impl Dialogs {
         }
         self.api.submit_local_dialog_close(button)
     }
+
+    /// Queues a bounded R1 dialog editbox text replacement on the game thread.
+    pub fn set_editbox_text(self, text: &[u8]) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        if text.len() > MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES || text.contains(&0) {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        self.api.submit_local_dialog_editbox_text(text)
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1528,13 +1536,23 @@ mod tests {
                 dialog.id(),
                 dialog.style(),
                 dialog.caption().to_vec(),
-                dialog.is_client_side()
+                dialog.is_client_side(),
+                dialog.text().to_vec(),
+                dialog.editbox_text().to_vec(),
+                dialog
+                    .items()
+                    .iter()
+                    .map(|item| item.clone())
+                    .collect::<Vec<_>>()
             ))),
             Ok(Some((
                 7,
                 crate::LocalDialogStyle::Input,
                 b"fixture".to_vec(),
-                true
+                true,
+                b"fixture".to_vec(),
+                b"fixture".to_vec(),
+                vec![b"fixture".to_vec(); 3]
             )))
         );
         assert_eq!(
@@ -1712,6 +1730,18 @@ mod tests {
         assert_eq!(receipt.try_take(), Ok(Some(())));
         assert!(matches!(
             samp.dialogs().close_with_button(2),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
+    }
+
+    #[test]
+    fn dialog_editbox_mutation_returns_an_owned_completion_receipt() {
+        let samp = Samp::from_api(crate::events::test_support::test_api());
+        let mut receipt = samp.dialogs().set_editbox_text(b"fixture").unwrap();
+        assert_eq!(receipt.id(), 40);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+        assert!(matches!(
+            samp.dialogs().set_editbox_text(&[0]),
             Err(SampClientSdkResult::InvalidArgument)
         ));
     }
