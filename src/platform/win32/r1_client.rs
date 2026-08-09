@@ -5,6 +5,7 @@
 //! calls use approved fixed R1 offsets and validate native values at each access.
 
 mod addresses;
+mod memory;
 
 use crate::runtime::{
     AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
@@ -13,152 +14,8 @@ use crate::runtime::{
     ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, Vector3,
 };
 use addresses::*;
+use memory::*;
 use std::{ffi::c_void, mem, ptr};
-use windows_sys::Win32::System::Memory::{
-    MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY,
-    PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQuery,
-};
-
-const CHAT_DISPLAY_MODE_OFFSET: usize = 0x08;
-const CHAT_ENTRIES_OFFSET: usize = 0x132;
-const CHAT_ENTRY_SIZE: usize = 0xFC;
-const CHAT_ENTRY_PREFIX_OFFSET: usize = 0x04;
-const CHAT_ENTRY_PREFIX_CAPACITY: usize = 28;
-const CHAT_ENTRY_TEXT_OFFSET: usize = 0x20;
-const CHAT_ENTRY_TEXT_CAPACITY: usize = 144;
-const CHAT_ENTRY_TEXT_COLOUR_OFFSET: usize = 0xF4;
-const CHAT_ENTRY_PREFIX_COLOUR_OFFSET: usize = 0xF8;
-const MAX_CHAT_ENTRIES: u16 = 100;
-const RAKPEER_SIZE: usize = 0xDDE;
-const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
-const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
-const MAX_SAMP_PLAYERS: u16 = 1004;
-const MAX_SAMP_VEHICLES: u16 = 2000;
-const MAX_SAMP_TEXT_LABELS: u16 = 2048;
-const MAX_SAMP_TEXTDRAWS: u16 = 2304;
-const MAX_SAMP_OBJECTS: u16 = 1000;
-const MAX_SAMP_GANGZONES: u16 = 1024;
-const MAX_SAMP_PICKUPS: u16 = 4096;
-const MAX_LOCAL_PLAYER_NAME_BYTES: usize = 255;
-
-const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
-const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
-const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
-const VEHICLE_POOL_GAME_OBJECTS_OFFSET: usize = 0x4FB4;
-const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
-const OBJECT_POOL_OBJECTS_OFFSET: usize = 0xFA4;
-const PICKUP_POOL_HANDLES_OFFSET: usize = 0x04;
-const ENTITY_HANDLE_OFFSET: usize = 0x44;
-const NET_GAME_POOLS_OFFSET: usize = 0x3CD;
-const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x0C;
-const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x10;
-const NET_GAME_POOLS_OBJECT_POOL_OFFSET: usize = 0x04;
-const NET_GAME_POOLS_GANGZONE_POOL_OFFSET: usize = 0x08;
-const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
-const LABEL_TEXT_OFFSET: usize = 0x00;
-const LABEL_COLOUR_OFFSET: usize = 0x04;
-const LABEL_POSITION_OFFSET: usize = 0x08;
-const LABEL_DRAW_DISTANCE_OFFSET: usize = 0x14;
-const LABEL_BEHIND_WALLS_OFFSET: usize = 0x18;
-const LABEL_ATTACHED_PLAYER_OFFSET: usize = 0x19;
-const LABEL_ATTACHED_VEHICLE_OFFSET: usize = 0x1B;
-const LABEL_SIZE: usize = 0x1D;
-const MAX_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
-const MAX_TEXTDRAW_STRING_BYTES: usize = 1_601;
-const TEXTDRAW_STRING_OFFSET: usize = 801;
-const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
-const TEXTDRAW_POOL_OBJECTS_OFFSET: usize = 0x2400;
-const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;
-const GANGZONE_LEFT_OFFSET: usize = 0x00;
-const GANGZONE_BOTTOM_OFFSET: usize = 0x04;
-const GANGZONE_RIGHT_OFFSET: usize = 0x08;
-const GANGZONE_TOP_OFFSET: usize = 0x0C;
-const GANGZONE_COLOUR_OFFSET: usize = 0x10;
-const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
-const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
-const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
-const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
-const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
-const REMOTE_PLAYER_STATE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
-// These packed CNetGame fields are cross-checked by the independently written
-// fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
-// layout, which anchors the packed field sequence.
-const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x20;
-const NET_GAME_HOSTNAME_OFFSET: usize = 0x121;
-const NET_GAME_PORT_OFFSET: usize = 0x225;
-const NET_GAME_GAME_STATE_OFFSET: usize = 0x3BD;
-#[cfg(test)]
-const NET_GAME_SERVER_SETTINGS_OFFSET: usize = 0x3C5;
-const NET_GAME_POOLS_PICKUP_POOL_OFFSET: usize = 0x20;
-const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
-const RAK_CLIENT_DISCONNECT_VTABLE_SLOT: usize = 2;
-const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
-const GAME_CURSOR_MODE_OFFSET: usize = 0x55;
-const DIALOG_ACTIVE_OFFSET: usize = 0x28;
-const DIALOG_TYPE_OFFSET: usize = 0x2C;
-const DIALOG_ID_OFFSET: usize = 0x30;
-const DIALOG_LISTBOX_OFFSET: usize = 0x20;
-const DIALOG_EDITBOX_OFFSET: usize = 0x24;
-const DIALOG_TEXT_OFFSET: usize = 0x34;
-const DIALOG_CAPTION_OFFSET: usize = 0x40;
-const DIALOG_CAPTION_CAPACITY: usize = 65;
-const DIALOG_SERVER_SIDE_OFFSET: usize = 0x81;
-const DXUT_LISTBOX_SELECTED_OFFSET: usize = 0x143;
-const DXUT_LISTBOX_ITEMS_OFFSET: usize = 0x14C;
-const DXUT_LISTBOX_ITEM_COUNT_OFFSET: usize = 0x150;
-const DXUT_LISTBOX_ITEM_TEXT_OFFSET: usize = 0x00;
-const DXUT_LISTBOX_ITEM_TEXT_CAPACITY: usize = 256;
-#[cfg(test)]
-const DXUT_LISTBOX_ITEM_DATA_OFFSET: usize = 0x100;
-#[cfg(test)]
-const DXUT_LISTBOX_ITEM_ACTIVE_RECT_OFFSET: usize = 0x104;
-#[cfg(test)]
-const DXUT_LISTBOX_ITEM_VISIBLE_OFFSET: usize = 0x114;
-#[cfg(test)]
-const DXUT_LISTBOX_ITEM_SIZE: usize = 0x118;
-const MAX_DIALOG_TEXT_BYTES: usize = 4_096;
-const MAX_DIALOG_EDITBOX_TEXT_BYTES: usize = 128;
-const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
-const INPUT_ENABLED_OFFSET: usize = 0x14E0;
-const INPUT_EDIT_BOX_OFFSET: usize = 0x08;
-const MAX_CHAT_INPUT_TEXT_BYTES: usize = 128;
-const TEXTDRAW_DATA_OFFSET: usize = 0x963;
-const TEXTDRAW_LETTER_WIDTH_OFFSET: usize = TEXTDRAW_DATA_OFFSET;
-const TEXTDRAW_LETTER_HEIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x04;
-const TEXTDRAW_LETTER_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x08;
-const TEXTDRAW_ALIGN_CENTER_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0D;
-const TEXTDRAW_BOX_ENABLED_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0E;
-const TEXTDRAW_BOX_WIDTH_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x0F;
-const TEXTDRAW_BOX_HEIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x13;
-const TEXTDRAW_BOX_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x17;
-const TEXTDRAW_PROPORTIONAL_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x1B;
-const TEXTDRAW_BACKGROUND_COLOUR_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x1C;
-const TEXTDRAW_SHADOW_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x20;
-const TEXTDRAW_OUTLINE_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x21;
-const TEXTDRAW_ALIGN_LEFT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x22;
-const TEXTDRAW_ALIGN_RIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x23;
-const TEXTDRAW_STYLE_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x24;
-const TEXTDRAW_X_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x28;
-const TEXTDRAW_Y_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x2C;
-const TEXTDRAW_MODEL_ID_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x45;
-const TEXTDRAW_ROTATION_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x47;
-const TEXTDRAW_ZOOM_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x53;
-const TEXTDRAW_MODEL_COLOUR1_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x57;
-const TEXTDRAW_MODEL_COLOUR2_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x59;
-
-const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
-const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0x14;
-const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x18;
-const LOCAL_PLAYER_INCAR_OFFSET: usize = 0xAA;
-const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = 0x06;
-const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = 0x26;
-const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = 0x25;
-const LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET: usize = 0x40;
-const LOCAL_PLAYER_INCAR_POSITION_OFFSET: usize = 0x18;
-const LOCAL_PLAYER_INCAR_SPEED_OFFSET: usize = 0x24;
-// `CPed` inherits a 0x48-byte `CEntity`, then owns its accessory arrays before
-// its GTA-ped pointer.
-const SAMP_PED_GAME_PED_OFFSET: usize = 0x2A4;
 const INVALID_ID: u16 = u16::MAX;
 
 /// A narrow R1-only profile whose fields and call targets never cross the
@@ -166,32 +23,6 @@ const INVALID_ID: u16 = u16::MAX;
 #[derive(Clone, Copy, Debug)]
 pub(super) struct R1ClientProfile {
     module_base: usize,
-}
-
-/// Rust mirror of the native `DXUTComboBoxItem` layout declared by SF.lua at
-/// the pinned commit (`SFlua/cdef/dxut.lua`) and asserted against the
-/// independent C++ fixture using the real windef `RECT`:
-///
-/// ```c
-/// struct DXUTComboBoxItem {
-///     char   strText[256];
-///     void*  pData;
-///     SCRect rcActive;   // == RECT from windef.h
-///     bool   bVisible;
-/// };
-/// ```
-///
-/// The host reads only `str_text`; the remaining fields pin the overall
-/// default-aligned packing so a future consumer cannot silently disagree with
-/// the fixture. This type never crosses the plugin ABI.
-#[cfg(test)]
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct NativeDxutComboBoxItem {
-    str_text: [u8; DXUT_LISTBOX_ITEM_TEXT_CAPACITY],
-    data: *mut c_void,
-    active_rect: windows_sys::Win32::Foundation::RECT,
-    visible: bool,
 }
 
 impl R1ClientProfile {
@@ -2684,24 +2515,6 @@ type TextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 type LabelPoolCreateFn =
     unsafe extern "thiscall" fn(*mut c_void, u16, *const u8, u32, NativeVector3, f32, u8, u16, u16);
 type LabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct NativeVector3 {
-    x: f32,
-    y: f32,
-    z: f32,
-}
-
-impl From<Vector3> for NativeVector3 {
-    fn from(value: Vector3) -> Self {
-        Self {
-            x: value.x,
-            y: value.y,
-            z: value.z,
-        }
-    }
-}
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalScoreFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolGetLocalPingFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
@@ -2726,41 +2539,8 @@ type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
 
-unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
-    unsafe { read_unaligned::<usize>(address) }.map(|value| value as *mut u8)
-}
-
-unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
-    readable_range(address as *const u8, mem::size_of::<T>())
-        .then(|| unsafe { (address as *const T).read_unaligned() })
-}
-
-unsafe fn read_vector3(address: usize) -> Option<Vector3> {
-    Some(Vector3 {
-        x: unsafe { read_unaligned::<f32>(address) }?,
-        y: unsafe { read_unaligned::<f32>(address.checked_add(4)?) }?,
-        z: unsafe { read_unaligned::<f32>(address.checked_add(8)?) }?,
-    })
-}
-
-fn read_r1_bool(address: usize) -> Result<bool, DirectClientError> {
-    match unsafe { read_unaligned::<i32>(address) } {
-        Some(0) => Ok(false),
-        Some(1) => Ok(true),
-        _ => Err(DirectClientError::NotReady),
-    }
-}
-
 const fn is_r1_game_state(state: i32) -> bool {
     matches!(state, 0 | 9 | 13 | 14 | 15 | 18)
-}
-
-fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
-    match unsafe { read_unaligned::<u8>(address) } {
-        Some(0) => Ok(false),
-        Some(1) => Ok(true),
-        _ => Err(DirectClientError::NotReady),
-    }
 }
 
 fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
@@ -2781,77 +2561,9 @@ fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClient
     })
 }
 
-unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
-    if pointer.is_null() {
-        return None;
-    }
-    let mut output = Vec::new();
-    for index in 0..maximum {
-        let byte = unsafe { read_unaligned::<u8>((pointer as usize).checked_add(index)?) }?;
-        if byte == 0 {
-            return Some(output);
-        }
-        output.push(byte);
-    }
-    None
-}
-
-unsafe fn bounded_dxut_listbox_item_text(pointer: *const u8) -> Option<Vec<u8>> {
-    unsafe { bounded_c_string(pointer, DXUT_LISTBOX_ITEM_TEXT_CAPACITY) }
-}
-
 fn nul_terminated(mut value: Vec<u8>) -> Vec<u8> {
     value.push(0);
     value
-}
-
-fn readable_range(address: *const u8, length: usize) -> bool {
-    if address.is_null() || length == 0 {
-        return length == 0;
-    }
-    let Some(end) = (address as usize).checked_add(length) else {
-        return false;
-    };
-    let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
-    let queried = unsafe {
-        VirtualQuery(
-            address.cast(),
-            info.as_mut_ptr(),
-            mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-        )
-    };
-    if queried == 0 {
-        return false;
-    }
-    let info = unsafe { info.assume_init() };
-    let Some(region_end) = (info.BaseAddress as usize).checked_add(info.RegionSize) else {
-        return false;
-    };
-    info.State == MEM_COMMIT
-        && info.Protect & (PAGE_GUARD | PAGE_NOACCESS) == 0
-        && end <= region_end
-}
-
-fn writable_range(address: *const u8, length: usize) -> bool {
-    if !readable_range(address, length) {
-        return false;
-    }
-    let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
-    let queried = unsafe {
-        VirtualQuery(
-            address.cast(),
-            info.as_mut_ptr(),
-            mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-        )
-    };
-    if queried == 0 {
-        return false;
-    }
-    let protection = unsafe { info.assume_init() }.Protect & 0xFF;
-    matches!(
-        protection,
-        PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY
-    )
 }
 
 #[cfg(test)]

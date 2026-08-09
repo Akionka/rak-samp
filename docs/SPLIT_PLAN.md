@@ -137,7 +137,7 @@ Progress:
   lifecycle status and tests in the runtime composition root.
 - [x] Extract R1 executable/function addresses while leaving native layout
   offsets with the memory/layout slice.
-- [ ] Extract R1 memory/layout helpers.
+- [x] Extract R1 native layouts, fixed offsets, and guarded memory helpers.
 
 ### Phase 2 — Move methods while retaining state
 
