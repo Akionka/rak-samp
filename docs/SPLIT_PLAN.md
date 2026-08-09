@@ -154,8 +154,10 @@ Progress:
   execution.
 - [x] Extract bounded cache-refresh request producers without moving drains,
   caches, or invalidation.
-- [ ] Extract cache/read, packet, and hook method groups as independent
-  validated slices.
+- [x] Extract lock-free scalar cache readers without moving refresh writers or
+  publication control.
+- [ ] Extract remaining cache/read, packet, and hook method groups as
+  independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 
