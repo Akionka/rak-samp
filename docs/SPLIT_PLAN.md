@@ -172,6 +172,8 @@ Progress:
   or invalidation.
 - [x] Extract object existence reads without moving request producers, refresh,
   or invalidation.
+- [x] Extract gangzone reads without moving request producers, refresh, or
+  invalidation.
 - [ ] Extract remaining entity cache reads, packet methods, and hook methods as
   independent validated slices.
 
