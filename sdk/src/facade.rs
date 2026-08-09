@@ -1677,12 +1677,8 @@ mod tests {
                 dialog.caption().to_vec(),
                 dialog.is_client_side(),
                 dialog.text().to_vec(),
-                dialog.editbox_text().to_vec(),
-                dialog
-                    .items()
-                    .iter()
-                    .map(|item| item.clone())
-                    .collect::<Vec<_>>()
+                dialog.editbox_text().map(<[u8]>::to_vec),
+                dialog.items().to_vec()
             ))),
             Ok(Some((
                 7,
@@ -1690,7 +1686,7 @@ mod tests {
                 b"fixture".to_vec(),
                 true,
                 b"fixture".to_vec(),
-                b"fixture".to_vec(),
+                Some(b"fixture".to_vec()),
                 vec![b"fixture".to_vec(); 3]
             )))
         );

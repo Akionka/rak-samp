@@ -87,7 +87,6 @@ const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_CHAT_ENTRIES: usize = 100;
 const MAX_SAMP_OBJECTS: usize = 1000;
 const MAX_SAMP_PICKUPS: usize = 4096;
-const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
 /// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
@@ -1138,21 +1137,6 @@ impl Backend {
             .local_dialog_state()?
             .and_then(|snapshot| snapshot.list_item_count)
             .ok_or(DirectClientError::NotReady)
-    }
-
-    pub(crate) fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.state.local_dialog_text()
-    }
-
-    pub(crate) fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.state.local_dialog_editbox_text()
-    }
-
-    pub(crate) fn local_dialog_listbox_item_text(
-        &self,
-        index: u32,
-    ) -> Result<Vec<u8>, DirectClientError> {
-        self.state.local_dialog_listbox_item_text(index)
     }
 
     pub(crate) fn submit_local_dialog_editbox_text(
@@ -2877,27 +2861,6 @@ impl BackendState {
             .try_lock()
             .map_err(|_| DirectClientError::NotReady)?
             .clone())
-    }
-
-    fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.local_dialog_state()?
-            .map(|snapshot| snapshot.text)
-            .ok_or(DirectClientError::NotReady)
-    }
-
-    fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.local_dialog_state()?
-            .and_then(|snapshot| snapshot.editbox_text)
-            .ok_or(DirectClientError::NotReady)
-    }
-
-    fn local_dialog_listbox_item_text(&self, index: u32) -> Result<Vec<u8>, DirectClientError> {
-        if index >= MAX_DIALOG_LISTBOX_ITEMS as u32 {
-            return Err(DirectClientError::NotReady);
-        }
-        self.local_dialog_state()?
-            .and_then(|snapshot| snapshot.listbox_items.get(index as usize).cloned())
-            .ok_or(DirectClientError::NotReady)
     }
 
     fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
@@ -5190,18 +5153,6 @@ mod vtable_tests {
             Err(DirectClientError::UnsupportedVersion)
         );
         assert_eq!(
-            state.local_dialog_text(),
-            Err(DirectClientError::UnsupportedVersion)
-        );
-        assert_eq!(
-            state.local_dialog_editbox_text(),
-            Err(DirectClientError::UnsupportedVersion)
-        );
-        assert_eq!(
-            state.local_dialog_listbox_item_text(0),
-            Err(DirectClientError::UnsupportedVersion)
-        );
-        assert_eq!(
             state.submit_local_dialog_editbox_text(b"fixture".to_vec()),
             Err(DirectClientError::UnsupportedVersion)
         );
@@ -5220,73 +5171,6 @@ mod vtable_tests {
         assert_eq!(
             state.server_info(),
             Err(DirectClientError::UnsupportedVersion)
-        );
-    }
-
-    #[test]
-    fn dialog_heavy_text_reads_serve_the_published_snapshot() {
-        let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
-        state.rak_client.store(0x1000, Ordering::Release);
-        state.cache_generation.store(2, Ordering::Release);
-        *state.local_dialog_snapshot.lock().unwrap() = Some(LocalDialogSnapshot {
-            id: 7,
-            style: crate::runtime::LocalDialogStyle::List,
-            title: b"fixture".to_vec(),
-            server_side: false,
-            selected_item: Some(1),
-            list_item_count: Some(2),
-            text: b"body".to_vec(),
-            editbox_text: Some(b"edit".to_vec()),
-            listbox_items: vec![b"one".to_vec(), b"two".to_vec()],
-        });
-        state
-            .local_dialog_snapshot_ready
-            .store(true, Ordering::Release);
-
-        assert_eq!(state.local_dialog_text(), Ok(b"body".to_vec()));
-        assert_eq!(state.local_dialog_editbox_text(), Ok(b"edit".to_vec()));
-        assert_eq!(state.local_dialog_listbox_item_text(0), Ok(b"one".to_vec()));
-        assert_eq!(state.local_dialog_listbox_item_text(1), Ok(b"two".to_vec()));
-        assert_eq!(
-            state.local_dialog_listbox_item_text(2),
-            Err(DirectClientError::NotReady)
-        );
-        assert_eq!(
-            state.local_dialog_listbox_item_text(100),
-            Err(DirectClientError::NotReady)
-        );
-    }
-
-    #[test]
-    fn dialog_without_editbox_or_listbox_reports_missing_heavy_text() {
-        let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
-        state.rak_client.store(0x1000, Ordering::Release);
-        state.cache_generation.store(2, Ordering::Release);
-        *state.local_dialog_snapshot.lock().unwrap() = Some(LocalDialogSnapshot {
-            id: 7,
-            style: crate::runtime::LocalDialogStyle::MessageBox,
-            title: b"fixture".to_vec(),
-            server_side: false,
-            selected_item: None,
-            list_item_count: None,
-            text: Vec::new(),
-            editbox_text: None,
-            listbox_items: Vec::new(),
-        });
-        state
-            .local_dialog_snapshot_ready
-            .store(true, Ordering::Release);
-
-        assert_eq!(state.local_dialog_text(), Ok(Vec::new()));
-        assert_eq!(
-            state.local_dialog_editbox_text(),
-            Err(DirectClientError::NotReady)
-        );
-        assert_eq!(
-            state.local_dialog_listbox_item_text(0),
-            Err(DirectClientError::NotReady)
         );
     }
 
@@ -5349,7 +5233,7 @@ mod vtable_tests {
 
     #[test]
     fn handle_caches_are_cleared_across_connection_boundaries() {
-        let mut state = test_backend_state();
+        let state = test_backend_state();
         state.object_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
         state.object_handle_requests.lock().unwrap().push_back(7);
         state

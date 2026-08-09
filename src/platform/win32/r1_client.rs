@@ -711,6 +711,9 @@ impl R1ClientProfile {
         if editbox == 0 {
             return Ok(None);
         }
+        if !readable_range(editbox as *const u8, 1) {
+            return Err(DirectClientError::NotReady);
+        }
         let get_text: DxutEditBoxGetTextFn =
             unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_GET_TEXT_RVA) };
         unsafe {
@@ -758,10 +761,7 @@ impl R1ClientProfile {
             .filter(|item| *item != 0)
             .ok_or(DirectClientError::NotReady)?;
         unsafe {
-            bounded_c_string(
-                (item + DXUT_LISTBOX_ITEM_TEXT_OFFSET) as *const u8,
-                DXUT_LISTBOX_ITEM_TEXT_CAPACITY + 1,
-            )
+            bounded_dxut_listbox_item_text((item + DXUT_LISTBOX_ITEM_TEXT_OFFSET) as *const u8)
         }
         .ok_or(DirectClientError::NotReady)
     }
@@ -2853,6 +2853,10 @@ unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>
     None
 }
 
+unsafe fn bounded_dxut_listbox_item_text(pointer: *const u8) -> Option<Vec<u8>> {
+    unsafe { bounded_c_string(pointer, DXUT_LISTBOX_ITEM_TEXT_CAPACITY) }
+}
+
 fn nul_terminated(mut value: Vec<u8>) -> Vec<u8> {
     value.push(0);
     value
@@ -2941,7 +2945,7 @@ mod tests {
         TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET, TEXTDRAW_ROTATION_OFFSET,
         TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
         TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_GAME_OBJECTS_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET,
-        assigned_player_id, bounded_c_string, mem, nul_terminated,
+        assigned_player_id, bounded_c_string, bounded_dxut_listbox_item_text, mem, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -3445,6 +3449,31 @@ mod tests {
         );
         assert_eq!(mem::size_of::<windows_sys::Win32::Foundation::RECT>(), 16);
         assert_eq!(mem::align_of::<NativeDxutComboBoxItem>(), 4);
+    }
+
+    #[test]
+    fn listbox_item_text_read_stays_inside_the_native_text_field() {
+        let mut item = NativeDxutComboBoxItem {
+            str_text: [b'x'; DXUT_LISTBOX_ITEM_TEXT_CAPACITY],
+            data: std::ptr::null_mut(),
+            active_rect: windows_sys::Win32::Foundation::RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+            visible: false,
+        };
+
+        assert_eq!(
+            unsafe { bounded_dxut_listbox_item_text(item.str_text.as_ptr()) },
+            None
+        );
+        item.str_text[DXUT_LISTBOX_ITEM_TEXT_CAPACITY - 1] = 0;
+        assert_eq!(
+            unsafe { bounded_dxut_listbox_item_text(item.str_text.as_ptr()) },
+            Some(vec![b'x'; DXUT_LISTBOX_ITEM_TEXT_CAPACITY - 1])
+        );
     }
 
     #[test]
