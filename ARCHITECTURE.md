@@ -8,7 +8,7 @@ plugins use the public, versioned SDK package.
 | Area | Location | Purpose |
 | --- | --- | --- |
 | Bootstrap and ABI | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` | Start outside `DllMain`, publish status, and export `SampClientSdkApiV1`. |
-| Runtime | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` | Own bounded event data, dispatch listeners, and send exact RakNet payloads. |
+| Runtime | `src/runtime.rs`, `src/runtime/errors.rs`, `src/runtime/options.rs`, `src/event.rs`, `src/bitstream.rs` | Own bounded event data, isolate runtime failures and send policy, dispatch listeners, and send exact RakNet payloads. |
 | Native backend | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs`, `src/client.rs` | Select networking offsets, own hooks, and apply the fixed R1 bridge offsets with local validation. |
 | Public SDK | `sdk/src/lib.rs`, `sdk/src/limits.rs`, `sdk/src/facade.rs`, `sdk/src/raknet.rs`, `sdk/src/raw.rs` | Resolve the host through `Samp`, publish fixed capacities under `limits`, provide safe subsystem views, callback helpers, owned BitStreams, protocol catalogs, and explicit unsafe native-address access. |
 | Typed events | `sdk/src/events/` | Provide bounded R1 packet/RPC codecs and mock ABI support. |

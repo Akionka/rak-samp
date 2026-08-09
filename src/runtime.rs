@@ -4,8 +4,15 @@ use crate::{
     event::Registry,
     platform,
 };
-use core::fmt;
 use std::{sync::Arc, time::Duration};
+
+mod errors;
+mod options;
+
+pub use errors::{AttachError, SendError};
+pub(crate) use errors::{CodecError, DirectClientError};
+use options::validate_packet_options;
+pub use options::{PacketPriority, PacketReliability, SendOptions};
 
 /// A copied dialog request that is safe to retain until the game-thread pump
 /// can call the private native client backend.
@@ -257,128 +264,6 @@ pub(crate) struct Vector3 {
     pub(crate) y: f32,
     pub(crate) z: f32,
 }
-
-/// Failures specific to the direct, profile-gated client helpers.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DirectClientError {
-    NotReady,
-    UnsupportedVersion,
-    QueueFull,
-}
-
-/// Failure to attach the SDK to a compatible SA-MP client.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum AttachError {
-    UnsupportedPlatform,
-    SampNotLoaded,
-    UnsupportedClient { entry_point: u32 },
-    ClientNotReady,
-    AlreadyAttached,
-    HookInstallFailed(&'static str),
-}
-
-impl fmt::Display for AttachError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnsupportedPlatform => {
-                formatter.write_str("samp_client_sdk requires a 32-bit Windows process")
-            }
-            Self::SampNotLoaded => formatter.write_str("samp.dll is not loaded"),
-            Self::UnsupportedClient { entry_point } => {
-                write!(
-                    formatter,
-                    "unsupported samp.dll entry point RVA: 0x{entry_point:X}"
-                )
-            }
-            Self::ClientNotReady => formatter.write_str("the SA-MP RakClient is not ready yet"),
-            Self::AlreadyAttached => {
-                formatter.write_str("a samp_client_sdk runtime is already attached")
-            }
-            Self::HookInstallFailed(detail) => {
-                write!(formatter, "failed to install SA-MP hook: {detail}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for AttachError {}
-
-/// Reliability priority used by [`SendOptions`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PacketPriority {
-    System,
-    High,
-    Medium,
-    Low,
-}
-
-/// Delivery behavior used by [`SendOptions`].
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PacketReliability {
-    Unreliable,
-    UnreliableSequenced,
-    Reliable,
-    ReliableOrdered,
-    ReliableSequenced,
-}
-
-/// RakNet delivery options for raw packet and RPC sends.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SendOptions {
-    pub priority: PacketPriority,
-    pub reliability: PacketReliability,
-    pub ordering_channel: u8,
-    pub timestamp: bool,
-}
-
-impl Default for SendOptions {
-    fn default() -> Self {
-        Self {
-            priority: PacketPriority::High,
-            reliability: PacketReliability::ReliableOrdered,
-            ordering_channel: 0,
-            timestamp: false,
-        }
-    }
-}
-
-/// Failure to send or locally emulate network traffic.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum SendError {
-    ClientNotReady,
-    QueueFull,
-    PayloadTooLarge,
-    NativeCallFailed,
-    TimestampedPacketUnsupported,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) enum CodecError {
-    ClientNotReady,
-    InvalidArgument,
-    PayloadTooLarge,
-    NativeCallFailed,
-}
-
-impl fmt::Display for SendError {
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::ClientNotReady => formatter.write_str("the SA-MP client hook is not ready"),
-            Self::QueueFull => formatter.write_str("the game-thread command queue is full"),
-            Self::PayloadTooLarge => {
-                formatter.write_str("the payload does not fit into the native bit stream")
-            }
-            Self::NativeCallFailed => {
-                formatter.write_str("the SA-MP client rejected the network operation")
-            }
-            Self::TimestampedPacketUnsupported => {
-                formatter.write_str("timestamped packet sends are not supported")
-            }
-        }
-    }
-}
-
-impl std::error::Error for SendError {}
 
 /// A live SA-MP hook runtime.
 ///
@@ -1059,14 +944,6 @@ impl Runtime {
         file: &[u8],
     ) -> Result<Option<u16>, DirectClientError> {
         self.backend.local_animation_id(name, file)
-    }
-}
-
-fn validate_packet_options(options: SendOptions) -> Result<(), SendError> {
-    if options.timestamp {
-        Err(SendError::TimestampedPacketUnsupported)
-    } else {
-        Ok(())
     }
 }
 

@@ -6,7 +6,8 @@
   plugins; its public paths follow cohesive modules rather than compatibility
   aliases.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
-  `samp_client_sdk.asi`.
+  `samp_client_sdk.asi`; its runtime keeps failure types and send policy
+  separate from lifecycle control.
 
 ## Process model
 

@@ -133,7 +133,8 @@ Progress:
 
 - [x] Extract SDK capacity constants to public `sdk/src/limits.rs`; update
   workspace consumers and remove compatibility re-exports.
-- [ ] Extract runtime errors/options.
+- [x] Extract runtime errors/options into private child modules while keeping
+  lifecycle status and tests in the runtime composition root.
 - [ ] Extract R1 RVA constants.
 - [ ] Extract R1 memory/layout helpers.
 
