@@ -168,6 +168,8 @@ Progress:
   producers, refresh, or invalidation.
 - [x] Extract textdraw existence and snapshot reads without moving request
   producers, refresh, or invalidation.
+- [x] Extract vehicle existence reads without moving request producers, refresh,
+  or invalidation.
 - [ ] Extract remaining entity cache reads, packet methods, and hook methods as
   independent validated slices.
 

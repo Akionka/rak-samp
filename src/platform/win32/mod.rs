@@ -11,6 +11,7 @@ mod reads;
 mod requests;
 mod text_labels;
 mod textdraws;
+mod vehicles;
 
 use crate::{
     AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
@@ -2121,37 +2122,6 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::SetPlayerColour { id, colour })
-    }
-
-    fn vehicle_exists(&self, id: u16) -> Result<bool, DirectClientError> {
-        if self.r1_client.is_none() {
-            return Err(DirectClientError::UnsupportedVersion);
-        }
-        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
-            return Err(DirectClientError::NotReady);
-        }
-        if usize::from(id) >= MAX_SAMP_VEHICLES {
-            return Err(DirectClientError::NotReady);
-        }
-        match self
-            .vehicle_exists_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
-            .get(usize::from(id))
-            .copied()
-            .ok_or(DirectClientError::NotReady)?
-        {
-            VehicleExistsCacheEntry::Known(exists) => {
-                // Refresh opportunistically without making the cached read
-                // fail if a busy plugin filled the bounded request queue.
-                let _ = self.queue_vehicle_exists_request(id);
-                Ok(exists)
-            }
-            VehicleExistsCacheEntry::Unknown => {
-                self.queue_vehicle_exists_request(id)?;
-                Err(DirectClientError::NotReady)
-            }
-        }
     }
 
     fn chat_entry(&self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
