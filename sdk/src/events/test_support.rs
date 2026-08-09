@@ -971,7 +971,7 @@ unsafe extern "system" fn test_textdraw_info(
             text_len: 7,
             _reserved3: [0; 2],
             text: {
-                let mut text = [0; crate::MAX_SAMP_TEXTDRAW_STRING_BYTES];
+                let mut text = [0; crate::limits::MAX_SAMP_TEXTDRAW_STRING_BYTES];
                 text[..7].copy_from_slice(b"fixture");
                 text
             },
@@ -989,7 +989,7 @@ unsafe extern "system" fn test_chat_entry_info(
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    if id >= crate::MAX_SAMP_CHAT_ENTRIES {
+    if id >= crate::limits::MAX_SAMP_CHAT_ENTRIES {
         return SampClientSdkResult::InvalidArgument;
     }
     *output = crate::SampClientSdkChatEntryV1 {
@@ -999,12 +999,12 @@ unsafe extern "system" fn test_chat_entry_info(
         text_colour: 0xFF11_2233,
         prefix_colour: 0xFF44_5566,
         text: {
-            let mut text = [0; crate::MAX_SAMP_CHAT_ENTRY_TEXT_BYTES];
+            let mut text = [0; crate::limits::MAX_SAMP_CHAT_ENTRY_TEXT_BYTES];
             text[..7].copy_from_slice(b"fixture");
             text
         },
         prefix: {
-            let mut prefix = [0; crate::MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES];
+            let mut prefix = [0; crate::limits::MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES];
             prefix[..6].copy_from_slice(b"prefix");
             prefix
         },
@@ -1307,7 +1307,7 @@ unsafe extern "system" fn test_submit_player_colour(
     _colour: u32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_PLAYERS {
+    if id >= crate::limits::MAX_SAMP_PLAYERS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 21) }
@@ -1329,7 +1329,7 @@ unsafe extern "system" fn test_submit_force_unoccupied_sync(
     _seat: i32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if vehicle >= crate::MAX_SAMP_VEHICLES {
+    if vehicle >= crate::limits::MAX_SAMP_VEHICLES {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 23) }
@@ -1358,7 +1358,7 @@ unsafe extern "system" fn test_submit_delete_textdraw(
     id: u16,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 26) }
@@ -1370,7 +1370,7 @@ unsafe extern "system" fn test_submit_set_textdraw_position(
     y: f32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || !x.is_finite() || !y.is_finite() {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS || !x.is_finite() || !y.is_finite() {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 27) }
@@ -1383,7 +1383,7 @@ unsafe extern "system" fn test_submit_set_textdraw_letter_style(
     _colour: u32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || !width.is_finite() || !height.is_finite() {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS || !width.is_finite() || !height.is_finite() {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 28) }
@@ -1394,7 +1394,7 @@ unsafe extern "system" fn test_submit_set_textdraw_proportional(
     proportional: u8,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || proportional > 1 {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS || proportional > 1 {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 29) }
@@ -1406,7 +1406,7 @@ unsafe extern "system" fn test_submit_set_textdraw_shadow(
     _colour: u32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 30) }
@@ -1418,7 +1418,7 @@ unsafe extern "system" fn test_submit_set_textdraw_outline(
     _colour: u32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 31) }
@@ -1432,7 +1432,11 @@ unsafe extern "system" fn test_submit_set_textdraw_box(
     height: f32,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || enabled > 1 || !width.is_finite() || !height.is_finite() {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS
+        || enabled > 1
+        || !width.is_finite()
+        || !height.is_finite()
+    {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 32) }
@@ -1443,7 +1447,7 @@ unsafe extern "system" fn test_submit_set_textdraw_alignment(
     alignment: u8,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || !(1..=3).contains(&alignment) {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS || !(1..=3).contains(&alignment) {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 33) }
@@ -1455,7 +1459,10 @@ unsafe extern "system" fn test_submit_set_textdraw_string(
     text_len: usize,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS || text.is_null() && text_len != 0 || text_len > 1_601 {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS
+        || text.is_null() && text_len != 0
+        || text_len > 1_601
+    {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 34) }
@@ -1480,7 +1487,7 @@ unsafe extern "system" fn test_submit_delete_text_label(
     id: u16,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXT_LABELS {
+    if id >= crate::limits::MAX_SAMP_TEXT_LABELS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 36) }
@@ -1498,9 +1505,9 @@ unsafe extern "system" fn test_submit_create_text_label(
     _attached_vehicle_id: u16,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXT_LABELS
+    if id >= crate::limits::MAX_SAMP_TEXT_LABELS
         || text.is_null()
-        || text_len > crate::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+        || text_len > crate::limits::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
         || !position.x.is_finite()
         || !position.y.is_finite()
         || !position.z.is_finite()
@@ -1553,7 +1560,7 @@ unsafe extern "system" fn test_submit_local_dialog_editbox_text(
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
     if receipt.is_null()
-        || text_len > crate::MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES
+        || text_len > crate::limits::MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES
         || (text.is_null() && text_len != 0)
     {
         return SampClientSdkResult::InvalidArgument;
@@ -1568,7 +1575,7 @@ unsafe extern "system" fn test_local_object_handle(
     id: u16,
     output: *mut i32,
 ) -> SampClientSdkResult {
-    if output.is_null() || id >= crate::MAX_SAMP_OBJECTS {
+    if output.is_null() || id >= crate::limits::MAX_SAMP_OBJECTS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { output.write(0x1000 + i32::from(id)) };
@@ -1590,7 +1597,7 @@ unsafe extern "system" fn test_local_pickup_handle(
     id: u16,
     output: *mut i32,
 ) -> SampClientSdkResult {
-    if output.is_null() || id >= crate::MAX_SAMP_PICKUPS {
+    if output.is_null() || id >= crate::limits::MAX_SAMP_PICKUPS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { output.write(0x2000 + i32::from(id)) };
@@ -1612,7 +1619,7 @@ unsafe extern "system" fn test_local_vehicle_handle(
     id: u16,
     output: *mut i32,
 ) -> SampClientSdkResult {
-    if output.is_null() || id >= crate::MAX_SAMP_VEHICLES {
+    if output.is_null() || id >= crate::limits::MAX_SAMP_VEHICLES {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { output.write(0x3000 + i32::from(id)) };
@@ -1634,7 +1641,7 @@ unsafe extern "system" fn test_local_player_ped_handle(
     id: u16,
     output: *mut i32,
 ) -> SampClientSdkResult {
-    if output.is_null() || id >= crate::MAX_SAMP_PLAYERS {
+    if output.is_null() || id >= crate::limits::MAX_SAMP_PLAYERS {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { output.write(0x4000 + i32::from(id)) };
@@ -1662,7 +1669,7 @@ unsafe extern "system" fn test_submit_set_textdraw_model_style(
     _colour2: u16,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if id >= crate::MAX_SAMP_TEXTDRAWS
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS
         || !x.is_finite()
         || !y.is_finite()
         || !z.is_finite()

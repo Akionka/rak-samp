@@ -12,17 +12,20 @@ use crate::{
     },
 };
 use log::{debug, error, info};
+use sdk_abi::limits::{
+    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
+    MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES,
+    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAW_STRING_BYTES, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+};
 use sdk_abi::{
-    ABI_VERSION_V1, MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
-    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, SampClientSdkActiveDialogV1,
-    SampClientSdkAnimationV1, SampClientSdkApiV1, SampClientSdkChatEntryV1,
-    SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt, SampClientSdkCommandResultV1,
-    SampClientSdkDialogSnapshotV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
-    SampClientSdkEventV1, SampClientSdkGangzoneV1, SampClientSdkHookAction,
-    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkSendOptions,
-    SampClientSdkServerInfoV1, SampClientSdkSubscription, SampClientSdkTextDrawV1,
-    SampClientSdkTextLabelV1, Vector3,
+    ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
+    SampClientSdkChatEntryV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
+    SampClientSdkCommandResultV1, SampClientSdkDialogSnapshotV1, SampClientSdkDirection,
+    SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkGangzoneV1,
+    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
+    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkSendOptions, SampClientSdkServerInfoV1, SampClientSdkSubscription,
+    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -1531,7 +1534,7 @@ unsafe extern "system" fn submit_create_text_label(
 ) -> SampClientSdkResult {
     if receipt.is_null()
         || id >= MAX_SAMP_TEXT_LABELS
-        || text_len > sdk_abi::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+        || text_len > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
         || text.is_null()
         || !position.x.is_finite()
         || !position.y.is_finite()
@@ -3025,7 +3028,7 @@ fn gangzone_to_abi(snapshot: GangzoneSnapshot) -> Result<SampClientSdkGangzoneV1
 
 fn text_label_to_abi(snapshot: TextLabelSnapshot) -> Result<SampClientSdkTextLabelV1, ()> {
     let text_len = u16::try_from(snapshot.text.len()).map_err(|_| ())?;
-    if snapshot.text.len() > sdk_abi::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+    if snapshot.text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
         || snapshot.text.contains(&0)
         || !snapshot.position.x.is_finite()
         || !snapshot.position.y.is_finite()
@@ -3034,7 +3037,7 @@ fn text_label_to_abi(snapshot: TextLabelSnapshot) -> Result<SampClientSdkTextLab
     {
         return Err(());
     }
-    let mut text = [0; sdk_abi::MAX_SAMP_TEXT_LABEL_TEXT_BYTES];
+    let mut text = [0; MAX_SAMP_TEXT_LABEL_TEXT_BYTES];
     text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
     Ok(SampClientSdkTextLabelV1 {
         exists: 1,
@@ -3071,10 +3074,10 @@ fn textdraw_to_abi(snapshot: TextdrawSnapshot) -> Result<SampClientSdkTextDrawV1
     {
         return Err(());
     }
-    if snapshot.text.len() > sdk_abi::MAX_SAMP_TEXTDRAW_STRING_BYTES || snapshot.text.contains(&0) {
+    if snapshot.text.len() > MAX_SAMP_TEXTDRAW_STRING_BYTES || snapshot.text.contains(&0) {
         return Err(());
     }
-    let mut text = [0; sdk_abi::MAX_SAMP_TEXTDRAW_STRING_BYTES];
+    let mut text = [0; MAX_SAMP_TEXTDRAW_STRING_BYTES];
     text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
     Ok(SampClientSdkTextDrawV1 {
         exists: 1,
@@ -3115,16 +3118,16 @@ fn textdraw_to_abi(snapshot: TextdrawSnapshot) -> Result<SampClientSdkTextDrawV1
 
 fn chat_entry_to_abi(snapshot: ChatEntrySnapshot) -> Result<SampClientSdkChatEntryV1, ()> {
     if snapshot.id >= MAX_SAMP_CHAT_ENTRIES
-        || snapshot.text.len() > sdk_abi::MAX_SAMP_CHAT_ENTRY_TEXT_BYTES
-        || snapshot.prefix.len() > sdk_abi::MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES
+        || snapshot.text.len() > MAX_SAMP_CHAT_ENTRY_TEXT_BYTES
+        || snapshot.prefix.len() > MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES
         || snapshot.text.contains(&0)
         || snapshot.prefix.contains(&0)
     {
         return Err(());
     }
-    let mut text = [0; sdk_abi::MAX_SAMP_CHAT_ENTRY_TEXT_BYTES];
+    let mut text = [0; MAX_SAMP_CHAT_ENTRY_TEXT_BYTES];
     text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
-    let mut prefix = [0; sdk_abi::MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES];
+    let mut prefix = [0; MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES];
     prefix[..snapshot.prefix.len()].copy_from_slice(&snapshot.prefix);
     Ok(SampClientSdkChatEntryV1 {
         id: snapshot.id,

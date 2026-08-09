@@ -3,12 +3,14 @@
 use crate::{
     ChatEntry, CommandReceipt, Gangzone, HostApi, LocalAnimation, LocalChatDisplayMode,
     LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState,
-    LocalPlayer, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS,
-    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES, PlayerInfo,
-    RemotePlayerState, ResolveError, SampClientSdkClientVersion, SampClientSdkDirection,
-    SampClientSdkEncodedString, SampClientSdkHookAction, SampClientSdkHostStatus,
-    SampClientSdkResult, SampClientSdkSendOptions, SampGameState, SendRateKind, ServerInfo,
-    SpecialAction, Subscription, TextDraw, TextLabel,
+    LocalPlayer, PlayerInfo, RemotePlayerState, ResolveError, SampClientSdkClientVersion,
+    SampClientSdkDirection, SampClientSdkEncodedString, SampClientSdkHookAction,
+    SampClientSdkHostStatus, SampClientSdkResult, SampClientSdkSendOptions, SampGameState,
+    SendRateKind, ServerInfo, SpecialAction, Subscription, TextDraw, TextLabel,
+    limits::{
+        MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
+        MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+    },
 };
 use std::time::Duration;
 

@@ -3,7 +3,8 @@
 `samp-client-sdk` has two pillars:
 
 - `sdk/` is the public Rust package imported as `samp_client_sdk` by ASI
-  plugins.
+  plugins; its public paths follow cohesive modules rather than compatibility
+  aliases.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`.
 
