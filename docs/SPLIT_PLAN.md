@@ -164,6 +164,8 @@ Progress:
   producers, refresh, or invalidation.
 - [x] Extract local and remote player reads without moving request producers,
   refresh, or invalidation.
+- [x] Extract 3D text-label existence and snapshot reads without moving request
+  producers, refresh, or invalidation.
 - [ ] Extract remaining entity cache reads, packet methods, and hook methods as
   independent validated slices.
 
