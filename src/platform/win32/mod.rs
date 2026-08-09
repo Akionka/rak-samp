@@ -3,6 +3,7 @@
 //! The module is intentionally unavailable for other targets. Its only public
 //! boundary is the safe `Runtime` API in the parent crate.
 
+mod chat_entries;
 mod commands;
 mod gangzones;
 mod handles;
@@ -2124,36 +2125,6 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::SetPlayerColour { id, colour })
-    }
-
-    fn chat_entry(&self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
-        if self.r1_client.is_none() {
-            return Err(DirectClientError::UnsupportedVersion);
-        }
-        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
-            return Err(DirectClientError::NotReady);
-        }
-        let index = usize::from(id);
-        if index >= MAX_CHAT_ENTRIES {
-            return Err(DirectClientError::NotReady);
-        }
-        match self
-            .chat_entry_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
-            .get(index)
-            .cloned()
-            .ok_or(DirectClientError::NotReady)?
-        {
-            ChatEntryCacheEntry::Known(snapshot) => {
-                let _ = self.queue_chat_entry_request(id);
-                Ok(snapshot)
-            }
-            ChatEntryCacheEntry::Unknown => {
-                self.queue_chat_entry_request(id)?;
-                Err(DirectClientError::NotReady)
-            }
-        }
     }
 
     fn prepare_game_tick(&self) -> Option<Vec<QueuedCommand<GameCommand>>> {
@@ -4752,6 +4723,35 @@ mod vtable_tests {
             state.chat_entry_requests.lock().unwrap().len(),
             CHAT_ENTRY_REQUEST_QUEUE_CAPACITY - CHAT_ENTRY_REQUESTS_PER_PUMP
         );
+    }
+
+    #[test]
+    fn chat_entry_reads_queue_unknown_and_return_published_snapshot() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        state.cache_generation.store(2, Ordering::Release);
+
+        assert_eq!(state.chat_entry(7), Err(DirectClientError::NotReady));
+        assert_eq!(state.chat_entry(7), Err(DirectClientError::NotReady));
+        assert_eq!(state.chat_entry_requests.lock().unwrap().len(), 1);
+
+        let snapshot = ChatEntrySnapshot {
+            id: 7,
+            text: b"message".to_vec(),
+            prefix: b"name".to_vec(),
+            text_colour: 0x1122_3344,
+            prefix_colour: 0x5566_7788,
+        };
+        state.chat_entry_cache.lock().unwrap()[7] = ChatEntryCacheEntry::Known(snapshot.clone());
+
+        assert_eq!(state.chat_entry(7), Ok(snapshot));
+        assert_eq!(state.chat_entry_requests.lock().unwrap().len(), 1);
+        assert_eq!(
+            state.chat_entry(MAX_CHAT_ENTRIES as u16),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(state.chat_entry_requests.lock().unwrap().len(), 1);
     }
 
     #[test]
