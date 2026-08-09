@@ -1522,43 +1522,28 @@ unsafe extern "system" fn test_local_dialog_list_item_count(
     SampClientSdkResult::Ok
 }
 
-unsafe extern "system" fn test_local_dialog_text(
-    output: *mut crate::SampClientSdkDialogTextV1,
+unsafe extern "system" fn test_local_dialog_snapshot(
+    output: *mut crate::SampClientSdkDialogSnapshotV1,
 ) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let mut bytes = [0; 4096];
-    bytes[..7].copy_from_slice(b"fixture");
-    *output = crate::SampClientSdkDialogTextV1 { len: 7, bytes };
-    SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn test_local_dialog_editbox_text(
-    output: *mut crate::SampClientSdkDialogEditboxTextV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let mut bytes = [0; 128];
-    bytes[..7].copy_from_slice(b"fixture");
-    *output = crate::SampClientSdkDialogEditboxTextV1 { len: 7, bytes };
-    SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn test_local_dialog_listbox_item(
-    index: u32,
-    output: *mut crate::SampClientSdkDialogListItemV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    if index >= crate::MAX_SAMP_DIALOG_LISTBOX_ITEMS as u32 {
-        return SampClientSdkResult::InvalidArgument;
+    *output = crate::SampClientSdkDialogSnapshotV1::default();
+    output.active = 1;
+    output.style = 1;
+    output.id = 7;
+    output.title_len = 7;
+    output.text_len = 7;
+    output.has_editbox = 1;
+    output.editbox_text_len = 7;
+    output.listbox_item_count = 3;
+    output.title[..7].copy_from_slice(b"fixture");
+    output.text[..7].copy_from_slice(b"fixture");
+    output.editbox_text[..7].copy_from_slice(b"fixture");
+    for item in &mut output.listbox_items[..3] {
+        item.len = 7;
+        item.bytes[..7].copy_from_slice(b"fixture");
     }
-    let mut bytes = [0; 256];
-    bytes[..7].copy_from_slice(b"fixture");
-    *output = crate::SampClientSdkDialogListItemV1 { len: 7, bytes };
     SampClientSdkResult::Ok
 }
 
@@ -1567,7 +1552,13 @@ unsafe extern "system" fn test_submit_local_dialog_editbox_text(
     text_len: usize,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if receipt.is_null() || text.is_null() || text_len > crate::MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES {
+    if receipt.is_null()
+        || text_len > crate::MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES
+        || (text.is_null() && text_len != 0)
+    {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    if text_len != 0 && unsafe { std::slice::from_raw_parts(text, text_len) }.contains(&0) {
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { test_submit_command(receipt, 40) }
@@ -1783,9 +1774,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     submit_local_chat_entry: test_submit_local_chat_entry,
     chat_entry_info: test_chat_entry_info,
     submit_create_text_label: test_submit_create_text_label,
-    local_dialog_text: test_local_dialog_text,
-    local_dialog_editbox_text: test_local_dialog_editbox_text,
-    local_dialog_listbox_item: test_local_dialog_listbox_item,
+    local_dialog_snapshot: test_local_dialog_snapshot,
     submit_local_dialog_editbox_text: test_submit_local_dialog_editbox_text,
 };
 

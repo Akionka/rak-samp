@@ -63,7 +63,9 @@ pub const MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES: usize = 128;
 /// Maximum copied item strings retained for one active R1 dialog listbox.
 pub const MAX_SAMP_DIALOG_LISTBOX_ITEMS: usize = 100;
 /// Maximum non-NUL bytes in one R1 dialog listbox item string.
-pub const MAX_SAMP_DIALOG_LISTBOX_ITEM_BYTES: usize = 256;
+///
+/// The native field has 256 bytes including its required NUL terminator.
+pub const MAX_SAMP_DIALOG_LISTBOX_ITEM_BYTES: usize = 255;
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -151,8 +153,8 @@ pub struct LocalDialogState {
     pub server_side: bool,
     /// Owned copy of the active dialog body text.
     pub text: Vec<u8>,
-    /// Owned copy of the active dialog editbox text.
-    pub editbox_text: Vec<u8>,
+    /// Owned copy of the active dialog editbox text, when the dialog has one.
+    pub editbox_text: Option<Vec<u8>>,
     /// Owned copies of the active dialog listbox item strings.
     pub items: Vec<Vec<u8>>,
 }
@@ -188,10 +190,10 @@ impl LocalDialogState {
         &self.text
     }
 
-    /// Returns the copied active dialog editbox text bytes.
+    /// Returns the copied active dialog editbox text bytes, when present.
     #[must_use]
-    pub fn editbox_text(&self) -> &[u8] {
-        &self.editbox_text
+    pub fn editbox_text(&self) -> Option<&[u8]> {
+        self.editbox_text.as_deref()
     }
 
     /// Returns the copied active dialog listbox item strings.
@@ -663,53 +665,66 @@ impl Default for SampClientSdkChatInputTextV1 {
     }
 }
 
-/// Fixed ABI storage for the cached R1 dialog body text.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SampClientSdkDialogTextV1 {
-    pub len: u16,
-    pub bytes: [u8; 4096],
-}
-
-impl Default for SampClientSdkDialogTextV1 {
-    fn default() -> Self {
-        Self {
-            len: 0,
-            bytes: [0; 4096],
-        }
-    }
-}
-
-/// Fixed ABI storage for the cached R1 dialog editbox text.
-#[repr(C)]
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct SampClientSdkDialogEditboxTextV1 {
-    pub len: u8,
-    pub bytes: [u8; 128],
-}
-
-impl Default for SampClientSdkDialogEditboxTextV1 {
-    fn default() -> Self {
-        Self {
-            len: 0,
-            bytes: [0; 128],
-        }
-    }
-}
-
 /// Fixed ABI storage for one cached R1 dialog listbox item text.
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SampClientSdkDialogListItemV1 {
     pub len: u8,
-    pub bytes: [u8; 256],
+    pub bytes: [u8; MAX_SAMP_DIALOG_LISTBOX_ITEM_BYTES],
 }
 
 impl Default for SampClientSdkDialogListItemV1 {
     fn default() -> Self {
         Self {
             len: 0,
-            bytes: [0; 256],
+            bytes: [0; MAX_SAMP_DIALOG_LISTBOX_ITEM_BYTES],
+        }
+    }
+}
+
+/// Fixed ABI storage for one coherent active-dialog cache publication.
+///
+/// `active` is zero when no dialog is active. Otherwise, the length fields
+/// select initialized byte prefixes with no required terminators.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SampClientSdkDialogSnapshotV1 {
+    pub active: u8,
+    pub style: u8,
+    pub server_side: u8,
+    pub has_editbox: u8,
+    pub id: i32,
+    pub title_len: u8,
+    pub editbox_text_len: u8,
+    pub listbox_item_count: u8,
+    pub _reserved: u8,
+    pub text_len: u16,
+    pub _reserved2: [u8; 2],
+    pub title: [u8; 65],
+    pub editbox_text: [u8; MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES],
+    pub text: [u8; MAX_SAMP_DIALOG_TEXT_BYTES],
+    pub listbox_items: [SampClientSdkDialogListItemV1; MAX_SAMP_DIALOG_LISTBOX_ITEMS],
+}
+
+impl Default for SampClientSdkDialogSnapshotV1 {
+    fn default() -> Self {
+        Self {
+            active: 0,
+            style: 0,
+            server_side: 0,
+            has_editbox: 0,
+            id: 0,
+            title_len: 0,
+            editbox_text_len: 0,
+            listbox_item_count: 0,
+            _reserved: 0,
+            text_len: 0,
+            _reserved2: [0; 2],
+            title: [0; 65],
+            editbox_text: [0; MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES],
+            text: [0; MAX_SAMP_DIALOG_TEXT_BYTES],
+            listbox_items: [SampClientSdkDialogListItemV1::default();
+                MAX_SAMP_DIALOG_LISTBOX_ITEMS],
         }
     }
 }
@@ -1719,15 +1734,9 @@ pub struct SampClientSdkApiV1 {
         u16,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
-    /// Copies the game-thread-cached R1 dialog body text.
-    pub local_dialog_text:
-        unsafe extern "system" fn(*mut SampClientSdkDialogTextV1) -> SampClientSdkResult,
-    /// Copies the game-thread-cached R1 dialog editbox text.
-    pub local_dialog_editbox_text:
-        unsafe extern "system" fn(*mut SampClientSdkDialogEditboxTextV1) -> SampClientSdkResult,
-    /// Copies one game-thread-cached R1 dialog listbox item string.
-    pub local_dialog_listbox_item:
-        unsafe extern "system" fn(u32, *mut SampClientSdkDialogListItemV1) -> SampClientSdkResult,
+    /// Copies one coherent game-thread-cached R1 dialog snapshot.
+    pub local_dialog_snapshot:
+        unsafe extern "system" fn(*mut SampClientSdkDialogSnapshotV1) -> SampClientSdkResult,
     /// Queues a bounded R1 dialog editbox text write.
     pub submit_local_dialog_editbox_text: unsafe extern "system" fn(
         *const u8,
@@ -3467,48 +3476,6 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
-    /// Returns the copied game-thread-cached R1 dialog body text.
-    pub fn local_dialog_text(self) -> Result<Vec<u8>, SampClientSdkResult> {
-        let mut raw = SampClientSdkDialogTextV1::default();
-        match unsafe { (self.raw.local_dialog_text)(&mut raw) } {
-            SampClientSdkResult::Ok => {}
-            result => return Err(result),
-        }
-        let len = usize::from(raw.len);
-        if len > raw.bytes.len() {
-            return Err(SampClientSdkResult::NativeCallFailed);
-        }
-        Ok(raw.bytes[..len].to_vec())
-    }
-
-    /// Returns the copied game-thread-cached R1 dialog editbox text.
-    pub fn local_dialog_editbox_text(self) -> Result<Vec<u8>, SampClientSdkResult> {
-        let mut raw = SampClientSdkDialogEditboxTextV1::default();
-        match unsafe { (self.raw.local_dialog_editbox_text)(&mut raw) } {
-            SampClientSdkResult::Ok => {}
-            result => return Err(result),
-        }
-        let len = usize::from(raw.len);
-        if len > raw.bytes.len() {
-            return Err(SampClientSdkResult::NativeCallFailed);
-        }
-        Ok(raw.bytes[..len].to_vec())
-    }
-
-    /// Returns one copied game-thread-cached R1 dialog listbox item string.
-    pub fn local_dialog_listbox_item(self, index: u32) -> Result<Vec<u8>, SampClientSdkResult> {
-        let mut raw = SampClientSdkDialogListItemV1::default();
-        match unsafe { (self.raw.local_dialog_listbox_item)(index, &mut raw) } {
-            SampClientSdkResult::Ok => {}
-            result => return Err(result),
-        }
-        let len = usize::from(raw.len);
-        if len > raw.bytes.len() {
-            return Err(SampClientSdkResult::NativeCallFailed);
-        }
-        Ok(raw.bytes[..len].to_vec())
-    }
-
     /// Queues a bounded R1 dialog editbox text write.
     pub fn submit_local_dialog_editbox_text(
         self,
@@ -3986,58 +3953,17 @@ impl HostApi {
         }
     }
 
-    /// Returns copied core metadata for the active local R1 dialog.
+    /// Returns one coherent owned snapshot of the active local R1 dialog.
     ///
     /// This returns `Ok(None)` once the game-thread cache confirms that no
     /// dialog is active, and `NotReady` before the first cache publication.
-    /// Dynamic dialog text, buttons, and controls are intentionally excluded.
     pub fn active_local_dialog(self) -> Result<Option<LocalDialogState>, SampClientSdkResult> {
-        let mut raw = SampClientSdkActiveDialogV1::default();
-        match unsafe { (self.raw.active_local_dialog)(&mut raw) } {
+        let mut raw = SampClientSdkDialogSnapshotV1::default();
+        match unsafe { (self.raw.local_dialog_snapshot)(&mut raw) } {
             SampClientSdkResult::Ok => {}
             result => return Err(result),
         }
-        match raw.active {
-            0 => Ok(None),
-            1 => {
-                let Some(style) = LocalDialogStyle::from_raw(raw.style) else {
-                    return Err(SampClientSdkResult::NativeCallFailed);
-                };
-                let server_side = match raw.server_side {
-                    0 => false,
-                    1 => true,
-                    _ => return Err(SampClientSdkResult::NativeCallFailed),
-                };
-                let title_len = usize::from(raw.title_len);
-                if title_len > raw.title.len() {
-                    return Err(SampClientSdkResult::NativeCallFailed);
-                }
-                let text = self.local_dialog_text()?;
-                let editbox_text = self.local_dialog_editbox_text()?;
-                let items = match self.local_dialog_list_item_count() {
-                    Ok(count) => {
-                        let count =
-                            usize::try_from(count.max(0)).unwrap_or(MAX_SAMP_DIALOG_LISTBOX_ITEMS);
-                        (0..count.min(MAX_SAMP_DIALOG_LISTBOX_ITEMS))
-                            .map(|index| self.local_dialog_listbox_item(index as u32))
-                            .collect::<Result<Vec<_>, _>>()?
-                    }
-                    // Dialogs without a listbox report no item count.
-                    Err(SampClientSdkResult::NotReady) => Vec::new(),
-                    Err(error) => return Err(error),
-                };
-                Ok(Some(LocalDialogState {
-                    id: raw.id,
-                    style,
-                    title: raw.title[..title_len].to_vec(),
-                    server_side,
-                    text,
-                    editbox_text,
-                    items,
-                }))
-            }
-            _ => Err(SampClientSdkResult::NativeCallFailed),
-        }
+        local_dialog_state_from_abi(raw)
     }
 
     /// Returns a cloned, nonblocking local-player snapshot.
@@ -4234,6 +4160,59 @@ impl HostApi {
 
 fn valid_bounded_bytes(value: &[u8], maximum: usize) -> bool {
     !value.is_empty() && value.len() <= maximum && !value.contains(&0)
+}
+
+fn local_dialog_state_from_abi(
+    raw: SampClientSdkDialogSnapshotV1,
+) -> Result<Option<LocalDialogState>, SampClientSdkResult> {
+    match raw.active {
+        0 if raw == SampClientSdkDialogSnapshotV1::default() => Ok(None),
+        1 => {
+            let Some(style) = LocalDialogStyle::from_raw(raw.style) else {
+                return Err(SampClientSdkResult::NativeCallFailed);
+            };
+            let server_side = match raw.server_side {
+                0 => false,
+                1 => true,
+                _ => return Err(SampClientSdkResult::NativeCallFailed),
+            };
+            let title_len = usize::from(raw.title_len);
+            let text_len = usize::from(raw.text_len);
+            let editbox_text_len = usize::from(raw.editbox_text_len);
+            let listbox_item_count = usize::from(raw.listbox_item_count);
+            if title_len > raw.title.len()
+                || text_len > raw.text.len()
+                || editbox_text_len > raw.editbox_text.len()
+                || listbox_item_count > raw.listbox_items.len()
+            {
+                return Err(SampClientSdkResult::NativeCallFailed);
+            }
+            let editbox_text = match raw.has_editbox {
+                0 if editbox_text_len == 0 => None,
+                1 => Some(raw.editbox_text[..editbox_text_len].to_vec()),
+                _ => return Err(SampClientSdkResult::NativeCallFailed),
+            };
+            let items = raw.listbox_items[..listbox_item_count]
+                .iter()
+                .map(|item| {
+                    let len = usize::from(item.len);
+                    (len <= item.bytes.len())
+                        .then(|| item.bytes[..len].to_vec())
+                        .ok_or(SampClientSdkResult::NativeCallFailed)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(Some(LocalDialogState {
+                id: raw.id,
+                style,
+                title: raw.title[..title_len].to_vec(),
+                server_side,
+                text: raw.text[..text_len].to_vec(),
+                editbox_text,
+                items,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
 }
 
 fn local_animation_from_abi(raw: SampClientSdkAnimationV1) -> Option<LocalAnimation> {
@@ -4795,20 +4774,12 @@ mod tests {
             mem::offset_of!(SampClientSdkApiV1, submit_local_dialog_editbox_text) + function_size
         );
         assert_eq!(
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_text),
+            mem::offset_of!(SampClientSdkApiV1, local_dialog_snapshot),
             mem::offset_of!(SampClientSdkApiV1, submit_create_text_label) + function_size
         );
         assert_eq!(
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_editbox_text),
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_text) + function_size
-        );
-        assert_eq!(
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_listbox_item),
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_editbox_text) + function_size
-        );
-        assert_eq!(
             mem::offset_of!(SampClientSdkApiV1, submit_local_dialog_editbox_text),
-            mem::offset_of!(SampClientSdkApiV1, local_dialog_listbox_item) + function_size
+            mem::offset_of!(SampClientSdkApiV1, local_dialog_snapshot) + function_size
         );
         assert_eq!(
             mem::offset_of!(SampClientSdkApiV1, raw_rakclient),
@@ -5293,7 +5264,7 @@ mod tests {
                 title: b"fixture".to_vec(),
                 server_side: false,
                 text: b"fixture".to_vec(),
-                editbox_text: b"fixture".to_vec(),
+                editbox_text: Some(b"fixture".to_vec()),
                 items: vec![b"fixture".to_vec(); 3],
             }))
         );
@@ -5301,6 +5272,43 @@ mod tests {
             api.player_info(MAX_SAMP_PLAYERS),
             Err(SampClientSdkResult::InvalidArgument)
         );
+    }
+
+    #[test]
+    fn dialog_snapshot_preserves_an_absent_editbox() {
+        let mut raw = SampClientSdkDialogSnapshotV1::default();
+        raw.active = 1;
+        raw.style = 0;
+        raw.id = 7;
+        let dialog = local_dialog_state_from_abi(raw)
+            .expect("canonical dialog snapshot")
+            .expect("active dialog");
+
+        assert_eq!(dialog.style, LocalDialogStyle::MessageBox);
+        assert_eq!(dialog.editbox_text(), None);
+    }
+
+    #[test]
+    fn dialog_list_item_abi_length_covers_its_entire_payload() {
+        assert_eq!(MAX_SAMP_DIALOG_LISTBOX_ITEM_BYTES, usize::from(u8::MAX));
+        assert_eq!(mem::size_of::<SampClientSdkDialogListItemV1>(), 256);
+    }
+
+    #[test]
+    fn dialog_snapshot_abi_layout_is_stable() {
+        assert_eq!(mem::offset_of!(SampClientSdkDialogSnapshotV1, id), 4);
+        assert_eq!(mem::offset_of!(SampClientSdkDialogSnapshotV1, text_len), 12);
+        assert_eq!(mem::offset_of!(SampClientSdkDialogSnapshotV1, title), 16);
+        assert_eq!(
+            mem::offset_of!(SampClientSdkDialogSnapshotV1, editbox_text),
+            81
+        );
+        assert_eq!(mem::offset_of!(SampClientSdkDialogSnapshotV1, text), 209);
+        assert_eq!(
+            mem::offset_of!(SampClientSdkDialogSnapshotV1, listbox_items),
+            4_305
+        );
+        assert_eq!(mem::size_of::<SampClientSdkDialogSnapshotV1>(), 29_908);
     }
 
     #[test]

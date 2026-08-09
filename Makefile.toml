@@ -1,82 +1,46 @@
 [env]
 GTA_DIR = { value = "", condition = { env_not_set = ["GTA_DIR"] } }
 
-CARGO_BUILD_TARGET = "i686-pc-windows-msvc"
-
-
 [tasks.build-asi]
 workspace = false
 command = "cargo"
-args = ["build", "--release", "--locked"]
-
+args = ["build", "--release"]
 
 [tasks.build-asi-debug]
 workspace = false
 command = "cargo"
 args = ["build"]
 
-
 [tasks.build-chat-command-example]
 workspace = false
 command = "cargo"
-args = [
-    "build",
-    "--release",
-    "--locked",
-    "-p",
-    "samp-client-sdk-chat-command-example",
-]
-
+args = ["build", "--release", "-p", "samp-client-sdk-chat-command-example"]
 
 [tasks.require-gta-dir]
 command = "powershell"
 args = [
-    "-NoProfile",
     "-Command",
     "if ([string]::IsNullOrWhiteSpace($env:GTA_DIR)) { throw 'GTA_DIR is not set. In PowerShell, run: $env:GTA_DIR = ''D:\\path\\to\\GTA''' }",
 ]
 
-
 [tasks.deploy]
 workspace = false
 dependencies = ["require-gta-dir", "build-asi"]
-command = "powershell"
-args = [
-    "-NoProfile",
-    "-Command",
-    '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'release'
-    Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
-    ''',
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')\"",
 ]
-
 
 [tasks.deploy-chat-command-example]
 workspace = false
 dependencies = ["require-gta-dir", "build-asi", "build-chat-command-example"]
-command = "powershell"
-args = [
-    "-NoProfile",
-    "-Command",
-    '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'release'
-    Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
-    Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk_chat_command_example.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk_chat_command_example.asi')
-    ''',
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')\"",
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/release/samp_client_sdk_chat_command_example.dll (Join-Path $env:GTA_DIR 'samp_client_sdk_chat_command_example.asi')\"",
 ]
 
-
-[tasks.deploy-debug]
+[tasks.debug]
 workspace = false
 dependencies = ["require-gta-dir", "build-asi-debug"]
-command = "powershell"
-args = [
-    "-NoProfile",
-    "-Command",
-    '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'debug'
-    $pdb = Join-Path $profileDir 'samp_client_sdk.pdb'
-    Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
-    if (Test-Path $pdb) { Copy-Item -Force $pdb (Join-Path $env:GTA_DIR 'samp_client_sdk.pdb') }
-    ''',
+script = [
+    "powershell -Command \"Copy-Item -Force target/i686-pc-windows-msvc/debug/samp_client_sdk.dll (Join-Path $env:GTA_DIR 'samp_client_sdk.asi'); Copy-Item -Force target/i686-pc-windows-msvc/debug/samp_client_sdk.pdb (Join-Path $env:GTA_DIR 'samp_client_sdk.pdb')\"",
 ]

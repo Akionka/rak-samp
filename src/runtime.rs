@@ -989,21 +989,6 @@ impl Runtime {
         self.backend.local_dialog_state()
     }
 
-    pub(crate) fn local_dialog_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.backend.local_dialog_text()
-    }
-
-    pub(crate) fn local_dialog_editbox_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        self.backend.local_dialog_editbox_text()
-    }
-
-    pub(crate) fn local_dialog_listbox_item_text(
-        &self,
-        index: u32,
-    ) -> Result<Vec<u8>, DirectClientError> {
-        self.backend.local_dialog_listbox_item_text(index)
-    }
-
     pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {
         self.backend.local_dialog_selected_item()
     }
