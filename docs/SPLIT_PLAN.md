@@ -180,8 +180,8 @@ Progress:
   or hook ownership.
 - [x] Extract incoming packet emulation without moving command execution or
   native queue ownership.
-- [ ] Extract incoming RPC emulation and hook methods as independent validated
-  slices.
+- [x] Extract incoming RPC emulation without moving listener or hook ownership.
+- [ ] Extract hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 

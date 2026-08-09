@@ -1412,53 +1412,6 @@ impl BackendState {
         }
     }
 
-    fn emulate_incoming_rpc_native(
-        &self,
-        rpc_id: u8,
-        mut payload: BitStream,
-    ) -> Result<bool, SendError> {
-        if self
-            .registry
-            .dispatch_rpc(Direction::Incoming, rpc_id, &mut payload)
-            == HookAction::Block
-        {
-            return Ok(false);
-        }
-        let receiver = self.rpc_receiver.load(Ordering::Acquire) as *mut c_void;
-        let original = self.incoming_rpc_trampoline.load(Ordering::Acquire);
-        if receiver.is_null() || original == 0 {
-            return Err(SendError::ClientNotReady);
-        }
-        let mut envelope = BitStream::new();
-        envelope
-            .write_u8(ID_RPC)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-        envelope
-            .write_u8(rpc_id)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-        envelope
-            .write_compressed_u32(payload.len_bits() as u32)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-        envelope
-            .write_stream(&payload)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-        let original: IncomingRpcFn = unsafe { mem::transmute(original) };
-        let envelope_len =
-            i32::try_from(envelope.len_bytes()).map_err(|_| SendError::PayloadTooLarge)?;
-        let player = RpcPlayerId {
-            binary_address: self.player_address.load(Ordering::Acquire),
-            port: self.player_port.load(Ordering::Acquire),
-        };
-        Ok(unsafe {
-            original(
-                receiver,
-                envelope.as_bytes().as_ptr().cast_mut(),
-                envelope_len,
-                player,
-            )
-        })
-    }
-
     fn show_local_dialog(&self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
         let id = self.submit_local_dialog(request)?;
         self.game_commands
@@ -4841,6 +4794,20 @@ mod vtable_tests {
         assert_eq!(
             state.ready_rpc_receiver().map(|receiver| receiver as usize),
             Ok(0x2000)
+        );
+    }
+
+    #[test]
+    fn incoming_rpc_emulation_blocks_before_native_readiness_checks() {
+        let state = test_backend_state();
+        let _listener = state.registry.register_rpc(Direction::Incoming, |event| {
+            assert_eq!(event.id(), 42);
+            HookAction::Block
+        });
+
+        assert_eq!(
+            state.emulate_incoming_rpc_native(42, BitStream::new()),
+            Ok(false)
         );
     }
 

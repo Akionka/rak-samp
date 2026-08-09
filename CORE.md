@@ -15,7 +15,9 @@
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
   publication. Native outbound packet and RPC sends execute from the game-thread
   command pump through the captured original RakClient functions. Incoming
-  packet emulation transfers a native allocation into the captured receive queue.
+  packet emulation transfers a native allocation into the captured receive queue;
+  incoming RPC emulation dispatches listeners once before calling the captured
+  trampoline directly.
 
 ## Process model
 
