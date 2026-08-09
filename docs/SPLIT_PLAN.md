@@ -156,7 +156,9 @@ Progress:
   caches, or invalidation.
 - [x] Extract lock-free scalar cache readers without moving refresh writers or
   publication control.
-- [ ] Extract remaining cache/read, packet, and hook method groups as
+- [x] Extract non-entity published snapshot readers without moving refresh
+  writers or invalidation.
+- [ ] Extract entity/handle cache reads, packet methods, and hook methods as
   independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

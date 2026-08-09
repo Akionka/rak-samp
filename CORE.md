@@ -10,8 +10,8 @@
   separate from lifecycle control, while the R1 bridge isolates approved
   native addresses, object layouts, and guarded memory access from operation
   sequencing. The Windows backend also separates bounded producer-side command
-  and cache-refresh requests from game-thread execution, with lock-free scalar
-  reads gated on completed game-thread publication.
+  and cache-refresh requests from game-thread execution, with scalar and owned
+  snapshot reads gated on completed game-thread publication.
 
 ## Process model
 
