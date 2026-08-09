@@ -2634,41 +2634,6 @@ impl BackendState {
         Err(DirectClientError::NotReady)
     }
 
-    fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
-        self.animation_catalog().and_then(|catalog| {
-            catalog
-                .get(usize::from(id))
-                .cloned()
-                .ok_or(DirectClientError::NotReady)
-        })
-    }
-
-    fn local_animation_id(
-        &self,
-        name: &[u8],
-        file: &[u8],
-    ) -> Result<Option<u16>, DirectClientError> {
-        let catalog = self.animation_catalog()?;
-        Ok(catalog
-            .iter()
-            .position(|entry| entry.name == name && entry.file == file)
-            .and_then(|index| u16::try_from(index).ok()))
-    }
-
-    fn animation_catalog(&self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        if self.r1_client.is_none() {
-            return Err(DirectClientError::UnsupportedVersion);
-        }
-        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
-            return Err(DirectClientError::NotReady);
-        }
-        self.animation_catalog
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
-            .clone()
-            .ok_or(DirectClientError::NotReady)
-    }
-
     fn prepare_game_tick(&self) -> Option<Vec<QueuedCommand<GameCommand>>> {
         (self.rak_client.load(Ordering::Acquire) != 0)
             .then(|| self.game_commands.take_tick_snapshot())

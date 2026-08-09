@@ -158,6 +158,8 @@ Progress:
   publication control.
 - [x] Extract non-entity published snapshot readers without moving refresh
   writers or invalidation.
+- [x] Extract animation catalog reads and lookups without moving lazy refresh
+  or shutdown clearing.
 - [ ] Extract entity/handle cache reads, packet methods, and hook methods as
   independent validated slices.
 

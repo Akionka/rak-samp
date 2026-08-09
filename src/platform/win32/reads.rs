@@ -1,7 +1,9 @@
 //! Reads from game-thread-published scalar and snapshot caches.
 
 use super::{BackendState, cached_direct_client_value};
-use crate::runtime::{DirectClientError, LocalDialogSnapshot, ServerInfoSnapshot};
+use crate::runtime::{
+    AnimationSnapshot, DirectClientError, LocalDialogSnapshot, ServerInfoSnapshot,
+};
 use std::sync::atomic::Ordering;
 
 impl BackendState {
@@ -115,6 +117,41 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
         self.local_chat_input_text
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .clone()
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    pub(super) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
+        self.animation_catalog().and_then(|catalog| {
+            catalog
+                .get(usize::from(id))
+                .cloned()
+                .ok_or(DirectClientError::NotReady)
+        })
+    }
+
+    pub(super) fn local_animation_id(
+        &self,
+        name: &[u8],
+        file: &[u8],
+    ) -> Result<Option<u16>, DirectClientError> {
+        let catalog = self.animation_catalog()?;
+        Ok(catalog
+            .iter()
+            .position(|entry| entry.name == name && entry.file == file)
+            .and_then(|index| u16::try_from(index).ok()))
+    }
+
+    pub(super) fn animation_catalog(&self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
+            return Err(DirectClientError::NotReady);
+        }
+        self.animation_catalog
             .try_lock()
             .map_err(|_| DirectClientError::NotReady)?
             .clone()
