@@ -152,8 +152,10 @@ Progress:
 - [x] Convert the Windows backend to a directory module and extract
   producer-side game/network command submission without moving state or
   execution.
-- [ ] Extract request queue, cache/read, packet, and hook method groups as
-  independent validated slices.
+- [x] Extract bounded cache-refresh request producers without moving drains,
+  caches, or invalidation.
+- [ ] Extract cache/read, packet, and hook method groups as independent
+  validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 
