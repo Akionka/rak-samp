@@ -162,8 +162,10 @@ Progress:
   or shutdown clearing.
 - [x] Extract forward/reverse handle cache reads without moving request
   producers, refresh, or invalidation.
-- [ ] Extract entity cache reads, packet methods, and hook methods as independent
-  validated slices.
+- [x] Extract local and remote player reads without moving request producers,
+  refresh, or invalidation.
+- [ ] Extract remaining entity cache reads, packet methods, and hook methods as
+  independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 
