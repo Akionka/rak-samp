@@ -208,6 +208,18 @@ struct FixtureR1VehiclePoolExistsPrefix {
     } waiting;
     void* objects[2000];
     int not_empty[2000];
+    void* game_objects[2000];
+};
+
+struct FixtureR1ObjectPoolExistsPrefix {
+    int largest_id;
+    int not_empty[1000];
+    void* objects[1000];
+};
+
+struct FixtureR1PickupPoolHandlesPrefix {
+    int count;
+    int handles[4096];
 };
 
 struct FixtureR1NetGamePrefix {
@@ -303,12 +315,6 @@ struct FixtureR1TextDraw {
     char text[801];
     char string[1602];
     FixtureR1TextDrawData data;
-};
-
-struct FixtureR1ObjectPoolExistsPrefix {
-    int largest_id;
-    int not_empty[1000];
-    void* objects[1000];
 };
 
 struct FixtureR1Gangzone {
@@ -411,6 +417,7 @@ static_assert(sizeof(FixtureR1TrailerData) == 54);
 static_assert(sizeof(FixtureR1PassengerData) == 24);
 static_assert(sizeof(FixtureR1AimData) == 31);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, special_action) == 0xBB);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, ped) == 0x00);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, onfoot) == 0xC8);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_armour) == 0x1B8);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_health) == 0x1BC);
@@ -421,6 +428,10 @@ static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
 static_assert(sizeof(FixtureR1VehicleInfo) == 40);
 static_assert(offsetof(FixtureR1VehiclePoolExistsPrefix, not_empty) == 0x3074);
+static_assert(offsetof(FixtureR1VehiclePoolExistsPrefix, game_objects) == 0x4FB4);
+static_assert(offsetof(FixtureR1ObjectPoolExistsPrefix, objects) == 0xFA4);
+static_assert(offsetof(FixtureR1PickupPoolHandlesPrefix, handles) == 0x04);
+static_assert(offsetof(FixtureR1Entity, handle) == 0x44);
 static_assert(offsetof(FixtureR1NetGamePrefix, host_address) == 0x20);
 static_assert(offsetof(FixtureR1NetGamePrefix, hostname) == 0x121);
 static_assert(offsetof(FixtureR1NetGamePrefix, port) == 0x225);
@@ -611,6 +622,22 @@ std::size_t samp_client_sdk_fixture_r1_player_pool_largest_id_offset() {
 
 std::size_t samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset() {
     return offsetof(FixtureR1VehiclePoolExistsPrefix, not_empty);
+}
+
+std::size_t samp_client_sdk_fixture_r1_vehicle_pool_game_objects_offset() {
+    return offsetof(FixtureR1VehiclePoolExistsPrefix, game_objects);
+}
+
+std::size_t samp_client_sdk_fixture_r1_object_pool_objects_offset() {
+    return offsetof(FixtureR1ObjectPoolExistsPrefix, objects);
+}
+
+std::size_t samp_client_sdk_fixture_r1_pickup_pool_handles_offset() {
+    return offsetof(FixtureR1PickupPoolHandlesPrefix, handles);
+}
+
+std::size_t samp_client_sdk_fixture_r1_entity_handle_offset() {
+    return offsetof(FixtureR1Entity, handle);
 }
 
 std::size_t samp_client_sdk_fixture_r1_net_game_host_address_offset() {

@@ -234,6 +234,14 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_dialog_editbox_text,
     local_dialog_listbox_item,
     submit_local_dialog_editbox_text,
+    local_object_handle,
+    local_object_id_by_handle,
+    local_pickup_handle,
+    local_pickup_id_by_handle,
+    local_vehicle_handle,
+    local_vehicle_id_by_handle,
+    local_player_ped_handle,
+    local_player_id_by_ped_handle,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {
@@ -1671,6 +1679,91 @@ unsafe extern "system" fn submit_local_dialog_editbox_text(
     match runtime.submit_local_dialog_editbox_text(text) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+unsafe extern "system" fn local_object_handle(id: u16, output: *mut i32) -> SampClientSdkResult {
+    scalar_option_read(output, |runtime| runtime.object_handle(id))
+}
+
+unsafe extern "system" fn local_object_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    id_option_read(output, |runtime| runtime.object_id_by_handle(handle))
+}
+
+unsafe extern "system" fn local_pickup_handle(id: u16, output: *mut i32) -> SampClientSdkResult {
+    scalar_option_read(output, |runtime| runtime.pickup_handle(id))
+}
+
+unsafe extern "system" fn local_pickup_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    id_option_read(output, |runtime| runtime.pickup_id_by_handle(handle))
+}
+
+unsafe extern "system" fn local_vehicle_handle(id: u16, output: *mut i32) -> SampClientSdkResult {
+    scalar_option_read(output, |runtime| runtime.vehicle_handle(id))
+}
+
+unsafe extern "system" fn local_vehicle_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    id_option_read(output, |runtime| runtime.vehicle_id_by_handle(handle))
+}
+
+unsafe extern "system" fn local_player_ped_handle(
+    id: u16,
+    output: *mut i32,
+) -> SampClientSdkResult {
+    scalar_option_read(output, |runtime| runtime.player_ped_handle(id))
+}
+
+unsafe extern "system" fn local_player_id_by_ped_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    id_option_read(output, |runtime| runtime.player_id_by_ped_handle(handle))
+}
+
+fn scalar_option_read(
+    output: *mut i32,
+    read: impl FnOnce(&Arc<Runtime>) -> Result<Option<i32>, DirectClientError>,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match read(&runtime) {
+        Ok(value) => {
+            *output = value.unwrap_or(0);
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+fn id_option_read(
+    output: *mut u16,
+    read: impl FnOnce(&Arc<Runtime>) -> Result<Option<u16>, DirectClientError>,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match read(&runtime) {
+        Ok(value) => {
+            *output = value.unwrap_or(u16::MAX);
             SampClientSdkResult::Ok
         }
         Err(error) => direct_client_result(error),

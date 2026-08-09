@@ -1573,6 +1573,94 @@ unsafe extern "system" fn test_submit_local_dialog_editbox_text(
     unsafe { test_submit_command(receipt, 40) }
 }
 
+unsafe extern "system" fn test_local_object_handle(
+    id: u16,
+    output: *mut i32,
+) -> SampClientSdkResult {
+    if output.is_null() || id >= crate::MAX_SAMP_OBJECTS {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write(0x1000 + i32::from(id)) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_object_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    if output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write((handle - 0x1000) as u16) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_pickup_handle(
+    id: u16,
+    output: *mut i32,
+) -> SampClientSdkResult {
+    if output.is_null() || id >= crate::MAX_SAMP_PICKUPS {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write(0x2000 + i32::from(id)) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_pickup_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    if output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write((handle - 0x2000) as u16) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_vehicle_handle(
+    id: u16,
+    output: *mut i32,
+) -> SampClientSdkResult {
+    if output.is_null() || id >= crate::MAX_SAMP_VEHICLES {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write(0x3000 + i32::from(id)) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_vehicle_id_by_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    if output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write((handle - 0x3000) as u16) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_player_ped_handle(
+    id: u16,
+    output: *mut i32,
+) -> SampClientSdkResult {
+    if output.is_null() || id >= crate::MAX_SAMP_PLAYERS {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write(0x4000 + i32::from(id)) };
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_local_player_id_by_ped_handle(
+    handle: i32,
+    output: *mut u16,
+) -> SampClientSdkResult {
+    if output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write((handle - 0x4000) as u16) };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_submit_set_textdraw_model_style(
     id: u16,
     x: f32,
@@ -1787,6 +1875,14 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     local_dialog_editbox_text: test_local_dialog_editbox_text,
     local_dialog_listbox_item: test_local_dialog_listbox_item,
     submit_local_dialog_editbox_text: test_submit_local_dialog_editbox_text,
+    local_object_handle: test_local_object_handle,
+    local_object_id_by_handle: test_local_object_id_by_handle,
+    local_pickup_handle: test_local_pickup_handle,
+    local_pickup_id_by_handle: test_local_pickup_id_by_handle,
+    local_vehicle_handle: test_local_vehicle_handle,
+    local_vehicle_id_by_handle: test_local_vehicle_id_by_handle,
+    local_player_ped_handle: test_local_player_ped_handle,
+    local_player_id_by_ped_handle: test_local_player_id_by_ped_handle,
 };
 
 pub(crate) fn test_api() -> HostApi {

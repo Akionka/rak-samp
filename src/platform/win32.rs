@@ -20,7 +20,7 @@ use crate::{
 use minhook::MinHook;
 use r1_client::R1ClientProfile;
 use std::{
-    collections::VecDeque,
+    collections::{HashMap, VecDeque},
     ffi::c_void,
     mem, ptr, slice,
     sync::{
@@ -63,6 +63,22 @@ const OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const OBJECT_EXISTS_REQUESTS_PER_PUMP: usize = 4;
 const GANGZONE_REQUEST_QUEUE_CAPACITY: usize = 32;
 const GANGZONE_REQUESTS_PER_PUMP: usize = 4;
+const OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const OBJECT_HANDLE_REQUESTS_PER_PUMP: usize = 4;
+const PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const PICKUP_HANDLE_REQUESTS_PER_PUMP: usize = 4;
+const VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const VEHICLE_HANDLE_REQUESTS_PER_PUMP: usize = 4;
+const PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY: usize = 32;
+const PLAYER_HANDLE_REQUESTS_PER_PUMP: usize = 4;
+const OBJECT_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY: usize = 16;
+const OBJECT_HANDLE_REVERSE_REQUESTS_PER_PUMP: usize = 2;
+const PICKUP_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY: usize = 16;
+const PICKUP_HANDLE_REVERSE_REQUESTS_PER_PUMP: usize = 2;
+const VEHICLE_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY: usize = 16;
+const VEHICLE_HANDLE_REVERSE_REQUESTS_PER_PUMP: usize = 2;
+const PLAYER_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY: usize = 16;
+const PLAYER_HANDLE_REVERSE_REQUESTS_PER_PUMP: usize = 2;
 const MAX_SAMP_PLAYERS: usize = 1004;
 const MAX_SAMP_VEHICLES: usize = 2000;
 const MAX_SAMP_TEXT_LABELS: usize = 2048;
@@ -70,6 +86,7 @@ const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_CHAT_ENTRIES: usize = 100;
 const MAX_SAMP_OBJECTS: usize = 1000;
+const MAX_SAMP_PICKUPS: usize = 4096;
 const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
@@ -161,6 +178,22 @@ struct BackendState {
     object_exists_requests: Mutex<VecDeque<u16>>,
     gangzone_cache: Mutex<Vec<GangzoneCacheEntry>>,
     gangzone_requests: Mutex<VecDeque<u16>>,
+    object_handle_cache: Mutex<Vec<HandleCacheEntry>>,
+    object_handle_requests: Mutex<VecDeque<u16>>,
+    object_handle_reverse_cache: Mutex<HashMap<i32, Option<u16>>>,
+    object_handle_reverse_requests: Mutex<VecDeque<i32>>,
+    pickup_handle_cache: Mutex<Vec<HandleCacheEntry>>,
+    pickup_handle_requests: Mutex<VecDeque<u16>>,
+    pickup_handle_reverse_cache: Mutex<HashMap<i32, Option<u16>>>,
+    pickup_handle_reverse_requests: Mutex<VecDeque<i32>>,
+    vehicle_handle_cache: Mutex<Vec<HandleCacheEntry>>,
+    vehicle_handle_requests: Mutex<VecDeque<u16>>,
+    vehicle_handle_reverse_cache: Mutex<HashMap<i32, Option<u16>>>,
+    vehicle_handle_reverse_requests: Mutex<VecDeque<i32>>,
+    player_handle_cache: Mutex<Vec<HandleCacheEntry>>,
+    player_handle_requests: Mutex<VecDeque<u16>>,
+    player_handle_reverse_cache: Mutex<HashMap<i32, Option<u16>>>,
+    player_handle_reverse_requests: Mutex<VecDeque<i32>>,
     player_count_including_npcs: AtomicI32,
     player_count_excluding_npcs: AtomicI32,
     player_count_ready: AtomicBool,
@@ -246,6 +279,12 @@ enum ObjectExistsCacheEntry {
 enum GangzoneCacheEntry {
     Unknown,
     Known(Option<GangzoneSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum HandleCacheEntry {
+    Unknown,
+    Known(Option<i32>),
 }
 
 #[derive(Default)]
@@ -466,6 +505,38 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         )),
         gangzone_cache: Mutex::new(vec![GangzoneCacheEntry::Unknown; MAX_SAMP_GANGZONES]),
         gangzone_requests: Mutex::new(VecDeque::with_capacity(GANGZONE_REQUEST_QUEUE_CAPACITY)),
+        object_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_OBJECTS]),
+        object_handle_requests: Mutex::new(VecDeque::with_capacity(
+            OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY,
+        )),
+        object_handle_reverse_cache: Mutex::new(HashMap::new()),
+        object_handle_reverse_requests: Mutex::new(VecDeque::with_capacity(
+            OBJECT_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+        )),
+        pickup_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_PICKUPS]),
+        pickup_handle_requests: Mutex::new(VecDeque::with_capacity(
+            PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY,
+        )),
+        pickup_handle_reverse_cache: Mutex::new(HashMap::new()),
+        pickup_handle_reverse_requests: Mutex::new(VecDeque::with_capacity(
+            PICKUP_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+        )),
+        vehicle_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
+        vehicle_handle_requests: Mutex::new(VecDeque::with_capacity(
+            VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY,
+        )),
+        vehicle_handle_reverse_cache: Mutex::new(HashMap::new()),
+        vehicle_handle_reverse_requests: Mutex::new(VecDeque::with_capacity(
+            VEHICLE_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+        )),
+        player_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        player_handle_requests: Mutex::new(VecDeque::with_capacity(
+            PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY,
+        )),
+        player_handle_reverse_cache: Mutex::new(HashMap::new()),
+        player_handle_reverse_requests: Mutex::new(VecDeque::with_capacity(
+            PLAYER_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+        )),
         player_count_including_npcs: AtomicI32::new(0),
         player_count_excluding_npcs: AtomicI32::new(0),
         player_count_ready: AtomicBool::new(false),
@@ -1089,6 +1160,50 @@ impl Backend {
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
         self.state.submit_local_dialog_editbox_text(text)
+    }
+
+    pub(crate) fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.state.object_handle(id)
+    }
+
+    pub(crate) fn object_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.state.object_id_by_handle(handle)
+    }
+
+    pub(crate) fn pickup_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.state.pickup_handle(id)
+    }
+
+    pub(crate) fn pickup_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.state.pickup_id_by_handle(handle)
+    }
+
+    pub(crate) fn vehicle_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.state.vehicle_handle(id)
+    }
+
+    pub(crate) fn vehicle_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.state.vehicle_id_by_handle(handle)
+    }
+
+    pub(crate) fn player_ped_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.state.player_ped_handle(id)
+    }
+
+    pub(crate) fn player_id_by_ped_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.state.player_id_by_ped_handle(handle)
     }
 
     pub(crate) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
@@ -2785,6 +2900,188 @@ impl BackendState {
             .ok_or(DirectClientError::NotReady)
     }
 
+    fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.cached_handle(
+            usize::from(id),
+            MAX_SAMP_OBJECTS,
+            &self.object_handle_cache,
+            &self.object_handle_requests,
+            OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn object_id_by_handle(&self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        self.cached_handle_id(
+            handle,
+            &self.object_handle_reverse_cache,
+            &self.object_handle_reverse_requests,
+            OBJECT_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn pickup_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.cached_handle(
+            usize::from(id),
+            MAX_SAMP_PICKUPS,
+            &self.pickup_handle_cache,
+            &self.pickup_handle_requests,
+            PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn pickup_id_by_handle(&self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        self.cached_handle_id(
+            handle,
+            &self.pickup_handle_reverse_cache,
+            &self.pickup_handle_reverse_requests,
+            PICKUP_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn vehicle_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.cached_handle(
+            usize::from(id),
+            MAX_SAMP_VEHICLES,
+            &self.vehicle_handle_cache,
+            &self.vehicle_handle_requests,
+            VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn vehicle_id_by_handle(&self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        self.cached_handle_id(
+            handle,
+            &self.vehicle_handle_reverse_cache,
+            &self.vehicle_handle_reverse_requests,
+            VEHICLE_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn player_ped_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.cached_handle(
+            usize::from(id),
+            MAX_SAMP_PLAYERS,
+            &self.player_handle_cache,
+            &self.player_handle_requests,
+            PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn player_id_by_ped_handle(&self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        self.cached_handle_id(
+            handle,
+            &self.player_handle_reverse_cache,
+            &self.player_handle_reverse_requests,
+            PLAYER_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+            self.rak_client.load(Ordering::Acquire) != 0,
+        )
+    }
+
+    fn cached_handle(
+        &self,
+        index: usize,
+        maximum: usize,
+        cache: &Mutex<Vec<HandleCacheEntry>>,
+        requests: &Mutex<VecDeque<u16>>,
+        queue_capacity: usize,
+        client_available: bool,
+    ) -> Result<Option<i32>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if index >= maximum || !client_available || !self.cache_is_published() {
+            return Err(DirectClientError::NotReady);
+        }
+        match cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(index)
+            .cloned()
+            .ok_or(DirectClientError::NotReady)?
+        {
+            HandleCacheEntry::Known(handle) => {
+                let _ = self.queue_handle_request(requests, queue_capacity, index as u16);
+                Ok(handle)
+            }
+            HandleCacheEntry::Unknown => {
+                self.queue_handle_request(requests, queue_capacity, index as u16)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
+    fn cached_handle_id(
+        &self,
+        handle: i32,
+        cache: &Mutex<HashMap<i32, Option<u16>>>,
+        requests: &Mutex<VecDeque<i32>>,
+        queue_capacity: usize,
+        client_available: bool,
+    ) -> Result<Option<u16>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if !client_available || !self.cache_is_published() {
+            return Err(DirectClientError::NotReady);
+        }
+        if let Some(id) = cache
+            .try_lock()
+            .map_err(|_| DirectClientError::NotReady)?
+            .get(&handle)
+            .copied()
+        {
+            let _ = self.queue_handle_id_request(requests, queue_capacity, handle);
+            return Ok(id);
+        }
+        self.queue_handle_id_request(requests, queue_capacity, handle)?;
+        Err(DirectClientError::NotReady)
+    }
+
+    fn queue_handle_request(
+        &self,
+        requests: &Mutex<VecDeque<u16>>,
+        queue_capacity: usize,
+        id: u16,
+    ) -> Result<(), DirectClientError> {
+        let mut requests = requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&id) {
+            return Ok(());
+        }
+        if requests.len() == queue_capacity {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(id);
+        Ok(())
+    }
+
+    fn queue_handle_id_request(
+        &self,
+        requests: &Mutex<VecDeque<i32>>,
+        queue_capacity: usize,
+        handle: i32,
+    ) -> Result<(), DirectClientError> {
+        let mut requests = requests
+            .try_lock()
+            .map_err(|_| DirectClientError::QueueFull)?;
+        if requests.contains(&handle) {
+            return Ok(());
+        }
+        if requests.len() == queue_capacity {
+            return Err(DirectClientError::QueueFull);
+        }
+        requests.push_back(handle);
+        Ok(())
+    }
+
     fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         cached_direct_client_value(
             self.r1_client.is_some(),
@@ -2888,6 +3185,14 @@ impl BackendState {
         self.refresh_chat_entries(profile);
         self.refresh_object_exists(profile);
         self.refresh_gangzones(profile);
+        self.refresh_object_handles(profile);
+        self.refresh_pickup_handles(profile);
+        self.refresh_vehicle_handles(profile);
+        self.refresh_player_handles(profile);
+        self.refresh_object_handle_ids(profile);
+        self.refresh_pickup_handle_ids(profile);
+        self.refresh_vehicle_handle_ids(profile);
+        self.refresh_player_handle_ids(profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
     }
 
@@ -3400,6 +3705,86 @@ impl BackendState {
             .unwrap_or_default()
     }
 
+    fn take_object_handle_requests(&self) -> Vec<u16> {
+        self.object_handle_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(OBJECT_HANDLE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_pickup_handle_requests(&self) -> Vec<u16> {
+        self.pickup_handle_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(PICKUP_HANDLE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_vehicle_handle_requests(&self) -> Vec<u16> {
+        self.vehicle_handle_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(VEHICLE_HANDLE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_player_handle_requests(&self) -> Vec<u16> {
+        self.player_handle_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(PLAYER_HANDLE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_object_handle_id_requests(&self) -> Vec<i32> {
+        self.object_handle_reverse_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(OBJECT_HANDLE_REVERSE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_pickup_handle_id_requests(&self) -> Vec<i32> {
+        self.pickup_handle_reverse_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(PICKUP_HANDLE_REVERSE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_vehicle_handle_id_requests(&self) -> Vec<i32> {
+        self.vehicle_handle_reverse_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(VEHICLE_HANDLE_REVERSE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn take_player_handle_id_requests(&self) -> Vec<i32> {
+        self.player_handle_reverse_requests
+            .try_lock()
+            .map(|mut queue| {
+                let count = queue.len().min(PLAYER_HANDLE_REVERSE_REQUESTS_PER_PUMP);
+                queue.drain(..count).collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn cache_local_player_snapshot(&self, snapshot: Option<LocalPlayerSnapshot>) {
         let Ok(mut candidate) = self.local_player_candidate.try_lock() else {
             return;
@@ -3491,6 +3876,12 @@ impl BackendState {
     fn clear_gangzone_cache(&self) {
         if let Ok(mut cache) = self.gangzone_cache.try_lock() {
             cache.fill(GangzoneCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_handle_cache(&self, cache: &Mutex<Vec<HandleCacheEntry>>) {
+        if let Ok(mut cache) = cache.try_lock() {
+            cache.fill(HandleCacheEntry::Unknown);
         }
     }
 
@@ -3588,6 +3979,58 @@ impl BackendState {
             .unwrap_or_else(|error| error.into_inner())
             .fill(GangzoneCacheEntry::Unknown);
         self.gangzone_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.clear_handle_cache(&self.object_handle_cache);
+        self.object_handle_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.object_handle_reverse_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.object_handle_reverse_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.clear_handle_cache(&self.pickup_handle_cache);
+        self.pickup_handle_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.pickup_handle_reverse_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.pickup_handle_reverse_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.clear_handle_cache(&self.vehicle_handle_cache);
+        self.vehicle_handle_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.vehicle_handle_reverse_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.vehicle_handle_reverse_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.clear_handle_cache(&self.player_handle_cache);
+        self.player_handle_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.player_handle_reverse_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.player_handle_reverse_requests
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
@@ -3784,6 +4227,110 @@ impl BackendState {
             if let Some(entry) = cache.get_mut(usize::from(id)) {
                 *entry = GangzoneCacheEntry::Known(snapshot);
             }
+        }
+    }
+
+    fn refresh_object_handles(&self, profile: R1ClientProfile) {
+        for id in self.take_object_handle_requests() {
+            let Ok(handle) = profile.object_handle(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.object_handle_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = HandleCacheEntry::Known(handle);
+            }
+        }
+    }
+
+    fn refresh_pickup_handles(&self, profile: R1ClientProfile) {
+        for id in self.take_pickup_handle_requests() {
+            let Ok(handle) = profile.pickup_handle(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.pickup_handle_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = HandleCacheEntry::Known(handle);
+            }
+        }
+    }
+
+    fn refresh_vehicle_handles(&self, profile: R1ClientProfile) {
+        for id in self.take_vehicle_handle_requests() {
+            let Ok(handle) = profile.vehicle_handle(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.vehicle_handle_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = HandleCacheEntry::Known(handle);
+            }
+        }
+    }
+
+    fn refresh_player_handles(&self, profile: R1ClientProfile) {
+        for id in self.take_player_handle_requests() {
+            let Ok(handle) = profile.player_ped_handle(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.player_handle_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = HandleCacheEntry::Known(handle);
+            }
+        }
+    }
+
+    fn refresh_object_handle_ids(&self, profile: R1ClientProfile) {
+        for handle in self.take_object_handle_id_requests() {
+            let Ok(id) = profile.object_id_by_handle(handle) else {
+                continue;
+            };
+            let Ok(mut cache) = self.object_handle_reverse_cache.try_lock() else {
+                continue;
+            };
+            cache.insert(handle, id);
+        }
+    }
+
+    fn refresh_pickup_handle_ids(&self, profile: R1ClientProfile) {
+        for handle in self.take_pickup_handle_id_requests() {
+            let Ok(id) = profile.pickup_id_by_handle(handle) else {
+                continue;
+            };
+            let Ok(mut cache) = self.pickup_handle_reverse_cache.try_lock() else {
+                continue;
+            };
+            cache.insert(handle, id);
+        }
+    }
+
+    fn refresh_vehicle_handle_ids(&self, profile: R1ClientProfile) {
+        for handle in self.take_vehicle_handle_id_requests() {
+            let Ok(id) = profile.vehicle_id_by_handle(handle) else {
+                continue;
+            };
+            let Ok(mut cache) = self.vehicle_handle_reverse_cache.try_lock() else {
+                continue;
+            };
+            cache.insert(handle, id);
+        }
+    }
+
+    fn refresh_player_handle_ids(&self, profile: R1ClientProfile) {
+        for handle in self.take_player_handle_id_requests() {
+            let Ok(id) = profile.player_id_by_ped_handle(handle) else {
+                continue;
+            };
+            let Ok(mut cache) = self.player_handle_reverse_cache.try_lock() else {
+                continue;
+            };
+            cache.insert(handle, id);
         }
     }
 
@@ -4466,6 +5013,22 @@ mod vtable_tests {
             object_exists_requests: Mutex::new(VecDeque::new()),
             gangzone_cache: Mutex::new(vec![GangzoneCacheEntry::Unknown; MAX_SAMP_GANGZONES]),
             gangzone_requests: Mutex::new(VecDeque::new()),
+            object_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_OBJECTS]),
+            object_handle_requests: Mutex::new(VecDeque::new()),
+            object_handle_reverse_cache: Mutex::new(HashMap::new()),
+            object_handle_reverse_requests: Mutex::new(VecDeque::new()),
+            pickup_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_PICKUPS]),
+            pickup_handle_requests: Mutex::new(VecDeque::new()),
+            pickup_handle_reverse_cache: Mutex::new(HashMap::new()),
+            pickup_handle_reverse_requests: Mutex::new(VecDeque::new()),
+            vehicle_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
+            vehicle_handle_requests: Mutex::new(VecDeque::new()),
+            vehicle_handle_reverse_cache: Mutex::new(HashMap::new()),
+            vehicle_handle_reverse_requests: Mutex::new(VecDeque::new()),
+            player_handle_cache: Mutex::new(vec![HandleCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+            player_handle_requests: Mutex::new(VecDeque::new()),
+            player_handle_reverse_cache: Mutex::new(HashMap::new()),
+            player_handle_reverse_requests: Mutex::new(VecDeque::new()),
             player_count_including_npcs: AtomicI32::new(0),
             player_count_excluding_npcs: AtomicI32::new(0),
             player_count_ready: AtomicBool::new(false),
@@ -4724,6 +5287,111 @@ mod vtable_tests {
         assert_eq!(
             state.local_dialog_listbox_item_text(0),
             Err(DirectClientError::NotReady)
+        );
+    }
+
+    #[test]
+    fn handle_reads_are_deduplicated_queued_and_published_per_pump() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        state.cache_generation.store(2, Ordering::Release);
+
+        assert_eq!(state.object_handle(7), Err(DirectClientError::NotReady));
+        state
+            .queue_handle_request(&state.object_handle_requests, 32, 7)
+            .unwrap();
+        state
+            .queue_handle_request(&state.object_handle_requests, 32, 7)
+            .unwrap();
+        assert_eq!(state.object_handle_requests.lock().unwrap().len(), 1);
+
+        state.object_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(None);
+        assert_eq!(state.object_handle(7), Ok(None));
+
+        assert_eq!(
+            state.object_id_by_handle(42),
+            Err(DirectClientError::NotReady)
+        );
+        state
+            .object_handle_reverse_cache
+            .lock()
+            .unwrap()
+            .insert(42, Some(7));
+        assert_eq!(state.object_id_by_handle(42), Ok(Some(7)));
+    }
+
+    #[test]
+    fn handle_reverse_requests_are_deduplicated() {
+        let mut state = test_backend_state();
+        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.rak_client.store(0x1000, Ordering::Release);
+        state.cache_generation.store(2, Ordering::Release);
+
+        state
+            .queue_handle_id_request(&state.object_handle_reverse_requests, 16, 42)
+            .unwrap();
+        state
+            .queue_handle_id_request(&state.object_handle_reverse_requests, 16, 42)
+            .unwrap();
+        assert_eq!(
+            state.object_handle_reverse_requests.lock().unwrap().len(),
+            1
+        );
+
+        state
+            .object_handle_reverse_cache
+            .lock()
+            .unwrap()
+            .insert(42, None);
+        assert_eq!(state.object_id_by_handle(42), Ok(None));
+    }
+
+    #[test]
+    fn handle_caches_are_cleared_across_connection_boundaries() {
+        let mut state = test_backend_state();
+        state.object_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
+        state.object_handle_requests.lock().unwrap().push_back(7);
+        state
+            .object_handle_reverse_cache
+            .lock()
+            .unwrap()
+            .insert(42, Some(7));
+        state
+            .object_handle_reverse_requests
+            .lock()
+            .unwrap()
+            .push_back(42);
+        state.pickup_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
+        state.vehicle_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
+        state.player_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
+
+        state.invalidate_connection_state();
+
+        assert!(matches!(
+            state.object_handle_cache.lock().unwrap()[7],
+            HandleCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.pickup_handle_cache.lock().unwrap()[7],
+            HandleCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.vehicle_handle_cache.lock().unwrap()[7],
+            HandleCacheEntry::Unknown
+        ));
+        assert!(matches!(
+            state.player_handle_cache.lock().unwrap()[7],
+            HandleCacheEntry::Unknown
+        ));
+        assert!(state.object_handle_requests.lock().unwrap().is_empty());
+        assert!(state.object_handle_reverse_cache.lock().unwrap().is_empty());
+        assert!(
+            state
+                .object_handle_reverse_requests
+                .lock()
+                .unwrap()
+                .is_empty()
         );
     }
 

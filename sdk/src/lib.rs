@@ -48,6 +48,8 @@ pub const MAX_SAMP_CHAT_ENTRY_TEXT_BYTES: usize = 143;
 pub const MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES: usize = 27;
 /// Number of addressable SA-MP object IDs in the R1 object pool.
 pub const MAX_SAMP_OBJECTS: u16 = 1_000;
+/// Number of addressable SA-MP pickup slots in the R1 pickup pool.
+pub const MAX_SAMP_PICKUPS: u16 = 4_096;
 /// Number of addressable SA-MP gangzone IDs in the R1 gangzone pool.
 pub const MAX_SAMP_GANGZONES: u16 = 1_024;
 /// Maximum copied byte length of an R1 3D text-label string.
@@ -1734,6 +1736,23 @@ pub struct SampClientSdkApiV1 {
         usize,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
+    /// Copies one cached R1 object GTAREF for an object-pool ID.
+    pub local_object_handle: unsafe extern "system" fn(u16, *mut i32) -> SampClientSdkResult,
+    /// Resolves one cached R1 object-pool ID from its GTAREF.
+    pub local_object_id_by_handle: unsafe extern "system" fn(i32, *mut u16) -> SampClientSdkResult,
+    /// Copies one cached R1 pickup GTAREF for a pickup-pool ID.
+    pub local_pickup_handle: unsafe extern "system" fn(u16, *mut i32) -> SampClientSdkResult,
+    /// Resolves one cached R1 pickup-pool ID from its GTAREF.
+    pub local_pickup_id_by_handle: unsafe extern "system" fn(i32, *mut u16) -> SampClientSdkResult,
+    /// Copies one cached R1 vehicle GTA handle for a vehicle-pool ID.
+    pub local_vehicle_handle: unsafe extern "system" fn(u16, *mut i32) -> SampClientSdkResult,
+    /// Resolves one cached R1 vehicle-pool ID from its GTA handle.
+    pub local_vehicle_id_by_handle: unsafe extern "system" fn(i32, *mut u16) -> SampClientSdkResult,
+    /// Copies one cached R1 player GTA ped handle for a player-pool ID.
+    pub local_player_ped_handle: unsafe extern "system" fn(u16, *mut i32) -> SampClientSdkResult,
+    /// Resolves one cached R1 player-pool ID from its GTA ped handle.
+    pub local_player_id_by_ped_handle:
+        unsafe extern "system" fn(i32, *mut u16) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;
@@ -3521,6 +3540,78 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
+    /// Returns the cached R1 object GTAREF for an object-pool ID.
+    pub fn object_handle(self, id: u16) -> Result<Option<i32>, SampClientSdkResult> {
+        let mut output = 0;
+        match unsafe { (self.raw.local_object_handle)(id, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != 0).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Resolves the cached R1 object-pool ID for a GTAREF.
+    pub fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, SampClientSdkResult> {
+        let mut output = u16::MAX;
+        match unsafe { (self.raw.local_object_id_by_handle)(handle, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != u16::MAX).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Returns the cached R1 pickup GTAREF for a pickup-pool ID.
+    pub fn pickup_handle(self, id: u16) -> Result<Option<i32>, SampClientSdkResult> {
+        let mut output = 0;
+        match unsafe { (self.raw.local_pickup_handle)(id, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != 0).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Resolves the cached R1 pickup-pool ID for a GTAREF.
+    pub fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, SampClientSdkResult> {
+        let mut output = u16::MAX;
+        match unsafe { (self.raw.local_pickup_id_by_handle)(handle, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != u16::MAX).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Returns the cached R1 vehicle GTA handle for a vehicle-pool ID.
+    pub fn vehicle_handle(self, id: u16) -> Result<Option<i32>, SampClientSdkResult> {
+        let mut output = 0;
+        match unsafe { (self.raw.local_vehicle_handle)(id, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != 0).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Resolves the cached R1 vehicle-pool ID for a GTA handle.
+    pub fn vehicle_id_by_handle(self, handle: i32) -> Result<Option<u16>, SampClientSdkResult> {
+        let mut output = u16::MAX;
+        match unsafe { (self.raw.local_vehicle_id_by_handle)(handle, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != u16::MAX).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Returns the cached R1 player GTA ped handle for a player-pool ID.
+    pub fn player_ped_handle(self, id: u16) -> Result<Option<i32>, SampClientSdkResult> {
+        let mut output = 0;
+        match unsafe { (self.raw.local_player_ped_handle)(id, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != 0).then_some(output)),
+            error => Err(error),
+        }
+    }
+
+    /// Resolves the cached R1 player-pool ID for a GTA ped handle.
+    pub fn player_id_by_ped_handle(self, handle: i32) -> Result<Option<u16>, SampClientSdkResult> {
+        let mut output = u16::MAX;
+        match unsafe { (self.raw.local_player_id_by_ped_handle)(handle, &mut output) } {
+            SampClientSdkResult::Ok => Ok((output != u16::MAX).then_some(output)),
+            error => Err(error),
+        }
+    }
+
     /// Queues a documented R1 3D text-label-pool deletion.
     pub fn submit_delete_text_label(
         self,
@@ -4792,11 +4883,43 @@ mod tests {
         );
         assert_eq!(
             mem::size_of::<SampClientSdkApiV1>(),
-            mem::offset_of!(SampClientSdkApiV1, submit_local_dialog_editbox_text) + function_size
+            mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle) + function_size
         );
         assert_eq!(
             mem::offset_of!(SampClientSdkApiV1, local_dialog_text),
             mem::offset_of!(SampClientSdkApiV1, submit_create_text_label) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_object_handle),
+            mem::offset_of!(SampClientSdkApiV1, submit_local_dialog_editbox_text) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_object_id_by_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_object_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_pickup_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_object_id_by_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_pickup_id_by_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_pickup_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_vehicle_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_pickup_id_by_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_vehicle_id_by_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_vehicle_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_player_ped_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_vehicle_id_by_handle) + function_size
+        );
+        assert_eq!(
+            mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle),
+            mem::offset_of!(SampClientSdkApiV1, local_player_ped_handle) + function_size
         );
         assert_eq!(
             mem::offset_of!(SampClientSdkApiV1, local_dialog_editbox_text),

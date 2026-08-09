@@ -70,6 +70,8 @@ boundary.
 
 - [ ] Introduce `Samp::connect`, `Samp::connect_to`, subsystem facades, checked
   SA-MP ID newtypes, typed GTA handles, `CommandReceipt<T>`, and typed errors.
+  (facades, checked IDs, receipts, and typed GTA handles are implemented;
+  `connect`/`connect_to` wait for the host worker)
 - [x] Make the raw ABI wrapper private or documentation-hidden and expose native
   addresses only through the explicit `unsafe raw` module.
 - [x] Move subscriptions, typed events, exact sends/emulation, string codecs,
@@ -226,16 +228,16 @@ Tiers:
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampGetObjectPoolPtr` | Unsafe raw | `raw::object_pool` |
-| [ ] | `sampGetObjectHandleBySampId` | Safe owned/read | `Object::handle` returning `ObjectHandle` |
-| [ ] | `sampGetObjectSampIdByHandle` | Safe owned/read | `ObjectHandle::to_id` |
+| [x] | `sampGetObjectHandleBySampId` | Safe owned/read | `Object::handle` returning `ObjectHandle` |
+| [x] | `sampGetObjectSampIdByHandle` | Safe owned/read | `ObjectHandle::to_id` |
 
 ### Pickups (`pickup.lua`) — 3
 
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampGetPickupPoolPtr` | Unsafe raw | `raw::pickup_pool` |
-| [ ] | `sampGetPickupHandleBySampId` | Safe owned/read | `Pickup::handle` returning `PickupHandle` |
-| [ ] | `sampGetPickupSampIdByHandle` | Safe owned/read | `PickupHandle::to_id` |
+| [x] | `sampGetPickupHandleBySampId` | Safe owned/read | `Pickup::handle` returning `PickupHandle` |
+| [x] | `sampGetPickupSampIdByHandle` | Safe owned/read | `PickupHandle::to_id` |
 
 ### Players (`player.lua`) — 43
 
@@ -252,8 +254,8 @@ Tiers:
 | [x] | `sampRequestClass` | Queued mutation | `Local::request_class` |
 | [x] | `sampSendInteriorChange` | Queued mutation | `Local::send_interior_change` |
 | [x] | `sampForceUnoccupiedSyncSeatId` | Queued mutation | `Local::force_unoccupied_sync` |
-| [ ] | `sampGetCharHandleBySampPlayerId` | Safe owned/read | `Player::ped_handle` returning `PedHandle` |
-| [ ] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `PedHandle::to_id` |
+| [x] | `sampGetCharHandleBySampPlayerId` | Safe owned/read | `Player::ped_handle` returning `PedHandle` |
+| [x] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `PedHandle::to_id` |
 | [x] | `sampGetPlayerArmor` | Safe owned/read | `Player::armour` |
 | [x] | `sampGetPlayerHealth` | Safe owned/read | `Player::health` |
 | [x] | `sampIsPlayerPaused` | Safe owned/read | `Player::is_paused` |
@@ -396,8 +398,8 @@ Tiers:
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampGetVehiclePoolPtr` | Unsafe raw | `raw::vehicle_pool` |
-| [ ] | `sampGetCarHandleBySampVehicleId` | Safe owned/read | `Vehicle::handle` returning `VehicleHandle` |
-| [ ] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `VehicleHandle::to_id` |
+| [x] | `sampGetCarHandleBySampVehicleId` | Safe owned/read | `Vehicle::handle` returning `VehicleHandle` |
+| [x] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `VehicleHandle::to_id` |
 | [x] | `sampIsVehicleDefined` | Safe owned/read | `Vehicles::exists` |
 <!-- sf-lua-baseline:end -->
 

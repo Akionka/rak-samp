@@ -111,6 +111,12 @@ The pickup-pool raw pointer follows the same opaque-lifetime rule and its pool
 slot is likewise fixture-checked.
 `raw::player` is captured from the validated R1 local-player lookup on the
 game thread and is cleared on connection transitions and shutdown.
+Pool handle reads (objects, pickups, vehicles, and player peds) are cached on
+the game thread through bounded, deduplicated request queues: ID→handle reads
+drain per-ID requests, and handle→ID reads drain bounded scans of the matching
+pool. Vehicle and ped handles convert validated GTA SA pointers through the
+fixed `CPools::GetVehicleRef`/`GetPedRef` targets, and the facade exposes the
+results as typed non-null GTA handle newtypes.
 `raw::bitstream_data` exposes only a lifetime-bound pointer to the SDK-owned
 bounded bit-stream storage; it is not a native RakNet allocation.
 Local facade protocol actions reuse the exact receipt-bearing `Net` path and

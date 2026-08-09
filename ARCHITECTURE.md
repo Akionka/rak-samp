@@ -132,6 +132,14 @@ is never converted into a Rust reference.
 The local-player raw address is captured only during the game-thread refresh
 and cleared at connection boundaries, so plugin threads never resolve it by
 calling client code.
+Object, pickup, vehicle, and player-ped handle reads use per-pool bounded
+request queues with per-tick pump limits and first-read `NotReady`. The native
+profile reads object `SCEntity::m_handle`, pickup `m_handle` GTAREF slots, and
+converts validated vehicle/ped pointers through the fixture-anchored GTA SA
+`CPools::GetVehicleRef`/`GetPedRef` targets; reverse lookups drain bounded pool
+scans. All handle caches and pending requests are cleared at connection
+boundaries, and the SDK exposes typed non-null handle newtypes with
+`to_id` conversions.
 The raw bit-stream data address is a borrow of the SDK-owned bounded buffer,
 so it never exposes native RakNet allocation ownership across the plugin ABI.
 `Local` protocol actions are thin typed routes to the exact same queued `Net`

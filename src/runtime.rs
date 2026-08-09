@@ -1004,6 +1004,50 @@ impl Runtime {
         self.backend.local_dialog_listbox_item_text(index)
     }
 
+    pub(crate) fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.backend.object_handle(id)
+    }
+
+    pub(crate) fn object_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.backend.object_id_by_handle(handle)
+    }
+
+    pub(crate) fn pickup_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.backend.pickup_handle(id)
+    }
+
+    pub(crate) fn pickup_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.backend.pickup_id_by_handle(handle)
+    }
+
+    pub(crate) fn vehicle_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.backend.vehicle_handle(id)
+    }
+
+    pub(crate) fn vehicle_id_by_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.backend.vehicle_id_by_handle(handle)
+    }
+
+    pub(crate) fn player_ped_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        self.backend.player_ped_handle(id)
+    }
+
+    pub(crate) fn player_id_by_ped_handle(
+        &self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        self.backend.player_id_by_ped_handle(handle)
+    }
+
     pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {
         self.backend.local_dialog_selected_item()
     }

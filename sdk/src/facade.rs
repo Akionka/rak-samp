@@ -69,6 +69,39 @@ bounded_id!(
     "A checked SA-MP gangzone-pool ID."
 );
 
+macro_rules! gta_handle {
+    ($name:ident, $docs:literal) => {
+        #[doc = $docs]
+        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+        pub struct $name(u32);
+
+        impl $name {
+            /// Returns `None` for the null GTA handle.
+            #[must_use]
+            pub const fn new(raw: u32) -> Option<Self> {
+                if raw == 0 { None } else { Some(Self(raw)) }
+            }
+
+            /// Returns the raw non-null GTA handle.
+            #[must_use]
+            pub const fn get(self) -> u32 {
+                self.0
+            }
+        }
+    };
+}
+
+gta_handle!(
+    ObjectHandle,
+    "A typed non-null GTA SA object handle (GTAREF)."
+);
+gta_handle!(
+    PickupHandle,
+    "A typed non-null GTA SA pickup handle (GTAREF)."
+);
+gta_handle!(VehicleHandle, "A typed non-null GTA SA vehicle handle.");
+gta_handle!(PedHandle, "A typed non-null GTA SA ped handle.");
+
 /// Entry point for safe, copied SA-MP client operations.
 #[derive(Clone, Copy)]
 pub struct Samp {
@@ -155,7 +188,7 @@ impl Samp {
 
     #[must_use]
     pub fn pickups(self) -> Pickups {
-        Pickups {}
+        Pickups { api: self.api }
     }
 
     #[must_use]
@@ -1013,6 +1046,22 @@ impl Player {
     pub fn set_colour(self, colour: u32) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_player_colour(self.id.get(), colour)
     }
+
+    /// Returns the cached GTA SA ped handle for this player.
+    pub fn ped_handle(self) -> Result<Option<PedHandle>, SampClientSdkResult> {
+        self.api
+            .player_ped_handle(self.id.get())
+            .map(|handle| handle.and_then(|handle| PedHandle::new(handle as u32)))
+    }
+}
+
+impl PedHandle {
+    /// Resolves this GTA SA ped handle back to a checked player-pool ID.
+    pub fn to_id(self, samp: Samp) -> Result<Option<PlayerId>, SampClientSdkResult> {
+        samp.api()
+            .player_id_by_ped_handle(self.get() as i32)
+            .map(|id| id.and_then(PlayerId::new))
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -1187,12 +1236,46 @@ impl Objects {
     pub fn exists(self, id: ObjectId) -> Result<bool, SampClientSdkResult> {
         self.api.is_object_defined(id.get())
     }
+
+    /// Returns the cached GTA SA object handle for a checked object ID.
+    pub fn handle(self, id: ObjectId) -> Result<Option<ObjectHandle>, SampClientSdkResult> {
+        self.api
+            .object_handle(id.get())
+            .map(|handle| handle.and_then(|handle| ObjectHandle::new(handle as u32)))
+    }
+}
+
+impl ObjectHandle {
+    /// Resolves this GTA SA object handle back to a checked object-pool ID.
+    pub fn to_id(self, samp: Samp) -> Result<Option<ObjectId>, SampClientSdkResult> {
+        samp.api()
+            .object_id_by_handle(self.get() as i32)
+            .map(|id| id.and_then(ObjectId::new))
+    }
 }
 
 /// Placeholder for the pickup facade. No pickup read or mutation has crossed
 /// the fixed R1 native boundary yet.
 #[derive(Clone, Copy)]
-pub struct Pickups {}
+pub struct Pickups {
+    api: HostApi,
+}
+
+impl Pickups {
+    /// Returns the cached GTA SA pickup handle for a raw pickup-pool index.
+    pub fn handle(self, id: u16) -> Result<Option<PickupHandle>, SampClientSdkResult> {
+        self.api
+            .pickup_handle(id)
+            .map(|handle| handle.and_then(|handle| PickupHandle::new(handle as u32)))
+    }
+}
+
+impl PickupHandle {
+    /// Resolves this GTA SA pickup handle back to a pickup-pool index.
+    pub fn to_id(self, samp: Samp) -> Result<Option<u16>, SampClientSdkResult> {
+        samp.api().pickup_id_by_handle(self.get() as i32)
+    }
+}
 
 #[derive(Clone, Copy)]
 pub struct Vehicles {
@@ -1202,6 +1285,22 @@ pub struct Vehicles {
 impl Vehicles {
     pub fn exists(self, id: VehicleId) -> Result<bool, SampClientSdkResult> {
         self.api.is_vehicle_defined(id.get())
+    }
+
+    /// Returns the cached GTA SA vehicle handle for a checked vehicle ID.
+    pub fn handle(self, id: VehicleId) -> Result<Option<VehicleHandle>, SampClientSdkResult> {
+        self.api
+            .vehicle_handle(id.get())
+            .map(|handle| handle.and_then(|handle| VehicleHandle::new(handle as u32)))
+    }
+}
+
+impl VehicleHandle {
+    /// Resolves this GTA SA vehicle handle back to a checked vehicle-pool ID.
+    pub fn to_id(self, samp: Samp) -> Result<Option<VehicleId>, SampClientSdkResult> {
+        samp.api()
+            .vehicle_id_by_handle(self.get() as i32)
+            .map(|id| id.and_then(VehicleId::new))
     }
 }
 
@@ -1470,6 +1569,46 @@ mod tests {
         assert_eq!(TextdrawId::new(MAX_SAMP_TEXTDRAWS), None);
         assert_eq!(ObjectId::new(MAX_SAMP_OBJECTS), None);
         assert_eq!(GangzoneId::new(MAX_SAMP_GANGZONES), None);
+    }
+
+    #[test]
+    fn gta_handles_reject_the_null_value() {
+        assert_eq!(ObjectHandle::new(0), None);
+        assert_eq!(PickupHandle::new(0), None);
+        assert_eq!(VehicleHandle::new(0), None);
+        assert_eq!(PedHandle::new(0), None);
+        assert_eq!(ObjectHandle::new(42).map(ObjectHandle::get), Some(42));
+        assert_eq!(PickupHandle::new(42).map(PickupHandle::get), Some(42));
+        assert_eq!(VehicleHandle::new(42).map(VehicleHandle::get), Some(42));
+        assert_eq!(PedHandle::new(42).map(PedHandle::get), Some(42));
+    }
+
+    #[test]
+    fn handle_lookups_route_through_the_mock_abi_and_round_trip() {
+        let samp = Samp::from_api(crate::events::test_support::test_api());
+        let object_id = ObjectId::new(7).unwrap();
+        let object_handle = samp.objects().handle(object_id).unwrap().unwrap();
+        assert_eq!(object_handle.get(), 0x1007);
+        assert_eq!(object_handle.to_id(samp).unwrap(), Some(object_id));
+
+        let pickup_handle = samp.pickups().handle(7).unwrap().unwrap();
+        assert_eq!(pickup_handle.get(), 0x2007);
+        assert_eq!(pickup_handle.to_id(samp).unwrap(), Some(7));
+
+        let vehicle_id = VehicleId::new(7).unwrap();
+        let vehicle_handle = samp.vehicles().handle(vehicle_id).unwrap().unwrap();
+        assert_eq!(vehicle_handle.get(), 0x3007);
+        assert_eq!(vehicle_handle.to_id(samp).unwrap(), Some(vehicle_id));
+
+        let player_id = PlayerId::new(7).unwrap();
+        let ped_handle = samp
+            .players()
+            .player(player_id)
+            .ped_handle()
+            .unwrap()
+            .unwrap();
+        assert_eq!(ped_handle.get(), 0x4007);
+        assert_eq!(ped_handle.to_id(samp).unwrap(), Some(player_id));
     }
 
     #[test]

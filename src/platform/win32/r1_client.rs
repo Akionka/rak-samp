@@ -88,11 +88,21 @@ const MAX_SAMP_TEXT_LABELS: u16 = 2048;
 const MAX_SAMP_TEXTDRAWS: u16 = 2304;
 const MAX_SAMP_OBJECTS: u16 = 1000;
 const MAX_SAMP_GANGZONES: u16 = 1024;
+const MAX_SAMP_PICKUPS: u16 = 4096;
 const MAX_LOCAL_PLAYER_NAME_BYTES: usize = 255;
 
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
+const VEHICLE_POOL_GAME_OBJECTS_OFFSET: usize = 0x4FB4;
+const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
+const OBJECT_POOL_OBJECTS_OFFSET: usize = 0xFA4;
+const PICKUP_POOL_HANDLES_OFFSET: usize = 0x04;
+const ENTITY_HANDLE_OFFSET: usize = 0x44;
+// GTA SA 1.0 US `CPools` handle conversions (cdecl): ped/vehicle pointer to
+// GTAREF. Cross-checked with DK22Pac/plugin-sdk `plugin_sa/game_sa/CPools.cpp`.
+const CPOOLS_GET_PED_REF: usize = 0x54FF60;
+const CPOOLS_GET_VEHICLE_REF: usize = 0x54FFC0;
 const NET_GAME_POOLS_OFFSET: usize = 0x3CD;
 const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x0C;
 const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x10;
@@ -115,7 +125,6 @@ const TEXTDRAW_STRING_OFFSET: usize = 801;
 const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
 const TEXTDRAW_POOL_OBJECTS_OFFSET: usize = 0x2400;
 const TEXTDRAW_POOL_DELETE_RVA: usize = 0x1AD00;
-const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
 const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;
 const GANGZONE_LEFT_OFFSET: usize = 0x00;
 const GANGZONE_BOTTOM_OFFSET: usize = 0x04;
@@ -137,7 +146,6 @@ const NET_GAME_PORT_OFFSET: usize = 0x225;
 const NET_GAME_GAME_STATE_OFFSET: usize = 0x3BD;
 #[cfg(test)]
 const NET_GAME_SERVER_SETTINGS_OFFSET: usize = 0x3C5;
-#[cfg(test)]
 const NET_GAME_POOLS_PICKUP_POOL_OFFSET: usize = 0x20;
 const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 const RAK_CLIENT_DISCONNECT_VTABLE_SLOT: usize = 2;
@@ -2240,6 +2248,265 @@ impl R1ClientProfile {
         read_r1_bool(pool + OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>())
     }
 
+    /// Copies one R1 object-pool handle (GTAREF) on the game thread. The
+    /// handle is the `SCEntity::m_handle` field of the object's SAMP wrapper.
+    pub(super) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if id >= MAX_SAMP_OBJECTS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_OBJECT_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_OBJECT_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            OBJECT_POOL_OBJECTS_OFFSET + (usize::from(id) + 1) * mem::size_of::<usize>();
+        if !readable_range(pool as *const u8, checked_len)
+            || !read_r1_bool(
+                pool + OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>(),
+            )?
+        {
+            return Ok(None);
+        }
+        let object = unsafe {
+            read_unaligned::<usize>(
+                pool + OBJECT_POOL_OBJECTS_OFFSET + usize::from(id) * mem::size_of::<usize>(),
+            )
+        }
+        .filter(|object| *object != 0)
+        .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            object as *const u8,
+            ENTITY_HANDLE_OFFSET + mem::size_of::<i32>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let handle = unsafe { read_unaligned::<i32>(object + ENTITY_HANDLE_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        if handle != 0 {
+            Ok(Some(handle))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Scans the R1 object pool for a matching GTAREF on the game thread.
+    pub(super) fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        for id in 0..MAX_SAMP_OBJECTS {
+            if self.object_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Copies one R1 pickup-pool handle (GTAREF) on the game thread.
+    pub(super) fn pickup_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if id >= MAX_SAMP_PICKUPS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_PICKUP_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_PICKUP_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let checked_len =
+            PICKUP_POOL_HANDLES_OFFSET + (usize::from(id) + 1) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, checked_len) {
+            return Err(DirectClientError::NotReady);
+        }
+        let handle = unsafe {
+            read_unaligned::<i32>(
+                pool + PICKUP_POOL_HANDLES_OFFSET + usize::from(id) * mem::size_of::<i32>(),
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        if handle != 0 {
+            Ok(Some(handle))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Scans the R1 pickup pool for a matching GTAREF on the game thread.
+    pub(super) fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+        for id in 0..MAX_SAMP_PICKUPS {
+            if self.pickup_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Copies one R1 vehicle GTA handle (GTAREF) on the game thread by
+    /// converting the validated `m_pGameObject` pointer through the fixed
+    /// GTA SA `CPools::GetVehicleRef` target.
+    pub(super) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if id >= MAX_SAMP_VEHICLES {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = self.vehicle_pool()?;
+        let checked_len =
+            VEHICLE_POOL_GAME_OBJECTS_OFFSET + (usize::from(id) + 1) * mem::size_of::<usize>();
+        if !readable_range(pool.cast(), checked_len)
+            || !read_r1_bool(
+                pool as usize
+                    + VEHICLE_POOL_NOT_EMPTY_OFFSET
+                    + usize::from(id) * mem::size_of::<i32>(),
+            )?
+        {
+            return Ok(None);
+        }
+        let game_object = unsafe {
+            read_unaligned::<usize>(
+                pool as usize
+                    + VEHICLE_POOL_GAME_OBJECTS_OFFSET
+                    + usize::from(id) * mem::size_of::<usize>(),
+            )
+        }
+        .filter(|game_object| *game_object != 0)
+        .ok_or(DirectClientError::NotReady)?;
+        let get_vehicle_ref: CpoolRefFn = unsafe { mem::transmute(CPOOLS_GET_VEHICLE_REF) };
+        let handle = unsafe { get_vehicle_ref(game_object as *mut c_void) };
+        if handle != 0 {
+            Ok(Some(handle))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Scans the R1 vehicle pool for a matching GTA handle on the game thread.
+    pub(super) fn vehicle_id_by_handle(
+        self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        for id in 0..MAX_SAMP_VEHICLES {
+            if self.vehicle_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
+    /// Copies one R1 player-pool GTA ped handle (GTAREF) on the game thread.
+    ///
+    /// The local player resolves through `CLocalPlayer::GetPed` → `m_pGamePed`
+    /// and the fixed GTA SA `CPools::GetPedRef`; remote players resolve through
+    /// `CRemotePlayer.m_pPed` → `m_pGamePed` → `GetPedRef`.
+    pub(super) fn player_ped_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_id =
+            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+                .and_then(assigned_player_id)
+                .ok_or(DirectClientError::NotReady)?;
+        let game_ped = if id == local_id {
+            let get_local_player: PlayerPoolGetLocalPlayerFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let local = unsafe { get_local_player(pool) };
+            if local.is_null() || !readable_range(local.cast(), 1) {
+                return Err(DirectClientError::NotReady);
+            }
+            let get_ped: LocalPlayerGetPedFn =
+                unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_GET_PED_RVA) };
+            let ped = unsafe { get_ped(local) };
+            if ped.is_null()
+                || !readable_range(
+                    ped.cast(),
+                    SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
+                )
+            {
+                return Err(DirectClientError::NotReady);
+            }
+            unsafe { read_unaligned::<usize>(ped as usize + SAMP_PED_GAME_PED_OFFSET) }
+        } else {
+            let is_connected: PlayerPoolPlayerBooleanFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+            if unsafe { is_connected(pool, id) } != 1 {
+                return Ok(None);
+            }
+            let get_player: PlayerPoolGetRemotePlayerFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            let remote = unsafe { get_player(pool, id) };
+            if remote.is_null() || !readable_range(remote.cast(), mem::size_of::<usize>()) {
+                return Err(DirectClientError::NotReady);
+            }
+            let ped = unsafe { read_unaligned::<usize>(remote as usize) }
+                .filter(|ped| *ped != 0)
+                .ok_or(DirectClientError::NotReady)?;
+            if !readable_range(
+                ped as *const u8,
+                SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
+            ) {
+                return Err(DirectClientError::NotReady);
+            }
+            unsafe { read_unaligned::<usize>(ped + SAMP_PED_GAME_PED_OFFSET) }
+        };
+        let game_ped = game_ped
+            .filter(|game_ped| *game_ped != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let get_ped_ref: CpoolRefFn = unsafe { mem::transmute(CPOOLS_GET_PED_REF) };
+        let handle = unsafe { get_ped_ref(game_ped as *mut c_void) };
+        if handle != 0 {
+            Ok(Some(handle))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Scans the R1 player pool for a matching GTA ped handle on the game
+    /// thread. The local player is checked first, matching SF.lua's
+    /// `sampGetPlayerIdByCharHandle`.
+    pub(super) fn player_id_by_ped_handle(
+        self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_id =
+            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+                .and_then(assigned_player_id)
+                .ok_or(DirectClientError::NotReady)?;
+        if self.player_ped_handle(local_id)? == Some(handle) {
+            return Ok(Some(local_id));
+        }
+        for id in 0..MAX_SAMP_PLAYERS {
+            if id != local_id && self.player_ped_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
     /// Copies one R1 gangzone record on the game-thread pump. No client or
     /// GTA pointer crosses the private profile boundary.
     pub(super) fn gangzone(self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
@@ -2514,6 +2781,7 @@ type RemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
+type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
 
 unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
     unsafe { read_unaligned::<usize>(address) }.map(|value| value as *mut u8)
@@ -2648,11 +2916,11 @@ mod tests {
         DXUT_LISTBOX_ITEM_COUNT_OFFSET, DXUT_LISTBOX_ITEM_DATA_OFFSET, DXUT_LISTBOX_ITEM_SIZE,
         DXUT_LISTBOX_ITEM_TEXT_CAPACITY, DXUT_LISTBOX_ITEM_TEXT_OFFSET,
         DXUT_LISTBOX_ITEM_VISIBLE_OFFSET, DXUT_LISTBOX_ITEMS_OFFSET, DXUT_LISTBOX_SELECTED_OFFSET,
-        GAME_CURSOR_MODE_OFFSET, GANGZONE_POOL_NOT_EMPTY_OFFSET, INPUT_ENABLED_OFFSET,
-        LABEL_ATTACHED_PLAYER_OFFSET, LABEL_ATTACHED_VEHICLE_OFFSET, LABEL_BEHIND_WALLS_OFFSET,
-        LABEL_COLOUR_OFFSET, LABEL_DRAW_DISTANCE_OFFSET, LABEL_POOL_NOT_EMPTY_OFFSET,
-        LABEL_POSITION_OFFSET, LABEL_SIZE, LABEL_TEXT_OFFSET, LOCAL_PLAYER_ACTIVE_OFFSET,
-        LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
+        ENTITY_HANDLE_OFFSET, GAME_CURSOR_MODE_OFFSET, GANGZONE_POOL_NOT_EMPTY_OFFSET,
+        INPUT_ENABLED_OFFSET, LABEL_ATTACHED_PLAYER_OFFSET, LABEL_ATTACHED_VEHICLE_OFFSET,
+        LABEL_BEHIND_WALLS_OFFSET, LABEL_COLOUR_OFFSET, LABEL_DRAW_DISTANCE_OFFSET,
+        LABEL_POOL_NOT_EMPTY_OFFSET, LABEL_POSITION_OFFSET, LABEL_SIZE, LABEL_TEXT_OFFSET,
+        LOCAL_PLAYER_ACTIVE_OFFSET, LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, LOCAL_PLAYER_INCAR_OFFSET,
         LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
         LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
         LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
@@ -2662,17 +2930,18 @@ mod tests {
         NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
         NET_GAME_POOLS_PICKUP_POOL_OFFSET, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET,
         NET_GAME_PORT_OFFSET, NET_GAME_SERVER_SETTINGS_OFFSET, NativeDxutComboBoxItem,
-        OBJECT_POOL_NOT_EMPTY_OFFSET, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
-        SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET,
-        TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
-        TEXTDRAW_BOX_COLOUR_OFFSET, TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET,
-        TEXTDRAW_BOX_WIDTH_OFFSET, TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET,
-        TEXTDRAW_LETTER_HEIGHT_OFFSET, TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET,
-        TEXTDRAW_MODEL_COLOUR2_OFFSET, TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET,
-        TEXTDRAW_POOL_NOT_EMPTY_OFFSET, TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET,
-        TEXTDRAW_ROTATION_OFFSET, TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET,
-        TEXTDRAW_Y_OFFSET, TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id,
-        bounded_c_string, mem, nul_terminated,
+        OBJECT_POOL_NOT_EMPTY_OFFSET, OBJECT_POOL_OBJECTS_OFFSET, PICKUP_POOL_HANDLES_OFFSET,
+        PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET, SAMP_PED_GAME_PED_OFFSET,
+        SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET, TEXTDRAW_ALIGN_LEFT_OFFSET,
+        TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET, TEXTDRAW_BOX_COLOUR_OFFSET,
+        TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET, TEXTDRAW_BOX_WIDTH_OFFSET,
+        TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET, TEXTDRAW_LETTER_HEIGHT_OFFSET,
+        TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET, TEXTDRAW_MODEL_COLOUR2_OFFSET,
+        TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
+        TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET, TEXTDRAW_ROTATION_OFFSET,
+        TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
+        TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_GAME_OBJECTS_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET,
+        assigned_player_id, bounded_c_string, mem, nul_terminated,
     };
 
     unsafe extern "C" {
@@ -2692,6 +2961,10 @@ mod tests {
         fn samp_client_sdk_fixture_r1_player_pool_local_id_offset() -> usize;
         fn samp_client_sdk_fixture_r1_player_pool_largest_id_offset() -> usize;
         fn samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_vehicle_pool_game_objects_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_object_pool_objects_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_pickup_pool_handles_offset() -> usize;
+        fn samp_client_sdk_fixture_r1_entity_handle_offset() -> usize;
         fn samp_client_sdk_fixture_r1_net_game_host_address_offset() -> usize;
         fn samp_client_sdk_fixture_r1_net_game_hostname_offset() -> usize;
         fn samp_client_sdk_fixture_r1_net_game_port_offset() -> usize;
@@ -2825,6 +3098,22 @@ mod tests {
             assert_eq!(
                 samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset(),
                 VEHICLE_POOL_NOT_EMPTY_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_r1_vehicle_pool_game_objects_offset(),
+                VEHICLE_POOL_GAME_OBJECTS_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_r1_object_pool_objects_offset(),
+                OBJECT_POOL_OBJECTS_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_r1_pickup_pool_handles_offset(),
+                PICKUP_POOL_HANDLES_OFFSET
+            );
+            assert_eq!(
+                samp_client_sdk_fixture_r1_entity_handle_offset(),
+                ENTITY_HANDLE_OFFSET
             );
             assert_eq!(
                 samp_client_sdk_fixture_r1_net_game_host_address_offset(),
