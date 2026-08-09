@@ -135,7 +135,8 @@ Progress:
   workspace consumers and remove compatibility re-exports.
 - [x] Extract runtime errors/options into private child modules while keeping
   lifecycle status and tests in the runtime composition root.
-- [ ] Extract R1 RVA constants.
+- [x] Extract R1 executable/function addresses while leaving native layout
+  offsets with the memory/layout slice.
 - [ ] Extract R1 memory/layout helpers.
 
 ### Phase 2 — Move methods while retaining state

@@ -7,7 +7,8 @@
   aliases.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
-  separate from lifecycle control.
+  separate from lifecycle control, while the R1 bridge keeps approved native
+  addresses separate from object layouts and access validation.
 
 ## Process model
 
