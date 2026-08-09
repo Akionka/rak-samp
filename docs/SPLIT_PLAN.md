@@ -160,8 +160,10 @@ Progress:
   writers or invalidation.
 - [x] Extract animation catalog reads and lookups without moving lazy refresh
   or shutdown clearing.
-- [ ] Extract entity/handle cache reads, packet methods, and hook methods as
-  independent validated slices.
+- [x] Extract forward/reverse handle cache reads without moving request
+  producers, refresh, or invalidation.
+- [ ] Extract entity cache reads, packet methods, and hook methods as independent
+  validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 
