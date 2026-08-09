@@ -13,7 +13,8 @@
   and cache-refresh requests from game-thread execution, with scalar and owned
   snapshot/catalog, chat-history, gangzone, object, player, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
-  publication.
+  publication. Native outbound packet and RPC sends execute from the game-thread
+  command pump through the captured original RakClient functions.
 
 ## Process model
 

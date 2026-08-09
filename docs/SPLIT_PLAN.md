@@ -176,7 +176,10 @@ Progress:
   invalidation.
 - [x] Extract chat-history entry reads without moving request producers, refresh,
   or invalidation.
-- [ ] Extract packet methods and hook methods as independent validated slices.
+- [x] Extract outbound native packet/RPC sends without moving command execution
+  or hook ownership.
+- [ ] Extract incoming emulation and hook methods as independent validated
+  slices.
 
 ### Phase 3 — Split host and SDK API plumbing
 
