@@ -9,7 +9,8 @@
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while the R1 bridge isolates approved
   native addresses, object layouts, and guarded memory access from operation
-  sequencing.
+  sequencing. The Windows backend also separates producer-side command
+  submission from game-thread execution.
 
 ## Process model
 
