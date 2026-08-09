@@ -11,8 +11,8 @@
   native addresses, object layouts, and guarded memory access from operation
   sequencing. The Windows backend also separates bounded producer-side command
   and cache-refresh requests from game-thread execution, with scalar and owned
-  snapshot/catalog, player, text-label, and forward/reverse handle-cache reads
-  gated on completed game-thread publication.
+  snapshot/catalog, player, text-label, textdraw, and forward/reverse
+  handle-cache reads gated on completed game-thread publication.
 
 ## Process model
 
