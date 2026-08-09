@@ -178,7 +178,9 @@ Progress:
   or invalidation.
 - [x] Extract outbound native packet/RPC sends without moving command execution
   or hook ownership.
-- [ ] Extract incoming emulation and hook methods as independent validated
+- [x] Extract incoming packet emulation without moving command execution or
+  native queue ownership.
+- [ ] Extract incoming RPC emulation and hook methods as independent validated
   slices.
 
 ### Phase 3 — Split host and SDK API plumbing

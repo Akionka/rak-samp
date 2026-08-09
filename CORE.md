@@ -14,7 +14,8 @@
   snapshot/catalog, chat-history, gangzone, object, player, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
   publication. Native outbound packet and RPC sends execute from the game-thread
-  command pump through the captured original RakClient functions.
+  command pump through the captured original RakClient functions. Incoming
+  packet emulation transfers a native allocation into the captured receive queue.
 
 ## Process model
 
