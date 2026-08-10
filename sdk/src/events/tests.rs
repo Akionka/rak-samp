@@ -734,7 +734,7 @@ fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
         (outgoing::object::SEND_ENTER_EDIT_OBJECT.id(), 27),
         (outgoing::SEND_MONEY_INCREASE.id(), 31),
         (outgoing::connection::SEND_NPC_JOIN.id(), 54),
-        (outgoing::SEND_VEHICLE_TUNING.id(), 96),
+        (outgoing::vehicle::SEND_VEHICLE_TUNING.id(), 96),
         (outgoing::SEND_PICKED_UP_WEAPON.id(), 97),
         (outgoing::SEND_SERVER_STATISTICS_REQUEST.id(), 102),
         (outgoing::SEND_CLIENT_CHECK_RESPONSE.id(), 103),

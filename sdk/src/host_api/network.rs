@@ -264,8 +264,8 @@ impl HostApi {
     /// or otherwise alter native local-player state.
     pub fn send_enter_vehicle(self, vehicle_id: u16, passenger: bool) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_ENTER_VEHICLE,
-            events::rpc::outgoing::EnterVehicle {
+            events::rpc::outgoing::vehicle::SEND_ENTER_VEHICLE,
+            events::rpc::outgoing::vehicle::EnterVehicle {
                 vehicle_id,
                 passenger,
             },
@@ -277,7 +277,10 @@ impl HostApi {
     /// This is protocol-only. It does not make the local GTA ped leave a
     /// vehicle or otherwise alter native local-player state.
     pub fn send_exit_vehicle(self, vehicle_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_EXIT_VEHICLE, vehicle_id)
+        self.send_typed_rpc(
+            events::rpc::outgoing::vehicle::SEND_EXIT_VEHICLE,
+            vehicle_id,
+        )
     }
 
     /// Sends a server-bound dialog response (RPC 62).
@@ -340,7 +343,10 @@ impl HostApi {
 
     /// Sends a server-bound vehicle-destroyed notification (RPC 136).
     pub fn send_vehicle_destroyed(self, vehicle_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_VEHICLE_DESTROYED, vehicle_id)
+        self.send_typed_rpc(
+            events::rpc::outgoing::vehicle::SEND_VEHICLE_DESTROYED,
+            vehicle_id,
+        )
     }
 
     /// Sends a server-bound vehicle-damage update (RPC 106).
@@ -376,8 +382,8 @@ impl HostApi {
         param2: i32,
     ) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_VEHICLE_TUNING,
-            events::rpc::outgoing::VehicleTuning {
+            events::rpc::outgoing::vehicle::SEND_VEHICLE_TUNING,
+            events::rpc::outgoing::vehicle::VehicleTuning {
                 vehicle_id: id,
                 param1,
                 param2,

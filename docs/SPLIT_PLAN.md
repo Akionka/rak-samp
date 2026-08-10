@@ -320,6 +320,8 @@ Progress:
 - [x] Group facade views by networking, local/player, pool, and UI domains.
 - [x] Extract outgoing dialog and UI-interaction RPC codecs into
   `outgoing::ui`.
+- [x] Extract byte-aligned outgoing vehicle-interaction RPC codecs into
+  `outgoing::vehicle`.
 - Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.
 

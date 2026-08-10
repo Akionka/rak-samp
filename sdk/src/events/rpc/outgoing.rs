@@ -5,6 +5,7 @@ pub mod connection;
 pub mod damage;
 pub mod object;
 pub mod ui;
+pub mod vehicle;
 
 use self::damage::{ActorDamage, SEND_GIVE_ACTOR_DAMAGE, SEND_VEHICLE_DAMAGED, VehicleDamage};
 
@@ -14,27 +15,11 @@ use crate::{
     events::{Event, EventError, Rpc, RpcAction, Vector3},
 };
 
-/// MoonLoader's `onSendEnterVehicle` payload (RPC 26).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EnterVehicle {
-    pub vehicle_id: u16,
-    pub passenger: bool,
-}
-
 /// MoonLoader's `onSendDeathNotification` payload (RPC 53).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct DeathNotification {
     pub reason: u8,
     pub killer_id: u16,
-}
-
-/// MoonLoader's `onSendVehicleTuningNotification` payload (RPC 96).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VehicleTuning {
-    pub vehicle_id: i32,
-    pub param1: i32,
-    pub param2: i32,
-    pub event: i32,
 }
 
 /// MoonLoader's `onSendClientCheckResponse` payload (RPC 103).
@@ -61,11 +46,6 @@ pub struct CameraTargetUpdate {
     pub actor_id: u16,
 }
 
-/// The `onSendEnterVehicle` descriptor.
-pub const SEND_ENTER_VEHICLE: Rpc<EnterVehicle> =
-    Rpc::new(26, decode_enter_vehicle, encode_enter_vehicle);
-/// The `onSendExitVehicle` descriptor.
-pub const SEND_EXIT_VEHICLE: Rpc<u16> = Rpc::new(154, decode_u16, encode_u16);
 /// The `onSendSpawn` descriptor.
 pub const SEND_SPAWN: Rpc<()> = Rpc::new(52, decode_empty, encode_empty);
 /// The `onSendDeathNotification` descriptor.
@@ -79,8 +59,6 @@ pub const SEND_INTERIOR_CHANGE: Rpc<u8> = Rpc::new(118, decode_u8, encode_u8);
 pub const SEND_REQUEST_CLASS: Rpc<i32> = Rpc::new(128, decode_i32, encode_i32);
 /// The `onSendRequestSpawn` descriptor.
 pub const SEND_REQUEST_SPAWN: Rpc<()> = Rpc::new(129, decode_empty, encode_empty);
-/// The `onSendVehicleDestroyed` descriptor.
-pub const SEND_VEHICLE_DESTROYED: Rpc<u16> = Rpc::new(136, decode_u16, encode_u16);
 /// The `onSendUpdateScoresAndPings` descriptor.
 pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
 /// The `onSendClientJoin` descriptor.
@@ -89,9 +67,6 @@ pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, en
 pub const SEND_MONEY_INCREASE: Rpc<MoneyIncrease> =
     Rpc::new(31, decode_money_increase, encode_money_increase);
 /// The `onSendNPCJoin` descriptor.
-/// The `onSendVehicleTuningNotification` descriptor.
-pub const SEND_VEHICLE_TUNING: Rpc<VehicleTuning> =
-    Rpc::new(96, decode_vehicle_tuning, encode_vehicle_tuning);
 /// The `onSendPickedUpWeapon` descriptor.
 pub const SEND_PICKED_UP_WEAPON: Rpc<u16> = Rpc::new(97, decode_u16, encode_u16);
 /// The `onSendServerStatisticsRequest` descriptor.
@@ -131,18 +106,6 @@ macro_rules! rpc_helper {
     };
 }
 
-rpc_helper!(
-    on_send_enter_vehicle,
-    EnterVehicle,
-    SEND_ENTER_VEHICLE,
-    "onSendEnterVehicle"
-);
-rpc_helper!(
-    on_send_exit_vehicle,
-    u16,
-    SEND_EXIT_VEHICLE,
-    "onSendExitVehicle"
-);
 rpc_helper!(on_send_spawn, (), SEND_SPAWN, "onSendSpawn");
 rpc_helper!(
     on_send_death_notification,
@@ -175,12 +138,6 @@ rpc_helper!(
     "onSendRequestSpawn"
 );
 rpc_helper!(
-    on_send_vehicle_destroyed,
-    u16,
-    SEND_VEHICLE_DESTROYED,
-    "onSendVehicleDestroyed"
-);
-rpc_helper!(
     on_send_update_scores_and_pings,
     (),
     SEND_UPDATE_SCORES_AND_PINGS,
@@ -191,12 +148,6 @@ rpc_helper!(
     MoneyIncrease,
     SEND_MONEY_INCREASE,
     "onSendMoneyIncreaseNotification"
-);
-rpc_helper!(
-    on_send_vehicle_tuning,
-    VehicleTuning,
-    SEND_VEHICLE_TUNING,
-    "onSendVehicleTuningNotification"
 );
 rpc_helper!(
     on_send_picked_up_weapon,
@@ -241,20 +192,6 @@ rpc_helper!(
     "onSendGiveActorDamage"
 );
 
-fn decode_enter_vehicle(event: &mut Event<'_>) -> Result<EnterVehicle, EventError> {
-    Ok(EnterVehicle {
-        vehicle_id: event.read_u16()?,
-        passenger: event.read_u8()? != 0,
-    })
-}
-
-fn encode_enter_vehicle(value: EnterVehicle) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.u8(u8::from(value.passenger));
-    Ok(writer.finish())
-}
-
 fn decode_money_increase(event: &mut Event<'_>) -> Result<MoneyIncrease, EventError> {
     Ok(MoneyIncrease {
         amount: decode_i32(event)?,
@@ -266,24 +203,6 @@ fn encode_money_increase(value: MoneyIncrease) -> Result<Vec<u8>, EventError> {
     let mut writer = PayloadWriter::new();
     writer.u32(value.amount as u32);
     writer.u32(value.increase_type as u32);
-    Ok(writer.finish())
-}
-
-fn decode_vehicle_tuning(event: &mut Event<'_>) -> Result<VehicleTuning, EventError> {
-    Ok(VehicleTuning {
-        vehicle_id: decode_i32(event)?,
-        param1: decode_i32(event)?,
-        param2: decode_i32(event)?,
-        event: decode_i32(event)?,
-    })
-}
-
-fn encode_vehicle_tuning(value: VehicleTuning) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.vehicle_id as u32);
-    writer.u32(value.param1 as u32);
-    writer.u32(value.param2 as u32);
-    writer.u32(value.event as u32);
     Ok(writer.finish())
 }
 

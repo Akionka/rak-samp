@@ -114,8 +114,8 @@ impl Net {
         passenger: bool,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_ENTER_VEHICLE,
-            crate::events::rpc::outgoing::EnterVehicle {
+            crate::events::rpc::outgoing::vehicle::SEND_ENTER_VEHICLE,
+            crate::events::rpc::outgoing::vehicle::EnterVehicle {
                 vehicle_id,
                 passenger,
             },
@@ -127,8 +127,10 @@ impl Net {
         self,
         vehicle_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_EXIT_VEHICLE, vehicle_id)
+        self.api.submit_typed_rpc(
+            crate::events::rpc::outgoing::vehicle::SEND_EXIT_VEHICLE,
+            vehicle_id,
+        )
     }
 
     /// Queues a server-bound dialog response.
@@ -217,7 +219,7 @@ impl Net {
         vehicle_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_VEHICLE_DESTROYED,
+            crate::events::rpc::outgoing::vehicle::SEND_VEHICLE_DESTROYED,
             vehicle_id,
         )
     }
@@ -252,8 +254,8 @@ impl Net {
         param2: i32,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_VEHICLE_TUNING,
-            crate::events::rpc::outgoing::VehicleTuning {
+            crate::events::rpc::outgoing::vehicle::SEND_VEHICLE_TUNING,
+            crate::events::rpc::outgoing::vehicle::VehicleTuning {
                 vehicle_id: id,
                 param1,
                 param2,
