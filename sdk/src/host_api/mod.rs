@@ -2,6 +2,7 @@
 
 mod animations;
 mod chat_input;
+mod connection;
 mod environment;
 mod events;
 mod handles;
