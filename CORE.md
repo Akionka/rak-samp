@@ -35,6 +35,7 @@
   opaque native-address entry points and `host_api/events.rs` owns event
   bitstream operations and native string codecs. `host_api/network.rs` owns
   direct and queued packet/RPC sends and incoming emulation;
+  `host_api/animations.rs` owns cached local animation-table reads and lookups;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
   `host_api/pools.rs` owns bounded pool-existence reads, and

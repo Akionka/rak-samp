@@ -1,3 +1,4 @@
+mod animations;
 mod commands;
 mod conversions;
 mod events;
@@ -20,12 +21,12 @@ use sdk_abi::limits::{
     MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
-    ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
-    SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt, SampClientSdkDialogSnapshotV1,
-    SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
-    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
-    SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
+    ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkApiV1, SampClientSdkChatInputTextV1,
+    SampClientSdkCommandReceipt, SampClientSdkDialogSnapshotV1, SampClientSdkDirection,
+    SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkHookAction,
+    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkServerInfoV1,
+    SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -165,8 +166,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_scoreboard_open,
     local_dialog_active,
     local_chat_input_active,
-    local_animation,
-    local_animation_id,
+    local_animation: animations::local_animation,
+    local_animation_id: animations::local_animation_id,
     player_info,
     player_count,
     player_max_id,
@@ -1551,62 +1552,6 @@ unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> SampClient
     }
 }
 
-unsafe extern "system" fn local_animation(
-    id: u16,
-    output: *mut SampClientSdkAnimationV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let snapshot = match runtime.local_animation(id) {
-        Ok(snapshot) => snapshot,
-        Err(error) => return direct_client_result(error),
-    };
-    let Ok(snapshot) = conversions::animation_to_abi(snapshot) else {
-        return SampClientSdkResult::NativeCallFailed;
-    };
-    *output = snapshot;
-    SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn local_animation_id(
-    name: *const u8,
-    name_len: usize,
-    file: *const u8,
-    file_len: usize,
-    output: *mut i32,
-) -> SampClientSdkResult {
-    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, 35) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Ok(file) = (unsafe { copied_nul_free_string(file, file_len, 35) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    if name.is_empty() || file.is_empty() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_animation_id(&name, &file) {
-        Ok(Some(id)) => {
-            *output = i32::from(id);
-            SampClientSdkResult::Ok
-        }
-        Ok(None) => {
-            *output = -1;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn player_info(
     id: u16,
     output: *mut SampClientSdkPlayerInfoV1,
@@ -1874,8 +1819,8 @@ mod tests {
         TextLabelSnapshot, TextdrawSnapshot,
     };
     use sdk_abi::{
-        SampClientSdkCommandResultV1, SampClientSdkGangzoneV1, SampClientSdkTextDrawV1,
-        SampClientSdkTextLabelV1,
+        SampClientSdkAnimationV1, SampClientSdkCommandResultV1, SampClientSdkGangzoneV1,
+        SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
         limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
     };
     use std::sync::{Arc, OnceLock};
@@ -2010,17 +1955,17 @@ mod tests {
         );
         let mut animation = SampClientSdkAnimationV1::default();
         assert_eq!(
-            unsafe { local_animation(0, &mut animation) },
+            unsafe { animations::local_animation(0, &mut animation) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_animation(0, std::ptr::null_mut()) },
+            unsafe { animations::local_animation(0, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut animation_id = 0;
         assert_eq!(
             unsafe {
-                local_animation_id(
+                animations::local_animation_id(
                     b"AIRPORT".as_ptr(),
                     b"AIRPORT".len(),
                     b"THRW_BARL_THRW".as_ptr(),
@@ -2032,7 +1977,7 @@ mod tests {
         );
         assert_eq!(
             unsafe {
-                local_animation_id(
+                animations::local_animation_id(
                     std::ptr::null(),
                     1,
                     b"THRW_BARL_THRW".as_ptr(),
