@@ -250,6 +250,8 @@ Progress:
 - [x] Extract textdraw command producers without moving textdraw reads or the
   ABI table.
 - Move each ABI table literal last and as one block.
+- [x] Extract SDK environment and server-state `HostApi` wrappers behind the
+  unchanged root type and exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
