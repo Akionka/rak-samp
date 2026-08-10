@@ -289,6 +289,8 @@ Progress:
 - [x] Extract SDK pool-read wrappers behind the unchanged root type and exports.
 - [x] Extract SDK `BitStream` send convenience wrappers into the existing
   network wrapper module.
+- [x] Extract SDK incoming packet/RPC emulation wrappers into the existing
+  network wrapper module.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
