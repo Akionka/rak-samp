@@ -738,14 +738,14 @@ fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
         (outgoing::SEND_PICKED_UP_WEAPON.id(), 97),
         (outgoing::SEND_SERVER_STATISTICS_REQUEST.id(), 102),
         (outgoing::SEND_CLIENT_CHECK_RESPONSE.id(), 103),
-        (outgoing::SEND_VEHICLE_DAMAGED.id(), 106),
-        (outgoing::SEND_DAMAGE.id(), 115),
+        (outgoing::damage::SEND_VEHICLE_DAMAGED.id(), 106),
+        (outgoing::damage::SEND_DAMAGE.id(), 115),
         (outgoing::object::SEND_EDIT_ATTACHED_OBJECT.id(), 116),
         (outgoing::object::SEND_EDIT_OBJECT.id(), 117),
         (outgoing::SEND_PICKED_UP_PICKUP.id(), 131),
         (outgoing::SEND_QUIT_MENU.id(), 140),
         (outgoing::SEND_CAMERA_TARGET_UPDATE.id(), 168),
-        (outgoing::SEND_GIVE_ACTOR_DAMAGE.id(), 177),
+        (outgoing::damage::SEND_GIVE_ACTOR_DAMAGE.id(), 177),
     ];
 
     for (actual, expected) in descriptors {
@@ -811,10 +811,10 @@ fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
 
 #[test]
 fn outgoing_damage_keeps_its_one_bit_boolean_and_exact_payload_length() {
-    let payload = outgoing::SEND_DAMAGE
+    let payload = outgoing::damage::SEND_DAMAGE
         .encode(
             test_api(),
-            outgoing::Damage {
+            outgoing::damage::Damage {
                 player_id: 0x1234,
                 damage: 1.0,
                 weapon: 24,

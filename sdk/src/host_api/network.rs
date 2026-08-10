@@ -353,8 +353,8 @@ impl HostApi {
         tires: u8,
     ) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_VEHICLE_DAMAGED,
-            events::rpc::outgoing::VehicleDamage {
+            events::rpc::outgoing::damage::SEND_VEHICLE_DAMAGED,
+            events::rpc::outgoing::damage::VehicleDamage {
                 vehicle_id,
                 panel_damage,
                 door_damage,
@@ -445,8 +445,8 @@ impl HostApi {
         take: bool,
     ) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_DAMAGE,
-            events::rpc::outgoing::Damage {
+            events::rpc::outgoing::damage::SEND_DAMAGE,
+            events::rpc::outgoing::damage::Damage {
                 player_id,
                 damage,
                 weapon,

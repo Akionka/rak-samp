@@ -2,12 +2,15 @@
 
 pub mod chat;
 pub mod connection;
+pub mod damage;
 pub mod object;
+
+use self::damage::{ActorDamage, SEND_GIVE_ACTOR_DAMAGE, SEND_VEHICLE_DAMAGED, VehicleDamage};
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
-    events::{EncodedPayload, Event, EventError, Rpc, RpcAction, Vector3},
+    events::{Event, EventError, Rpc, RpcAction, Vector3},
 };
 
 /// MoonLoader's `onSendDialogResponse` payload (RPC 62).
@@ -57,29 +60,6 @@ pub struct ClientCheckResponse {
     pub result2: u8,
 }
 
-/// MoonLoader's `onSendVehicleDamaged` payload (RPC 106).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VehicleDamage {
-    pub vehicle_id: u16,
-    pub panel_damage: i32,
-    pub door_damage: i32,
-    pub lights: u8,
-    pub tires: u8,
-}
-
-/// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
-///
-/// `take` is a one-bit RakNet boolean. `false` identifies give-damage traffic and `true`
-/// identifies take-damage traffic.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Damage {
-    pub player_id: u16,
-    pub damage: f32,
-    pub weapon: i32,
-    pub body_part: i32,
-    pub take: bool,
-}
-
 /// MoonLoader's `onSendMoneyIncreaseNotification` payload (RPC 31).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MoneyIncrease {
@@ -94,18 +74,6 @@ pub struct CameraTargetUpdate {
     pub vehicle_id: u16,
     pub player_id: u16,
     pub actor_id: u16,
-}
-
-/// MoonLoader's `onSendGiveActorDamage` payload (RPC 177).
-///
-/// `unused` is a one-bit RakNet boolean retained for wire compatibility.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ActorDamage {
-    pub unused: bool,
-    pub actor_id: u16,
-    pub damage: f32,
-    pub weapon: i32,
-    pub body_part: i32,
 }
 
 /// The `onSendDialogResponse` descriptor.
@@ -159,11 +127,6 @@ pub const SEND_CLIENT_CHECK_RESPONSE: Rpc<ClientCheckResponse> = Rpc::new(
     decode_client_check_response,
     encode_client_check_response,
 );
-/// The `onSendVehicleDamaged` descriptor.
-pub const SEND_VEHICLE_DAMAGED: Rpc<VehicleDamage> =
-    Rpc::new(106, decode_vehicle_damage, encode_vehicle_damage);
-/// The shared `onSendGiveDamage` / `onSendTakeDamage` descriptor.
-pub const SEND_DAMAGE: Rpc<Damage> = Rpc::new_bits(115, decode_damage, encode_damage);
 /// The `onSendEditAttachedObject` descriptor.
 /// The `onSendEditObject` descriptor.
 /// The `onSendPickedUpPickup` descriptor.
@@ -176,9 +139,6 @@ pub const SEND_CAMERA_TARGET_UPDATE: Rpc<CameraTargetUpdate> = Rpc::new(
     decode_camera_target_update,
     encode_camera_target_update,
 );
-/// The `onSendGiveActorDamage` descriptor.
-pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
-    Rpc::new_bits(177, decode_actor_damage, encode_actor_damage);
 
 macro_rules! rpc_helper {
     ($name:ident, $value:ty, $rpc:ident, $event_name:literal) => {
@@ -333,50 +293,6 @@ rpc_helper!(
     "onSendGiveActorDamage"
 );
 
-/// Handles `onSendGiveDamage` from an outgoing raw RPC callback.
-///
-/// # Safety
-///
-/// See [`crate::events::handle`].
-#[allow(dead_code)]
-pub(crate) unsafe fn on_send_give_damage(
-    api: HostApi,
-    raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
-) -> Result<SampClientSdkHookAction, EventError> {
-    unsafe {
-        handle(api, raw, SEND_DAMAGE, |value| {
-            if value.take {
-                RpcAction::Continue
-            } else {
-                handler(value)
-            }
-        })
-    }
-}
-
-/// Handles `onSendTakeDamage` from an outgoing raw RPC callback.
-///
-/// # Safety
-///
-/// See [`crate::events::handle`].
-#[allow(dead_code)]
-pub(crate) unsafe fn on_send_take_damage(
-    api: HostApi,
-    raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
-) -> Result<SampClientSdkHookAction, EventError> {
-    unsafe {
-        handle(api, raw, SEND_DAMAGE, |value| {
-            if value.take {
-                handler(value)
-            } else {
-                RpcAction::Continue
-            }
-        })
-    }
-}
-
 fn decode_dialog_response(event: &mut Event<'_>) -> Result<DialogResponse, EventError> {
     Ok(DialogResponse {
         dialog_id: event.read_u16()?,
@@ -471,54 +387,6 @@ fn encode_client_check_response(value: ClientCheckResponse) -> Result<Vec<u8>, E
     Ok(writer.finish())
 }
 
-fn decode_vehicle_damage(event: &mut Event<'_>) -> Result<VehicleDamage, EventError> {
-    Ok(VehicleDamage {
-        vehicle_id: event.read_u16()?,
-        panel_damage: decode_i32(event)?,
-        door_damage: decode_i32(event)?,
-        lights: event.read_u8()?,
-        tires: event.read_u8()?,
-    })
-}
-
-fn encode_vehicle_damage(value: VehicleDamage) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.u32(value.panel_damage as u32);
-    writer.u32(value.door_damage as u32);
-    writer.u8(value.lights);
-    writer.u8(value.tires);
-    Ok(writer.finish())
-}
-
-fn decode_bool(event: &mut Event<'_>) -> Result<bool, EventError> {
-    Ok(event.read_bits(1)?[0] & 0x80 != 0)
-}
-
-fn decode_damage(event: &mut Event<'_>) -> Result<Damage, EventError> {
-    Ok(Damage {
-        take: decode_bool(event)?,
-        player_id: event.read_u16()?,
-        damage: event.read_f32()?,
-        weapon: decode_i32(event)?,
-        body_part: decode_i32(event)?,
-    })
-}
-
-fn encode_damage(_api: HostApi, value: Damage) -> Result<EncodedPayload, EventError> {
-    encode_damage_payload(value)
-}
-
-pub(super) fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.bit(value.take);
-    writer.u16(value.player_id);
-    writer.f32(value.damage);
-    writer.u32(value.weapon as u32);
-    writer.u32(value.body_part as u32);
-    Ok(writer.finish_bits())
-}
-
 fn decode_camera_target_update(event: &mut Event<'_>) -> Result<CameraTargetUpdate, EventError> {
     Ok(CameraTargetUpdate {
         object_id: event.read_u16()?,
@@ -535,26 +403,6 @@ fn encode_camera_target_update(value: CameraTargetUpdate) -> Result<Vec<u8>, Eve
     writer.u16(value.player_id);
     writer.u16(value.actor_id);
     Ok(writer.finish())
-}
-
-fn decode_actor_damage(event: &mut Event<'_>) -> Result<ActorDamage, EventError> {
-    Ok(ActorDamage {
-        unused: decode_bool(event)?,
-        actor_id: event.read_u16()?,
-        damage: event.read_f32()?,
-        weapon: decode_i32(event)?,
-        body_part: decode_i32(event)?,
-    })
-}
-
-fn encode_actor_damage(_api: HostApi, value: ActorDamage) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.bit(value.unused);
-    writer.u16(value.actor_id);
-    writer.f32(value.damage);
-    writer.u32(value.weapon as u32);
-    writer.u32(value.body_part as u32);
-    Ok(writer.finish_bits())
 }
 
 fn decode_u8(event: &mut Event<'_>) -> Result<u8, EventError> {

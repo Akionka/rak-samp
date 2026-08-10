@@ -310,6 +310,7 @@ Progress:
   `events::rpc::outgoing::connection`.
 - [x] Extract outgoing object-editing RPC codecs into
   `events::rpc::outgoing::object`.
+- [x] Extract outgoing damage RPC codecs into `events::rpc::outgoing::damage`.
 - [x] Extract the safe `Net` facade view into `facade::network`.
 - [x] Group the safe server metadata view with the network facade.
 - [x] Extract local/player and animation facade views into

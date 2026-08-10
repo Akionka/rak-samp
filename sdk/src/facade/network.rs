@@ -232,8 +232,8 @@ impl Net {
         tires: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_VEHICLE_DAMAGED,
-            crate::events::rpc::outgoing::VehicleDamage {
+            crate::events::rpc::outgoing::damage::SEND_VEHICLE_DAMAGED,
+            crate::events::rpc::outgoing::damage::VehicleDamage {
                 vehicle_id,
                 panel_damage,
                 door_damage,
@@ -491,8 +491,8 @@ impl Net {
         take: bool,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_DAMAGE,
-            crate::events::rpc::outgoing::Damage {
+            crate::events::rpc::outgoing::damage::SEND_DAMAGE,
+            crate::events::rpc::outgoing::damage::Damage {
                 player_id,
                 damage,
                 weapon,
