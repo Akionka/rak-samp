@@ -208,6 +208,8 @@ Progress:
 - [x] Convert `host_api` to a directory module and extract state-free snapshot
   output conversions without moving entry points or the ABI table.
 - [x] Extract raw native-address entry points without moving the ABI table.
+- [x] Extract event/bitstream and string-codec entry points without moving the
+  ABI table or callback construction.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
