@@ -125,7 +125,7 @@ fn initialize() {
     let subscriptions = match register_handlers!(net;
         typed_rpc(
             SampClientSdkDirection::Outgoing,
-            outgoing::SEND_COMMAND,
+            outgoing::chat::SEND_COMMAND,
             move |command| {
                 if is_samp_client_sdk_command(&command) {
                     run_example(samp);

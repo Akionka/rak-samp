@@ -329,9 +329,9 @@ impl Net {
     /// Queues one bounded SA-MP chat or slash-command RPC.
     pub fn send_chat(self, text: &[u8]) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         let descriptor = if text.first() == Some(&b'/') {
-            crate::events::rpc::outgoing::SEND_COMMAND
+            crate::events::rpc::outgoing::chat::SEND_COMMAND
         } else {
-            crate::events::rpc::outgoing::SEND_CHAT
+            crate::events::rpc::outgoing::chat::SEND_CHAT
         };
         self.api.submit_typed_rpc(descriptor, text.to_vec())
     }

@@ -217,9 +217,9 @@ impl HostApi {
     /// action.
     pub fn send_chat(self, text: &[u8]) -> SampClientSdkResult {
         let descriptor = if text.first() == Some(&b'/') {
-            events::rpc::outgoing::SEND_COMMAND
+            events::rpc::outgoing::chat::SEND_COMMAND
         } else {
-            events::rpc::outgoing::SEND_CHAT
+            events::rpc::outgoing::chat::SEND_CHAT
         };
         self.send_typed_rpc(descriptor, text.to_vec())
     }

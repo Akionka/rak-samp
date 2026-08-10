@@ -304,6 +304,8 @@ Progress:
 
 ### Phase 4 — Split facade and codecs
 
+- [x] Extract outgoing chat and slash-command RPC codecs into
+  `events::rpc::outgoing::chat`.
 - Group facade views by networking, local/player, pool, and UI domains.
 - Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.
