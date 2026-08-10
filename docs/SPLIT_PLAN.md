@@ -295,6 +295,8 @@ Progress:
   existing network wrapper module.
 - [x] Extract SDK typed outgoing-RPC conveniences into the existing network
   wrapper module.
+- [x] Extract SDK shared typed-send helpers into the existing network wrapper
+  module.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 

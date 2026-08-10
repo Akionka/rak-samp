@@ -2247,43 +2247,6 @@ impl HostApi {
         };
         self.command_receipt(result, receipt)
     }
-
-    pub(crate) fn submit_typed_rpc<T>(
-        self,
-        descriptor: events::Rpc<T>,
-        value: T,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        let Ok(payload) = descriptor.encode(self, value) else {
-            return Err(SampClientSdkResult::InvalidArgument);
-        };
-        self.submit_rpc(
-            descriptor.id(),
-            payload.as_bytes(),
-            payload.len_bits(),
-            SampClientSdkSendOptions::default(),
-        )
-    }
-
-    pub(crate) fn submit_typed_packet<T>(
-        self,
-        descriptor: events::Packet<T>,
-        value: T,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        let Ok(payload) = descriptor.encode(self, value) else {
-            return Err(SampClientSdkResult::InvalidArgument);
-        };
-        self.submit_packet(
-            descriptor.id(),
-            payload.as_bytes(),
-            payload.len_bits(),
-            SampClientSdkSendOptions::default(),
-        )
-    }
-
-    fn send_typed_packet<T>(self, descriptor: events::Packet<T>, value: T) -> SampClientSdkResult {
-        self.submit_typed_packet(descriptor, value)
-            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
-    }
 }
 
 fn valid_bounded_bytes(value: &[u8], maximum: usize) -> bool {
