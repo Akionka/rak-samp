@@ -140,8 +140,8 @@ impl Net {
         input: &[u8],
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_DIALOG_RESPONSE,
-            crate::events::rpc::outgoing::DialogResponse {
+            crate::events::rpc::outgoing::ui::SEND_DIALOG_RESPONSE,
+            crate::events::rpc::outgoing::ui::DialogResponse {
                 dialog_id,
                 button,
                 list_item,
@@ -157,8 +157,8 @@ impl Net {
         source: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_CLICK_PLAYER,
-            crate::events::rpc::outgoing::ClickPlayer { player_id, source },
+            crate::events::rpc::outgoing::ui::SEND_CLICK_PLAYER,
+            crate::events::rpc::outgoing::ui::ClickPlayer { player_id, source },
         )
     }
 
@@ -168,7 +168,7 @@ impl Net {
         textdraw_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_CLICK_TEXT_DRAW,
+            crate::events::rpc::outgoing::ui::SEND_CLICK_TEXT_DRAW,
             textdraw_id,
         )
     }
@@ -191,13 +191,13 @@ impl Net {
     /// Queues the empty server-bound menu-quit RPC.
     pub fn send_menu_quit(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_QUIT_MENU, ())
+            .submit_typed_rpc(crate::events::rpc::outgoing::ui::SEND_QUIT_MENU, ())
     }
 
     /// Queues a server-bound menu-row selection.
     pub fn send_menu_select_row(self, row: u8) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_MENU_SELECT, row)
+            .submit_typed_rpc(crate::events::rpc::outgoing::ui::SEND_MENU_SELECT, row)
     }
 
     /// Queues a server-bound pickup notification.

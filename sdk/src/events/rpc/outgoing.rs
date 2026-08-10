@@ -4,6 +4,7 @@ pub mod chat;
 pub mod connection;
 pub mod damage;
 pub mod object;
+pub mod ui;
 
 use self::damage::{ActorDamage, SEND_GIVE_ACTOR_DAMAGE, SEND_VEHICLE_DAMAGED, VehicleDamage};
 
@@ -12,15 +13,6 @@ use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
     events::{Event, EventError, Rpc, RpcAction, Vector3},
 };
-
-/// MoonLoader's `onSendDialogResponse` payload (RPC 62).
-#[derive(Clone, Debug, PartialEq)]
-pub struct DialogResponse {
-    pub dialog_id: u16,
-    pub button: u8,
-    pub list_item: u16,
-    pub input: Vec<u8>,
-}
 
 /// MoonLoader's `onSendEnterVehicle` payload (RPC 26).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -34,13 +26,6 @@ pub struct EnterVehicle {
 pub struct DeathNotification {
     pub reason: u8,
     pub killer_id: u16,
-}
-
-/// MoonLoader's `onSendClickPlayer` payload (RPC 23).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ClickPlayer {
-    pub player_id: u16,
-    pub source: u8,
 }
 
 /// MoonLoader's `onSendVehicleTuningNotification` payload (RPC 96).
@@ -76,9 +61,6 @@ pub struct CameraTargetUpdate {
     pub actor_id: u16,
 }
 
-/// The `onSendDialogResponse` descriptor.
-pub const SEND_DIALOG_RESPONSE: Rpc<DialogResponse> =
-    Rpc::new(62, decode_dialog_response, encode_dialog_response);
 /// The `onSendEnterVehicle` descriptor.
 pub const SEND_ENTER_VEHICLE: Rpc<EnterVehicle> =
     Rpc::new(26, decode_enter_vehicle, encode_enter_vehicle);
@@ -91,21 +73,14 @@ pub const SEND_DEATH_NOTIFICATION: Rpc<DeathNotification> =
     Rpc::new(53, decode_death_notification, encode_death_notification);
 /// The `onSendMapMarker` descriptor.
 pub const SEND_MAP_MARKER: Rpc<Vector3> = Rpc::new(119, decode_vector3, encode_vector3);
-/// The `onSendClickPlayer` descriptor.
-pub const SEND_CLICK_PLAYER: Rpc<ClickPlayer> =
-    Rpc::new(23, decode_click_player, encode_click_player);
 /// The `onSendInteriorChange` descriptor.
 pub const SEND_INTERIOR_CHANGE: Rpc<u8> = Rpc::new(118, decode_u8, encode_u8);
 /// The `onSendRequestClass` descriptor.
 pub const SEND_REQUEST_CLASS: Rpc<i32> = Rpc::new(128, decode_i32, encode_i32);
 /// The `onSendRequestSpawn` descriptor.
 pub const SEND_REQUEST_SPAWN: Rpc<()> = Rpc::new(129, decode_empty, encode_empty);
-/// The `onSendMenuSelect` descriptor.
-pub const SEND_MENU_SELECT: Rpc<u8> = Rpc::new(132, decode_u8, encode_u8);
 /// The `onSendVehicleDestroyed` descriptor.
 pub const SEND_VEHICLE_DESTROYED: Rpc<u16> = Rpc::new(136, decode_u16, encode_u16);
-/// The `onSendClickTextDraw` descriptor.
-pub const SEND_CLICK_TEXT_DRAW: Rpc<u16> = Rpc::new(83, decode_u16, encode_u16);
 /// The `onSendUpdateScoresAndPings` descriptor.
 pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
 /// The `onSendClientJoin` descriptor.
@@ -131,8 +106,6 @@ pub const SEND_CLIENT_CHECK_RESPONSE: Rpc<ClientCheckResponse> = Rpc::new(
 /// The `onSendEditObject` descriptor.
 /// The `onSendPickedUpPickup` descriptor.
 pub const SEND_PICKED_UP_PICKUP: Rpc<i32> = Rpc::new(131, decode_i32, encode_i32);
-/// The `onSendQuitMenu` descriptor.
-pub const SEND_QUIT_MENU: Rpc<()> = Rpc::new(140, decode_empty, encode_empty);
 /// The `onSendCameraTargetUpdate` descriptor.
 pub const SEND_CAMERA_TARGET_UPDATE: Rpc<CameraTargetUpdate> = Rpc::new(
     168,
@@ -159,12 +132,6 @@ macro_rules! rpc_helper {
 }
 
 rpc_helper!(
-    on_send_dialog_response,
-    DialogResponse,
-    SEND_DIALOG_RESPONSE,
-    "onSendDialogResponse"
-);
-rpc_helper!(
     on_send_enter_vehicle,
     EnterVehicle,
     SEND_ENTER_VEHICLE,
@@ -190,12 +157,6 @@ rpc_helper!(
     "onSendMapMarker"
 );
 rpc_helper!(
-    on_send_click_player,
-    ClickPlayer,
-    SEND_CLICK_PLAYER,
-    "onSendClickPlayer"
-);
-rpc_helper!(
     on_send_interior_change,
     u8,
     SEND_INTERIOR_CHANGE,
@@ -214,22 +175,10 @@ rpc_helper!(
     "onSendRequestSpawn"
 );
 rpc_helper!(
-    on_send_menu_select,
-    u8,
-    SEND_MENU_SELECT,
-    "onSendMenuSelect"
-);
-rpc_helper!(
     on_send_vehicle_destroyed,
     u16,
     SEND_VEHICLE_DESTROYED,
     "onSendVehicleDestroyed"
-);
-rpc_helper!(
-    on_send_click_text_draw,
-    u16,
-    SEND_CLICK_TEXT_DRAW,
-    "onSendClickTextDraw"
 );
 rpc_helper!(
     on_send_update_scores_and_pings,
@@ -279,7 +228,6 @@ rpc_helper!(
     SEND_PICKED_UP_PICKUP,
     "onSendPickedUpPickup"
 );
-rpc_helper!(on_send_quit_menu, (), SEND_QUIT_MENU, "onSendQuitMenu");
 rpc_helper!(
     on_send_camera_target_update,
     CameraTargetUpdate,
@@ -293,24 +241,6 @@ rpc_helper!(
     "onSendGiveActorDamage"
 );
 
-fn decode_dialog_response(event: &mut Event<'_>) -> Result<DialogResponse, EventError> {
-    Ok(DialogResponse {
-        dialog_id: event.read_u16()?,
-        button: event.read_u8()?,
-        list_item: event.read_u16()?,
-        input: event.read_string8()?,
-    })
-}
-
-fn encode_dialog_response(value: DialogResponse) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.dialog_id);
-    writer.u8(value.button);
-    writer.u16(value.list_item);
-    writer.string8(&value.input)?;
-    Ok(writer.finish())
-}
-
 fn decode_enter_vehicle(event: &mut Event<'_>) -> Result<EnterVehicle, EventError> {
     Ok(EnterVehicle {
         vehicle_id: event.read_u16()?,
@@ -322,20 +252,6 @@ fn encode_enter_vehicle(value: EnterVehicle) -> Result<Vec<u8>, EventError> {
     let mut writer = PayloadWriter::new();
     writer.u16(value.vehicle_id);
     writer.u8(u8::from(value.passenger));
-    Ok(writer.finish())
-}
-
-fn decode_click_player(event: &mut Event<'_>) -> Result<ClickPlayer, EventError> {
-    Ok(ClickPlayer {
-        player_id: event.read_u16()?,
-        source: event.read_u8()?,
-    })
-}
-
-fn encode_click_player(value: ClickPlayer) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u8(value.source);
     Ok(writer.finish())
 }
 

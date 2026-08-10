@@ -743,7 +743,7 @@ fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
         (outgoing::object::SEND_EDIT_ATTACHED_OBJECT.id(), 116),
         (outgoing::object::SEND_EDIT_OBJECT.id(), 117),
         (outgoing::SEND_PICKED_UP_PICKUP.id(), 131),
-        (outgoing::SEND_QUIT_MENU.id(), 140),
+        (outgoing::ui::SEND_QUIT_MENU.id(), 140),
         (outgoing::SEND_CAMERA_TARGET_UPDATE.id(), 168),
         (outgoing::damage::SEND_GIVE_ACTOR_DAMAGE.id(), 177),
     ];

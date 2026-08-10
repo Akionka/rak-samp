@@ -289,8 +289,8 @@ impl HostApi {
         input: &[u8],
     ) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_DIALOG_RESPONSE,
-            events::rpc::outgoing::DialogResponse {
+            events::rpc::outgoing::ui::SEND_DIALOG_RESPONSE,
+            events::rpc::outgoing::ui::DialogResponse {
                 dialog_id,
                 button,
                 list_item,
@@ -302,14 +302,14 @@ impl HostApi {
     /// Sends a server-bound player-click action (RPC 23).
     pub fn send_click_player(self, player_id: u16, source: u8) -> SampClientSdkResult {
         self.send_typed_rpc(
-            events::rpc::outgoing::SEND_CLICK_PLAYER,
-            events::rpc::outgoing::ClickPlayer { player_id, source },
+            events::rpc::outgoing::ui::SEND_CLICK_PLAYER,
+            events::rpc::outgoing::ui::ClickPlayer { player_id, source },
         )
     }
 
     /// Sends a server-bound textdraw-click action (RPC 83).
     pub fn send_click_textdraw(self, textdraw_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_CLICK_TEXT_DRAW, textdraw_id)
+        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_CLICK_TEXT_DRAW, textdraw_id)
     }
 
     /// Sends a server-bound death notification naming another player (RPC 53).
@@ -325,12 +325,12 @@ impl HostApi {
 
     /// Sends the empty menu-quit RPC (140).
     pub fn send_menu_quit(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_QUIT_MENU, ())
+        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_QUIT_MENU, ())
     }
 
     /// Sends a server-bound menu-row selection (RPC 132).
     pub fn send_menu_select_row(self, row: u8) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_MENU_SELECT, row)
+        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_MENU_SELECT, row)
     }
 
     /// Sends a server-bound pickup notification (RPC 131).
