@@ -35,6 +35,7 @@
   opaque native-address entry points and `host_api/events.rs` owns event
   bitstream operations and native string codecs. `host_api/network.rs` owns
   direct and queued packet/RPC sends and incoming emulation;
+  `host_api/connection.rs` owns connection and disconnection command producers;
   `host_api/animations.rs` owns cached local animation-table reads and lookups;
   `host_api/chat_input.rs` owns the cached local chat-input text read and its
   command producers;
