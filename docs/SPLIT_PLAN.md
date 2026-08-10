@@ -258,6 +258,8 @@ Progress:
   type and exports.
 - [x] Extract SDK local animation catalog wrappers behind the unchanged root
   type and exports.
+- [x] Extract SDK opaque native-address `HostApi` wrappers behind the unchanged
+  root type and exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 

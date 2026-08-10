@@ -2190,14 +2190,6 @@ impl HostApi {
         self.raw
     }
 
-    pub(crate) fn raw_rakclient(self) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        self.raw_native_address(self.raw.raw_rakclient)
-    }
-
-    pub(crate) fn raw_rakpeer(self) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        self.raw_native_address(self.raw.raw_rakpeer)
-    }
-
     /// Queues one R1 dialog close with the selected response button.
     pub fn submit_local_dialog_close(
         self,
@@ -2206,31 +2198,6 @@ impl HostApi {
         let mut receipt = SampClientSdkCommandReceipt::default();
         let result = unsafe { (self.raw.submit_local_dialog_close)(button, &mut receipt) };
         self.command_receipt(result, receipt)
-    }
-
-    pub(crate) fn raw_player_pool(self) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        self.raw_native_address(self.raw.raw_player_pool)
-    }
-
-    pub(crate) fn raw_vehicle_pool(self) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        self.raw_native_address(self.raw.raw_vehicle_pool)
-    }
-
-    pub(crate) fn raw_local_player(self) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        self.raw_native_address(self.raw.raw_local_player)
-    }
-
-    fn raw_native_address(
-        self,
-        operation: unsafe extern "system" fn(*mut *mut c_void) -> SampClientSdkResult,
-    ) -> Result<NonNull<c_void>, SampClientSdkResult> {
-        let mut output = core::ptr::null_mut();
-        match unsafe { operation(&mut output) } {
-            SampClientSdkResult::Ok => {
-                NonNull::new(output).ok_or(SampClientSdkResult::NativeCallFailed)
-            }
-            error => Err(error),
-        }
     }
 
     #[must_use]
