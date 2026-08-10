@@ -17,7 +17,8 @@
   command pump through the captured original RakClient functions. Incoming
   packet emulation transfers a native allocation into the captured receive queue;
   incoming RPC emulation dispatches listeners once before calling the captured
-  trampoline directly.
+  trampoline directly. RPC envelope helpers preserve optional timestamps and
+  exact payload bit lengths across listener replacement.
 
 ## Process model
 

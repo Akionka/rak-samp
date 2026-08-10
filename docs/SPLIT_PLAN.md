@@ -181,6 +181,8 @@ Progress:
 - [x] Extract incoming packet emulation without moving command execution or
   native queue ownership.
 - [x] Extract incoming RPC emulation without moving listener or hook ownership.
+- [x] Extract pure RPC envelope parsing/building with exact timestamp and bit
+  preservation tests.
 - [ ] Extract hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

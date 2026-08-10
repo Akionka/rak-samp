@@ -5183,7 +5183,7 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
     if !state.registry.has_rpc_listener(Direction::Incoming) {
         return unsafe { original(receiver, data, length, player) };
     }
-    let Ok((rpc_id, mut payload, timestamp)) = parse_rpc_envelope(input) else {
+    let Ok((rpc_id, mut payload, timestamp)) = packets::parse_rpc_envelope(input) else {
         return unsafe { original(receiver, data, length, player) };
     };
     if state
@@ -5193,7 +5193,7 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
     {
         return false;
     }
-    let Ok(mut output) = build_rpc_envelope(rpc_id, &payload, timestamp) else {
+    let Ok(mut output) = packets::build_rpc_envelope(rpc_id, &payload, timestamp) else {
         return unsafe { original(receiver, data, length, player) };
     };
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
@@ -5393,64 +5393,6 @@ fn copy_remaining(stream: &mut BitStream, bit_len: usize, payload: &mut BitStrea
             let _ = payload.write_bool(bit);
         }
     }
-}
-
-fn parse_rpc_envelope(input: &[u8]) -> Result<(u8, BitStream, Option<[u8; 4]>), SendError> {
-    let mut stream = BitStream::from_bytes(input.to_vec());
-    let first = stream.read_u8().map_err(|_| SendError::NativeCallFailed)?;
-    let timestamp = if first == ID_TIMESTAMP {
-        let bytes = stream
-            .read_bytes(4)
-            .map_err(|_| SendError::NativeCallFailed)?;
-        let mut timestamp = [0; 4];
-        timestamp.copy_from_slice(&bytes);
-        if stream.read_u8().map_err(|_| SendError::NativeCallFailed)? != ID_RPC {
-            return Err(SendError::NativeCallFailed);
-        }
-        Some(timestamp)
-    } else if first == ID_RPC {
-        None
-    } else {
-        return Err(SendError::NativeCallFailed);
-    };
-    let id = stream.read_u8().map_err(|_| SendError::NativeCallFailed)?;
-    let payload_bits = stream
-        .read_compressed_u32()
-        .map_err(|_| SendError::NativeCallFailed)? as usize;
-    if payload_bits > stream.remaining_bits() {
-        return Err(SendError::NativeCallFailed);
-    }
-    Ok((id, remaining_stream(&mut stream, payload_bits), timestamp))
-}
-
-fn build_rpc_envelope(
-    id: u8,
-    payload: &BitStream,
-    timestamp: Option<[u8; 4]>,
-) -> Result<Vec<u8>, SendError> {
-    let payload_bits = u32::try_from(payload.len_bits()).map_err(|_| SendError::PayloadTooLarge)?;
-    let mut stream = BitStream::new();
-    if let Some(timestamp) = timestamp {
-        stream
-            .write_u8(ID_TIMESTAMP)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-        stream
-            .write_bytes(&timestamp)
-            .map_err(|_| SendError::PayloadTooLarge)?;
-    }
-    stream
-        .write_u8(ID_RPC)
-        .map_err(|_| SendError::PayloadTooLarge)?;
-    stream
-        .write_u8(id)
-        .map_err(|_| SendError::PayloadTooLarge)?;
-    stream
-        .write_compressed_u32(payload_bits)
-        .map_err(|_| SendError::PayloadTooLarge)?;
-    stream
-        .write_stream(payload)
-        .map_err(|_| SendError::PayloadTooLarge)?;
-    Ok(stream.as_bytes().to_vec())
 }
 
 fn active_state() -> Option<Arc<BackendState>> {
