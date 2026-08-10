@@ -322,6 +322,8 @@ Progress:
   `outgoing::ui`.
 - [x] Extract byte-aligned outgoing vehicle-interaction RPC codecs into
   `outgoing::vehicle`.
+- [x] Extract outgoing session and class-selection RPC codecs into
+  `outgoing::session`.
 - Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.
 

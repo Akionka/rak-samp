@@ -4,10 +4,9 @@ pub mod chat;
 pub mod connection;
 pub mod damage;
 pub mod object;
+pub mod session;
 pub mod ui;
 pub mod vehicle;
-
-use self::damage::{ActorDamage, SEND_GIVE_ACTOR_DAMAGE, SEND_VEHICLE_DAMAGED, VehicleDamage};
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
@@ -20,14 +19,6 @@ use crate::{
 pub struct DeathNotification {
     pub reason: u8,
     pub killer_id: u16,
-}
-
-/// MoonLoader's `onSendClientCheckResponse` payload (RPC 103).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ClientCheckResponse {
-    pub request_type: u8,
-    pub result1: i32,
-    pub result2: u8,
 }
 
 /// MoonLoader's `onSendMoneyIncreaseNotification` payload (RPC 31).
@@ -46,8 +37,6 @@ pub struct CameraTargetUpdate {
     pub actor_id: u16,
 }
 
-/// The `onSendSpawn` descriptor.
-pub const SEND_SPAWN: Rpc<()> = Rpc::new(52, decode_empty, encode_empty);
 /// The `onSendDeathNotification` descriptor.
 pub const SEND_DEATH_NOTIFICATION: Rpc<DeathNotification> =
     Rpc::new(53, decode_death_notification, encode_death_notification);
@@ -55,10 +44,6 @@ pub const SEND_DEATH_NOTIFICATION: Rpc<DeathNotification> =
 pub const SEND_MAP_MARKER: Rpc<Vector3> = Rpc::new(119, decode_vector3, encode_vector3);
 /// The `onSendInteriorChange` descriptor.
 pub const SEND_INTERIOR_CHANGE: Rpc<u8> = Rpc::new(118, decode_u8, encode_u8);
-/// The `onSendRequestClass` descriptor.
-pub const SEND_REQUEST_CLASS: Rpc<i32> = Rpc::new(128, decode_i32, encode_i32);
-/// The `onSendRequestSpawn` descriptor.
-pub const SEND_REQUEST_SPAWN: Rpc<()> = Rpc::new(129, decode_empty, encode_empty);
 /// The `onSendUpdateScoresAndPings` descriptor.
 pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
 /// The `onSendClientJoin` descriptor.
@@ -69,14 +54,6 @@ pub const SEND_MONEY_INCREASE: Rpc<MoneyIncrease> =
 /// The `onSendNPCJoin` descriptor.
 /// The `onSendPickedUpWeapon` descriptor.
 pub const SEND_PICKED_UP_WEAPON: Rpc<u16> = Rpc::new(97, decode_u16, encode_u16);
-/// The `onSendServerStatisticsRequest` descriptor.
-pub const SEND_SERVER_STATISTICS_REQUEST: Rpc<()> = Rpc::new(102, decode_empty, encode_empty);
-/// The `onSendClientCheckResponse` descriptor.
-pub const SEND_CLIENT_CHECK_RESPONSE: Rpc<ClientCheckResponse> = Rpc::new(
-    103,
-    decode_client_check_response,
-    encode_client_check_response,
-);
 /// The `onSendEditAttachedObject` descriptor.
 /// The `onSendEditObject` descriptor.
 /// The `onSendPickedUpPickup` descriptor.
@@ -106,7 +83,6 @@ macro_rules! rpc_helper {
     };
 }
 
-rpc_helper!(on_send_spawn, (), SEND_SPAWN, "onSendSpawn");
 rpc_helper!(
     on_send_death_notification,
     DeathNotification,
@@ -124,18 +100,6 @@ rpc_helper!(
     u8,
     SEND_INTERIOR_CHANGE,
     "onSendInteriorChange"
-);
-rpc_helper!(
-    on_send_request_class,
-    i32,
-    SEND_REQUEST_CLASS,
-    "onSendRequestClass"
-);
-rpc_helper!(
-    on_send_request_spawn,
-    (),
-    SEND_REQUEST_SPAWN,
-    "onSendRequestSpawn"
 );
 rpc_helper!(
     on_send_update_scores_and_pings,
@@ -156,24 +120,6 @@ rpc_helper!(
     "onSendPickedUpWeapon"
 );
 rpc_helper!(
-    on_send_server_statistics_request,
-    (),
-    SEND_SERVER_STATISTICS_REQUEST,
-    "onSendServerStatisticsRequest"
-);
-rpc_helper!(
-    on_send_client_check_response,
-    ClientCheckResponse,
-    SEND_CLIENT_CHECK_RESPONSE,
-    "onSendClientCheckResponse"
-);
-rpc_helper!(
-    on_send_vehicle_damaged,
-    VehicleDamage,
-    SEND_VEHICLE_DAMAGED,
-    "onSendVehicleDamaged"
-);
-rpc_helper!(
     on_send_picked_up_pickup,
     i32,
     SEND_PICKED_UP_PICKUP,
@@ -185,13 +131,6 @@ rpc_helper!(
     SEND_CAMERA_TARGET_UPDATE,
     "onSendCameraTargetUpdate"
 );
-rpc_helper!(
-    on_send_give_actor_damage,
-    ActorDamage,
-    SEND_GIVE_ACTOR_DAMAGE,
-    "onSendGiveActorDamage"
-);
-
 fn decode_money_increase(event: &mut Event<'_>) -> Result<MoneyIncrease, EventError> {
     Ok(MoneyIncrease {
         amount: decode_i32(event)?,
@@ -203,22 +142,6 @@ fn encode_money_increase(value: MoneyIncrease) -> Result<Vec<u8>, EventError> {
     let mut writer = PayloadWriter::new();
     writer.u32(value.amount as u32);
     writer.u32(value.increase_type as u32);
-    Ok(writer.finish())
-}
-
-fn decode_client_check_response(event: &mut Event<'_>) -> Result<ClientCheckResponse, EventError> {
-    Ok(ClientCheckResponse {
-        request_type: event.read_u8()?,
-        result1: decode_i32(event)?,
-        result2: event.read_u8()?,
-    })
-}
-
-fn encode_client_check_response(value: ClientCheckResponse) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u8(value.request_type);
-    writer.u32(value.result1 as u32);
-    writer.u8(value.result2);
     Ok(writer.finish())
 }
 

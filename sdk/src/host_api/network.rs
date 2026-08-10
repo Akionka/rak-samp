@@ -230,7 +230,7 @@ impl HostApi {
     /// `sampSendRequestSpawn`; it does not call native local-player methods or
     /// mutate client state.
     pub fn send_request_spawn(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_REQUEST_SPAWN, ())
+        self.send_typed_rpc(events::rpc::outgoing::session::SEND_REQUEST_SPAWN, ())
     }
 
     /// Sends SA-MP's request-class RPC (128).
@@ -239,7 +239,7 @@ impl HostApi {
     /// `sampRequestClass`, but does not invoke the native local-player method
     /// or update any local class-selection state.
     pub fn send_request_class(self, class_id: i32) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_REQUEST_CLASS, class_id)
+        self.send_typed_rpc(events::rpc::outgoing::session::SEND_REQUEST_CLASS, class_id)
     }
 
     /// Sends SA-MP's interior-change RPC (118).
@@ -255,7 +255,7 @@ impl HostApi {
     /// This is protocol-only. It does not call the native local-player spawn
     /// method or change local spawn state.
     pub fn send_spawn(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_SPAWN, ())
+        self.send_typed_rpc(events::rpc::outgoing::session::SEND_SPAWN, ())
     }
 
     /// Sends SA-MP's enter-vehicle RPC (26).

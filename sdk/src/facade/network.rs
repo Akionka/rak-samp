@@ -77,8 +77,10 @@ impl Net {
 
     /// Queues the server-bound request-spawn RPC.
     pub fn send_request_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_REQUEST_SPAWN, ())
+        self.api.submit_typed_rpc(
+            crate::events::rpc::outgoing::session::SEND_REQUEST_SPAWN,
+            (),
+        )
     }
 
     /// Queues the protocol-level request-class RPC without changing local class state.
@@ -86,8 +88,10 @@ impl Net {
         self,
         class_id: i32,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_REQUEST_CLASS, class_id)
+        self.api.submit_typed_rpc(
+            crate::events::rpc::outgoing::session::SEND_REQUEST_CLASS,
+            class_id,
+        )
     }
 
     /// Queues the protocol-level interior-change RPC without changing GTA state.
@@ -104,7 +108,7 @@ impl Net {
     /// Queues the protocol-level spawn RPC without invoking native spawn code.
     pub fn send_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_SPAWN, ())
+            .submit_typed_rpc(crate::events::rpc::outgoing::session::SEND_SPAWN, ())
     }
 
     /// Queues the protocol-level enter-vehicle RPC without changing the local ped.
