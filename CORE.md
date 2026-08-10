@@ -33,7 +33,8 @@
   `host_api/mod.rs`; `host_api/conversions.rs` converts owned runtime snapshots
   into fixed C-compatible output storage, while `host_api/raw.rs` owns the
   opaque native-address entry points and `host_api/events.rs` owns event
-  bitstream operations and native string codecs.
+  bitstream operations and native string codecs. `host_api/network.rs` owns
+  direct and queued packet/RPC sends and incoming emulation.
 
 ## Process model
 
