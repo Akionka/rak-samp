@@ -272,6 +272,8 @@ Progress:
   and exports.
 - [x] Extract SDK local UI command wrappers behind the unchanged root type and
   exports.
+- [x] Extract SDK text-label command wrappers behind the unchanged root type and
+  exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
