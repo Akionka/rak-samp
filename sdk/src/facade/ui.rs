@@ -247,3 +247,98 @@ impl Scoreboard {
         self.api.submit_local_scoreboard_open(open)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Samp;
+
+    fn samp() -> Samp {
+        Samp::from_api(crate::events::test_support::test_api())
+    }
+
+    #[test]
+    fn cursor_mode_change_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .cursor()
+            .set_mode(LocalCursorMode::LockCamera)
+            .unwrap();
+        assert_eq!(receipt.id(), 6);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn cursor_toggle_returns_an_owned_completion_receipt() {
+        let mut receipt = samp().cursor().toggle(false).unwrap();
+        assert_eq!(receipt.id(), 14);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn chat_display_mode_change_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .chat()
+            .set_display_mode(LocalChatDisplayMode::NoShadow)
+            .unwrap();
+        assert_eq!(receipt.id(), 15);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn chat_input_mutations_return_owned_completion_receipts() {
+        let mut text = samp().chat_input().set_text(b"/sdk").unwrap();
+        assert_eq!(text.id(), 17);
+        assert_eq!(text.try_take(), Ok(Some(())));
+
+        let mut enabled = samp().chat_input().set_enabled(true).unwrap();
+        assert_eq!(enabled.id(), 18);
+        assert_eq!(enabled.try_take(), Ok(Some(())));
+
+        let mut processed = samp().chat_input().process(b"/sdk").unwrap();
+        assert_eq!(processed.id(), 19);
+        assert_eq!(processed.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn chat_input_text_is_an_owned_cached_value() {
+        assert_eq!(samp().chat_input().text(), Ok(b"/sdk".to_vec()));
+    }
+
+    #[test]
+    fn scoreboard_toggle_returns_an_owned_completion_receipt() {
+        let mut receipt = samp().scoreboard().toggle(true).unwrap();
+        assert_eq!(receipt.id(), 7);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn dialog_client_side_change_returns_an_owned_completion_receipt() {
+        let mut receipt = samp().dialogs().set_client_side(true).unwrap();
+        assert_eq!(receipt.id(), 8);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn dialog_close_returns_an_owned_completion_receipt() {
+        let samp = samp();
+        let mut receipt = samp.dialogs().close_with_button(1).unwrap();
+        assert_eq!(receipt.id(), 16);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+        assert!(matches!(
+            samp.dialogs().close_with_button(2),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
+    }
+
+    #[test]
+    fn dialog_editbox_mutation_returns_an_owned_completion_receipt() {
+        let samp = samp();
+        let mut receipt = samp.dialogs().set_editbox_text(b"fixture").unwrap();
+        assert_eq!(receipt.id(), 40);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+        assert!(matches!(
+            samp.dialogs().set_editbox_text(&[0]),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
+    }
+}

@@ -55,6 +55,10 @@
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers.
   `host_api/textdraws.rs` owns textdraw command producers.
 
+Leaf tests are colocated with their stable codecs and facade views. Parent test
+modules retain mock-ABI behavior, native ABI/layout checks, and cross-module
+Win32 queue, pump, cache-publication, invalidation, and hook-lifecycle tests.
+
 ## Process model
 
 ```text

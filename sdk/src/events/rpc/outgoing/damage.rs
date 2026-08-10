@@ -153,3 +153,34 @@ fn encode_actor_damage(_api: HostApi, value: ActorDamage) -> Result<EncodedPaylo
     writer.u32(value.body_part as u32);
     Ok(writer.finish_bits())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::events::test_support::test_api;
+
+    #[test]
+    fn outgoing_damage_keeps_its_one_bit_boolean_and_exact_payload_length() {
+        let payload = SEND_DAMAGE
+            .encode(
+                test_api(),
+                Damage {
+                    player_id: 0x1234,
+                    damage: 1.0,
+                    weapon: 24,
+                    body_part: 9,
+                    take: true,
+                },
+            )
+            .expect("damage payload must encode");
+
+        assert_eq!(payload.len_bits(), 113);
+        assert_eq!(
+            payload.as_bytes(),
+            [
+                0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00, 0x00,
+                0x00,
+            ]
+        );
+    }
+}

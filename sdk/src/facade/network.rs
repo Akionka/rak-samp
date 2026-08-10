@@ -620,3 +620,40 @@ impl Server {
         self.info().map(|info| info.port)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::Samp;
+    use std::time::Duration;
+
+    #[test]
+    fn network_commands_return_owned_completion_receipts() {
+        let samp = Samp::from_api(crate::events::test_support::test_api());
+        let mut chat = samp.net().send_chat(b"fixture").unwrap();
+        assert_eq!(chat.id(), 4);
+        assert_eq!(chat.try_take(), Ok(Some(())));
+
+        let mut packet = samp.net().send_packet(207, &[1, 2], 16).unwrap();
+        assert_eq!(packet.id(), 4);
+        assert_eq!(packet.try_take(), Ok(Some(())));
+
+        let mut rpc = samp
+            .net()
+            .send_rpc_with_options(61, &[3], 8, crate::SampClientSdkSendOptions::default())
+            .unwrap();
+        assert_eq!(rpc.id(), 4);
+        assert_eq!(rpc.wait(Duration::from_millis(0)), Ok(()));
+
+        let mut emulated = samp.net().emulate_incoming_packet(207, &[4], 8).unwrap();
+        assert_eq!(emulated.id(), 5);
+        assert_eq!(emulated.try_take(), Ok(Some(())));
+
+        let mut connect = samp.net().connect(b"127.0.0.1", 7777).unwrap();
+        assert_eq!(connect.id(), 24);
+        assert_eq!(connect.try_take(), Ok(Some(())));
+
+        let mut disconnect = samp.net().disconnect(0).unwrap();
+        assert_eq!(disconnect.id(), 25);
+        assert_eq!(disconnect.try_take(), Ok(Some(())));
+    }
+}

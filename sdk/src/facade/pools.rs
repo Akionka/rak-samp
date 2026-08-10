@@ -278,3 +278,42 @@ impl Gangzones {
         self.api.gangzone(id.get())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn samp() -> Samp {
+        Samp::from_api(crate::events::test_support::test_api())
+    }
+
+    #[test]
+    fn textdraw_delete_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .textdraws()
+            .delete(TextdrawId::new(7).unwrap())
+            .unwrap();
+        assert_eq!(receipt.id(), 26);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn textdraw_position_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .textdraws()
+            .set_position(TextdrawId::new(7).unwrap(), 12.5, 34.0)
+            .unwrap();
+        assert_eq!(receipt.id(), 27);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn textdraw_letter_style_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .textdraws()
+            .set_letter_style(TextdrawId::new(7).unwrap(), 1.25, 2.5, 0xFF11_2233)
+            .unwrap();
+        assert_eq!(receipt.id(), 28);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+}

@@ -354,3 +354,27 @@ pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     }
     client
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_byte_aligned_and_partial_byte_packets() {
+        assert_eq!(validated_packet_byte_len(2, 16), Some(2));
+        assert_eq!(validated_packet_byte_len(2, 9), Some(2));
+    }
+
+    #[test]
+    fn rejects_metadata_that_cannot_describe_the_buffer() {
+        assert_eq!(validated_packet_byte_len(1, 7), None);
+        assert_eq!(validated_packet_byte_len(1, 9), None);
+        assert_eq!(
+            validated_packet_byte_len(
+                (MAX_INCOMING_PACKET_BYTES + 1) as u32,
+                (MAX_INCOMING_PACKET_BYTES + 1) * 8
+            ),
+            None
+        );
+    }
+}

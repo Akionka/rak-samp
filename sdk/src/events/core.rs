@@ -608,3 +608,30 @@ pub(crate) unsafe fn handle<T>(
     let mut event = unsafe { Event::from_callback(api, raw) }?;
     rpc.handle(&mut event, handler)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payload_writer_preserves_partial_bit_lengths() {
+        let mut writer = PayloadWriter::new();
+        writer.u8(0xA5);
+        writer.bits(&[0b1100_0000], 3);
+        let payload = writer.finish_bits();
+
+        assert_eq!(payload.len_bits(), 11);
+        assert_eq!(payload.as_bytes(), &[0xA5, 0b1100_0000]);
+    }
+
+    #[test]
+    fn encoded_payload_rejects_bits_outside_its_buffer() {
+        assert!(matches!(
+            EncodedPayload::from_bits(vec![0], 9),
+            Err(EventError::InvalidBitLength {
+                bit_len: 9,
+                byte_len: 1
+            })
+        ));
+    }
+}

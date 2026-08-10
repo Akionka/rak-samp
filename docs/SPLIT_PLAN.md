@@ -1,6 +1,6 @@
 # Module Split Plan
 
-Status: active; Phase 4 in progress. Rust API paths may change when a clearer
+Status: complete. Rust API paths may change when a clearer
 module boundary justifies it. ABI, native layouts, and runtime behavior remain
 unchanged unless a separate change explicitly says otherwise.
 
@@ -354,10 +354,10 @@ remain hypotheses until this review.
 
 ### Phase 6 — Redistribute tests and finish documentation
 
-- Move narrow unit tests beside stable leaf modules.
-- Keep queue-to-pump-to-cache and other cross-module behavior tests in a
+- [x] Move narrow unit tests beside stable leaf modules.
+- [x] Keep queue-to-pump-to-cache and other cross-module behavior tests in a
   parent integration test module.
-- Update `ARCHITECTURE.md` and `CORE.md` after each major boundary becomes
+- [x] Update `ARCHITECTURE.md` and `CORE.md` after each major boundary becomes
   real, not in anticipation of it.
 
 ## 6. Completion criteria

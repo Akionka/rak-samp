@@ -5065,28 +5065,9 @@ type QueueWriteLockFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut *mut Ra
 type QueueWriteUnlockFn = unsafe extern "thiscall" fn(*mut c_void);
 
 #[cfg(test)]
-mod packet_metadata_tests {
-    use super::{hooks, native_bit_length};
+mod native_packet_bit_length_tests {
+    use super::native_bit_length;
     use crate::SendError;
-
-    #[test]
-    fn accepts_byte_aligned_and_partial_byte_packets() {
-        assert_eq!(hooks::validated_packet_byte_len(2, 16), Some(2));
-        assert_eq!(hooks::validated_packet_byte_len(2, 9), Some(2));
-    }
-
-    #[test]
-    fn rejects_metadata_that_cannot_describe_the_buffer() {
-        assert_eq!(hooks::validated_packet_byte_len(1, 7), None);
-        assert_eq!(hooks::validated_packet_byte_len(1, 9), None);
-        assert_eq!(
-            hooks::validated_packet_byte_len(
-                (hooks::MAX_INCOMING_PACKET_BYTES + 1) as u32,
-                (hooks::MAX_INCOMING_PACKET_BYTES + 1) * 8
-            ),
-            None
-        );
-    }
 
     #[test]
     fn rejects_bit_lengths_that_overflow_native_i32() {

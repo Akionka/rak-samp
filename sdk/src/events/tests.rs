@@ -1,6 +1,6 @@
 use super::*;
 use super::{
-    core::{PayloadWriter, RpcEncoder},
+    core::RpcEncoder,
     rpc::{incoming, outgoing},
     test_support::{TestEvent, assert_replacement_round_trip, test_api},
 };
@@ -11,28 +11,6 @@ fn encode_bytes<T>(descriptor: Rpc<T>, value: T) -> Vec<u8> {
         panic!("test descriptor must use a byte-aligned encoder");
     };
     encode(value).expect("test payload must be valid")
-}
-
-#[test]
-fn payload_writer_preserves_partial_bit_lengths() {
-    let mut writer = PayloadWriter::new();
-    writer.u8(0xA5);
-    writer.bits(&[0b1100_0000], 3);
-    let payload = writer.finish_bits();
-
-    assert_eq!(payload.len_bits(), 11);
-    assert_eq!(payload.as_bytes(), &[0xA5, 0b1100_0000]);
-}
-
-#[test]
-fn encoded_payload_rejects_bits_outside_its_buffer() {
-    assert!(matches!(
-        EncodedPayload::from_bits(vec![0], 9),
-        Err(EventError::InvalidBitLength {
-            bit_len: 9,
-            byte_len: 1
-        })
-    ));
 }
 
 fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
@@ -805,31 +783,6 @@ fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
         [
             7, 0, 0x9B, 1, 0, 0, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80,
             0x40, 0, 0, 0xA0, 0x40,
-        ]
-    );
-}
-
-#[test]
-fn outgoing_damage_keeps_its_one_bit_boolean_and_exact_payload_length() {
-    let payload = outgoing::damage::SEND_DAMAGE
-        .encode(
-            test_api(),
-            outgoing::damage::Damage {
-                player_id: 0x1234,
-                damage: 1.0,
-                weapon: 24,
-                body_part: 9,
-                take: true,
-            },
-        )
-        .expect("damage payload must encode");
-
-    assert_eq!(payload.len_bits(), 113);
-    assert_eq!(
-        payload.as_bytes(),
-        [
-            0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00, 0x00,
-            0x00,
         ]
     );
 }

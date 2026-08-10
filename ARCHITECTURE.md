@@ -14,3 +14,5 @@ plugins use the public, versioned SDK package.
 | Typed events | `sdk/src/events/`, `sdk/src/events/rpc/outgoing/chat.rs`, `sdk/src/events/rpc/outgoing/connection.rs`, `sdk/src/events/rpc/outgoing/damage.rs`, `sdk/src/events/rpc/outgoing/object.rs`, `sdk/src/events/rpc/outgoing/session.rs`, `sdk/src/events/rpc/outgoing/ui.rs`, `sdk/src/events/rpc/outgoing/vehicle.rs` | Provide bounded R1 packet/RPC codecs, including outgoing chat, slash-command, join, damage, object-edit, session, dialog, UI-interaction, and vehicle codecs; retain unrelated fixed-layout singleton codecs in the root, and provide mock ABI support. |
 | Examples | `examples/` | Show a minimal subscription and a chat-command plugin. |
 | Layout fixture | `tests/fixtures/raknet_layout.cpp` | Independently verify native packing for boundary layouts. |
+
+Leaf unit tests live with their implementation modules. Parent test modules retain mock-ABI callback behavior, native ABI/layout checks, and Win32 queue-to-pump-to-cache, invalidation, and hook-lifecycle integration behavior.
