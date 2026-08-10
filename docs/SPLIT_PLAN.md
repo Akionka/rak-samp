@@ -245,6 +245,8 @@ Progress:
   or the ABI table.
 - [x] Extract local chat and death-message command producers without moving
   chat-history entry commands or unrelated mutations.
+- [x] Extract cursor-toggle and chat-display command producers without moving
+  network send-rate or chat-entry mutations.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.

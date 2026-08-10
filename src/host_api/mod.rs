@@ -212,8 +212,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_player_spawn: player_commands::submit_local_player_spawn,
     submit_local_player_special_action: player_commands::submit_local_player_special_action,
     submit_send_rate,
-    submit_local_cursor_toggle,
-    submit_local_chat_display_mode,
+    submit_local_cursor_toggle: local_commands::submit_local_cursor_toggle,
+    submit_local_chat_display_mode: local_commands::submit_local_chat_display_mode,
     raw_rakpeer: raw::raw_rakpeer,
     submit_local_dialog_close: dialog::submit_local_dialog_close,
     submit_local_chat_input_text: chat_input::submit_local_chat_input_text,
@@ -729,44 +729,6 @@ unsafe extern "system" fn submit_send_rate(
         return SampClientSdkResult::NotReady;
     };
     match runtime.submit_send_rate(kind, milliseconds) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_cursor_toggle(
-    show: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || show > 1 {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_cursor_toggle(show != 0) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_chat_display_mode(
-    mode: i32,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || !matches!(mode, 0..=2) {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_display_mode(mode) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok

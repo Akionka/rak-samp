@@ -42,8 +42,8 @@
   `host_api/dialog.rs` owns detailed local-dialog reads and command producers;
   `host_api/environment.rs` owns game-state, server-info, and version reads;
   `host_api/local_state.rs` owns local UI-state and active-dialog-core reads;
-  `host_api/local_commands.rs` owns local cursor and scoreboard command
-  producers;
+  `host_api/local_commands.rs` owns local cursor, scoreboard, cursor-toggle,
+  and chat-display command producers;
   `host_api/messages.rs` owns local chat and death-message command producers;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
