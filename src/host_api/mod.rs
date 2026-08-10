@@ -190,7 +190,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     player_defined: players::player_defined,
     player_paused: players::player_paused,
     remote_player_state: players::remote_player_state,
-    submit_local_dialog,
+    submit_local_dialog: dialog::submit_local_dialog,
     submit_local_chat_message,
     submit_local_death_message,
     command_try_take: commands::command_try_take,
@@ -205,7 +205,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     raw_vehicle_pool: raw::raw_vehicle_pool,
     submit_local_cursor_mode: local_commands::submit_local_cursor_mode,
     submit_local_scoreboard_open: local_commands::submit_local_scoreboard_open,
-    submit_local_dialog_client_side,
+    submit_local_dialog_client_side: dialog::submit_local_dialog_client_side,
     submit_samp_game_state,
     raw_local_player: raw::raw_local_player,
     submit_local_player_spawn: player_commands::submit_local_player_spawn,
@@ -214,7 +214,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_cursor_toggle,
     submit_local_chat_display_mode,
     raw_rakpeer: raw::raw_rakpeer,
-    submit_local_dialog_close,
+    submit_local_dialog_close: dialog::submit_local_dialog_close,
     submit_local_chat_input_text: chat_input::submit_local_chat_input_text,
     submit_local_chat_input_enabled: chat_input::submit_local_chat_input_enabled,
     submit_local_chat_input_process: chat_input::submit_local_chat_input_process,
@@ -234,7 +234,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_set_textdraw_alignment,
     submit_set_textdraw_string,
     local_dialog_selected_item: dialog::local_dialog_selected_item,
-    submit_local_dialog_selected_item,
+    submit_local_dialog_selected_item: dialog::submit_local_dialog_selected_item,
     submit_delete_text_label: text_labels::submit_delete_text_label,
     local_dialog_list_item_count: dialog::local_dialog_list_item_count,
     submit_set_textdraw_model_style,
@@ -242,7 +242,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     chat_entry_info: snapshots::chat_entry_info,
     submit_create_text_label: text_labels::submit_create_text_label,
     local_dialog_snapshot: dialog::local_dialog_snapshot,
-    submit_local_dialog_editbox_text,
+    submit_local_dialog_editbox_text: dialog::submit_local_dialog_editbox_text,
     local_object_handle: handles::local_object_handle,
     local_object_id_by_handle: handles::local_object_id_by_handle,
     local_pickup_handle: handles::local_pickup_handle,
@@ -444,56 +444,6 @@ unsafe extern "system" fn show_local_death_message(
         .map_or_else(direct_client_result, |_| SampClientSdkResult::Ok)
 }
 
-unsafe extern "system" fn submit_local_dialog(
-    id: u16,
-    style: u32,
-    title: *const u8,
-    title_len: usize,
-    text: *const u8,
-    text_len: usize,
-    button1: *const u8,
-    button1_len: usize,
-    button2: *const u8,
-    button2_len: usize,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(style) = LocalDialogStyle::from_raw(style) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Ok(title) = (unsafe { copied_nul_free_string(title, title_len, 255) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 4_095) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Ok(button1) = (unsafe { copied_nul_free_string(button1, button1_len, 255) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Ok(button2) = (unsafe { copied_nul_free_string(button2, button2_len, 255) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_dialog(LocalDialogRequest {
-        id,
-        style,
-        title,
-        text,
-        button1,
-        button2,
-    }) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn submit_local_chat_message(
     style: u32,
     text: *const u8,
@@ -563,25 +513,6 @@ unsafe extern "system" fn submit_local_death_message(
         victim_colour,
         weapon,
     }) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_dialog_client_side(
-    client_side: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || !matches!(client_side, 0 | 1) {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_dialog_client_side(client_side != 0) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
@@ -825,48 +756,6 @@ unsafe extern "system" fn submit_set_textdraw_string(
     }
 }
 
-unsafe extern "system" fn submit_local_dialog_selected_item(
-    selected: i32,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_dialog_selected_item(selected) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_dialog_editbox_text(
-    text: *const u8,
-    text_len: usize,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_dialog_editbox_text(text) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn submit_set_textdraw_model_style(
     id: u16,
     x: f32,
@@ -996,25 +885,6 @@ unsafe extern "system" fn submit_local_chat_entry(
         text_colour,
         prefix_colour,
     ) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_dialog_close(
-    button: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || button > 1 {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_dialog_close(button) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
@@ -1494,7 +1364,7 @@ mod tests {
         let mut receipt = SampClientSdkCommandReceipt::default();
         assert_eq!(
             unsafe {
-                submit_local_dialog(
+                dialog::submit_local_dialog(
                     7,
                     0,
                     std::ptr::null(),

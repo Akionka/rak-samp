@@ -39,8 +39,7 @@
   `host_api/animations.rs` owns cached local animation-table reads and lookups;
   `host_api/chat_input.rs` owns the cached local chat-input text read and its
   command producers;
-  `host_api/dialog.rs` owns the detailed local-dialog snapshot and scalar
-  selection reads;
+  `host_api/dialog.rs` owns detailed local-dialog reads and command producers;
   `host_api/environment.rs` owns game-state, server-info, and version reads;
   `host_api/local_state.rs` owns local UI-state and active-dialog-core reads;
   `host_api/local_commands.rs` owns local cursor and scoreboard command
