@@ -42,6 +42,8 @@
   selection reads;
   `host_api/environment.rs` owns game-state, server-info, and version reads;
   `host_api/local_state.rs` owns local UI-state and active-dialog-core reads;
+  `host_api/local_commands.rs` owns local cursor and scoreboard command
+  producers;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
   `host_api/players.rs` owns local-player snapshots and player-pool reads.

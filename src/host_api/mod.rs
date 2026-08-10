@@ -6,6 +6,7 @@ mod dialog;
 mod environment;
 mod events;
 mod handles;
+mod local_commands;
 mod local_state;
 mod network;
 mod players;
@@ -197,8 +198,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     raw_rakclient: raw::raw_rakclient,
     raw_player_pool: raw::raw_player_pool,
     raw_vehicle_pool: raw::raw_vehicle_pool,
-    submit_local_cursor_mode,
-    submit_local_scoreboard_open,
+    submit_local_cursor_mode: local_commands::submit_local_cursor_mode,
+    submit_local_scoreboard_open: local_commands::submit_local_scoreboard_open,
     submit_local_dialog_client_side,
     submit_samp_game_state,
     raw_local_player: raw::raw_local_player,
@@ -557,44 +558,6 @@ unsafe extern "system" fn submit_local_death_message(
         victim_colour,
         weapon,
     }) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_cursor_mode(
-    mode: i32,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || !matches!(mode, 0..=4) {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_cursor_mode(mode) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_scoreboard_open(
-    open: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || !matches!(open, 0 | 1) {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_scoreboard_open(open != 0) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
