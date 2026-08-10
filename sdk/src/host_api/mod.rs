@@ -12,3 +12,4 @@ mod network;
 mod raw;
 mod status;
 mod text_labels;
+mod textdraws;
