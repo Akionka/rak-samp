@@ -205,6 +205,8 @@ Progress:
 ### Phase 3 — Split host and SDK API plumbing
 
 - Split ABI conversions and cohesive entry-point groups first.
+- [x] Convert `host_api` to a directory module and extract state-free snapshot
+  output conversions without moving entry points or the ABI table.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.

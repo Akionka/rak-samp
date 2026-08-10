@@ -1,21 +1,19 @@
+mod conversions;
+
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
     PacketReliability, Runtime, SampVersion, SendError, SendOptions,
     command::CommandError,
     logging,
     runtime::{
-        AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError, DirectClientError,
-        GangzoneSnapshot, LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest,
-        LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-        PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-        TextdrawSnapshot,
+        ClientHookStatus, CodecError, DirectClientError, LocalChatMessageRequest,
+        LocalChatMessageStyle, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogStyle,
     },
 };
 use log::{debug, error, info};
 use sdk_abi::limits::{
-    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
-    MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES,
-    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAW_STRING_BYTES, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
+    MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
@@ -1599,7 +1597,7 @@ unsafe extern "system" fn local_dialog_snapshot(
         return SampClientSdkResult::NotReady;
     };
     let snapshot = match runtime.local_dialog_state() {
-        Ok(Some(snapshot)) => match local_dialog_snapshot_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::local_dialog_snapshot_to_abi(snapshot) {
             Ok(snapshot) => snapshot,
             Err(()) => return SampClientSdkResult::NativeCallFailed,
         },
@@ -2037,7 +2035,7 @@ unsafe extern "system" fn local_player(
         Ok(snapshot) => snapshot,
         Err(error) => return direct_client_result(error),
     };
-    let Ok(snapshot) = local_player_to_abi(snapshot) else {
+    let Ok(snapshot) = conversions::local_player_to_abi(snapshot) else {
         return SampClientSdkResult::NativeCallFailed;
     };
     *output = snapshot;
@@ -2073,7 +2071,7 @@ unsafe extern "system" fn server_info(
         Ok(snapshot) => snapshot,
         Err(error) => return direct_client_result(error),
     };
-    let Ok(snapshot) = server_info_to_abi(snapshot) else {
+    let Ok(snapshot) = conversions::server_info_to_abi(snapshot) else {
         return SampClientSdkResult::NativeCallFailed;
     };
     *output = snapshot;
@@ -2158,7 +2156,7 @@ unsafe extern "system" fn active_local_dialog(
         Err(error) => return direct_client_result(error),
     };
     let snapshot = match snapshot {
-        Some(snapshot) => match local_dialog_state_to_abi(&snapshot) {
+        Some(snapshot) => match conversions::local_dialog_state_to_abi(&snapshot) {
             Ok(snapshot) => snapshot,
             Err(()) => return SampClientSdkResult::NativeCallFailed,
         },
@@ -2198,7 +2196,7 @@ unsafe extern "system" fn local_animation(
         Ok(snapshot) => snapshot,
         Err(error) => return direct_client_result(error),
     };
-    let Ok(snapshot) = animation_to_abi(snapshot) else {
+    let Ok(snapshot) = conversions::animation_to_abi(snapshot) else {
         return SampClientSdkResult::NativeCallFailed;
     };
     *output = snapshot;
@@ -2254,7 +2252,7 @@ unsafe extern "system" fn player_info(
         return SampClientSdkResult::NotReady;
     };
     match runtime.player_info(id) {
-        Ok(Some(snapshot)) => match player_info_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::player_info_to_abi(snapshot) {
             Ok(snapshot) => {
                 *output = snapshot;
                 SampClientSdkResult::Ok
@@ -2280,7 +2278,7 @@ unsafe extern "system" fn remote_player_state(
         return SampClientSdkResult::NotReady;
     };
     match runtime.remote_player_state(id) {
-        Ok(Some(snapshot)) => match remote_player_state_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::remote_player_state_to_abi(snapshot) {
             Ok(snapshot) => {
                 unsafe { *output = snapshot };
                 SampClientSdkResult::Ok
@@ -2460,7 +2458,7 @@ unsafe extern "system" fn gangzone_info(
         return SampClientSdkResult::NotReady;
     };
     match runtime.gangzone(id) {
-        Ok(Some(snapshot)) => match gangzone_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::gangzone_to_abi(snapshot) {
             Ok(snapshot) => {
                 *output = snapshot;
                 SampClientSdkResult::Ok
@@ -2489,7 +2487,7 @@ unsafe extern "system" fn text_label_info(
         return SampClientSdkResult::NotReady;
     };
     match runtime.text_label(id) {
-        Ok(Some(snapshot)) => match text_label_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::text_label_to_abi(snapshot) {
             Ok(snapshot) => {
                 *output = snapshot;
                 SampClientSdkResult::Ok
@@ -2518,7 +2516,7 @@ unsafe extern "system" fn textdraw_info(
         return SampClientSdkResult::NotReady;
     };
     match runtime.textdraw(pool_index) {
-        Ok(Some(snapshot)) => match textdraw_to_abi(snapshot) {
+        Ok(Some(snapshot)) => match conversions::textdraw_to_abi(snapshot) {
             Ok(snapshot) => {
                 *output = snapshot;
                 SampClientSdkResult::Ok
@@ -2547,7 +2545,7 @@ unsafe extern "system" fn chat_entry_info(
         return SampClientSdkResult::NotReady;
     };
     match runtime.chat_entry(id) {
-        Ok(snapshot) => match chat_entry_to_abi(snapshot) {
+        Ok(snapshot) => match conversions::chat_entry_to_abi(snapshot) {
             Ok(snapshot) => {
                 *output = snapshot;
                 SampClientSdkResult::Ok
@@ -2861,332 +2859,6 @@ unsafe fn copied_nul_free_string(
     Ok(value.to_vec())
 }
 
-fn local_player_to_abi(snapshot: LocalPlayerSnapshot) -> Result<SampClientSdkLocalPlayerV1, ()> {
-    let nickname_len = u16::try_from(snapshot.nickname.len()).map_err(|_| ())?;
-    if snapshot.nickname.len() > 256 {
-        return Err(());
-    }
-    let mut nickname = [0; 256];
-    nickname[..snapshot.nickname.len()].copy_from_slice(&snapshot.nickname);
-    Ok(SampClientSdkLocalPlayerV1 {
-        id: snapshot.id,
-        nickname_len,
-        nickname,
-        colour: snapshot.colour,
-        spawned: u8::from(snapshot.spawned),
-        special_action: snapshot.special_action,
-        animation_id: snapshot.animation_id,
-        health: snapshot.health,
-        armour: snapshot.armour,
-        position: Vector3 {
-            x: snapshot.position.x,
-            y: snapshot.position.y,
-            z: snapshot.position.z,
-        },
-        velocity: Vector3 {
-            x: snapshot.velocity.x,
-            y: snapshot.velocity.y,
-            z: snapshot.velocity.z,
-        },
-        has_vehicle: u8::from(snapshot.vehicle_id.is_some()),
-        _reserved: 0,
-        vehicle_id: snapshot.vehicle_id.unwrap_or_default(),
-        score: snapshot.score,
-        ping: snapshot.ping,
-    })
-}
-
-fn local_dialog_state_to_abi(
-    snapshot: &LocalDialogSnapshot,
-) -> Result<SampClientSdkActiveDialogV1, ()> {
-    let title_len = u8::try_from(snapshot.title.len()).map_err(|_| ())?;
-    if snapshot.title.len() > 65 || snapshot.title.contains(&0) {
-        return Err(());
-    }
-    let mut title = [0; 65];
-    title[..snapshot.title.len()].copy_from_slice(&snapshot.title);
-    Ok(SampClientSdkActiveDialogV1 {
-        active: 1,
-        style: snapshot.style.as_raw() as u8,
-        server_side: u8::from(snapshot.server_side),
-        _reserved: 0,
-        id: snapshot.id,
-        title_len,
-        title,
-    })
-}
-
-fn local_dialog_snapshot_to_abi(
-    snapshot: LocalDialogSnapshot,
-) -> Result<SampClientSdkDialogSnapshotV1, ()> {
-    let core = local_dialog_state_to_abi(&snapshot)?;
-    let text_len = u16::try_from(snapshot.text.len()).map_err(|_| ())?;
-    let listbox_item_count = u8::try_from(snapshot.listbox_items.len()).map_err(|_| ())?;
-    let mut output = SampClientSdkDialogSnapshotV1::default();
-    if snapshot.text.len() > output.text.len()
-        || snapshot.text.contains(&0)
-        || snapshot.listbox_items.len() > output.listbox_items.len()
-    {
-        return Err(());
-    }
-
-    output.active = core.active;
-    output.style = core.style;
-    output.server_side = core.server_side;
-    output.id = core.id;
-    output.title_len = core.title_len;
-    output.title = core.title;
-    output.text_len = text_len;
-    output.text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
-    output.listbox_item_count = listbox_item_count;
-
-    if let Some(editbox_text) = snapshot.editbox_text {
-        let editbox_text_len = u8::try_from(editbox_text.len()).map_err(|_| ())?;
-        if editbox_text.len() > output.editbox_text.len() || editbox_text.contains(&0) {
-            return Err(());
-        }
-        output.has_editbox = 1;
-        output.editbox_text_len = editbox_text_len;
-        output.editbox_text[..editbox_text.len()].copy_from_slice(&editbox_text);
-    }
-
-    for (raw, item) in output.listbox_items.iter_mut().zip(snapshot.listbox_items) {
-        let len = u8::try_from(item.len()).map_err(|_| ())?;
-        if item.len() > raw.bytes.len() || item.contains(&0) {
-            return Err(());
-        }
-        raw.len = len;
-        raw.bytes[..item.len()].copy_from_slice(&item);
-    }
-
-    Ok(output)
-}
-
-fn player_info_to_abi(snapshot: PlayerInfoSnapshot) -> Result<SampClientSdkPlayerInfoV1, ()> {
-    let nickname_len = u16::try_from(snapshot.nickname.len()).map_err(|_| ())?;
-    if snapshot.nickname.is_empty()
-        || snapshot.nickname.len() > 256
-        || snapshot.nickname.contains(&0)
-        || (snapshot.is_local && snapshot.is_npc)
-    {
-        return Err(());
-    }
-    let mut nickname = [0; 256];
-    nickname[..snapshot.nickname.len()].copy_from_slice(&snapshot.nickname);
-    Ok(SampClientSdkPlayerInfoV1 {
-        exists: 1,
-        is_local: u8::from(snapshot.is_local),
-        is_npc: u8::from(snapshot.is_npc),
-        _reserved: 0,
-        id: snapshot.id,
-        nickname_len,
-        nickname,
-        colour: snapshot.colour,
-        score: snapshot.score,
-        ping: snapshot.ping,
-    })
-}
-
-fn remote_player_state_to_abi(
-    snapshot: RemotePlayerStateSnapshot,
-) -> Result<SampClientSdkRemotePlayerStateV1, ()> {
-    if !snapshot.health.is_finite() || !snapshot.armour.is_finite() {
-        return Err(());
-    }
-    Ok(SampClientSdkRemotePlayerStateV1 {
-        exists: 1,
-        special_action: snapshot.special_action,
-        _reserved: 0,
-        id: snapshot.id,
-        animation_id: snapshot.animation_id,
-        health: snapshot.health,
-        armour: snapshot.armour,
-    })
-}
-
-fn gangzone_to_abi(snapshot: GangzoneSnapshot) -> Result<SampClientSdkGangzoneV1, ()> {
-    if !snapshot.left.is_finite()
-        || !snapshot.bottom.is_finite()
-        || !snapshot.right.is_finite()
-        || !snapshot.top.is_finite()
-    {
-        return Err(());
-    }
-    Ok(SampClientSdkGangzoneV1 {
-        exists: 1,
-        _reserved: [0; 3],
-        id: snapshot.id,
-        _reserved2: 0,
-        left: snapshot.left,
-        bottom: snapshot.bottom,
-        right: snapshot.right,
-        top: snapshot.top,
-        colour: snapshot.colour,
-        alternate_colour: snapshot.alternate_colour,
-    })
-}
-
-fn text_label_to_abi(snapshot: TextLabelSnapshot) -> Result<SampClientSdkTextLabelV1, ()> {
-    let text_len = u16::try_from(snapshot.text.len()).map_err(|_| ())?;
-    if snapshot.text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
-        || snapshot.text.contains(&0)
-        || !snapshot.position.x.is_finite()
-        || !snapshot.position.y.is_finite()
-        || !snapshot.position.z.is_finite()
-        || !snapshot.draw_distance.is_finite()
-    {
-        return Err(());
-    }
-    let mut text = [0; MAX_SAMP_TEXT_LABEL_TEXT_BYTES];
-    text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
-    Ok(SampClientSdkTextLabelV1 {
-        exists: 1,
-        behind_walls: u8::from(snapshot.behind_walls),
-        _reserved: [0; 2],
-        id: snapshot.id,
-        attached_player_id: snapshot.attached_player_id.unwrap_or(u16::MAX),
-        attached_vehicle_id: snapshot.attached_vehicle_id.unwrap_or(u16::MAX),
-        _reserved2: 0,
-        colour: snapshot.colour,
-        position: Vector3 {
-            x: snapshot.position.x,
-            y: snapshot.position.y,
-            z: snapshot.position.z,
-        },
-        draw_distance: snapshot.draw_distance,
-        text_len,
-        _reserved3: [0; 2],
-        text,
-    })
-}
-
-fn textdraw_to_abi(snapshot: TextdrawSnapshot) -> Result<SampClientSdkTextDrawV1, ()> {
-    if !snapshot.letter_width.is_finite()
-        || !snapshot.letter_height.is_finite()
-        || !snapshot.x.is_finite()
-        || !snapshot.y.is_finite()
-        || !snapshot.box_width.is_finite()
-        || !snapshot.box_height.is_finite()
-        || !snapshot.rotation.x.is_finite()
-        || !snapshot.rotation.y.is_finite()
-        || !snapshot.rotation.z.is_finite()
-        || !snapshot.zoom.is_finite()
-    {
-        return Err(());
-    }
-    if snapshot.text.len() > MAX_SAMP_TEXTDRAW_STRING_BYTES || snapshot.text.contains(&0) {
-        return Err(());
-    }
-    let mut text = [0; MAX_SAMP_TEXTDRAW_STRING_BYTES];
-    text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
-    Ok(SampClientSdkTextDrawV1 {
-        exists: 1,
-        proportional: u8::from(snapshot.proportional),
-        align_left: u8::from(snapshot.align_left),
-        align_center: u8::from(snapshot.align_center),
-        align_right: u8::from(snapshot.align_right),
-        box_enabled: u8::from(snapshot.box_enabled),
-        _reserved: [0; 2],
-        pool_index: snapshot.pool_index,
-        shadow: snapshot.shadow,
-        outline: snapshot.outline,
-        letter_width: snapshot.letter_width,
-        letter_height: snapshot.letter_height,
-        letter_colour: snapshot.letter_colour,
-        x: snapshot.x,
-        y: snapshot.y,
-        background_colour: snapshot.background_colour,
-        style: snapshot.style,
-        box_width: snapshot.box_width,
-        box_height: snapshot.box_height,
-        box_colour: snapshot.box_colour,
-        model_id: snapshot.model_id,
-        _reserved2: 0,
-        rotation: Vector3 {
-            x: snapshot.rotation.x,
-            y: snapshot.rotation.y,
-            z: snapshot.rotation.z,
-        },
-        zoom: snapshot.zoom,
-        model_colour1: snapshot.model_colour1,
-        model_colour2: snapshot.model_colour2,
-        text_len: snapshot.text.len() as u16,
-        _reserved3: [0; 2],
-        text,
-    })
-}
-
-fn chat_entry_to_abi(snapshot: ChatEntrySnapshot) -> Result<SampClientSdkChatEntryV1, ()> {
-    if snapshot.id >= MAX_SAMP_CHAT_ENTRIES
-        || snapshot.text.len() > MAX_SAMP_CHAT_ENTRY_TEXT_BYTES
-        || snapshot.prefix.len() > MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES
-        || snapshot.text.contains(&0)
-        || snapshot.prefix.contains(&0)
-    {
-        return Err(());
-    }
-    let mut text = [0; MAX_SAMP_CHAT_ENTRY_TEXT_BYTES];
-    text[..snapshot.text.len()].copy_from_slice(&snapshot.text);
-    let mut prefix = [0; MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES];
-    prefix[..snapshot.prefix.len()].copy_from_slice(&snapshot.prefix);
-    Ok(SampClientSdkChatEntryV1 {
-        id: snapshot.id,
-        text_len: snapshot.text.len() as u8,
-        prefix_len: snapshot.prefix.len() as u8,
-        text_colour: snapshot.text_colour,
-        prefix_colour: snapshot.prefix_colour,
-        text,
-        prefix,
-    })
-}
-
-fn server_info_to_abi(snapshot: ServerInfoSnapshot) -> Result<SampClientSdkServerInfoV1, ()> {
-    let address_len = u16::try_from(snapshot.address.len()).map_err(|_| ())?;
-    let hostname_len = u16::try_from(snapshot.hostname.len()).map_err(|_| ())?;
-    if snapshot.address.is_empty()
-        || snapshot.port == 0
-        || snapshot.address.len() > 257
-        || snapshot.hostname.len() > 257
-    {
-        return Err(());
-    }
-    let mut address = [0; 257];
-    address[..snapshot.address.len()].copy_from_slice(&snapshot.address);
-    let mut hostname = [0; 257];
-    hostname[..snapshot.hostname.len()].copy_from_slice(&snapshot.hostname);
-    Ok(SampClientSdkServerInfoV1 {
-        address_len,
-        hostname_len,
-        address,
-        hostname,
-        port: snapshot.port,
-    })
-}
-
-fn animation_to_abi(snapshot: AnimationSnapshot) -> Result<SampClientSdkAnimationV1, ()> {
-    let name_len = u8::try_from(snapshot.name.len()).map_err(|_| ())?;
-    let file_len = u8::try_from(snapshot.file.len()).map_err(|_| ())?;
-    if snapshot.name.is_empty()
-        || snapshot.file.is_empty()
-        || snapshot.name.len() > 35
-        || snapshot.file.len() > 35
-        || snapshot.name.contains(&0)
-        || snapshot.file.contains(&0)
-    {
-        return Err(());
-    }
-    let mut name = [0; 36];
-    name[..snapshot.name.len()].copy_from_slice(&snapshot.name);
-    let mut file = [0; 36];
-    file[..snapshot.file.len()].copy_from_slice(&snapshot.file);
-    Ok(SampClientSdkAnimationV1 {
-        name_len,
-        file_len,
-        name,
-        file,
-    })
-}
-
 fn send_options(options: SampClientSdkSendOptions) -> Result<SendOptions, ()> {
     let priority = match options.priority {
         0 => PacketPriority::System,
@@ -3234,6 +2906,10 @@ enum ListenerKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::runtime::{
+        ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
+        TextLabelSnapshot, TextdrawSnapshot,
+    };
     use std::sync::{Arc, OnceLock};
 
     #[test]
@@ -3250,7 +2926,7 @@ mod tests {
 
     #[test]
     fn dialog_snapshot_conversion_is_coherent_and_preserves_absence() {
-        let raw = local_dialog_snapshot_to_abi(LocalDialogSnapshot {
+        let raw = conversions::local_dialog_snapshot_to_abi(LocalDialogSnapshot {
             id: 7,
             style: LocalDialogStyle::MessageBox,
             title: b"fixture".to_vec(),
@@ -3274,7 +2950,7 @@ mod tests {
     #[test]
     fn dialog_snapshot_conversion_rejects_a_256_byte_list_item() {
         assert!(
-            local_dialog_snapshot_to_abi(LocalDialogSnapshot {
+            conversions::local_dialog_snapshot_to_abi(LocalDialogSnapshot {
                 id: 7,
                 style: LocalDialogStyle::List,
                 title: b"fixture".to_vec(),
@@ -3683,7 +3359,8 @@ mod tests {
             ping: 11,
         };
 
-        let raw = local_player_to_abi(snapshot).expect("fixture snapshot fits the ABI");
+        let raw =
+            conversions::local_player_to_abi(snapshot).expect("fixture snapshot fits the ABI");
         assert_eq!(raw.nickname_len, 6);
         assert_eq!(&raw.nickname[..6], b"player");
         assert_eq!(raw.has_vehicle, 1);
@@ -3700,7 +3377,7 @@ mod tests {
 
     #[test]
     fn server_snapshot_conversion_uses_only_fixed_abi_storage() {
-        let raw = server_info_to_abi(ServerInfoSnapshot {
+        let raw = conversions::server_info_to_abi(ServerInfoSnapshot {
             address: b"127.0.0.1".to_vec(),
             hostname: b"fixture".to_vec(),
             port: 7777,
@@ -3715,7 +3392,7 @@ mod tests {
 
     #[test]
     fn text_label_snapshot_conversion_uses_only_fixed_abi_storage() {
-        let raw = text_label_to_abi(TextLabelSnapshot {
+        let raw = conversions::text_label_to_abi(TextLabelSnapshot {
             id: 7,
             text: b"fixture label".to_vec(),
             colour: 0xFF11_2233,
@@ -3739,7 +3416,7 @@ mod tests {
 
     #[test]
     fn textdraw_snapshot_conversion_uses_only_fixed_abi_storage() {
-        let raw = textdraw_to_abi(TextdrawSnapshot {
+        let raw = conversions::textdraw_to_abi(TextdrawSnapshot {
             pool_index: 7,
             text: Vec::new(),
             letter_width: 1.0,
@@ -3778,7 +3455,7 @@ mod tests {
 
     #[test]
     fn chat_entry_snapshot_conversion_uses_only_fixed_abi_storage() {
-        let raw = chat_entry_to_abi(ChatEntrySnapshot {
+        let raw = conversions::chat_entry_to_abi(ChatEntrySnapshot {
             id: 7,
             text: b"fixture".to_vec(),
             prefix: b"prefix".to_vec(),
