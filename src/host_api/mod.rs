@@ -5,6 +5,7 @@ mod handles;
 mod network;
 mod pools;
 mod raw;
+mod snapshots;
 
 use crate::{
     AttachError, BitStream, Direction, HookAction, ListenerHandle, Runtime, SampVersion, logging,
@@ -15,17 +16,16 @@ use crate::{
 };
 use log::{debug, error, info};
 use sdk_abi::limits::{
-    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES,
-    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+    MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS,
+    MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
-    SampClientSdkChatEntryV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
-    SampClientSdkDialogSnapshotV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
-    SampClientSdkEventV1, SampClientSdkGangzoneV1, SampClientSdkHookAction,
-    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkServerInfoV1,
-    SampClientSdkSubscription, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt, SampClientSdkDialogSnapshotV1,
+    SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
+    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
+    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -175,9 +175,9 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     text_label_exists: pools::text_label_exists,
     textdraw_exists: pools::textdraw_exists,
     object_exists: pools::object_exists,
-    gangzone_info,
-    text_label_info,
-    textdraw_info,
+    gangzone_info: snapshots::gangzone_info,
+    text_label_info: snapshots::text_label_info,
+    textdraw_info: snapshots::textdraw_info,
     player_defined,
     player_paused,
     remote_player_state,
@@ -230,7 +230,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_dialog_list_item_count,
     submit_set_textdraw_model_style,
     submit_local_chat_entry,
-    chat_entry_info,
+    chat_entry_info: snapshots::chat_entry_info,
     submit_create_text_label,
     local_dialog_snapshot,
     submit_local_dialog_editbox_text,
@@ -1737,118 +1737,6 @@ unsafe extern "system" fn player_max_id(output: *mut u16) -> SampClientSdkResult
     }
 }
 
-unsafe extern "system" fn gangzone_info(
-    id: u16,
-    output: *mut SampClientSdkGangzoneV1,
-) -> SampClientSdkResult {
-    if id >= MAX_SAMP_GANGZONES {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.gangzone(id) {
-        Ok(Some(snapshot)) => match conversions::gangzone_to_abi(snapshot) {
-            Ok(snapshot) => {
-                *output = snapshot;
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => {
-            *output = SampClientSdkGangzoneV1::default();
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn text_label_info(
-    id: u16,
-    output: *mut SampClientSdkTextLabelV1,
-) -> SampClientSdkResult {
-    if id >= MAX_SAMP_TEXT_LABELS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.text_label(id) {
-        Ok(Some(snapshot)) => match conversions::text_label_to_abi(snapshot) {
-            Ok(snapshot) => {
-                *output = snapshot;
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => {
-            *output = SampClientSdkTextLabelV1::default();
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn textdraw_info(
-    pool_index: u16,
-    output: *mut SampClientSdkTextDrawV1,
-) -> SampClientSdkResult {
-    if pool_index >= MAX_SAMP_TEXTDRAWS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.textdraw(pool_index) {
-        Ok(Some(snapshot)) => match conversions::textdraw_to_abi(snapshot) {
-            Ok(snapshot) => {
-                *output = snapshot;
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => {
-            *output = SampClientSdkTextDrawV1::default();
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn chat_entry_info(
-    id: u16,
-    output: *mut SampClientSdkChatEntryV1,
-) -> SampClientSdkResult {
-    if id >= MAX_SAMP_CHAT_ENTRIES {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.chat_entry(id) {
-        Ok(snapshot) => match conversions::chat_entry_to_abi(snapshot) {
-            Ok(snapshot) => {
-                *output = snapshot;
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn samp_version(output: *mut u32) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;
@@ -1985,7 +1873,11 @@ mod tests {
         ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
         TextLabelSnapshot, TextdrawSnapshot,
     };
-    use sdk_abi::{SampClientSdkCommandResultV1, limits::MAX_SAMP_OBJECTS};
+    use sdk_abi::{
+        SampClientSdkCommandResultV1, SampClientSdkGangzoneV1, SampClientSdkTextDrawV1,
+        SampClientSdkTextLabelV1,
+        limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
+    };
     use std::sync::{Arc, OnceLock};
 
     #[test]
@@ -2241,28 +2133,28 @@ mod tests {
         );
         let mut text_label = SampClientSdkTextLabelV1::default();
         assert_eq!(
-            unsafe { text_label_info(7, &mut text_label) },
+            unsafe { snapshots::text_label_info(7, &mut text_label) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { text_label_info(MAX_SAMP_TEXT_LABELS, &mut text_label) },
+            unsafe { snapshots::text_label_info(MAX_SAMP_TEXT_LABELS, &mut text_label) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { text_label_info(7, std::ptr::null_mut()) },
+            unsafe { snapshots::text_label_info(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut textdraw = SampClientSdkTextDrawV1::default();
         assert_eq!(
-            unsafe { textdraw_info(7, &mut textdraw) },
+            unsafe { snapshots::textdraw_info(7, &mut textdraw) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { textdraw_info(MAX_SAMP_TEXTDRAWS, &mut textdraw) },
+            unsafe { snapshots::textdraw_info(MAX_SAMP_TEXTDRAWS, &mut textdraw) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { textdraw_info(7, std::ptr::null_mut()) },
+            unsafe { snapshots::textdraw_info(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut textdraw_exists_output = 0;
@@ -2293,15 +2185,15 @@ mod tests {
         );
         let mut gangzone = SampClientSdkGangzoneV1::default();
         assert_eq!(
-            unsafe { gangzone_info(7, &mut gangzone) },
+            unsafe { snapshots::gangzone_info(7, &mut gangzone) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { gangzone_info(MAX_SAMP_GANGZONES, &mut gangzone) },
+            unsafe { snapshots::gangzone_info(MAX_SAMP_GANGZONES, &mut gangzone) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { gangzone_info(7, std::ptr::null_mut()) },
+            unsafe { snapshots::gangzone_info(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut server = SampClientSdkServerInfoV1::default();
