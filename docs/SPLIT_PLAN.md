@@ -1,6 +1,6 @@
 # Module Split Plan
 
-Status: active; Phase 1 started. Rust API paths may change when a clearer
+Status: active; Phase 3 in progress. Rust API paths may change when a clearer
 module boundary justifies it. ABI, native layouts, and runtime behavior remain
 unchanged unless a separate change explicitly says otherwise.
 
@@ -215,6 +215,7 @@ Progress:
 - [x] Extract command receipt polling, waiting, and release without moving the
   ABI table or command producers.
 - [x] Extract forward/reverse handle-cache reads without moving the ABI table.
+- [x] Extract bounded pool-existence reads without moving the ABI table.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.

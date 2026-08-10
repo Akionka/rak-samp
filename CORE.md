@@ -37,6 +37,7 @@
   direct and queued packet/RPC sends and incoming emulation;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
+  `host_api/pools.rs` owns bounded pool-existence reads.
 
 ## Process model
 

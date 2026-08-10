@@ -3,6 +3,7 @@ mod conversions;
 mod events;
 mod handles;
 mod network;
+mod pools;
 mod raw;
 
 use crate::{
@@ -14,8 +15,8 @@ use crate::{
 };
 use log::{debug, error, info};
 use sdk_abi::limits::{
-    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
-    MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
+    MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_GANGZONES, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES,
+    MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
@@ -169,11 +170,11 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     player_info,
     player_count,
     player_max_id,
-    vehicle_exists,
+    vehicle_exists: pools::vehicle_exists,
     active_local_dialog,
-    text_label_exists,
-    textdraw_exists,
-    object_exists,
+    text_label_exists: pools::text_label_exists,
+    textdraw_exists: pools::textdraw_exists,
+    object_exists: pools::object_exists,
     gangzone_info,
     text_label_info,
     textdraw_info,
@@ -1736,82 +1737,6 @@ unsafe extern "system" fn player_max_id(output: *mut u16) -> SampClientSdkResult
     }
 }
 
-unsafe extern "system" fn vehicle_exists(id: u16, output: *mut u8) -> SampClientSdkResult {
-    if id >= MAX_SAMP_VEHICLES {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.vehicle_exists(id) {
-        Ok(exists) => {
-            *output = u8::from(exists);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn text_label_exists(id: u16, output: *mut u8) -> SampClientSdkResult {
-    if id >= MAX_SAMP_TEXT_LABELS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.text_label_exists(id) {
-        Ok(exists) => {
-            *output = u8::from(exists);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn textdraw_exists(pool_index: u16, output: *mut u8) -> SampClientSdkResult {
-    if pool_index >= MAX_SAMP_TEXTDRAWS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.textdraw_exists(pool_index) {
-        Ok(exists) => {
-            *output = u8::from(exists);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn object_exists(id: u16, output: *mut u8) -> SampClientSdkResult {
-    if id >= MAX_SAMP_OBJECTS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.object_exists(id) {
-        Ok(exists) => {
-            *output = u8::from(exists);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn gangzone_info(
     id: u16,
     output: *mut SampClientSdkGangzoneV1,
@@ -2060,7 +1985,7 @@ mod tests {
         ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
         TextLabelSnapshot, TextdrawSnapshot,
     };
-    use sdk_abi::SampClientSdkCommandResultV1;
+    use sdk_abi::{SampClientSdkCommandResultV1, limits::MAX_SAMP_OBJECTS};
     use std::sync::{Arc, OnceLock};
 
     #[test]
@@ -2288,28 +2213,30 @@ mod tests {
         );
         let mut vehicle_exists_output = 0;
         assert_eq!(
-            unsafe { vehicle_exists(7, &mut vehicle_exists_output) },
+            unsafe { pools::vehicle_exists(7, &mut vehicle_exists_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { vehicle_exists(MAX_SAMP_VEHICLES, &mut vehicle_exists_output) },
+            unsafe { pools::vehicle_exists(MAX_SAMP_VEHICLES, &mut vehicle_exists_output) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { vehicle_exists(7, std::ptr::null_mut()) },
+            unsafe { pools::vehicle_exists(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut text_label_exists_output = 0;
         assert_eq!(
-            unsafe { text_label_exists(7, &mut text_label_exists_output) },
+            unsafe { pools::text_label_exists(7, &mut text_label_exists_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { text_label_exists(MAX_SAMP_TEXT_LABELS, &mut text_label_exists_output) },
+            unsafe {
+                pools::text_label_exists(MAX_SAMP_TEXT_LABELS, &mut text_label_exists_output)
+            },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { text_label_exists(7, std::ptr::null_mut()) },
+            unsafe { pools::text_label_exists(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut text_label = SampClientSdkTextLabelV1::default();
@@ -2340,28 +2267,28 @@ mod tests {
         );
         let mut textdraw_exists_output = 0;
         assert_eq!(
-            unsafe { textdraw_exists(7, &mut textdraw_exists_output) },
+            unsafe { pools::textdraw_exists(7, &mut textdraw_exists_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { textdraw_exists(MAX_SAMP_TEXTDRAWS, &mut textdraw_exists_output) },
+            unsafe { pools::textdraw_exists(MAX_SAMP_TEXTDRAWS, &mut textdraw_exists_output) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { textdraw_exists(7, std::ptr::null_mut()) },
+            unsafe { pools::textdraw_exists(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut object_exists_output = 0;
         assert_eq!(
-            unsafe { object_exists(7, &mut object_exists_output) },
+            unsafe { pools::object_exists(7, &mut object_exists_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { object_exists(MAX_SAMP_OBJECTS, &mut object_exists_output) },
+            unsafe { pools::object_exists(MAX_SAMP_OBJECTS, &mut object_exists_output) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { object_exists(7, std::ptr::null_mut()) },
+            unsafe { pools::object_exists(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut gangzone = SampClientSdkGangzoneV1::default();
