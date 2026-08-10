@@ -252,6 +252,8 @@ Progress:
 - Move each ABI table literal last and as one block.
 - [x] Extract SDK environment and server-state `HostApi` wrappers behind the
   unchanged root type and exports.
+- [x] Extract cached local UI and chat-input-state `HostApi` wrappers behind
+  the unchanged root type and exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
