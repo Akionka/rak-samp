@@ -20,7 +20,8 @@
   trampoline directly. RPC envelope helpers preserve optional timestamps and
   exact payload bit lengths across listener replacement. Native outgoing stream
   dispatch publishes listener mutations synchronously and fails open on rewrite
-  errors.
+  errors. Raw incoming packet dispatch validates packed metadata before copying
+  owned callback data; detours retain native packet ownership and deallocation.
 
 ## Process model
 

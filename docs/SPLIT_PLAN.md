@@ -185,6 +185,8 @@ Progress:
   preservation tests.
 - [x] Extract native packet/RPC stream dispatch without moving detours or hook
   ownership.
+- [x] Extract raw incoming-packet validation and dispatch without moving native
+  ownership or deallocation.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
