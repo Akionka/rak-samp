@@ -4772,7 +4772,7 @@ mod vtable_tests {
         let captured = Arc::clone(&state);
         clear_active_backend(&state);
         assert!(active_state().is_none());
-        assert!(call_outgoing_packet(
+        assert!(hooks::call_outgoing_packet(
             &captured,
             ptr::null_mut(),
             ptr::null_mut(),
@@ -5096,13 +5096,13 @@ unsafe extern "thiscall" fn outgoing_packet_detour(
         return false;
     };
     if !state.registry.has_packet_listener(Direction::Outgoing) {
-        return call_outgoing_packet(&state, client, native, priority, reliability, channel);
+        return hooks::call_outgoing_packet(&state, client, native, priority, reliability, channel);
     }
     let action = unsafe { hooks::dispatch_packet_stream(&state, Direction::Outgoing, native) };
     if action == HookAction::Block {
         return false;
     }
-    call_outgoing_packet(&state, client, native, priority, reliability, channel)
+    hooks::call_outgoing_packet(&state, client, native, priority, reliability, channel)
 }
 
 unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut RawPacket {
@@ -5144,17 +5144,17 @@ unsafe extern "thiscall" fn outgoing_rpc_detour(
         timestamp,
     };
     if id.is_null() {
-        return call_outgoing_rpc(&state, original_call);
+        return hooks::call_outgoing_rpc(&state, original_call);
     }
     if !state.registry.has_rpc_listener(Direction::Outgoing) {
-        return call_outgoing_rpc(&state, original_call);
+        return hooks::call_outgoing_rpc(&state, original_call);
     }
     let action =
         unsafe { hooks::dispatch_rpc_stream(&state, Direction::Outgoing, *id as u8, native) };
     if action == HookAction::Block {
         return false;
     }
-    call_outgoing_rpc(&state, original_call)
+    hooks::call_outgoing_rpc(&state, original_call)
 }
 
 unsafe extern "thiscall" fn incoming_rpc_detour(
@@ -5338,41 +5338,6 @@ unsafe fn write_protected<T>(address: *mut T, value: T) -> Result<(), AttachErro
         )
     };
     Ok(())
-}
-
-fn call_outgoing_packet(
-    state: &BackendState,
-    client: *mut c_void,
-    stream: *mut RawBitStream,
-    priority: i32,
-    reliability: i32,
-    channel: i8,
-) -> bool {
-    let original = state.outgoing_packet_original.load(Ordering::Acquire);
-    if original == 0 {
-        return false;
-    }
-    let original: OutgoingPacketFn = unsafe { mem::transmute(original) };
-    unsafe { original(client, stream, priority, reliability, channel) }
-}
-
-fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> bool {
-    let original = state.outgoing_rpc_original.load(Ordering::Acquire);
-    if original == 0 {
-        return false;
-    }
-    let original: OutgoingRpcFn = unsafe { mem::transmute(original) };
-    unsafe {
-        original(
-            call.client,
-            call.id,
-            call.stream,
-            call.priority,
-            call.reliability,
-            call.channel,
-            call.timestamp,
-        )
-    }
 }
 
 const fn priority_value(priority: PacketPriority) -> i32 {

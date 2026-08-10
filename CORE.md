@@ -22,7 +22,8 @@
   dispatch publishes listener mutations synchronously and fails open on rewrite
   errors. Raw incoming packet dispatch validates packed metadata before copying
   owned callback data; the incoming detour retains return/deallocate/retry
-  ownership through captured native-call wrappers.
+  ownership through captured native-call wrappers. Outgoing detours likewise
+  call captured originals through non-owning ABI wrappers after listener dispatch.
 
 ## Process model
 

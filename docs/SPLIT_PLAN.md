@@ -189,6 +189,8 @@ Progress:
   ownership or deallocation.
 - [x] Extract captured incoming receive/deallocation calls without moving detour
   ownership.
+- [x] Extract captured outgoing packet/RPC calls without moving detours or shared
+  ABI aliases.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing
