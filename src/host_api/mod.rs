@@ -209,9 +209,9 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_chat_display_mode,
     raw_rakpeer: raw::raw_rakpeer,
     submit_local_dialog_close,
-    submit_local_chat_input_text,
-    submit_local_chat_input_enabled,
-    submit_local_chat_input_process,
+    submit_local_chat_input_text: chat_input::submit_local_chat_input_text,
+    submit_local_chat_input_enabled: chat_input::submit_local_chat_input_enabled,
+    submit_local_chat_input_process: chat_input::submit_local_chat_input_process,
     local_chat_input_text: chat_input::local_chat_input_text,
     submit_player_colour,
     submit_local_player_name,
@@ -1245,71 +1245,6 @@ unsafe extern "system" fn submit_local_dialog_close(
         return SampClientSdkResult::NotReady;
     };
     match runtime.submit_local_dialog_close(button) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_chat_input_text(
-    text: *const u8,
-    text_len: usize,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_text(text) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_chat_input_enabled(
-    enabled: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || enabled > 1 {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_enabled(enabled != 0) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_chat_input_process(
-    text: *const u8,
-    text_len: usize,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_process(text) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
