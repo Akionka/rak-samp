@@ -324,8 +324,13 @@ Progress:
   `outgoing::vehicle`.
 - [x] Extract outgoing session and class-selection RPC codecs into
   `outgoing::session`.
-- Split packet/RPC codecs along existing protocol and gameplay boundaries.
+- [x] Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.
+
+The remaining `outgoing.rs` descriptors are intentionally root-owned singleton
+fixed-layout codecs. They share no protocol invariant beyond byte alignment;
+creating player, pickup, world, or camera modules for them would be name-driven
+rather than a cohesive ownership boundary.
 
 ### Phase 5 — Evaluate state decomposition
 
