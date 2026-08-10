@@ -280,6 +280,8 @@ Progress:
   and exports.
 - [x] Extract SDK connection-lifecycle command wrappers behind the unchanged
   root type and exports.
+- [x] Extract SDK local-dialog wrappers behind the unchanged root type and
+  exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
