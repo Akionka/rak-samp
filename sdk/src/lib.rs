@@ -2455,26 +2455,6 @@ impl HostApi {
         self.send_typed_packet(events::packet::outgoing::SEND_UNOCCUPIED_SYNC, sync)
     }
 
-    /// Sends a complete owned plugin-side bit stream as a packet payload.
-    pub fn send_packet_stream(
-        self,
-        packet_id: u8,
-        payload: &raknet::BitStream,
-        options: SampClientSdkSendOptions,
-    ) -> SampClientSdkResult {
-        self.send_packet(packet_id, payload.as_bytes(), payload.len_bits(), options)
-    }
-
-    /// Sends a complete owned plugin-side bit stream as an RPC payload.
-    pub fn send_rpc_stream(
-        self,
-        rpc_id: u8,
-        payload: &raknet::BitStream,
-        options: SampClientSdkSendOptions,
-    ) -> SampClientSdkResult {
-        self.send_rpc(rpc_id, payload.as_bytes(), payload.len_bits(), options)
-    }
-
     /// Queues an incoming packet for SA-MP after incoming plugin listeners run.
     ///
     /// `payload` excludes the packet ID. A listener may rewrite or block the event;

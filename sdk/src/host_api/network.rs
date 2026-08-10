@@ -1,5 +1,6 @@
 //! Low-level packet/RPC send `HostApi` wrappers.
 
+use crate::raknet::BitStream;
 use crate::{
     CommandReceipt, HostApi, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSendOptions,
@@ -34,6 +35,26 @@ impl HostApi {
         options: SampClientSdkSendOptions,
     ) -> SampClientSdkResult {
         unsafe { (self.raw.send_rpc)(rpc_id, payload.as_ptr(), payload.len(), bit_len, options) }
+    }
+
+    /// Sends a complete owned plugin-side bit stream as a packet payload.
+    pub fn send_packet_stream(
+        self,
+        packet_id: u8,
+        payload: &BitStream,
+        options: SampClientSdkSendOptions,
+    ) -> SampClientSdkResult {
+        self.send_packet(packet_id, payload.as_bytes(), payload.len_bits(), options)
+    }
+
+    /// Sends a complete owned plugin-side bit stream as an RPC payload.
+    pub fn send_rpc_stream(
+        self,
+        rpc_id: u8,
+        payload: &BitStream,
+        options: SampClientSdkSendOptions,
+    ) -> SampClientSdkResult {
+        self.send_rpc(rpc_id, payload.as_bytes(), payload.len_bits(), options)
     }
 
     /// Copies and queues a server-bound packet, returning its game-thread completion receipt.
