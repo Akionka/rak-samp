@@ -193,6 +193,8 @@ Progress:
   ABI aliases.
 - [x] Extract outgoing packet/RPC detours without moving vtable hook ownership.
 - [x] Extract the incoming packet detour without moving vtable hook ownership.
+- [x] Extract the incoming RPC detour without moving inline-hook lifecycle or
+  its shared ABI alias.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

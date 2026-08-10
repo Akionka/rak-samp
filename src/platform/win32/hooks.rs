@@ -1,8 +1,8 @@
 //! Native packet and RPC listener dispatch helpers.
 
 use super::{
-    BackendState, OutgoingPacketFn, OutgoingRpcFn, RawBitStream, RawPacket, active_state,
-    packet_stream, remaining_stream_bounded,
+    BackendState, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn, RawBitStream, RawPacket,
+    RpcPlayerId, active_state, packet_stream, packets, remaining_stream_bounded,
 };
 use crate::{BitStream, Direction, event::HookAction};
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
@@ -276,4 +276,45 @@ pub(super) unsafe extern "thiscall" fn incoming_packet_detour(
         }
         deallocate_packet(&state, client, packet);
     }
+}
+
+pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
+    receiver: *mut c_void,
+    data: *mut u8,
+    length: i32,
+    player: RpcPlayerId,
+) -> bool {
+    let Some(state) = active_state() else {
+        return false;
+    };
+    state
+        .rpc_receiver
+        .store(receiver as usize, Ordering::Release);
+    state
+        .player_address
+        .store(player.binary_address, Ordering::Release);
+    state.player_port.store(player.port, Ordering::Release);
+    let original = state.incoming_rpc_trampoline.load(Ordering::Acquire);
+    if original == 0 || data.is_null() || length < 0 {
+        return false;
+    }
+    let original: IncomingRpcFn = unsafe { mem::transmute(original) };
+    let input = unsafe { slice::from_raw_parts(data, length as usize) };
+    if !state.registry.has_rpc_listener(Direction::Incoming) {
+        return unsafe { original(receiver, data, length, player) };
+    }
+    let Ok((rpc_id, mut payload, timestamp)) = packets::parse_rpc_envelope(input) else {
+        return unsafe { original(receiver, data, length, player) };
+    };
+    if state
+        .registry
+        .dispatch_rpc(Direction::Incoming, rpc_id, &mut payload)
+        == HookAction::Block
+    {
+        return false;
+    }
+    let Ok(mut output) = packets::build_rpc_envelope(rpc_id, &payload, timestamp) else {
+        return unsafe { original(receiver, data, length, player) };
+    };
+    unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }

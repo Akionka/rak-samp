@@ -19,9 +19,9 @@ mod textdraws;
 mod vehicles;
 
 use crate::{
-    AddressSet, AttachError, BitStream, Direction, SampVersion, SendError, SendOptions,
+    AddressSet, AttachError, BitStream, SampVersion, SendError, SendOptions,
     command::{CommandError, CommandId, CommandQueue, QueuedCommand},
-    event::{HookAction, Registry},
+    event::Registry,
     runtime::{
         AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError, DirectClientError,
         GangzoneSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
@@ -1282,12 +1282,14 @@ impl BackendState {
         }
 
         let incoming_target = self.module_base + self.addresses.incoming_rpc_handler as usize;
-        let (mut incoming_rpc, trampoline) =
-            InlineHook::create(incoming_target, incoming_rpc_detour as *const () as usize)
-                .map_err(|_| {
-                    self.rak_client.store(0, Ordering::Release);
-                    AttachError::HookInstallFailed("incoming RPC detour")
-                })?;
+        let (mut incoming_rpc, trampoline) = InlineHook::create(
+            incoming_target,
+            hooks::incoming_rpc_detour as *const () as usize,
+        )
+        .map_err(|_| {
+            self.rak_client.store(0, Ordering::Release);
+            AttachError::HookInstallFailed("incoming RPC detour")
+        })?;
         self.incoming_rpc_trampoline
             .store(trampoline, Ordering::Release);
         if incoming_rpc.enable().is_err() {
@@ -3767,7 +3769,7 @@ mod layout_tests {
 #[cfg(test)]
 mod vtable_tests {
     use super::*;
-    use crate::command::GAME_COMMAND_QUEUE_CAPACITY;
+    use crate::{Direction, command::GAME_COMMAND_QUEUE_CAPACITY, event::HookAction};
     use std::sync::atomic::{AtomicBool, AtomicU32};
 
     const FAKE_VTABLE_SLOTS: usize = 55;
@@ -5075,47 +5077,6 @@ unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     }
     let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
     unsafe { state.run_game_process_tick(game, original) };
-}
-
-unsafe extern "thiscall" fn incoming_rpc_detour(
-    receiver: *mut c_void,
-    data: *mut u8,
-    length: i32,
-    player: RpcPlayerId,
-) -> bool {
-    let Some(state) = active_state() else {
-        return false;
-    };
-    state
-        .rpc_receiver
-        .store(receiver as usize, Ordering::Release);
-    state
-        .player_address
-        .store(player.binary_address, Ordering::Release);
-    state.player_port.store(player.port, Ordering::Release);
-    let original = state.incoming_rpc_trampoline.load(Ordering::Acquire);
-    if original == 0 || data.is_null() || length < 0 {
-        return false;
-    }
-    let original: IncomingRpcFn = unsafe { mem::transmute(original) };
-    let input = unsafe { slice::from_raw_parts(data, length as usize) };
-    if !state.registry.has_rpc_listener(Direction::Incoming) {
-        return unsafe { original(receiver, data, length, player) };
-    }
-    let Ok((rpc_id, mut payload, timestamp)) = packets::parse_rpc_envelope(input) else {
-        return unsafe { original(receiver, data, length, player) };
-    };
-    if state
-        .registry
-        .dispatch_rpc(Direction::Incoming, rpc_id, &mut payload)
-        == HookAction::Block
-    {
-        return false;
-    }
-    let Ok(mut output) = packets::build_rpc_envelope(rpc_id, &payload, timestamp) else {
-        return unsafe { original(receiver, data, length, player) };
-    };
-    unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }
 
 #[cfg(test)]
