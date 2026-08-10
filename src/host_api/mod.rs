@@ -25,14 +25,17 @@ use crate::{
     },
 };
 use log::{debug, error, info};
-use sdk_abi::limits::{MAX_SAMP_PLAYERS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES};
+use sdk_abi::limits::{MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES};
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkCommandReceipt, SampClientSdkDirection,
     SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkHookAction,
     SampClientSdkHostStatus, SampClientSdkResult, SampClientSdkSubscription,
 };
 #[cfg(test)]
-use sdk_abi::{Vector3, limits::MAX_SAMP_TEXT_LABELS};
+use sdk_abi::{
+    Vector3,
+    limits::{MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABELS},
+};
 use std::{
     collections::HashMap,
     ffi::c_void,
@@ -216,8 +219,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_chat_input_enabled: chat_input::submit_local_chat_input_enabled,
     submit_local_chat_input_process: chat_input::submit_local_chat_input_process,
     local_chat_input_text: chat_input::local_chat_input_text,
-    submit_player_colour,
-    submit_local_player_name,
+    submit_player_colour: player_commands::submit_player_colour,
+    submit_local_player_name: player_commands::submit_local_player_name,
     submit_force_unoccupied_sync,
     submit_connect_to_server: connection::submit_connect_to_server,
     submit_disconnect_with_reason: connection::submit_disconnect_with_reason,
@@ -598,49 +601,6 @@ unsafe extern "system" fn submit_samp_game_state(
         return SampClientSdkResult::NotReady;
     };
     match runtime.submit_samp_game_state(state) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_player_colour(
-    id: u16,
-    colour: u32,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || id >= MAX_SAMP_PLAYERS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_player_colour(id, colour) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_player_name(
-    name: *const u8,
-    name_len: usize,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, 255) }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_player_name(name) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok
