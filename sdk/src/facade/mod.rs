@@ -4,8 +4,8 @@ use crate::{
     ChatEntry, CommandReceipt, Gangzone, HostApi, LocalAnimation, LocalChatDisplayMode,
     LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogState,
     LocalPlayer, PlayerInfo, RemotePlayerState, ResolveError, SampClientSdkClientVersion,
-    SampClientSdkHostStatus, SampClientSdkResult, SampGameState, ServerInfo, SpecialAction,
-    TextDraw, TextLabel,
+    SampClientSdkHostStatus, SampClientSdkResult, SampGameState, SpecialAction, TextDraw,
+    TextLabel,
     limits::{
         MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS,
         MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
@@ -14,7 +14,7 @@ use crate::{
 use std::time::Duration;
 
 mod network;
-pub use network::Net;
+pub use network::{Net, Server};
 
 macro_rules! bounded_id {
     ($name:ident, $maximum:ident, $docs:literal) => {
@@ -162,7 +162,7 @@ impl Samp {
 
     #[must_use]
     pub fn server(self) -> Server {
-        Server { api: self.api }
+        Server::from_api(self.api)
     }
 
     #[must_use]
@@ -268,29 +268,6 @@ impl Probe {
     #[must_use]
     pub fn is_samp_available(self) -> bool {
         self.api.is_samp_available()
-    }
-}
-
-#[derive(Clone, Copy)]
-pub struct Server {
-    api: HostApi,
-}
-
-impl Server {
-    pub fn info(self) -> Result<ServerInfo, SampClientSdkResult> {
-        self.api.server_info()
-    }
-
-    pub fn hostname(self) -> Result<Vec<u8>, SampClientSdkResult> {
-        self.info().map(|info| info.hostname)
-    }
-
-    pub fn address(self) -> Result<Vec<u8>, SampClientSdkResult> {
-        self.info().map(|info| info.address)
-    }
-
-    pub fn port(self) -> Result<u16, SampClientSdkResult> {
-        self.info().map(|info| info.port)
     }
 }
 

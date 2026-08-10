@@ -1,7 +1,7 @@
 use crate::{
     CommandReceipt, HostApi, SampClientSdkDirection, SampClientSdkEncodedString,
     SampClientSdkHookAction, SampClientSdkResult, SampClientSdkSendOptions, SendRateKind,
-    Subscription,
+    ServerInfo, Subscription,
 };
 
 /// Safe networking and subscription operations.
@@ -584,5 +584,33 @@ impl Net {
         F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
     {
         self.api.on_typed_rpc(direction, rpc, handler)
+    }
+}
+
+/// Safe server metadata reads.
+#[derive(Clone, Copy)]
+pub struct Server {
+    api: HostApi,
+}
+
+impl Server {
+    pub(super) const fn from_api(api: HostApi) -> Self {
+        Self { api }
+    }
+
+    pub fn info(self) -> Result<ServerInfo, SampClientSdkResult> {
+        self.api.server_info()
+    }
+
+    pub fn hostname(self) -> Result<Vec<u8>, SampClientSdkResult> {
+        self.info().map(|info| info.hostname)
+    }
+
+    pub fn address(self) -> Result<Vec<u8>, SampClientSdkResult> {
+        self.info().map(|info| info.address)
+    }
+
+    pub fn port(self) -> Result<u16, SampClientSdkResult> {
+        self.info().map(|info| info.port)
     }
 }
