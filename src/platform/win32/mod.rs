@@ -142,12 +142,17 @@ pub(crate) struct Backend {
     state: Arc<BackendState>,
 }
 
-struct BackendState {
+/// Immutable configuration captured when the native backend attaches.
+struct BackendContext {
     registry: Arc<Registry>,
     module_base: usize,
     version: SampVersion,
     addresses: AddressSet,
     r1_client: Option<R1ClientProfile>,
+}
+
+struct BackendState {
+    context: BackendContext,
     rak_client: AtomicUsize,
     raw_player_pool: AtomicUsize,
     raw_vehicle_pool: AtomicUsize,
@@ -230,6 +235,14 @@ struct BackendState {
     animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
     cache_generation: AtomicU64,
     hooks: Mutex<HookStorage>,
+}
+
+impl std::ops::Deref for BackendState {
+    type Target = BackendContext;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
 }
 
 #[derive(Clone)]
@@ -449,11 +462,13 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     }
 
     let state = Arc::new(BackendState {
-        registry,
-        module_base,
-        version,
-        addresses,
-        r1_client,
+        context: BackendContext {
+            registry,
+            module_base,
+            version,
+            addresses,
+            r1_client,
+        },
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),
@@ -3802,11 +3817,13 @@ mod vtable_tests {
 
     fn test_backend_state() -> BackendState {
         BackendState {
-            registry: Registry::new(),
-            module_base: 0,
-            version: SampVersion::R1,
-            addresses: AddressSet::for_version(SampVersion::R1),
-            r1_client: None,
+            context: BackendContext {
+                registry: Registry::new(),
+                module_base: 0,
+                version: SampVersion::R1,
+                addresses: AddressSet::for_version(SampVersion::R1),
+                r1_client: None,
+            },
             rak_client: AtomicUsize::new(0),
             raw_player_pool: AtomicUsize::new(0),
             raw_vehicle_pool: AtomicUsize::new(0),
@@ -4064,7 +4081,7 @@ mod vtable_tests {
     #[test]
     fn handle_reads_are_deduplicated_queued_and_published_per_pump() {
         let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
         state.rak_client.store(0x1000, Ordering::Release);
         state.cache_generation.store(2, Ordering::Release);
 
@@ -4095,7 +4112,7 @@ mod vtable_tests {
     #[test]
     fn handle_reverse_requests_are_deduplicated() {
         let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
         state.rak_client.store(0x1000, Ordering::Release);
         state.cache_generation.store(2, Ordering::Release);
 
@@ -4169,7 +4186,7 @@ mod vtable_tests {
     #[test]
     fn dialog_editbox_text_command_is_bounded_and_queued() {
         let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
         state.rak_client.store(0x1000, Ordering::Release);
         let mut oversized = vec![b'x'; 129];
         oversized.push(0);
@@ -4596,7 +4613,7 @@ mod vtable_tests {
     #[test]
     fn chat_entry_reads_queue_unknown_and_return_published_snapshot() {
         let mut state = test_backend_state();
-        state.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+        state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
         state.rak_client.store(0x1000, Ordering::Release);
         state.cache_generation.store(2, Ordering::Release);
 

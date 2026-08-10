@@ -336,6 +336,11 @@ by each module. Split `BackendState` only when a proposed sub-state:
 Potential groups such as context, hook state, request queues, and cache store
 remain hypotheses until this review.
 
+- [x] Extract immutable attach-time configuration into `BackendContext`.
+- [x] Keep hooks, command and request queues, caches, tick publication,
+  connection invalidation, and shutdown in `BackendState`: their shared
+  ordering and synchronization remain one invariant.
+
 ### Phase 6 — Redistribute tests and finish documentation
 
 - Move narrow unit tests beside stable leaf modules.
