@@ -1,6 +1,7 @@
 //! Outgoing client-to-server RPC helpers.
 
 pub mod chat;
+pub mod connection;
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
@@ -36,18 +37,6 @@ pub struct DeathNotification {
 pub struct ClickPlayer {
     pub player_id: u16,
     pub source: u8,
-}
-
-/// MoonLoader's `onSendClientJoin` payload (RPC 25).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ClientJoin {
-    pub version: i32,
-    pub mod_id: u8,
-    pub nickname: Vec<u8>,
-    pub challenge_response: i32,
-    pub join_auth_key: Vec<u8>,
-    pub client_version: Vec<u8>,
-    pub challenge_response2: i32,
 }
 
 /// MoonLoader's `onSendEnterEditObject` payload (RPC 27).
@@ -132,15 +121,6 @@ pub struct MoneyIncrease {
     pub increase_type: i32,
 }
 
-/// MoonLoader's `onSendNPCJoin` payload (RPC 54).
-#[derive(Clone, Debug, PartialEq)]
-pub struct NpcJoin {
-    pub version: i32,
-    pub mod_id: u8,
-    pub nickname: Vec<u8>,
-    pub challenge_response: i32,
-}
-
 /// MoonLoader's `onSendCameraTargetUpdate` payload (RPC 168).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct CameraTargetUpdate {
@@ -195,7 +175,6 @@ pub const SEND_CLICK_TEXT_DRAW: Rpc<u16> = Rpc::new(83, decode_u16, encode_u16);
 /// The `onSendUpdateScoresAndPings` descriptor.
 pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
 /// The `onSendClientJoin` descriptor.
-pub const SEND_CLIENT_JOIN: Rpc<ClientJoin> = Rpc::new(25, decode_client_join, encode_client_join);
 /// The `onSendEnterEditObject` descriptor.
 pub const SEND_ENTER_EDIT_OBJECT: Rpc<EnterEditObject> =
     Rpc::new(27, decode_enter_edit_object, encode_enter_edit_object);
@@ -203,7 +182,6 @@ pub const SEND_ENTER_EDIT_OBJECT: Rpc<EnterEditObject> =
 pub const SEND_MONEY_INCREASE: Rpc<MoneyIncrease> =
     Rpc::new(31, decode_money_increase, encode_money_increase);
 /// The `onSendNPCJoin` descriptor.
-pub const SEND_NPC_JOIN: Rpc<NpcJoin> = Rpc::new(54, decode_npc_join, encode_npc_join);
 /// The `onSendVehicleTuningNotification` descriptor.
 pub const SEND_VEHICLE_TUNING: Rpc<VehicleTuning> =
     Rpc::new(96, decode_vehicle_tuning, encode_vehicle_tuning);
@@ -343,12 +321,6 @@ rpc_helper!(
     "onSendUpdateScoresAndPings"
 );
 rpc_helper!(
-    on_send_client_join,
-    ClientJoin,
-    SEND_CLIENT_JOIN,
-    "onSendClientJoin"
-);
-rpc_helper!(
     on_send_enter_edit_object,
     EnterEditObject,
     SEND_ENTER_EDIT_OBJECT,
@@ -360,7 +332,6 @@ rpc_helper!(
     SEND_MONEY_INCREASE,
     "onSendMoneyIncreaseNotification"
 );
-rpc_helper!(on_send_npc_join, NpcJoin, SEND_NPC_JOIN, "onSendNPCJoin");
 rpc_helper!(
     on_send_vehicle_tuning,
     VehicleTuning,
@@ -513,30 +484,6 @@ fn encode_click_player(value: ClickPlayer) -> Result<Vec<u8>, EventError> {
     Ok(writer.finish())
 }
 
-fn decode_client_join(event: &mut Event<'_>) -> Result<ClientJoin, EventError> {
-    Ok(ClientJoin {
-        version: decode_i32(event)?,
-        mod_id: event.read_u8()?,
-        nickname: event.read_string8()?,
-        challenge_response: decode_i32(event)?,
-        join_auth_key: event.read_string8()?,
-        client_version: event.read_string8()?,
-        challenge_response2: decode_i32(event)?,
-    })
-}
-
-fn encode_client_join(value: ClientJoin) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.version as u32);
-    writer.u8(value.mod_id);
-    writer.string8(&value.nickname)?;
-    writer.u32(value.challenge_response as u32);
-    writer.string8(&value.join_auth_key)?;
-    writer.string8(&value.client_version)?;
-    writer.u32(value.challenge_response2 as u32);
-    Ok(writer.finish())
-}
-
 fn decode_enter_edit_object(event: &mut Event<'_>) -> Result<EnterEditObject, EventError> {
     Ok(EnterEditObject {
         object_type: decode_i32(event)?,
@@ -566,24 +513,6 @@ fn encode_money_increase(value: MoneyIncrease) -> Result<Vec<u8>, EventError> {
     let mut writer = PayloadWriter::new();
     writer.u32(value.amount as u32);
     writer.u32(value.increase_type as u32);
-    Ok(writer.finish())
-}
-
-fn decode_npc_join(event: &mut Event<'_>) -> Result<NpcJoin, EventError> {
-    Ok(NpcJoin {
-        version: decode_i32(event)?,
-        mod_id: event.read_u8()?,
-        nickname: event.read_string8()?,
-        challenge_response: decode_i32(event)?,
-    })
-}
-
-fn encode_npc_join(value: NpcJoin) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.version as u32);
-    writer.u8(value.mod_id);
-    writer.string8(&value.nickname)?;
-    writer.u32(value.challenge_response as u32);
     Ok(writer.finish())
 }
 

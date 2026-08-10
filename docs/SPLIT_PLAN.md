@@ -306,6 +306,8 @@ Progress:
 
 - [x] Extract outgoing chat and slash-command RPC codecs into
   `events::rpc::outgoing::chat`.
+- [x] Extract outgoing client and NPC join RPC codecs into
+  `events::rpc::outgoing::connection`.
 - [x] Extract the safe `Net` facade view into `facade::network`.
 - [x] Group the safe server metadata view with the network facade.
 - Group facade views by networking, local/player, pool, and UI domains.

@@ -730,10 +730,10 @@ fn fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
 #[test]
 fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
     let descriptors = [
-        (outgoing::SEND_CLIENT_JOIN.id(), 25),
+        (outgoing::connection::SEND_CLIENT_JOIN.id(), 25),
         (outgoing::SEND_ENTER_EDIT_OBJECT.id(), 27),
         (outgoing::SEND_MONEY_INCREASE.id(), 31),
-        (outgoing::SEND_NPC_JOIN.id(), 54),
+        (outgoing::connection::SEND_NPC_JOIN.id(), 54),
         (outgoing::SEND_VEHICLE_TUNING.id(), 96),
         (outgoing::SEND_PICKED_UP_WEAPON.id(), 97),
         (outgoing::SEND_SERVER_STATISTICS_REQUEST.id(), 102),
