@@ -1,6 +1,6 @@
 # Module Split Plan
 
-Status: active; Phase 3 in progress. Rust API paths may change when a clearer
+Status: active; Phase 4 in progress. Rust API paths may change when a clearer
 module boundary justifies it. ABI, native layouts, and runtime behavior remain
 unchanged unless a separate change explicitly says otherwise.
 
@@ -249,7 +249,7 @@ Progress:
   network send-rate or chat-entry mutations.
 - [x] Extract textdraw command producers without moving textdraw reads or the
   ABI table.
-- Move each ABI table literal last and as one block.
+- [x] Move each ABI table literal last and as one block.
 - [x] Extract SDK environment and server-state `HostApi` wrappers behind the
   unchanged root type and exports.
 - [x] Extract cached local UI and chat-input-state `HostApi` wrappers behind
@@ -300,7 +300,7 @@ Progress:
 - [x] Split SDK host-wrapper methods behind unchanged root exports; retain
   lifecycle internals, shared receipt conversion, and four heterogeneous
   singleton commands at the root.
-- Verify DLL exports around host module-wiring changes.
+- [x] Verify DLL exports around host module-wiring changes.
 
 ### Phase 4 — Split facade and codecs
 
