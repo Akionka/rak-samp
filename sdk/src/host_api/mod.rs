@@ -6,6 +6,7 @@ mod environment;
 mod events;
 mod handles;
 mod local_state;
+mod messages;
 mod network;
 mod raw;
 mod status;
