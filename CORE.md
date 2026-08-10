@@ -31,7 +31,8 @@
   root-owned client-hook setup. Hook installation and restoration remain
   root-owned. Host ABI entry points and the ordered V1 table remain in
   `host_api/mod.rs`; `host_api/conversions.rs` converts owned runtime snapshots
-  into fixed C-compatible output storage.
+  into fixed C-compatible output storage, while `host_api/raw.rs` owns the
+  opaque native-address entry points.
 
 ## Process model
 

@@ -1,4 +1,5 @@
 mod conversions;
+mod raw;
 
 use crate::{
     AttachError, BitStream, BitStreamError, Direction, HookAction, ListenerHandle, PacketPriority,
@@ -189,20 +190,20 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_rpc,
     submit_emulate_incoming_packet,
     submit_emulate_incoming_rpc,
-    raw_rakclient,
-    raw_player_pool,
-    raw_vehicle_pool,
+    raw_rakclient: raw::raw_rakclient,
+    raw_player_pool: raw::raw_player_pool,
+    raw_vehicle_pool: raw::raw_vehicle_pool,
     submit_local_cursor_mode,
     submit_local_scoreboard_open,
     submit_local_dialog_client_side,
     submit_samp_game_state,
-    raw_local_player,
+    raw_local_player: raw::raw_local_player,
     submit_local_player_spawn,
     submit_local_player_special_action,
     submit_send_rate,
     submit_local_cursor_toggle,
     submit_local_chat_display_mode,
-    raw_rakpeer,
+    raw_rakpeer: raw::raw_rakpeer,
     submit_local_dialog_close,
     submit_local_chat_input_text,
     submit_local_chat_input_enabled,
@@ -591,44 +592,6 @@ unsafe extern "system" fn submit_emulate_incoming_rpc(
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
     submit_emulate_incoming(id, data, byte_len, bit_len, ListenerKind::Rpc, receipt)
-}
-
-unsafe extern "system" fn raw_rakclient(output: *mut *mut c_void) -> SampClientSdkResult {
-    raw_native_address(output, Runtime::raw_rakclient)
-}
-
-unsafe extern "system" fn raw_rakpeer(output: *mut *mut c_void) -> SampClientSdkResult {
-    raw_native_address(output, Runtime::raw_rakpeer)
-}
-
-unsafe extern "system" fn raw_player_pool(output: *mut *mut c_void) -> SampClientSdkResult {
-    raw_native_address(output, Runtime::raw_player_pool)
-}
-
-unsafe extern "system" fn raw_vehicle_pool(output: *mut *mut c_void) -> SampClientSdkResult {
-    raw_native_address(output, Runtime::raw_vehicle_pool)
-}
-
-unsafe extern "system" fn raw_local_player(output: *mut *mut c_void) -> SampClientSdkResult {
-    raw_native_address(output, Runtime::raw_local_player)
-}
-
-fn raw_native_address(
-    output: *mut *mut c_void,
-    lookup: fn(&Runtime) -> Option<*mut c_void>,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    *output = ptr::null_mut();
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let Some(address) = lookup(&runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    *output = address;
-    SampClientSdkResult::Ok
 }
 
 unsafe extern "system" fn event_replace_bytes(
