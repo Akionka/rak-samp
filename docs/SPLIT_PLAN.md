@@ -297,7 +297,9 @@ Progress:
   wrapper module.
 - [x] Extract SDK shared typed-send helpers into the existing network wrapper
   module.
-- Split SDK host-wrapper methods behind unchanged root exports.
+- [x] Split SDK host-wrapper methods behind unchanged root exports; retain
+  lifecycle internals, shared receipt conversion, and four heterogeneous
+  singleton commands at the root.
 - Verify DLL exports around host module-wiring changes.
 
 ### Phase 4 — Split facade and codecs
