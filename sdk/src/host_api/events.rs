@@ -1,11 +1,81 @@
 //! Packet/RPC listener-registration `HostApi` wrappers.
 
 use crate::{
-    CallbackState, HostApi, RegisterListener, SampClientSdkDirection, SampClientSdkHookAction,
+    CallbackState, HostApi, MAX_RAKNET_DECODED_STRING_BYTES, RegisterListener,
+    SampClientSdkDirection, SampClientSdkEncodedString, SampClientSdkHookAction,
     SampClientSdkResult, SampClientSdkSubscription, Subscription, dispatch_callback, events,
 };
 
 impl HostApi {
+    /// Encodes a NUL-free byte string with the current SA-MP client's RakNet compressor.
+    pub fn encode_string(
+        self,
+        value: &[u8],
+    ) -> Result<SampClientSdkEncodedString, SampClientSdkResult> {
+        let capacity_bits = value
+            .len()
+            .checked_mul(16)
+            .and_then(|bits| bits.checked_add(16))
+            .ok_or(SampClientSdkResult::PayloadTooLarge)?;
+        let mut bytes = vec![0_u8; capacity_bits.div_ceil(u8::BITS as usize)];
+        let mut bit_len = 0;
+        let result = unsafe {
+            (self.raw.encode_string)(
+                value.as_ptr(),
+                value.len(),
+                bytes.as_mut_ptr(),
+                bytes.len(),
+                &raw mut bit_len,
+            )
+        };
+        if result != SampClientSdkResult::Ok {
+            return Err(result);
+        }
+        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
+            return Err(SampClientSdkResult::NativeCallFailed);
+        }
+        bytes.truncate(bit_len.div_ceil(u8::BITS as usize));
+        Ok(SampClientSdkEncodedString { bytes, bit_len })
+    }
+
+    /// Decodes one native RakNet-compressed string from an owned bit stream.
+    ///
+    /// On success, advances `stream`'s read cursor by exactly the bits the
+    /// client decoder consumed. The returned byte string has no terminating
+    /// NUL and is bounded to [`MAX_RAKNET_DECODED_STRING_BYTES`]. On failure,
+    /// the stream cursor is unchanged.
+    pub fn decode_string(
+        self,
+        stream: &mut crate::raknet::BitStream,
+    ) -> Result<Vec<u8>, SampClientSdkResult> {
+        let mut output = vec![0_u8; MAX_RAKNET_DECODED_STRING_BYTES + 1];
+        let mut output_len = 0_usize;
+        let mut output_read_offset = 0_usize;
+        let result = unsafe {
+            (self.raw.decode_string)(
+                stream.as_bytes().as_ptr(),
+                stream.len_bytes(),
+                stream.len_bits(),
+                stream.read_offset_bits(),
+                output.as_mut_ptr(),
+                output.len(),
+                &raw mut output_len,
+                &raw mut output_read_offset,
+            )
+        };
+        if result != SampClientSdkResult::Ok {
+            return Err(result);
+        }
+        if output_len > MAX_RAKNET_DECODED_STRING_BYTES || output_read_offset > stream.len_bits() {
+            return Err(SampClientSdkResult::NativeCallFailed);
+        }
+        stream
+            .set_read_offset(output_read_offset)
+            .map_err(|_| SampClientSdkResult::NativeCallFailed)?;
+        output.truncate(output_len);
+        Ok(output)
+    }
+
     /// Registers a packet callback.
     ///
     /// The callback receives a view that is valid only for that invocation. Use typed packet
