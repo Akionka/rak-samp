@@ -314,6 +314,7 @@ Progress:
 - [x] Group the safe server metadata view with the network facade.
 - [x] Extract local/player and animation facade views into
   `facade::local_player`.
+- [x] Extract pooled facade views into `facade::pools`.
 - Group facade views by networking, local/player, pool, and UI domains.
 - Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.

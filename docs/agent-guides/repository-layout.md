@@ -6,7 +6,7 @@
 | Runtime events and bit streams | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` |
 | Networking offsets | `src/client.rs` |
 | Native hooks and R1 bridge | `src/platform/win32.rs`, `src/platform/win32/r1_client.rs` |
-| Public SDK and safe facades | `sdk/src/lib.rs`, `sdk/src/facade/mod.rs`, `sdk/src/facade/local_player.rs`, `sdk/src/facade/network.rs`, `sdk/src/raknet.rs` |
+| Public SDK and safe facades | `sdk/src/lib.rs`, `sdk/src/facade/mod.rs`, `sdk/src/facade/local_player.rs`, `sdk/src/facade/network.rs`, `sdk/src/facade/pools.rs`, `sdk/src/raknet.rs` |
 | Explicit unsafe native-address API | `sdk/src/raw.rs` |
 | Typed RPC and packet helpers | `sdk/src/events/` |
 | Minimal and chat-command plugins | `examples/` |
