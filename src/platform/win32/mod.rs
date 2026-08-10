@@ -5027,8 +5027,6 @@ type StringReadDecoderFn =
     unsafe extern "thiscall" fn(*mut c_void, *mut i8, i32, *mut RawBitStream, i32) -> bool;
 type OutgoingPacketFn =
     unsafe extern "thiscall" fn(*mut c_void, *mut RawBitStream, i32, i32, i8) -> bool;
-type IncomingPacketFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut RawPacket;
-type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacket);
 type OutgoingRpcFn = unsafe extern "thiscall" fn(
     *mut c_void,
     *mut i32,
@@ -5112,7 +5110,7 @@ unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut 
         return ptr::null_mut();
     };
     loop {
-        let packet = call_incoming_packet(&state, client);
+        let packet = hooks::call_incoming_packet(&state, client);
         if packet.is_null() {
             return packet;
         }
@@ -5120,7 +5118,7 @@ unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut 
         if action == HookAction::Continue {
             return packet;
         }
-        deallocate_packet(&state, client, packet);
+        hooks::deallocate_packet(&state, client, packet);
     }
 }
 
@@ -5356,23 +5354,6 @@ fn call_outgoing_packet(
     }
     let original: OutgoingPacketFn = unsafe { mem::transmute(original) };
     unsafe { original(client, stream, priority, reliability, channel) }
-}
-
-fn call_incoming_packet(state: &BackendState, client: *mut c_void) -> *mut RawPacket {
-    let original = state.incoming_packet_original.load(Ordering::Acquire);
-    if original == 0 {
-        return ptr::null_mut();
-    }
-    let original: IncomingPacketFn = unsafe { mem::transmute(original) };
-    unsafe { original(client) }
-}
-
-fn deallocate_packet(state: &BackendState, client: *mut c_void, packet: *mut RawPacket) {
-    let original = state.deallocate_packet_original.load(Ordering::Acquire);
-    if original != 0 {
-        let original: DeallocatePacketFn = unsafe { mem::transmute(original) };
-        unsafe { original(client, packet) };
-    }
 }
 
 fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> bool {

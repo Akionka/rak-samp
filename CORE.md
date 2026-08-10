@@ -21,7 +21,8 @@
   exact payload bit lengths across listener replacement. Native outgoing stream
   dispatch publishes listener mutations synchronously and fails open on rewrite
   errors. Raw incoming packet dispatch validates packed metadata before copying
-  owned callback data; detours retain native packet ownership and deallocation.
+  owned callback data; the incoming detour retains return/deallocate/retry
+  ownership through captured native-call wrappers.
 
 ## Process model
 

@@ -187,6 +187,8 @@ Progress:
   ownership.
 - [x] Extract raw incoming-packet validation and dispatch without moving native
   ownership or deallocation.
+- [x] Extract captured incoming receive/deallocation calls without moving detour
+  ownership.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

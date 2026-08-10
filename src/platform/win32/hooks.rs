@@ -2,9 +2,12 @@
 
 use super::{BackendState, RawBitStream, RawPacket, packet_stream, remaining_stream_bounded};
 use crate::{BitStream, Direction, event::HookAction};
-use std::{ptr, slice, sync::atomic::Ordering};
+use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
 
 pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
+
+type IncomingPacketFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut RawPacket;
+type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacket);
 
 pub(super) unsafe fn dispatch_packet_stream(
     state: &BackendState,
@@ -134,4 +137,21 @@ pub(super) fn validated_packet_byte_len(length: u32, bit_size: usize) -> Option<
         return None;
     }
     Some(byte_len)
+}
+
+pub(super) fn call_incoming_packet(state: &BackendState, client: *mut c_void) -> *mut RawPacket {
+    let original = state.incoming_packet_original.load(Ordering::Acquire);
+    if original == 0 {
+        return ptr::null_mut();
+    }
+    let original: IncomingPacketFn = unsafe { mem::transmute(original) };
+    unsafe { original(client) }
+}
+
+pub(super) fn deallocate_packet(state: &BackendState, client: *mut c_void, packet: *mut RawPacket) {
+    let original = state.deallocate_packet_original.load(Ordering::Acquire);
+    if original != 0 {
+        let original: DeallocatePacketFn = unsafe { mem::transmute(original) };
+        unsafe { original(client, packet) };
+    }
 }
