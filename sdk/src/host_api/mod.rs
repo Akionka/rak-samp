@@ -11,6 +11,7 @@ mod local_commands;
 mod local_state;
 mod messages;
 mod network;
+mod player_commands;
 mod raw;
 mod status;
 mod text_labels;
