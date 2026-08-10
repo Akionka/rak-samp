@@ -223,6 +223,8 @@ Progress:
   table.
 - [x] Extract detailed local-dialog reads without moving dialog mutations or
   the ABI table.
+- [x] Extract local-player and player-pool reads without moving player
+  mutations or the ABI table.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.

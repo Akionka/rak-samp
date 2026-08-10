@@ -41,6 +41,7 @@
   `host_api/local_state.rs` owns local UI-state and active-dialog-core reads;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
+  `host_api/players.rs` owns local-player snapshots and player-pool reads.
   `host_api/pools.rs` owns bounded pool-existence reads, and
   `host_api/snapshots.rs` owns pooled gangzone, text-label, textdraw, and chat
   entry snapshots.

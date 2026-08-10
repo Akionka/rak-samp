@@ -6,6 +6,7 @@ mod events;
 mod handles;
 mod local_state;
 mod network;
+mod players;
 mod pools;
 mod raw;
 mod snapshots;
@@ -25,8 +26,7 @@ use sdk_abi::limits::{
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
     SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
-    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkResult,
     SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
 };
 use std::{
@@ -155,7 +155,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     encode_string: events::encode_string,
     event_read_encoded_string: events::event_read_encoded_string,
     show_local_dialog,
-    local_player,
+    local_player: players::local_player,
     samp_game_state,
     samp_version,
     decode_string: events::decode_string,
@@ -169,9 +169,9 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_chat_input_active: local_state::local_chat_input_active,
     local_animation: animations::local_animation,
     local_animation_id: animations::local_animation_id,
-    player_info,
-    player_count,
-    player_max_id,
+    player_info: players::player_info,
+    player_count: players::player_count,
+    player_max_id: players::player_max_id,
     vehicle_exists: pools::vehicle_exists,
     active_local_dialog: local_state::active_local_dialog,
     text_label_exists: pools::text_label_exists,
@@ -180,9 +180,9 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     gangzone_info: snapshots::gangzone_info,
     text_label_info: snapshots::text_label_info,
     textdraw_info: snapshots::textdraw_info,
-    player_defined,
-    player_paused,
-    remote_player_state,
+    player_defined: players::player_defined,
+    player_paused: players::player_paused,
+    remote_player_state: players::remote_player_state,
     submit_local_dialog,
     submit_local_chat_message,
     submit_local_death_message,
@@ -1340,26 +1340,6 @@ unsafe extern "system" fn local_chat_input_text(
     }
 }
 
-unsafe extern "system" fn local_player(
-    output: *mut SampClientSdkLocalPlayerV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let snapshot = match runtime.local_player() {
-        Ok(snapshot) => snapshot,
-        Err(error) => return direct_client_result(error),
-    };
-    let Ok(snapshot) = conversions::local_player_to_abi(snapshot) else {
-        return SampClientSdkResult::NativeCallFailed;
-    };
-    *output = snapshot;
-    SampClientSdkResult::Ok
-}
-
 unsafe extern "system" fn samp_game_state(output: *mut i32) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;
@@ -1394,136 +1374,6 @@ unsafe extern "system" fn server_info(
     };
     *output = snapshot;
     SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn player_info(
-    id: u16,
-    output: *mut SampClientSdkPlayerInfoV1,
-) -> SampClientSdkResult {
-    if id >= MAX_SAMP_PLAYERS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.player_info(id) {
-        Ok(Some(snapshot)) => match conversions::player_info_to_abi(snapshot) {
-            Ok(snapshot) => {
-                *output = snapshot;
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => {
-            *output = SampClientSdkPlayerInfoV1::default();
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn remote_player_state(
-    id: u16,
-    output: *mut SampClientSdkRemotePlayerStateV1,
-) -> SampClientSdkResult {
-    if id >= MAX_SAMP_PLAYERS || output.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.remote_player_state(id) {
-        Ok(Some(snapshot)) => match conversions::remote_player_state_to_abi(snapshot) {
-            Ok(snapshot) => {
-                unsafe { *output = snapshot };
-                SampClientSdkResult::Ok
-            }
-            Err(()) => SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => {
-            unsafe { *output = SampClientSdkRemotePlayerStateV1::default() };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn player_defined(id: u16, output: *mut u8) -> SampClientSdkResult {
-    if id >= MAX_SAMP_PLAYERS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.player_defined(id) {
-        Ok(defined) => {
-            *output = u8::from(defined);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn player_paused(id: u16, output: *mut u8) -> SampClientSdkResult {
-    if id >= MAX_SAMP_PLAYERS {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.player_paused(id) {
-        Ok(paused) => {
-            *output = u8::from(paused);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn player_count(include_npcs: u8, output: *mut u16) -> SampClientSdkResult {
-    let include_npcs = match include_npcs {
-        0 => false,
-        1 => true,
-        _ => return SampClientSdkResult::InvalidArgument,
-    };
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.player_count(include_npcs) {
-        Ok(count) => {
-            *output = count;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn player_max_id(output: *mut u16) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.player_max_id() {
-        Ok(id) => {
-            *output = id;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
 }
 
 unsafe extern "system" fn samp_version(output: *mut u32) -> SampClientSdkResult {
@@ -1664,8 +1514,8 @@ mod tests {
     };
     use sdk_abi::{
         SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkCommandResultV1,
-        SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkTextDrawV1,
-        SampClientSdkTextLabelV1,
+        SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkLocalPlayerV1,
+        SampClientSdkPlayerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
         limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
     };
     use std::sync::{Arc, OnceLock};
@@ -1727,7 +1577,7 @@ mod tests {
     fn direct_client_abi_is_not_ready_without_a_runtime() {
         let mut output = SampClientSdkLocalPlayerV1::default();
         assert_eq!(
-            unsafe { local_player(&mut output) },
+            unsafe { players::local_player(&mut output) },
             SampClientSdkResult::NotReady
         );
         let mut game_state = 0;
@@ -1834,63 +1684,63 @@ mod tests {
         );
         let mut player = SampClientSdkPlayerInfoV1::default();
         assert_eq!(
-            unsafe { player_info(7, &mut player) },
+            unsafe { players::player_info(7, &mut player) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { player_info(MAX_SAMP_PLAYERS, &mut player) },
+            unsafe { players::player_info(MAX_SAMP_PLAYERS, &mut player) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { player_info(7, std::ptr::null_mut()) },
+            unsafe { players::player_info(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut player_defined_output = 0;
         assert_eq!(
-            unsafe { player_defined(7, &mut player_defined_output) },
+            unsafe { players::player_defined(7, &mut player_defined_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { player_defined(MAX_SAMP_PLAYERS, &mut player_defined_output) },
+            unsafe { players::player_defined(MAX_SAMP_PLAYERS, &mut player_defined_output) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { player_defined(7, std::ptr::null_mut()) },
+            unsafe { players::player_defined(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut player_paused_output = 0;
         assert_eq!(
-            unsafe { player_paused(7, &mut player_paused_output) },
+            unsafe { players::player_paused(7, &mut player_paused_output) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { player_paused(MAX_SAMP_PLAYERS, &mut player_paused_output) },
+            unsafe { players::player_paused(MAX_SAMP_PLAYERS, &mut player_paused_output) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { player_paused(7, std::ptr::null_mut()) },
+            unsafe { players::player_paused(7, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut count = 0;
         assert_eq!(
-            unsafe { player_count(1, &mut count) },
+            unsafe { players::player_count(1, &mut count) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { player_count(2, &mut count) },
+            unsafe { players::player_count(2, &mut count) },
             SampClientSdkResult::InvalidArgument
         );
         assert_eq!(
-            unsafe { player_count(1, std::ptr::null_mut()) },
+            unsafe { players::player_count(1, std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut max_id = 0;
         assert_eq!(
-            unsafe { player_max_id(&mut max_id) },
+            unsafe { players::player_max_id(&mut max_id) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { player_max_id(std::ptr::null_mut()) },
+            unsafe { players::player_max_id(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut vehicle_exists_output = 0;
