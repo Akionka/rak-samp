@@ -27,7 +27,8 @@
   malformed RPC envelopes fail open to the captured trampoline. Outgoing
   detours call captured originals through non-owning ABI wrappers after
   synchronous listener dispatch. The game-process detour forwards into the
-  root-owned tick executor; hook installation and restoration remain
+  root-owned tick executor, and the constructor detour forwards into
+  root-owned client-hook setup. Hook installation and restoration remain
   root-owned.
 
 ## Process model

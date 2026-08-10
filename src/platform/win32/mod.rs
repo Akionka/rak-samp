@@ -1251,9 +1251,11 @@ impl BackendState {
 
     fn install_constructor_hook(self: &Arc<Self>) -> Result<(), AttachError> {
         let target = self.module_base + self.addresses.rak_client_constructor as usize;
-        let (mut detour, trampoline) =
-            InlineHook::create(target, rak_client_constructor_detour as *const () as usize)
-                .map_err(|_| AttachError::HookInstallFailed("RakClient constructor detour"))?;
+        let (mut detour, trampoline) = InlineHook::create(
+            target,
+            hooks::rak_client_constructor_detour as *const () as usize,
+        )
+        .map_err(|_| AttachError::HookInstallFailed("RakClient constructor detour"))?;
         self.constructor_trampoline
             .store(trampoline, Ordering::Release);
         if detour.enable().is_err() {
@@ -5024,7 +5026,6 @@ impl Drop for VtableHook {
     }
 }
 
-type RakClientConstructorFn = unsafe extern "C" fn() -> *mut c_void;
 type GameProcessFn = unsafe extern "thiscall" fn(*mut c_void);
 type StringWriteEncoderFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, i32, *mut RawBitStream, i32);
@@ -5045,27 +5046,6 @@ type IncomingRpcFn = unsafe extern "thiscall" fn(*mut c_void, *mut u8, i32, RpcP
 type AllocatePacketFn = unsafe extern "C" fn(i32) -> *mut RawPacket;
 type QueueWriteLockFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut *mut RawPacket;
 type QueueWriteUnlockFn = unsafe extern "thiscall" fn(*mut c_void);
-
-unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
-    let Some(state) = active_state() else {
-        return ptr::null_mut();
-    };
-    let trampoline = state.constructor_trampoline.load(Ordering::Acquire);
-    if trampoline == 0 {
-        return ptr::null_mut();
-    }
-    let original: RakClientConstructorFn = unsafe { mem::transmute(trampoline) };
-    let client = unsafe { original() };
-    if !client.is_null()
-        && let Err(error) = state.install_client_hooks(client)
-    {
-        state
-            .client_hook_status
-            .store(ClientHookInstallState::Failed.as_raw(), Ordering::Release);
-        log::error!("RakClient hook installation failed: {error}");
-    }
-    client
-}
 
 #[cfg(test)]
 mod packet_metadata_tests {

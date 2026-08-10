@@ -197,7 +197,10 @@ Progress:
   its shared ABI alias.
 - [x] Extract the game-process detour without moving tick execution or hook
   lifecycle ownership.
-- [ ] Extract remaining hook methods as independent validated slices.
+- [x] Extract the RakClient constructor detour without moving client-hook setup
+  or inline-hook lifecycle ownership.
+- Hook installation, restoration, active-state publication, and teardown remain
+  root-owned.
 
 ### Phase 3 — Split host and SDK API plumbing
 

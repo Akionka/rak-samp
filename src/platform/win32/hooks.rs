@@ -1,8 +1,9 @@
 //! Native packet and RPC listener dispatch helpers.
 
 use super::{
-    BackendState, GameProcessFn, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn, RawBitStream,
-    RawPacket, RpcPlayerId, active_state, packet_stream, packets, remaining_stream_bounded,
+    BackendState, ClientHookInstallState, GameProcessFn, IncomingRpcFn, OutgoingPacketFn,
+    OutgoingRpcFn, RawBitStream, RawPacket, RpcPlayerId, active_state, packet_stream, packets,
+    remaining_stream_bounded,
 };
 use crate::{BitStream, Direction, event::HookAction};
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
@@ -11,6 +12,8 @@ pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
 
 type IncomingPacketFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut RawPacket;
 type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacket);
+
+type RakClientConstructorFn = unsafe extern "C" fn() -> *mut c_void;
 
 #[derive(Clone, Copy)]
 struct OutgoingRpcCall {
@@ -329,4 +332,25 @@ pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     }
     let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
     unsafe { state.run_game_process_tick(game, original) };
+}
+
+pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
+    let Some(state) = active_state() else {
+        return ptr::null_mut();
+    };
+    let trampoline = state.constructor_trampoline.load(Ordering::Acquire);
+    if trampoline == 0 {
+        return ptr::null_mut();
+    }
+    let original: RakClientConstructorFn = unsafe { mem::transmute(trampoline) };
+    let client = unsafe { original() };
+    if !client.is_null()
+        && let Err(error) = state.install_client_hooks(client)
+    {
+        state
+            .client_hook_status
+            .store(ClientHookInstallState::Failed.as_raw(), Ordering::Release);
+        log::error!("RakClient hook installation failed: {error}");
+    }
+    client
 }
