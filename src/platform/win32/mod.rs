@@ -7,6 +7,7 @@ mod chat_entries;
 mod commands;
 mod gangzones;
 mod handles;
+mod hooks;
 mod objects;
 mod packets;
 mod players;
@@ -5100,7 +5101,7 @@ unsafe extern "thiscall" fn outgoing_packet_detour(
     if !state.registry.has_packet_listener(Direction::Outgoing) {
         return call_outgoing_packet(&state, client, native, priority, reliability, channel);
     }
-    let action = unsafe { dispatch_packet_stream(&state, Direction::Outgoing, native) };
+    let action = unsafe { hooks::dispatch_packet_stream(&state, Direction::Outgoing, native) };
     if action == HookAction::Block {
         return false;
     }
@@ -5151,7 +5152,8 @@ unsafe extern "thiscall" fn outgoing_rpc_detour(
     if !state.registry.has_rpc_listener(Direction::Outgoing) {
         return call_outgoing_rpc(&state, original_call);
     }
-    let action = unsafe { dispatch_rpc_stream(&state, Direction::Outgoing, *id as u8, native) };
+    let action =
+        unsafe { hooks::dispatch_rpc_stream(&state, Direction::Outgoing, *id as u8, native) };
     if action == HookAction::Block {
         return false;
     }
@@ -5197,55 +5199,6 @@ unsafe extern "thiscall" fn incoming_rpc_detour(
         return unsafe { original(receiver, data, length, player) };
     };
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
-}
-
-unsafe fn dispatch_packet_stream(
-    state: &BackendState,
-    direction: Direction,
-    native: *mut RawBitStream,
-) -> HookAction {
-    if native.is_null() {
-        return HookAction::Continue;
-    }
-    let Ok(mut stream) = (unsafe { (&*native).copy_to_owned() }) else {
-        return HookAction::Continue;
-    };
-    let Ok(id) = stream.read_u8() else {
-        return HookAction::Continue;
-    };
-    let remaining_bits = stream.remaining_bits();
-    let capacity_bits = stream.capacity_bits().unwrap_or(remaining_bits);
-    let mut payload = remaining_stream_bounded(
-        &mut stream,
-        remaining_bits,
-        capacity_bits.saturating_sub(u8::BITS as usize),
-    );
-    let action = state.registry.dispatch_packet(direction, id, &mut payload);
-    if action == HookAction::Continue
-        && let Ok(combined) = packet_stream(id, &payload)
-    {
-        let _ = unsafe { (&mut *native).replace_from(&combined) };
-    }
-    action
-}
-
-unsafe fn dispatch_rpc_stream(
-    state: &BackendState,
-    direction: Direction,
-    id: u8,
-    native: *mut RawBitStream,
-) -> HookAction {
-    if native.is_null() {
-        return HookAction::Continue;
-    }
-    let Ok(mut payload) = (unsafe { (&*native).copy_to_owned() }) else {
-        return HookAction::Continue;
-    };
-    let action = state.registry.dispatch_rpc(direction, id, &mut payload);
-    if action == HookAction::Continue {
-        let _ = unsafe { (&mut *native).replace_from(&payload) };
-    }
-    action
 }
 
 unsafe fn dispatch_raw_packet(state: &BackendState, packet: *mut RawPacket) -> HookAction {

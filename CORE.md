@@ -18,7 +18,9 @@
   packet emulation transfers a native allocation into the captured receive queue;
   incoming RPC emulation dispatches listeners once before calling the captured
   trampoline directly. RPC envelope helpers preserve optional timestamps and
-  exact payload bit lengths across listener replacement.
+  exact payload bit lengths across listener replacement. Native outgoing stream
+  dispatch publishes listener mutations synchronously and fails open on rewrite
+  errors.
 
 ## Process model
 
