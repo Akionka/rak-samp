@@ -2,6 +2,7 @@ mod animations;
 mod commands;
 mod conversions;
 mod dialog;
+mod environment;
 mod events;
 mod handles;
 mod local_state;
@@ -12,7 +13,7 @@ mod raw;
 mod snapshots;
 
 use crate::{
-    AttachError, BitStream, Direction, HookAction, ListenerHandle, Runtime, SampVersion, logging,
+    AttachError, BitStream, Direction, HookAction, ListenerHandle, Runtime, logging,
     runtime::{
         ClientHookStatus, DirectClientError, LocalChatMessageRequest, LocalChatMessageStyle,
         LocalDeathMessageRequest, LocalDialogRequest, LocalDialogStyle,
@@ -27,7 +28,7 @@ use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
     SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
     SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkResult,
-    SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
+    SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -156,10 +157,10 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     event_read_encoded_string: events::event_read_encoded_string,
     show_local_dialog,
     local_player: players::local_player,
-    samp_game_state,
-    samp_version,
+    samp_game_state: environment::samp_game_state,
+    samp_version: environment::samp_version,
     decode_string: events::decode_string,
-    server_info,
+    server_info: environment::server_info,
     show_local_chat_message,
     show_local_death_message,
     local_chat_display_mode: local_state::local_chat_display_mode,
@@ -1340,64 +1341,6 @@ unsafe extern "system" fn local_chat_input_text(
     }
 }
 
-unsafe extern "system" fn samp_game_state(output: *mut i32) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.samp_game_state() {
-        Ok(game_state) => {
-            *output = game_state;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn server_info(
-    output: *mut SampClientSdkServerInfoV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let snapshot = match runtime.server_info() {
-        Ok(snapshot) => snapshot,
-        Err(error) => return direct_client_result(error),
-    };
-    let Ok(snapshot) = conversions::server_info_to_abi(snapshot) else {
-        return SampClientSdkResult::NativeCallFailed;
-    };
-    *output = snapshot;
-    SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn samp_version(output: *mut u32) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    *output = samp_version_to_abi(runtime.samp_version());
-    SampClientSdkResult::Ok
-}
-
-const fn samp_version_to_abi(version: SampVersion) -> u32 {
-    match version {
-        SampVersion::R1 => 1,
-        SampVersion::R2 => 2,
-        SampVersion::R3_1 => 3,
-        SampVersion::R4_2 => 4,
-        SampVersion::R5_1 => 5,
-        SampVersion::Dl => 6,
-    }
-}
-
 fn register_listener(
     direction: SampClientSdkDirection,
     callback: Option<SampClientSdkEventCallbackV1>,
@@ -1508,6 +1451,7 @@ enum ListenerKind {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::SampVersion;
     use crate::runtime::{
         ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
         TextLabelSnapshot, TextdrawSnapshot,
@@ -1515,7 +1459,8 @@ mod tests {
     use sdk_abi::{
         SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkCommandResultV1,
         SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkLocalPlayerV1,
-        SampClientSdkPlayerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
+        SampClientSdkPlayerInfoV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
+        SampClientSdkTextLabelV1,
         limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
     };
     use std::sync::{Arc, OnceLock};
@@ -1582,7 +1527,7 @@ mod tests {
         );
         let mut game_state = 0;
         assert_eq!(
-            unsafe { samp_game_state(&mut game_state) },
+            unsafe { environment::samp_game_state(&mut game_state) },
             SampClientSdkResult::NotReady
         );
         let mut chat_display_mode = 0;
@@ -1838,12 +1783,12 @@ mod tests {
         );
         let mut server = SampClientSdkServerInfoV1::default();
         assert_eq!(
-            unsafe { server_info(&mut server) },
+            unsafe { environment::server_info(&mut server) },
             SampClientSdkResult::NotReady
         );
         let mut version = 0;
         assert_eq!(
-            unsafe { samp_version(&mut version) },
+            unsafe { environment::samp_version(&mut version) },
             SampClientSdkResult::NotReady
         );
         let mut decoded = [0; 1];
@@ -1938,9 +1883,9 @@ mod tests {
 
     #[test]
     fn client_version_uses_stable_abi_values() {
-        assert_eq!(samp_version_to_abi(SampVersion::R1), 1);
-        assert_eq!(samp_version_to_abi(SampVersion::R5_1), 5);
-        assert_eq!(samp_version_to_abi(SampVersion::Dl), 6);
+        assert_eq!(environment::samp_version_to_abi(SampVersion::R1), 1);
+        assert_eq!(environment::samp_version_to_abi(SampVersion::R5_1), 5);
+        assert_eq!(environment::samp_version_to_abi(SampVersion::Dl), 6);
     }
 
     #[test]
