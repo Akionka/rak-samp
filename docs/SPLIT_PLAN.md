@@ -195,6 +195,8 @@ Progress:
 - [x] Extract the incoming packet detour without moving vtable hook ownership.
 - [x] Extract the incoming RPC detour without moving inline-hook lifecycle or
   its shared ABI alias.
+- [x] Extract the game-process detour without moving tick execution or hook
+  lifecycle ownership.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

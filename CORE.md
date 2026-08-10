@@ -26,7 +26,8 @@
   keep packet ownership and RPC receiver/player publication in `hooks.rs`;
   malformed RPC envelopes fail open to the captured trampoline. Outgoing
   detours call captured originals through non-owning ABI wrappers after
-  synchronous listener dispatch. Hook installation and restoration remain
+  synchronous listener dispatch. The game-process detour forwards into the
+  root-owned tick executor; hook installation and restoration remain
   root-owned.
 
 ## Process model

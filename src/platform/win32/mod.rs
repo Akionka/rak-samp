@@ -1231,7 +1231,7 @@ impl BackendState {
     fn install_game_process_hook(&self) -> Result<(), AttachError> {
         let (mut detour, trampoline) = InlineHook::create(
             GTA_SA_10_US_CGAME_PROCESS,
-            game_process_detour as *const () as usize,
+            hooks::game_process_detour as *const () as usize,
         )
         .map_err(|_| AttachError::HookInstallFailed("CGame::Process detour"))?;
         self.game_process_trampoline
@@ -5065,18 +5065,6 @@ unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
         log::error!("RakClient hook installation failed: {error}");
     }
     client
-}
-
-unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
-    let Some(state) = active_state() else {
-        return;
-    };
-    let trampoline = state.game_process_trampoline.load(Ordering::Acquire);
-    if trampoline == 0 {
-        return;
-    }
-    let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
-    unsafe { state.run_game_process_tick(game, original) };
 }
 
 #[cfg(test)]

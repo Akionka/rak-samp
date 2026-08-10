@@ -1,8 +1,8 @@
 //! Native packet and RPC listener dispatch helpers.
 
 use super::{
-    BackendState, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn, RawBitStream, RawPacket,
-    RpcPlayerId, active_state, packet_stream, packets, remaining_stream_bounded,
+    BackendState, GameProcessFn, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn, RawBitStream,
+    RawPacket, RpcPlayerId, active_state, packet_stream, packets, remaining_stream_bounded,
 };
 use crate::{BitStream, Direction, event::HookAction};
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
@@ -317,4 +317,16 @@ pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
         return unsafe { original(receiver, data, length, player) };
     };
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
+}
+
+pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
+    let Some(state) = active_state() else {
+        return;
+    };
+    let trampoline = state.game_process_trampoline.load(Ordering::Acquire);
+    if trampoline == 0 {
+        return;
+    }
+    let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
+    unsafe { state.run_game_process_tick(game, original) };
 }
