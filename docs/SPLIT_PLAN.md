@@ -264,6 +264,8 @@ Progress:
   and exports.
 - [x] Extract SDK lifecycle-status wrappers behind the unchanged root type and
   exports.
+- [x] Extract SDK low-level packet/RPC wrappers behind the unchanged root type
+  and exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
