@@ -3,5 +3,6 @@
 mod animations;
 mod chat_input;
 mod environment;
+mod handles;
 mod local_state;
 mod raw;
