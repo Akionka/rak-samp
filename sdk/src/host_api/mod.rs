@@ -13,6 +13,7 @@ mod messages;
 mod network;
 mod player_commands;
 mod players;
+mod pools;
 mod raw;
 mod status;
 mod text_labels;

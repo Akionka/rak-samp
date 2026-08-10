@@ -286,6 +286,7 @@ Progress:
   exports.
 - [x] Extract SDK player-read wrappers behind the unchanged root type and
   exports.
+- [x] Extract SDK pool-read wrappers behind the unchanged root type and exports.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
