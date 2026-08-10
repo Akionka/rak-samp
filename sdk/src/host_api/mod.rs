@@ -5,6 +5,7 @@ mod chat_input;
 mod environment;
 mod events;
 mod handles;
+mod local_commands;
 mod local_state;
 mod messages;
 mod network;
