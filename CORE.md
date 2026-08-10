@@ -22,9 +22,10 @@
   dispatch publishes listener mutations synchronously and fails open on rewrite
   errors. Raw incoming packet dispatch validates packed metadata before copying
   owned callback data; the incoming detour retains return/deallocate/retry
-  ownership through captured native-call wrappers. Outgoing detours likewise
+  ownership through captured native-call wrappers. The incoming packet detour
+  keeps receive/dispatch/deallocate ownership in `hooks.rs`; outgoing detours
   call captured originals through non-owning ABI wrappers after synchronous
-  listener dispatch; vtable installation and restoration remain root-owned.
+  listener dispatch. Vtable installation and restoration remain root-owned.
 
 ## Process model
 

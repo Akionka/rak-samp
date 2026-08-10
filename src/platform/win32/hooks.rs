@@ -258,3 +258,22 @@ pub(super) unsafe extern "thiscall" fn outgoing_rpc_detour(
     }
     call_outgoing_rpc(&state, original_call)
 }
+
+pub(super) unsafe extern "thiscall" fn incoming_packet_detour(
+    client: *mut c_void,
+) -> *mut RawPacket {
+    let Some(state) = active_state() else {
+        return ptr::null_mut();
+    };
+    loop {
+        let packet = call_incoming_packet(&state, client);
+        if packet.is_null() {
+            return packet;
+        }
+        let action = unsafe { dispatch_raw_packet(&state, packet) };
+        if action == HookAction::Continue {
+            return packet;
+        }
+        deallocate_packet(&state, client, packet);
+    }
+}

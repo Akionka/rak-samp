@@ -4736,7 +4736,7 @@ mod vtable_tests {
         );
         assert_eq!(
             table[INCOMING_PACKET_SLOT],
-            incoming_packet_detour as *const () as usize
+            hooks::incoming_packet_detour as *const () as usize
         );
         assert_eq!(
             table[OUTGOING_RPC_SLOT],
@@ -4956,7 +4956,7 @@ impl VtableHook {
             ),
             (
                 INCOMING_PACKET_SLOT,
-                incoming_packet_detour as *const () as usize,
+                hooks::incoming_packet_detour as *const () as usize,
             ),
             (
                 OUTGOING_RPC_SLOT,
@@ -5075,23 +5075,6 @@ unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     }
     let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
     unsafe { state.run_game_process_tick(game, original) };
-}
-
-unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut RawPacket {
-    let Some(state) = active_state() else {
-        return ptr::null_mut();
-    };
-    loop {
-        let packet = hooks::call_incoming_packet(&state, client);
-        if packet.is_null() {
-            return packet;
-        }
-        let action = unsafe { hooks::dispatch_raw_packet(&state, packet) };
-        if action == HookAction::Continue {
-            return packet;
-        }
-        hooks::deallocate_packet(&state, client, packet);
-    }
 }
 
 unsafe extern "thiscall" fn incoming_rpc_detour(
