@@ -15,7 +15,7 @@ plumbing, and tests. Current approximate sizes are:
 | `src/platform/win32/r1_client.rs` | 3,480 | RVAs, native reads and writes, memory validation, layout tests |
 | `src/host_api.rs` | 3,790 | Host lifecycle, ABI table, entry points, conversions |
 | `sdk/src/lib.rs` | 6,070 | Public types, ABI types/table, host wrapper, subscriptions, resolution |
-| `sdk/src/facade.rs` | 1,930 | Safe subsystem views and handle newtypes |
+| `sdk/src/facade/mod.rs` | 1,930 | Safe subsystem views and handle newtypes |
 
 The goal is easier navigation and stronger module ownership. File size is a
 signal, not a hard design constraint: cohesive data-heavy modules may remain
@@ -306,6 +306,7 @@ Progress:
 
 - [x] Extract outgoing chat and slash-command RPC codecs into
   `events::rpc::outgoing::chat`.
+- [x] Extract the safe `Net` facade view into `facade::network`.
 - Group facade views by networking, local/player, pool, and UI domains.
 - Split packet/RPC codecs along existing protocol and gameplay boundaries.
 - Do not redesign codecs or move their tests in the same change.
