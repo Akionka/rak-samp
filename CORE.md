@@ -36,6 +36,7 @@
   bitstream operations and native string codecs. `host_api/network.rs` owns
   direct and queued packet/RPC sends and incoming emulation;
   `host_api/animations.rs` owns cached local animation-table reads and lookups;
+  `host_api/chat_input.rs` owns the cached local chat-input text read;
   `host_api/dialog.rs` owns the detailed local-dialog snapshot and scalar
   selection reads;
   `host_api/environment.rs` owns game-state, server-info, and version reads;

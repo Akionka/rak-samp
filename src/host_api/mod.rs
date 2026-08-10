@@ -1,4 +1,5 @@
 mod animations;
+mod chat_input;
 mod commands;
 mod conversions;
 mod dialog;
@@ -25,10 +26,9 @@ use sdk_abi::limits::{
     MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
-    ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
-    SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
-    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkResult,
-    SampClientSdkSubscription, Vector3,
+    ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkCommandReceipt, SampClientSdkDirection,
+    SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkHookAction,
+    SampClientSdkHostStatus, SampClientSdkResult, SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -212,7 +212,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_chat_input_text,
     submit_local_chat_input_enabled,
     submit_local_chat_input_process,
-    local_chat_input_text,
+    local_chat_input_text: chat_input::local_chat_input_text,
     submit_player_colour,
     submit_local_player_name,
     submit_force_unoccupied_sync,
@@ -1312,29 +1312,6 @@ unsafe extern "system" fn submit_local_chat_input_process(
     match runtime.submit_local_chat_input_process(text) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn local_chat_input_text(
-    output: *mut SampClientSdkChatInputTextV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_chat_input_text() {
-        Ok(text) => {
-            if text.len() > output.bytes.len() {
-                return SampClientSdkResult::NativeCallFailed;
-            }
-            *output = SampClientSdkChatInputTextV1::default();
-            output.len = text.len() as u8;
-            output.bytes[..text.len()].copy_from_slice(&text);
             SampClientSdkResult::Ok
         }
         Err(error) => direct_client_result(error),
