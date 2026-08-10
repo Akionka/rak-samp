@@ -53,6 +53,7 @@
   `host_api/pools.rs` owns bounded pool-existence reads, and
   `host_api/snapshots.rs` owns pooled gangzone, text-label, textdraw, and chat
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers.
+  `host_api/textdraws.rs` owns textdraw command producers.
 
 ## Process model
 
