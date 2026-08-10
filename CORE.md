@@ -23,7 +23,8 @@
   errors. Raw incoming packet dispatch validates packed metadata before copying
   owned callback data; the incoming detour retains return/deallocate/retry
   ownership through captured native-call wrappers. Outgoing detours likewise
-  call captured originals through non-owning ABI wrappers after listener dispatch.
+  call captured originals through non-owning ABI wrappers after synchronous
+  listener dispatch; vtable installation and restoration remain root-owned.
 
 ## Process model
 

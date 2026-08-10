@@ -1,7 +1,7 @@
 //! Native packet and RPC listener dispatch helpers.
 
 use super::{
-    BackendState, OutgoingPacketFn, OutgoingRpcCall, OutgoingRpcFn, RawBitStream, RawPacket,
+    BackendState, OutgoingPacketFn, OutgoingRpcFn, RawBitStream, RawPacket, active_state,
     packet_stream, remaining_stream_bounded,
 };
 use crate::{BitStream, Direction, event::HookAction};
@@ -11,6 +11,17 @@ pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
 
 type IncomingPacketFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut RawPacket;
 type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacket);
+
+#[derive(Clone, Copy)]
+struct OutgoingRpcCall {
+    client: *mut c_void,
+    id: *mut i32,
+    stream: *mut RawBitStream,
+    priority: i32,
+    reliability: i32,
+    channel: i8,
+    timestamp: bool,
+}
 
 pub(super) unsafe fn dispatch_packet_stream(
     state: &BackendState,
@@ -175,7 +186,7 @@ pub(super) fn call_outgoing_packet(
     unsafe { original(client, stream, priority, reliability, channel) }
 }
 
-pub(super) fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> bool {
+fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> bool {
     let original = state.outgoing_rpc_original.load(Ordering::Acquire);
     if original == 0 {
         return false;
@@ -192,4 +203,58 @@ pub(super) fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> 
             call.timestamp,
         )
     }
+}
+
+pub(super) unsafe extern "thiscall" fn outgoing_packet_detour(
+    client: *mut c_void,
+    native: *mut RawBitStream,
+    priority: i32,
+    reliability: i32,
+    channel: i8,
+) -> bool {
+    let Some(state) = active_state() else {
+        return false;
+    };
+    if !state.registry.has_packet_listener(Direction::Outgoing) {
+        return call_outgoing_packet(&state, client, native, priority, reliability, channel);
+    }
+    let action = unsafe { dispatch_packet_stream(&state, Direction::Outgoing, native) };
+    if action == HookAction::Block {
+        return false;
+    }
+    call_outgoing_packet(&state, client, native, priority, reliability, channel)
+}
+
+pub(super) unsafe extern "thiscall" fn outgoing_rpc_detour(
+    client: *mut c_void,
+    id: *mut i32,
+    native: *mut RawBitStream,
+    priority: i32,
+    reliability: i32,
+    channel: i8,
+    timestamp: bool,
+) -> bool {
+    let Some(state) = active_state() else {
+        return false;
+    };
+    let original_call = OutgoingRpcCall {
+        client,
+        id,
+        stream: native,
+        priority,
+        reliability,
+        channel,
+        timestamp,
+    };
+    if id.is_null() {
+        return call_outgoing_rpc(&state, original_call);
+    }
+    if !state.registry.has_rpc_listener(Direction::Outgoing) {
+        return call_outgoing_rpc(&state, original_call);
+    }
+    let action = unsafe { dispatch_rpc_stream(&state, Direction::Outgoing, *id as u8, native) };
+    if action == HookAction::Block {
+        return false;
+    }
+    call_outgoing_rpc(&state, original_call)
 }

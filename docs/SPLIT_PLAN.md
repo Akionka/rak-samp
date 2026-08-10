@@ -191,6 +191,7 @@ Progress:
   ownership.
 - [x] Extract captured outgoing packet/RPC calls without moving detours or shared
   ABI aliases.
+- [x] Extract outgoing packet/RPC detours without moving vtable hook ownership.
 - [ ] Extract remaining hook methods as independent validated slices.
 
 ### Phase 3 — Split host and SDK API plumbing

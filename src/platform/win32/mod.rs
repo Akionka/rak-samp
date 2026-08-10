@@ -4732,7 +4732,7 @@ mod vtable_tests {
 
         assert_eq!(
             table[OUTGOING_PACKET_SLOT],
-            outgoing_packet_detour as *const () as usize
+            hooks::outgoing_packet_detour as *const () as usize
         );
         assert_eq!(
             table[INCOMING_PACKET_SLOT],
@@ -4740,7 +4740,7 @@ mod vtable_tests {
         );
         assert_eq!(
             table[OUTGOING_RPC_SLOT],
-            outgoing_rpc_detour as *const () as usize
+            hooks::outgoing_rpc_detour as *const () as usize
         );
         assert_eq!(table[untouched_slot], untouched_original);
         assert_eq!(
@@ -4952,13 +4952,16 @@ impl VtableHook {
         let replacements = [
             (
                 OUTGOING_PACKET_SLOT,
-                outgoing_packet_detour as *const () as usize,
+                hooks::outgoing_packet_detour as *const () as usize,
             ),
             (
                 INCOMING_PACKET_SLOT,
                 incoming_packet_detour as *const () as usize,
             ),
-            (OUTGOING_RPC_SLOT, outgoing_rpc_detour as *const () as usize),
+            (
+                OUTGOING_RPC_SLOT,
+                hooks::outgoing_rpc_detour as *const () as usize,
+            ),
         ];
         let mut entries = [VtableEntry {
             slot: 0,
@@ -5041,17 +5044,6 @@ type AllocatePacketFn = unsafe extern "C" fn(i32) -> *mut RawPacket;
 type QueueWriteLockFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut *mut RawPacket;
 type QueueWriteUnlockFn = unsafe extern "thiscall" fn(*mut c_void);
 
-#[derive(Clone, Copy)]
-struct OutgoingRpcCall {
-    client: *mut c_void,
-    id: *mut i32,
-    stream: *mut RawBitStream,
-    priority: i32,
-    reliability: i32,
-    channel: i8,
-    timestamp: bool,
-}
-
 unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     let Some(state) = active_state() else {
         return ptr::null_mut();
@@ -5085,26 +5077,6 @@ unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     unsafe { state.run_game_process_tick(game, original) };
 }
 
-unsafe extern "thiscall" fn outgoing_packet_detour(
-    client: *mut c_void,
-    native: *mut RawBitStream,
-    priority: i32,
-    reliability: i32,
-    channel: i8,
-) -> bool {
-    let Some(state) = active_state() else {
-        return false;
-    };
-    if !state.registry.has_packet_listener(Direction::Outgoing) {
-        return hooks::call_outgoing_packet(&state, client, native, priority, reliability, channel);
-    }
-    let action = unsafe { hooks::dispatch_packet_stream(&state, Direction::Outgoing, native) };
-    if action == HookAction::Block {
-        return false;
-    }
-    hooks::call_outgoing_packet(&state, client, native, priority, reliability, channel)
-}
-
 unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut RawPacket {
     let Some(state) = active_state() else {
         return ptr::null_mut();
@@ -5120,41 +5092,6 @@ unsafe extern "thiscall" fn incoming_packet_detour(client: *mut c_void) -> *mut 
         }
         hooks::deallocate_packet(&state, client, packet);
     }
-}
-
-unsafe extern "thiscall" fn outgoing_rpc_detour(
-    client: *mut c_void,
-    id: *mut i32,
-    native: *mut RawBitStream,
-    priority: i32,
-    reliability: i32,
-    channel: i8,
-    timestamp: bool,
-) -> bool {
-    let Some(state) = active_state() else {
-        return false;
-    };
-    let original_call = OutgoingRpcCall {
-        client,
-        id,
-        stream: native,
-        priority,
-        reliability,
-        channel,
-        timestamp,
-    };
-    if id.is_null() {
-        return hooks::call_outgoing_rpc(&state, original_call);
-    }
-    if !state.registry.has_rpc_listener(Direction::Outgoing) {
-        return hooks::call_outgoing_rpc(&state, original_call);
-    }
-    let action =
-        unsafe { hooks::dispatch_rpc_stream(&state, Direction::Outgoing, *id as u8, native) };
-    if action == HookAction::Block {
-        return false;
-    }
-    hooks::call_outgoing_rpc(&state, original_call)
 }
 
 unsafe extern "thiscall" fn incoming_rpc_detour(
