@@ -731,7 +731,7 @@ fn fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
 fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
     let descriptors = [
         (outgoing::connection::SEND_CLIENT_JOIN.id(), 25),
-        (outgoing::SEND_ENTER_EDIT_OBJECT.id(), 27),
+        (outgoing::object::SEND_ENTER_EDIT_OBJECT.id(), 27),
         (outgoing::SEND_MONEY_INCREASE.id(), 31),
         (outgoing::connection::SEND_NPC_JOIN.id(), 54),
         (outgoing::SEND_VEHICLE_TUNING.id(), 96),
@@ -740,8 +740,8 @@ fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
         (outgoing::SEND_CLIENT_CHECK_RESPONSE.id(), 103),
         (outgoing::SEND_VEHICLE_DAMAGED.id(), 106),
         (outgoing::SEND_DAMAGE.id(), 115),
-        (outgoing::SEND_EDIT_ATTACHED_OBJECT.id(), 116),
-        (outgoing::SEND_EDIT_OBJECT.id(), 117),
+        (outgoing::object::SEND_EDIT_ATTACHED_OBJECT.id(), 116),
+        (outgoing::object::SEND_EDIT_OBJECT.id(), 117),
         (outgoing::SEND_PICKED_UP_PICKUP.id(), 131),
         (outgoing::SEND_QUIT_MENU.id(), 140),
         (outgoing::SEND_CAMERA_TARGET_UPDATE.id(), 168),

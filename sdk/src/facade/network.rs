@@ -287,10 +287,10 @@ impl Net {
     /// Queues a complete attached-object edit action.
     pub fn send_edit_attached_object(
         self,
-        edit: crate::events::rpc::outgoing::EditAttachedObject,
+        edit: crate::events::rpc::outgoing::object::EditAttachedObject,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_EDIT_ATTACHED_OBJECT,
+            crate::events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT,
             edit,
         )
     }
@@ -298,10 +298,10 @@ impl Net {
     /// Queues a complete global or player-object edit action.
     pub fn send_edit_object(
         self,
-        edit: crate::events::rpc::outgoing::EditObject,
+        edit: crate::events::rpc::outgoing::object::EditObject,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::SEND_EDIT_OBJECT, edit)
+            .submit_typed_rpc(crate::events::rpc::outgoing::object::SEND_EDIT_OBJECT, edit)
     }
 
     /// Queues a bounded server-bound RCON command packet.

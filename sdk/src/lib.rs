@@ -3621,7 +3621,7 @@ mod tests {
             y: 0.0,
             z: 0.0,
         };
-        let attached = events::rpc::outgoing::EditAttachedObject {
+        let attached = events::rpc::outgoing::object::EditAttachedObject {
             response: 0,
             index: 0,
             model_id: 0,
@@ -3632,7 +3632,7 @@ mod tests {
             color1: 0,
             color2: 0,
         };
-        let attached_payload = events::rpc::outgoing::SEND_EDIT_ATTACHED_OBJECT
+        let attached_payload = events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT
             .encode(api, attached)
             .expect("zero attached-object edit must encode");
         assert_eq!(attached_payload.len_bits(), 480);
@@ -3642,7 +3642,7 @@ mod tests {
             SampClientSdkResult::Ok
         );
         assert_eq!(
-            api.send_edit_object(events::rpc::outgoing::EditObject {
+            api.send_edit_object(events::rpc::outgoing::object::EditObject {
                 player_object: false,
                 object_id: 0,
                 response: 0,

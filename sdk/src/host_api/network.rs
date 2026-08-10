@@ -415,14 +415,20 @@ impl HostApi {
     /// here could create malformed or accidentally lossy traffic.
     pub fn send_edit_attached_object(
         self,
-        edit: events::rpc::outgoing::EditAttachedObject,
+        edit: events::rpc::outgoing::object::EditAttachedObject,
     ) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_EDIT_ATTACHED_OBJECT, edit)
+        self.send_typed_rpc(
+            events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT,
+            edit,
+        )
     }
 
     /// Sends a complete global or player-object edit action (RPC 117).
-    pub fn send_edit_object(self, edit: events::rpc::outgoing::EditObject) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_EDIT_OBJECT, edit)
+    pub fn send_edit_object(
+        self,
+        edit: events::rpc::outgoing::object::EditObject,
+    ) -> SampClientSdkResult {
+        self.send_typed_rpc(events::rpc::outgoing::object::SEND_EDIT_OBJECT, edit)
     }
 
     fn send_typed_rpc<T>(self, descriptor: events::Rpc<T>, value: T) -> SampClientSdkResult {

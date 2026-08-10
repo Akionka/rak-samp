@@ -2,6 +2,7 @@
 
 pub mod chat;
 pub mod connection;
+pub mod object;
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
@@ -39,15 +40,6 @@ pub struct ClickPlayer {
     pub source: u8,
 }
 
-/// MoonLoader's `onSendEnterEditObject` payload (RPC 27).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EnterEditObject {
-    pub object_type: i32,
-    pub object_id: u16,
-    pub model_id: i32,
-    pub position: Vector3,
-}
-
 /// MoonLoader's `onSendVehicleTuningNotification` payload (RPC 96).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct VehicleTuning {
@@ -73,32 +65,6 @@ pub struct VehicleDamage {
     pub door_damage: i32,
     pub lights: u8,
     pub tires: u8,
-}
-
-/// MoonLoader's `onSendEditAttachedObject` payload (RPC 116).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EditAttachedObject {
-    pub response: i32,
-    pub index: i32,
-    pub model_id: i32,
-    pub bone: i32,
-    pub position: Vector3,
-    pub rotation: Vector3,
-    pub scale: Vector3,
-    pub color1: i32,
-    pub color2: i32,
-}
-
-/// MoonLoader's `onSendEditObject` payload (RPC 117).
-///
-/// `player_object` is a one-bit RakNet boolean; replacements preserve that exact-bit layout.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct EditObject {
-    pub player_object: bool,
-    pub object_id: u16,
-    pub response: i32,
-    pub position: Vector3,
-    pub rotation: Vector3,
 }
 
 /// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
@@ -176,8 +142,6 @@ pub const SEND_CLICK_TEXT_DRAW: Rpc<u16> = Rpc::new(83, decode_u16, encode_u16);
 pub const SEND_UPDATE_SCORES_AND_PINGS: Rpc<()> = Rpc::new(155, decode_empty, encode_empty);
 /// The `onSendClientJoin` descriptor.
 /// The `onSendEnterEditObject` descriptor.
-pub const SEND_ENTER_EDIT_OBJECT: Rpc<EnterEditObject> =
-    Rpc::new(27, decode_enter_edit_object, encode_enter_edit_object);
 /// The `onSendMoneyIncreaseNotification` descriptor.
 pub const SEND_MONEY_INCREASE: Rpc<MoneyIncrease> =
     Rpc::new(31, decode_money_increase, encode_money_increase);
@@ -201,14 +165,7 @@ pub const SEND_VEHICLE_DAMAGED: Rpc<VehicleDamage> =
 /// The shared `onSendGiveDamage` / `onSendTakeDamage` descriptor.
 pub const SEND_DAMAGE: Rpc<Damage> = Rpc::new_bits(115, decode_damage, encode_damage);
 /// The `onSendEditAttachedObject` descriptor.
-pub const SEND_EDIT_ATTACHED_OBJECT: Rpc<EditAttachedObject> = Rpc::new(
-    116,
-    decode_edit_attached_object,
-    encode_edit_attached_object,
-);
 /// The `onSendEditObject` descriptor.
-pub const SEND_EDIT_OBJECT: Rpc<EditObject> =
-    Rpc::new_bits(117, decode_edit_object, encode_edit_object);
 /// The `onSendPickedUpPickup` descriptor.
 pub const SEND_PICKED_UP_PICKUP: Rpc<i32> = Rpc::new(131, decode_i32, encode_i32);
 /// The `onSendQuitMenu` descriptor.
@@ -321,12 +278,6 @@ rpc_helper!(
     "onSendUpdateScoresAndPings"
 );
 rpc_helper!(
-    on_send_enter_edit_object,
-    EnterEditObject,
-    SEND_ENTER_EDIT_OBJECT,
-    "onSendEnterEditObject"
-);
-rpc_helper!(
     on_send_money_increase,
     MoneyIncrease,
     SEND_MONEY_INCREASE,
@@ -361,18 +312,6 @@ rpc_helper!(
     VehicleDamage,
     SEND_VEHICLE_DAMAGED,
     "onSendVehicleDamaged"
-);
-rpc_helper!(
-    on_send_edit_attached_object,
-    EditAttachedObject,
-    SEND_EDIT_ATTACHED_OBJECT,
-    "onSendEditAttachedObject"
-);
-rpc_helper!(
-    on_send_edit_object,
-    EditObject,
-    SEND_EDIT_OBJECT,
-    "onSendEditObject"
 );
 rpc_helper!(
     on_send_picked_up_pickup,
@@ -484,24 +423,6 @@ fn encode_click_player(value: ClickPlayer) -> Result<Vec<u8>, EventError> {
     Ok(writer.finish())
 }
 
-fn decode_enter_edit_object(event: &mut Event<'_>) -> Result<EnterEditObject, EventError> {
-    Ok(EnterEditObject {
-        object_type: decode_i32(event)?,
-        object_id: event.read_u16()?,
-        model_id: decode_i32(event)?,
-        position: decode_vector3(event)?,
-    })
-}
-
-fn encode_enter_edit_object(value: EnterEditObject) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.object_type as u32);
-    writer.u16(value.object_id);
-    writer.u32(value.model_id as u32);
-    writer.vector3(value.position);
-    Ok(writer.finish())
-}
-
 fn decode_money_increase(event: &mut Event<'_>) -> Result<MoneyIncrease, EventError> {
     Ok(MoneyIncrease {
         amount: decode_i32(event)?,
@@ -570,56 +491,8 @@ fn encode_vehicle_damage(value: VehicleDamage) -> Result<Vec<u8>, EventError> {
     Ok(writer.finish())
 }
 
-fn decode_edit_attached_object(event: &mut Event<'_>) -> Result<EditAttachedObject, EventError> {
-    Ok(EditAttachedObject {
-        response: decode_i32(event)?,
-        index: decode_i32(event)?,
-        model_id: decode_i32(event)?,
-        bone: decode_i32(event)?,
-        position: decode_vector3(event)?,
-        rotation: decode_vector3(event)?,
-        scale: decode_vector3(event)?,
-        color1: decode_i32(event)?,
-        color2: decode_i32(event)?,
-    })
-}
-
-fn encode_edit_attached_object(value: EditAttachedObject) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.response as u32);
-    writer.u32(value.index as u32);
-    writer.u32(value.model_id as u32);
-    writer.u32(value.bone as u32);
-    writer.vector3(value.position);
-    writer.vector3(value.rotation);
-    writer.vector3(value.scale);
-    writer.u32(value.color1 as u32);
-    writer.u32(value.color2 as u32);
-    Ok(writer.finish())
-}
-
 fn decode_bool(event: &mut Event<'_>) -> Result<bool, EventError> {
     Ok(event.read_bits(1)?[0] & 0x80 != 0)
-}
-
-fn decode_edit_object(event: &mut Event<'_>) -> Result<EditObject, EventError> {
-    Ok(EditObject {
-        player_object: decode_bool(event)?,
-        object_id: event.read_u16()?,
-        response: decode_i32(event)?,
-        position: decode_vector3(event)?,
-        rotation: decode_vector3(event)?,
-    })
-}
-
-fn encode_edit_object(_api: HostApi, value: EditObject) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.bit(value.player_object);
-    writer.u16(value.object_id);
-    writer.u32(value.response as u32);
-    writer.vector3(value.position);
-    writer.vector3(value.rotation);
-    Ok(writer.finish_bits())
 }
 
 fn decode_damage(event: &mut Event<'_>) -> Result<Damage, EventError> {
