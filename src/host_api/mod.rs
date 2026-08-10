@@ -10,6 +10,7 @@ mod handles;
 mod local_commands;
 mod local_state;
 mod network;
+mod player_commands;
 mod players;
 mod pools;
 mod raw;
@@ -204,8 +205,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_dialog_client_side,
     submit_samp_game_state,
     raw_local_player: raw::raw_local_player,
-    submit_local_player_spawn,
-    submit_local_player_special_action,
+    submit_local_player_spawn: player_commands::submit_local_player_spawn,
+    submit_local_player_special_action: player_commands::submit_local_player_special_action,
     submit_send_rate,
     submit_local_cursor_toggle,
     submit_local_chat_display_mode,
@@ -597,43 +598,6 @@ unsafe extern "system" fn submit_samp_game_state(
         return SampClientSdkResult::NotReady;
     };
     match runtime.submit_samp_game_state(state) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_player_spawn(
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_player_spawn() {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn submit_local_player_special_action(
-    action: u8,
-    receipt: *mut SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.is_null() || !matches!(action, 0..=12 | 20..=25 | 68) {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_player_special_action(action) {
         Ok(id) => {
             unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
             SampClientSdkResult::Ok

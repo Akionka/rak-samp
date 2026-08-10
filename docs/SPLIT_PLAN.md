@@ -237,6 +237,8 @@ Progress:
   the ABI table.
 - [x] Extract connection command producers without moving unrelated mutations
   or the ABI table.
+- [x] Extract local-player spawn and special-action command producers without
+  moving player reads or unrelated mutations.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.

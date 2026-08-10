@@ -48,6 +48,7 @@
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
   `host_api/players.rs` owns local-player snapshots and player-pool reads.
+  `host_api/player_commands.rs` owns local-player action command producers.
   `host_api/pools.rs` owns bounded pool-existence reads, and
   `host_api/snapshots.rs` owns pooled gangzone, text-label, textdraw, and chat
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers.
