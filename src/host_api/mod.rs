@@ -1,6 +1,7 @@
 mod animations;
 mod commands;
 mod conversions;
+mod dialog;
 mod events;
 mod handles;
 mod local_state;
@@ -23,10 +24,10 @@ use sdk_abi::limits::{
 };
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
-    SampClientSdkDialogSnapshotV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
-    SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkHostStatus,
-    SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
-    SampClientSdkResult, SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
+    SampClientSdkDirection, SampClientSdkEventCallbackV1, SampClientSdkEventV1,
+    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
+    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -225,15 +226,15 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_set_textdraw_box,
     submit_set_textdraw_alignment,
     submit_set_textdraw_string,
-    local_dialog_selected_item,
+    local_dialog_selected_item: dialog::local_dialog_selected_item,
     submit_local_dialog_selected_item,
     submit_delete_text_label,
-    local_dialog_list_item_count,
+    local_dialog_list_item_count: dialog::local_dialog_list_item_count,
     submit_set_textdraw_model_style,
     submit_local_chat_entry,
     chat_entry_info: snapshots::chat_entry_info,
     submit_create_text_label,
-    local_dialog_snapshot,
+    local_dialog_snapshot: dialog::local_dialog_snapshot,
     submit_local_dialog_editbox_text,
     local_object_handle: handles::local_object_handle,
     local_object_id_by_handle: handles::local_object_id_by_handle,
@@ -981,22 +982,6 @@ unsafe extern "system" fn submit_set_textdraw_string(
     }
 }
 
-unsafe extern "system" fn local_dialog_selected_item(output: *mut i32) -> SampClientSdkResult {
-    if output.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_dialog_selected_item() {
-        Ok(value) => {
-            unsafe { output.write(value) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn submit_local_dialog_selected_item(
     selected: i32,
     receipt: *mut SampClientSdkCommandReceipt,
@@ -1086,43 +1071,6 @@ unsafe extern "system" fn submit_create_text_label(
         }
         Err(error) => direct_client_result(error),
     }
-}
-
-unsafe extern "system" fn local_dialog_list_item_count(output: *mut i32) -> SampClientSdkResult {
-    if output.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_dialog_list_item_count() {
-        Ok(value) => {
-            unsafe { output.write(value) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn local_dialog_snapshot(
-    output: *mut SampClientSdkDialogSnapshotV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let snapshot = match runtime.local_dialog_state() {
-        Ok(Some(snapshot)) => match conversions::local_dialog_snapshot_to_abi(snapshot) {
-            Ok(snapshot) => snapshot,
-            Err(()) => return SampClientSdkResult::NativeCallFailed,
-        },
-        Ok(None) => SampClientSdkDialogSnapshotV1::default(),
-        Err(error) => return direct_client_result(error),
-    };
-    *output = snapshot;
-    SampClientSdkResult::Ok
 }
 
 unsafe extern "system" fn submit_local_dialog_editbox_text(
@@ -1716,7 +1664,8 @@ mod tests {
     };
     use sdk_abi::{
         SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkCommandResultV1,
-        SampClientSdkGangzoneV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
+        SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkTextDrawV1,
+        SampClientSdkTextLabelV1,
         limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
     };
     use std::sync::{Arc, OnceLock};
@@ -1833,11 +1782,11 @@ mod tests {
         );
         let mut dialog_snapshot = SampClientSdkDialogSnapshotV1::default();
         assert_eq!(
-            unsafe { local_dialog_snapshot(&mut dialog_snapshot) },
+            unsafe { dialog::local_dialog_snapshot(&mut dialog_snapshot) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_dialog_snapshot(std::ptr::null_mut()) },
+            unsafe { dialog::local_dialog_snapshot(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut chat_input_active = 0;

@@ -36,6 +36,8 @@
   bitstream operations and native string codecs. `host_api/network.rs` owns
   direct and queued packet/RPC sends and incoming emulation;
   `host_api/animations.rs` owns cached local animation-table reads and lookups;
+  `host_api/dialog.rs` owns the detailed local-dialog snapshot and scalar
+  selection reads;
   `host_api/local_state.rs` owns local UI-state and active-dialog-core reads;
   `host_api/commands.rs` owns receipt polling, waiting, and release, and
   `host_api/handles.rs` owns forward/reverse native-handle lookups.
