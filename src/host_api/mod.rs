@@ -3,6 +3,7 @@ mod commands;
 mod conversions;
 mod events;
 mod handles;
+mod local_state;
 mod network;
 mod pools;
 mod raw;
@@ -21,12 +22,11 @@ use sdk_abi::limits::{
     MAX_SAMP_VEHICLES,
 };
 use sdk_abi::{
-    ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkApiV1, SampClientSdkChatInputTextV1,
-    SampClientSdkCommandReceipt, SampClientSdkDialogSnapshotV1, SampClientSdkDirection,
-    SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkHookAction,
-    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkServerInfoV1,
-    SampClientSdkSubscription, Vector3,
+    ABI_VERSION_V1, SampClientSdkApiV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
+    SampClientSdkDialogSnapshotV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
+    SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkHostStatus,
+    SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
+    SampClientSdkResult, SampClientSdkServerInfoV1, SampClientSdkSubscription, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -161,18 +161,18 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     server_info,
     show_local_chat_message,
     show_local_death_message,
-    local_chat_display_mode,
-    local_cursor_mode,
-    local_scoreboard_open,
-    local_dialog_active,
-    local_chat_input_active,
+    local_chat_display_mode: local_state::local_chat_display_mode,
+    local_cursor_mode: local_state::local_cursor_mode,
+    local_scoreboard_open: local_state::local_scoreboard_open,
+    local_dialog_active: local_state::local_dialog_active,
+    local_chat_input_active: local_state::local_chat_input_active,
     local_animation: animations::local_animation,
     local_animation_id: animations::local_animation_id,
     player_info,
     player_count,
     player_max_id,
     vehicle_exists: pools::vehicle_exists,
-    active_local_dialog,
+    active_local_dialog: local_state::active_local_dialog,
     text_label_exists: pools::text_label_exists,
     textdraw_exists: pools::textdraw_exists,
     object_exists: pools::object_exists,
@@ -1448,110 +1448,6 @@ unsafe extern "system" fn server_info(
     SampClientSdkResult::Ok
 }
 
-unsafe extern "system" fn local_chat_display_mode(output: *mut i32) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_chat_display_mode() {
-        Ok(mode) => {
-            *output = mode;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn local_cursor_mode(output: *mut i32) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_cursor_mode() {
-        Ok(mode) => {
-            *output = mode;
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn local_scoreboard_open(output: *mut u8) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_scoreboard_open() {
-        Ok(open) => {
-            *output = u8::from(open);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn local_dialog_active(output: *mut u8) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_dialog_active() {
-        Ok(active) => {
-            *output = u8::from(active);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
-unsafe extern "system" fn active_local_dialog(
-    output: *mut SampClientSdkActiveDialogV1,
-) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    let snapshot = match runtime.local_dialog_state() {
-        Ok(snapshot) => snapshot,
-        Err(error) => return direct_client_result(error),
-    };
-    let snapshot = match snapshot {
-        Some(snapshot) => match conversions::local_dialog_state_to_abi(&snapshot) {
-            Ok(snapshot) => snapshot,
-            Err(()) => return SampClientSdkResult::NativeCallFailed,
-        },
-        None => SampClientSdkActiveDialogV1::default(),
-    };
-    *output = snapshot;
-    SampClientSdkResult::Ok
-}
-
-unsafe extern "system" fn local_chat_input_active(output: *mut u8) -> SampClientSdkResult {
-    let Some(output) = (unsafe { output.as_mut() }) else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.local_chat_input_active() {
-        Ok(active) => {
-            *output = u8::from(active);
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
-}
-
 unsafe extern "system" fn player_info(
     id: u16,
     output: *mut SampClientSdkPlayerInfoV1,
@@ -1819,8 +1715,8 @@ mod tests {
         TextLabelSnapshot, TextdrawSnapshot,
     };
     use sdk_abi::{
-        SampClientSdkAnimationV1, SampClientSdkCommandResultV1, SampClientSdkGangzoneV1,
-        SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
+        SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkCommandResultV1,
+        SampClientSdkGangzoneV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
         limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
     };
     use std::sync::{Arc, OnceLock};
@@ -1892,47 +1788,47 @@ mod tests {
         );
         let mut chat_display_mode = 0;
         assert_eq!(
-            unsafe { local_chat_display_mode(&mut chat_display_mode) },
+            unsafe { local_state::local_chat_display_mode(&mut chat_display_mode) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_chat_display_mode(std::ptr::null_mut()) },
+            unsafe { local_state::local_chat_display_mode(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut cursor_mode = 0;
         assert_eq!(
-            unsafe { local_cursor_mode(&mut cursor_mode) },
+            unsafe { local_state::local_cursor_mode(&mut cursor_mode) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_cursor_mode(std::ptr::null_mut()) },
+            unsafe { local_state::local_cursor_mode(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut scoreboard_open = 0;
         assert_eq!(
-            unsafe { local_scoreboard_open(&mut scoreboard_open) },
+            unsafe { local_state::local_scoreboard_open(&mut scoreboard_open) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_scoreboard_open(std::ptr::null_mut()) },
+            unsafe { local_state::local_scoreboard_open(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut dialog_active = 0;
         assert_eq!(
-            unsafe { local_dialog_active(&mut dialog_active) },
+            unsafe { local_state::local_dialog_active(&mut dialog_active) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_dialog_active(std::ptr::null_mut()) },
+            unsafe { local_state::local_dialog_active(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut active_dialog = SampClientSdkActiveDialogV1::default();
         assert_eq!(
-            unsafe { active_local_dialog(&mut active_dialog) },
+            unsafe { local_state::active_local_dialog(&mut active_dialog) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { active_local_dialog(std::ptr::null_mut()) },
+            unsafe { local_state::active_local_dialog(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut dialog_snapshot = SampClientSdkDialogSnapshotV1::default();
@@ -1946,11 +1842,11 @@ mod tests {
         );
         let mut chat_input_active = 0;
         assert_eq!(
-            unsafe { local_chat_input_active(&mut chat_input_active) },
+            unsafe { local_state::local_chat_input_active(&mut chat_input_active) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { local_chat_input_active(std::ptr::null_mut()) },
+            unsafe { local_state::local_chat_input_active(std::ptr::null_mut()) },
             SampClientSdkResult::InvalidArgument
         );
         let mut animation = SampClientSdkAnimationV1::default();
