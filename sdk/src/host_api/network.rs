@@ -1,5 +1,6 @@
 //! Low-level packet/RPC send and incoming-emulation `HostApi` wrappers.
 
+use crate::events;
 use crate::raknet::BitStream;
 use crate::{
     CommandReceipt, HostApi, SampClientSdkCommandReceipt, SampClientSdkResult,
@@ -7,6 +8,45 @@ use crate::{
 };
 
 impl HostApi {
+    /// Sends a bounded server-bound RCON command packet (201).
+    pub fn send_rcon_command(self, command: &[u8]) -> SampClientSdkResult {
+        self.send_typed_packet(
+            events::packet::outgoing::SEND_RCON_COMMAND,
+            command.to_vec(),
+        )
+    }
+    /// Sends a complete local aim-sync packet (203).
+    pub fn send_aim_sync(self, sync: events::packet::AimSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_AIM_SYNC, sync)
+    }
+    /// Sends a complete local bullet-sync packet (206).
+    pub fn send_bullet_sync(self, sync: events::packet::BulletSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_BULLET_SYNC, sync)
+    }
+    /// Sends a complete local vehicle-sync packet (200).
+    pub fn send_vehicle_sync(self, sync: events::packet::VehicleSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_VEHICLE_SYNC, sync)
+    }
+    /// Sends a complete local on-foot player-sync packet (207).
+    pub fn send_player_sync(self, sync: events::packet::PlayerSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_PLAYER_SYNC, sync)
+    }
+    /// Sends a complete local spectator-sync packet (212).
+    pub fn send_spectator_sync(self, sync: events::packet::SpectatorSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_SPECTATOR_SYNC, sync)
+    }
+    /// Sends a complete local trailer-sync packet (210).
+    pub fn send_trailer_sync(self, sync: events::packet::TrailerSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_TRAILER_SYNC, sync)
+    }
+    /// Sends a complete local passenger-sync packet (211).
+    pub fn send_passenger_sync(self, sync: events::packet::PassengerSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_PASSENGER_SYNC, sync)
+    }
+    /// Sends a complete local unoccupied-vehicle sync packet (209).
+    pub fn send_unoccupied_sync(self, sync: events::packet::UnoccupiedSync) -> SampClientSdkResult {
+        self.send_typed_packet(events::packet::outgoing::SEND_UNOCCUPIED_SYNC, sync)
+    }
     /// Sends a packet through SA-MP's original RakClient method.
     ///
     /// `payload` excludes the packet ID. Outgoing listeners are bypassed to prevent recursive

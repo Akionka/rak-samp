@@ -291,6 +291,8 @@ Progress:
   network wrapper module.
 - [x] Extract SDK incoming packet/RPC emulation wrappers into the existing
   network wrapper module.
+- [x] Extract SDK typed packet/synchronization send conveniences into the
+  existing network wrapper module.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
 
