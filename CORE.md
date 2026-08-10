@@ -34,7 +34,8 @@
   into fixed C-compatible output storage, while `host_api/raw.rs` owns the
   opaque native-address entry points and `host_api/events.rs` owns event
   bitstream operations and native string codecs. `host_api/network.rs` owns
-  direct and queued packet/RPC sends and incoming emulation.
+  direct and queued packet/RPC sends and incoming emulation;
+  `host_api/commands.rs` owns receipt polling, waiting, and release.
 
 ## Process model
 

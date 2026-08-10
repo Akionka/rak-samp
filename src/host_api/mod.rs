@@ -1,12 +1,11 @@
+mod commands;
 mod conversions;
 mod events;
 mod network;
 mod raw;
 
 use crate::{
-    AttachError, BitStream, Direction, HookAction, ListenerHandle, Runtime, SampVersion,
-    command::CommandError,
-    logging,
+    AttachError, BitStream, Direction, HookAction, ListenerHandle, Runtime, SampVersion, logging,
     runtime::{
         ClientHookStatus, DirectClientError, LocalChatMessageRequest, LocalChatMessageStyle,
         LocalDeathMessageRequest, LocalDialogRequest, LocalDialogStyle,
@@ -20,12 +19,11 @@ use sdk_abi::limits::{
 use sdk_abi::{
     ABI_VERSION_V1, SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkApiV1,
     SampClientSdkChatEntryV1, SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt,
-    SampClientSdkCommandResultV1, SampClientSdkDialogSnapshotV1, SampClientSdkDirection,
-    SampClientSdkEventCallbackV1, SampClientSdkEventV1, SampClientSdkGangzoneV1,
-    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkLocalPlayerV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
-    SampClientSdkServerInfoV1, SampClientSdkSubscription, SampClientSdkTextDrawV1,
-    SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkDialogSnapshotV1, SampClientSdkDirection, SampClientSdkEventCallbackV1,
+    SampClientSdkEventV1, SampClientSdkGangzoneV1, SampClientSdkHookAction,
+    SampClientSdkHostStatus, SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkServerInfoV1,
+    SampClientSdkSubscription, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
 };
 use std::{
     collections::HashMap,
@@ -184,9 +182,9 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_local_dialog,
     submit_local_chat_message,
     submit_local_death_message,
-    command_try_take,
-    command_wait,
-    command_release,
+    command_try_take: commands::command_try_take,
+    command_wait: commands::command_wait,
+    command_release: commands::command_release,
     submit_packet: network::submit_packet,
     submit_rpc: network::submit_rpc,
     submit_emulate_incoming_packet: network::submit_emulate_incoming_packet,
@@ -1476,68 +1474,6 @@ unsafe extern "system" fn local_chat_input_text(
     }
 }
 
-unsafe extern "system" fn command_try_take(
-    receipt: SampClientSdkCommandReceipt,
-    output: *mut SampClientSdkCommandResultV1,
-) -> SampClientSdkResult {
-    if receipt.id == 0 || output.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.try_take_command(receipt.id) {
-        Ok(Some(result)) => {
-            unsafe {
-                output.write(SampClientSdkCommandResultV1 {
-                    status: command_completion_result(result),
-                });
-            }
-            SampClientSdkResult::Ok
-        }
-        Ok(None) => SampClientSdkResult::CommandPending,
-        Err(error) => command_error_result(error),
-    }
-}
-
-unsafe extern "system" fn command_wait(
-    receipt: SampClientSdkCommandReceipt,
-    timeout_ms: u32,
-    output: *mut SampClientSdkCommandResultV1,
-) -> SampClientSdkResult {
-    if receipt.id == 0 || output.is_null() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.wait_for_command(receipt.id, Duration::from_millis(u64::from(timeout_ms))) {
-        Ok(result) => {
-            unsafe {
-                output.write(SampClientSdkCommandResultV1 {
-                    status: command_completion_result(result),
-                });
-            }
-            SampClientSdkResult::Ok
-        }
-        Err(error) => command_error_result(error),
-    }
-}
-
-unsafe extern "system" fn command_release(
-    receipt: SampClientSdkCommandReceipt,
-) -> SampClientSdkResult {
-    if receipt.id == 0 {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    runtime
-        .release_command(receipt.id)
-        .map_or_else(command_error_result, |_| SampClientSdkResult::Ok)
-}
-
 unsafe extern "system" fn local_player(
     output: *mut SampClientSdkLocalPlayerV1,
 ) -> SampClientSdkResult {
@@ -2162,21 +2098,6 @@ fn direct_client_result(error: DirectClientError) -> SampClientSdkResult {
     }
 }
 
-fn command_completion_result(result: Result<(), CommandError>) -> SampClientSdkResult {
-    result.map_or_else(command_error_result, |_| SampClientSdkResult::Ok)
-}
-
-fn command_error_result(error: CommandError) -> SampClientSdkResult {
-    match error {
-        CommandError::QueueFull => SampClientSdkResult::QueueFull,
-        CommandError::ShuttingDown => SampClientSdkResult::ShuttingDown,
-        CommandError::NativeFailure => SampClientSdkResult::NativeCallFailed,
-        CommandError::UnknownReceipt => SampClientSdkResult::InvalidArgument,
-        CommandError::TimedOut => SampClientSdkResult::TimedOut,
-        CommandError::WaitRejected => SampClientSdkResult::WaitRejected,
-    }
-}
-
 unsafe fn copied_nul_free_string(
     value: *const u8,
     value_len: usize,
@@ -2223,6 +2144,7 @@ mod tests {
         ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
         TextLabelSnapshot, TextdrawSnapshot,
     };
+    use sdk_abi::SampClientSdkCommandResultV1;
     use std::sync::{Arc, OnceLock};
 
     #[test]
@@ -2589,15 +2511,15 @@ mod tests {
         let mut command_result = SampClientSdkCommandResultV1::default();
         let receipt = SampClientSdkCommandReceipt { id: 1 };
         assert_eq!(
-            unsafe { command_try_take(receipt, &mut command_result) },
+            unsafe { commands::command_try_take(receipt, &mut command_result) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { command_wait(receipt, 0, &mut command_result) },
+            unsafe { commands::command_wait(receipt, 0, &mut command_result) },
             SampClientSdkResult::NotReady
         );
         assert_eq!(
-            unsafe { command_release(receipt) },
+            unsafe { commands::command_release(receipt) },
             SampClientSdkResult::NotReady
         );
     }

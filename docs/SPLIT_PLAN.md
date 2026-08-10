@@ -212,6 +212,8 @@ Progress:
   ABI table or callback construction.
 - [x] Extract direct and queued packet/RPC send and emulation entry points
   without moving the ABI table or listener registration.
+- [x] Extract command receipt polling, waiting, and release without moving the
+  ABI table or command producers.
 - Move each ABI table literal last and as one block.
 - Split SDK host-wrapper methods behind unchanged root exports.
 - Verify DLL exports around host module-wiring changes.
