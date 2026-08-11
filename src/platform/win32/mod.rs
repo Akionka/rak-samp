@@ -13,7 +13,7 @@ mod native_bitstream;
 mod objects;
 mod packets;
 mod players;
-mod r1_client;
+pub(crate) mod r1_client;
 mod reads;
 mod refresh;
 mod requests;
@@ -330,6 +330,15 @@ enum GameCommand {
     SetChatInputText(Vec<u8>),
     SetChatInputEnabled(bool),
     ProcessChatInput(Vec<u8>),
+    RegisterChatCommand {
+        subscription: u64,
+        slot: u8,
+        name: Vec<u8>,
+    },
+    UnregisterChatCommand {
+        subscription: u64,
+        name: Vec<u8>,
+    },
     SetChatDisplayMode(i32),
     SetChatEntry {
         id: u16,

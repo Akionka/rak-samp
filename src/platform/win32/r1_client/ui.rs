@@ -542,4 +542,101 @@ impl R1ClientProfile {
         unsafe { process(input) };
         Ok(())
     }
+
+    /// Registers one bounded native chat-command callback on the game thread.
+    pub(in super::super) fn register_chat_command(
+        self,
+        name: &[u8],
+        callback: unsafe extern "cdecl" fn(*const i8),
+    ) -> Result<(), DirectClientError> {
+        if name.is_empty() || name.len() > MAX_CHAT_COMMAND_NAME_BYTES || name.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        let command_count =
+            unsafe { read_unaligned::<i32>(input as usize + INPUT_COMMAND_COUNT_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        if !(0..MAX_CHAT_COMMANDS as i32).contains(&command_count) {
+            return Err(DirectClientError::NotReady);
+        }
+        let name = nul_terminated(name.to_vec());
+        let get_handler: InputGetCommandHandlerFn =
+            unsafe { mem::transmute(self.module_base + INPUT_GET_COMMAND_HANDLER_RVA) };
+        if !unsafe { get_handler(input, name.as_ptr().cast()) }.is_null() {
+            return Err(DirectClientError::NotReady);
+        }
+        let add_command: InputAddCommandFn =
+            unsafe { mem::transmute(self.module_base + INPUT_ADD_COMMAND_RVA) };
+        unsafe { add_command(input, name.as_ptr().cast(), callback) };
+        Ok(())
+    }
+
+    /// Removes one R1 chat-command entry using the bounded shifting sequence
+    /// used by the pinned SF.lua reference. R1 exposes no native remove call.
+    pub(in super::super) fn unregister_chat_command(
+        self,
+        name: &[u8],
+    ) -> Result<(), DirectClientError> {
+        if name.is_empty() || name.len() > MAX_CHAT_COMMAND_NAME_BYTES || name.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        let input = self.input().ok_or(DirectClientError::NotReady)? as *mut u8;
+        let command_count =
+            unsafe { read_unaligned::<i32>(input as usize + INPUT_COMMAND_COUNT_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        if !(1..=MAX_CHAT_COMMANDS as i32).contains(&command_count) {
+            return Err(DirectClientError::NotReady);
+        }
+        let command_count = command_count as usize;
+        let proc_base = unsafe { input.add(INPUT_COMMAND_PROC_OFFSET) };
+        let name_base = unsafe { input.add(INPUT_COMMAND_NAME_OFFSET) };
+        let count = unsafe { input.add(INPUT_COMMAND_COUNT_OFFSET) };
+        if !writable_range(proc_base, command_count * mem::size_of::<usize>())
+            || !writable_range(name_base, command_count * INPUT_COMMAND_NAME_CAPACITY)
+            || !writable_range(count, mem::size_of::<i32>())
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let Some(index) = (0..command_count).find(|index| {
+            let candidate = unsafe {
+                bounded_c_string(
+                    name_base.wrapping_add(index * INPUT_COMMAND_NAME_CAPACITY),
+                    INPUT_COMMAND_NAME_CAPACITY,
+                )
+            };
+            candidate.as_deref() == Some(name)
+        }) else {
+            return Err(DirectClientError::NotReady);
+        };
+        let remaining = command_count - index - 1;
+        if remaining != 0 {
+            unsafe {
+                ptr::copy(
+                    name_base.add((index + 1) * INPUT_COMMAND_NAME_CAPACITY),
+                    name_base.add(index * INPUT_COMMAND_NAME_CAPACITY),
+                    remaining * INPUT_COMMAND_NAME_CAPACITY,
+                );
+                ptr::copy(
+                    proc_base.add((index + 1) * mem::size_of::<usize>()),
+                    proc_base.add(index * mem::size_of::<usize>()),
+                    remaining * mem::size_of::<usize>(),
+                );
+            }
+        }
+        let last = command_count - 1;
+        unsafe {
+            ptr::write_bytes(
+                name_base.add(last * INPUT_COMMAND_NAME_CAPACITY),
+                0,
+                INPUT_COMMAND_NAME_CAPACITY,
+            );
+            ptr::write_bytes(
+                proc_base.add(last * mem::size_of::<usize>()),
+                0,
+                mem::size_of::<usize>(),
+            );
+            ptr::write_unaligned(count.cast::<i32>(), (command_count - 1) as i32);
+        }
+        Ok(())
+    }
 }

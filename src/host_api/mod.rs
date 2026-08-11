@@ -1,4 +1,5 @@
 mod animations;
+pub(crate) mod chat_commands;
 mod chat_input;
 mod commands;
 mod connection;
@@ -69,6 +70,7 @@ struct HostState {
     status: AtomicU32,
     bootstrap_started: AtomicBool,
     runtime: OnceLock<Arc<Runtime>>,
+    chat_commands: chat_commands::ChatCommandRegistry,
     subscriptions: Mutex<HashMap<u64, ListenerHandle>>,
     next_subscription: AtomicU64,
 }
@@ -266,6 +268,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_vehicle_id_by_handle: handles::local_vehicle_id_by_handle,
     local_player_ped_handle: handles::local_player_ped_handle,
     local_player_id_by_ped_handle: handles::local_player_id_by_ped_handle,
+    submit_register_chat_command: chat_commands::submit_register_chat_command,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

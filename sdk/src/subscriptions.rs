@@ -1,4 +1,4 @@
-use super::{CallbackState, HostApi};
+use super::{CallbackState, ChatCommandCallbackState, HostApi};
 use crate::{SampClientSdkResult, SampClientSdkSubscription};
 use core::fmt;
 
@@ -94,6 +94,102 @@ impl fmt::Display for SubscriptionShutdownError {
 }
 
 impl std::error::Error for SubscriptionShutdownError {}
+
+/// An owned local chat-command registration.
+///
+/// Call [`Self::unregister_and_wait`] from a worker thread before unloading
+/// the plugin ASI. Dropping this value requests asynchronous native removal
+/// and deliberately retains the callback allocation if synchronization is not
+/// possible.
+#[must_use = "a chat-command subscription must be synchronized before unloading the plugin ASI"]
+pub struct ChatCommandSubscription {
+    pub(crate) api: HostApi,
+    pub(crate) raw: SampClientSdkSubscription,
+    pub(crate) callback: Option<Box<ChatCommandCallbackState>>,
+}
+
+impl ChatCommandSubscription {
+    /// Returns this registration's host-assigned identifier.
+    #[must_use]
+    pub const fn id(&self) -> u64 {
+        self.raw.id
+    }
+
+    /// Removes the native R1 command and waits until its callback cannot run.
+    ///
+    /// Call this from a worker thread, never from `DllMain` or the command
+    /// callback. On failure, the returned error retains the registration for a
+    /// retry.
+    pub fn unregister_and_wait(mut self) -> Result<(), ChatCommandShutdownError> {
+        let result = unsafe { (self.api.raw.unregister_and_wait)(self.raw) };
+        if matches!(
+            result,
+            SampClientSdkResult::Ok | SampClientSdkResult::SubscriptionNotFound
+        ) {
+            drop(self.callback.take());
+            Ok(())
+        } else {
+            Err(ChatCommandShutdownError {
+                result,
+                subscription: self,
+            })
+        }
+    }
+}
+
+impl Drop for ChatCommandSubscription {
+    fn drop(&mut self) {
+        if let Some(callback) = self.callback.take() {
+            // Do not wait in Drop. The host disables this callback before it
+            // queues native removal, and retaining the allocation keeps any
+            // callback already in flight safe through plugin unload.
+            let _ = unsafe { (self.api.raw.unregister)(self.raw) };
+            let _ = Box::leak(callback);
+        }
+    }
+}
+
+impl fmt::Debug for ChatCommandSubscription {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ChatCommandSubscription")
+            .field("id", &self.id())
+            .finish_non_exhaustive()
+    }
+}
+
+/// A chat-command removal that could not be synchronized.
+#[derive(Debug)]
+pub struct ChatCommandShutdownError {
+    result: SampClientSdkResult,
+    subscription: ChatCommandSubscription,
+}
+
+impl ChatCommandShutdownError {
+    /// Returns the host result that prevented synchronized removal.
+    #[must_use]
+    pub const fn result(&self) -> SampClientSdkResult {
+        self.result
+    }
+
+    /// Returns the still-registered command for a shutdown retry.
+    pub fn into_subscription(self) -> ChatCommandSubscription {
+        self.subscription
+    }
+}
+
+impl fmt::Display for ChatCommandShutdownError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            formatter,
+            "host could not synchronize chat-command subscription {}: {:?}",
+            self.subscription.id(),
+            self.result
+        )
+    }
+}
+
+impl std::error::Error for ChatCommandShutdownError {}
 
 /// A group of callback subscriptions that should be stopped together.
 ///

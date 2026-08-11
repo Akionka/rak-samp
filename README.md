@@ -48,6 +48,18 @@ Keep every `Subscription` or `SubscriptionSet`. Before unloading a plugin,
 call `unregister_and_wait` from a worker thread. Never wait in `DllMain`, a
 listener callback, or the game tick.
 
+Register native chat commands from a worker thread and keep the returned
+subscription alive for as long as the handler may run:
+
+```rust
+let command = samp.chat_input().register_command(b"hello", |args| {
+    // `args` is the bounded text after `/hello`.
+})?;
+```
+
+Call `command.unregister_and_wait()` from a worker thread before unloading the
+plugin.
+
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned

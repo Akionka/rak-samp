@@ -47,9 +47,15 @@ type EventHandler = dyn for<'event> Fn(&mut events::Event<'event>) -> SampClient
     + Sync
     + 'static;
 
+type ChatCommandHandler = dyn Fn(&[u8]) + Send + Sync + 'static;
+
 struct CallbackState {
     api: HostApi,
     handler: Box<EventHandler>,
+}
+
+pub(crate) struct ChatCommandCallbackState {
+    pub(crate) handler: Box<ChatCommandHandler>,
 }
 
 type RegisterListener = unsafe extern "system" fn(
@@ -71,6 +77,25 @@ unsafe extern "system" fn dispatch_callback(
     };
     catch_unwind(AssertUnwindSafe(|| (callback.handler)(&mut event)))
         .unwrap_or(SampClientSdkHookAction::Continue)
+}
+
+pub(crate) unsafe extern "system" fn dispatch_chat_command_callback(
+    user_data: *mut c_void,
+    args: *const u8,
+    args_len: usize,
+) {
+    if args_len > limits::MAX_SAMP_CHAT_INPUT_TEXT_BYTES || (args.is_null() && args_len != 0) {
+        return;
+    }
+    let Some(callback) = (unsafe { user_data.cast::<ChatCommandCallbackState>().as_ref() }) else {
+        return;
+    };
+    let args = if args_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(args, args_len) }
+    };
+    let _ = catch_unwind(AssertUnwindSafe(|| (callback.handler)(args)));
 }
 
 #[cfg(test)]

@@ -1519,6 +1519,27 @@ unsafe extern "system" fn test_submit_local_chat_input_process(
     unsafe { test_submit_command(receipt, 19) }
 }
 
+unsafe extern "system" fn test_submit_register_chat_command(
+    name: *const u8,
+    name_len: usize,
+    callback: Option<crate::SampClientSdkChatCommandCallbackV1>,
+    user_data: *mut std::ffi::c_void,
+    subscription: *mut crate::SampClientSdkSubscription,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if name_len == 0
+        || name_len > 32
+        || name.is_null()
+        || callback.is_none()
+        || user_data.is_null()
+        || subscription.is_null()
+    {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { subscription.write(crate::SampClientSdkSubscription { id: 41 }) };
+    unsafe { test_submit_command(receipt, 41) }
+}
+
 pub(crate) fn assert_replacement_round_trip<T>(descriptor: Rpc<T>, value: T)
 where
     T: Clone + ::core::fmt::Debug + PartialEq,

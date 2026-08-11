@@ -48,7 +48,7 @@ pub(super) unsafe extern "system" fn unregister(
         debug!("unregistered plugin subscription {}", subscription.id);
         SampClientSdkResult::Ok
     } else {
-        SampClientSdkResult::SubscriptionNotFound
+        chat_commands::unregister(subscription).unwrap_or(SampClientSdkResult::SubscriptionNotFound)
     }
 }
 
@@ -64,7 +64,9 @@ pub(super) unsafe extern "system" fn unregister_and_wait(
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         let Some(listener) = subscriptions.get(&subscription.id) else {
-            return SampClientSdkResult::SubscriptionNotFound;
+            drop(subscriptions);
+            return chat_commands::unregister_and_wait(subscription)
+                .unwrap_or(SampClientSdkResult::SubscriptionNotFound);
         };
         if !listener.can_remove_and_wait() {
             return SampClientSdkResult::CallbackInProgress;

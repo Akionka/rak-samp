@@ -435,6 +435,13 @@ pub type SampClientSdkEventCallbackV1 = unsafe extern "system" fn(
     event: *mut SampClientSdkEventV1,
 ) -> SampClientSdkHookAction;
 
+/// One copied local chat-command argument callback.
+///
+/// The host owns `args` for the duration of the callback only. Implementations
+/// must copy any bytes they need after returning.
+pub type SampClientSdkChatCommandCallbackV1 =
+    unsafe extern "system" fn(user_data: *mut c_void, args: *const u8, args_len: usize);
+
 /// The host-side ABI table exported by `samp_client_sdk.asi`.
 ///
 /// Fields are currently appended to preserve the v1 layout; during the ALPHA
@@ -955,6 +962,15 @@ pub struct SampClientSdkApiV1 {
     /// Resolves one cached R1 player-pool ID from its GTA ped handle.
     pub local_player_id_by_ped_handle:
         unsafe extern "system" fn(i32, *mut u16) -> SampClientSdkResult,
+    /// Queues one bounded native R1 chat-command registration.
+    pub submit_register_chat_command: unsafe extern "system" fn(
+        *const u8,
+        usize,
+        Option<SampClientSdkChatCommandCallbackV1>,
+        *mut c_void,
+        *mut SampClientSdkSubscription,
+        *mut SampClientSdkCommandReceipt,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

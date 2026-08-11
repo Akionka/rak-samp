@@ -35,6 +35,8 @@ pub const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 pub const MAX_SAMP_DIALOG_TEXT_BYTES: usize = 4_096;
 /// Maximum non-NUL bytes in the R1 dialog editbox text.
 pub const MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES: usize = 128;
+/// Maximum non-NUL bytes in an R1 local chat-command argument string.
+pub const MAX_SAMP_CHAT_INPUT_TEXT_BYTES: usize = 128;
 /// Maximum copied item strings retained for one active R1 dialog listbox.
 pub const MAX_SAMP_DIALOG_LISTBOX_ITEMS: usize = 100;
 /// Maximum non-NUL bytes in one R1 dialog listbox item string.

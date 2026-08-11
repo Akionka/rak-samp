@@ -199,6 +199,25 @@ impl Backend {
         self.state.submit_local_chat_input_text(text)
     }
 
+    pub(crate) fn submit_register_chat_command(
+        &self,
+        subscription: u64,
+        slot: u8,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_register_chat_command(subscription, slot, name)
+    }
+
+    pub(crate) fn submit_unregister_chat_command(
+        &self,
+        subscription: u64,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state
+            .submit_unregister_chat_command(subscription, name)
+    }
+
     pub(crate) fn submit_local_chat_input_enabled(
         &self,
         enabled: bool,
@@ -439,8 +458,16 @@ impl Backend {
         self.state.game_commands.wait(
             id,
             timeout,
-            !self.state.is_game_thread() && !self.state.registry.is_dispatching_on_current_thread(),
+            !self.state.is_game_thread()
+                && !self.state.registry.is_dispatching_on_current_thread()
+                && !crate::host_api::chat_commands::is_dispatching_on_current_thread(),
         )
+    }
+
+    pub(crate) fn command_wait_allowed(&self) -> bool {
+        !self.state.is_game_thread()
+            && !self.state.registry.is_dispatching_on_current_thread()
+            && !crate::host_api::chat_commands::is_dispatching_on_current_thread()
     }
 
     pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {

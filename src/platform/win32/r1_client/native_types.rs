@@ -15,6 +15,10 @@ pub(super) type DialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 pub(super) type ChatAddEntryFn =
     unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
 pub(super) type InputNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
+pub(super) type InputGetCommandHandlerFn =
+    unsafe extern "thiscall" fn(*mut c_void, *const i8) -> *const c_void;
+pub(super) type InputAddCommandFn =
+    unsafe extern "thiscall" fn(*mut c_void, *const i8, unsafe extern "cdecl" fn(*const i8));
 pub(super) type DxutEditBoxSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const i8, bool);
 pub(super) type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const i8;
 pub(super) type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;

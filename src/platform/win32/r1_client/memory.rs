@@ -113,6 +113,12 @@ pub(super) const MAX_DIALOG_LISTBOX_ITEMS: usize = 100;
 pub(super) const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 pub(super) const INPUT_EDIT_BOX_OFFSET: usize = 0x08;
 pub(super) const MAX_CHAT_INPUT_TEXT_BYTES: usize = 128;
+pub(super) const MAX_CHAT_COMMANDS: usize = 144;
+pub(super) const MAX_CHAT_COMMAND_NAME_BYTES: usize = 32;
+pub(super) const INPUT_COMMAND_PROC_OFFSET: usize = 0x0C;
+pub(super) const INPUT_COMMAND_NAME_OFFSET: usize = 0x24C;
+pub(super) const INPUT_COMMAND_NAME_CAPACITY: usize = MAX_CHAT_COMMAND_NAME_BYTES + 1;
+pub(super) const INPUT_COMMAND_COUNT_OFFSET: usize = 0x14DC;
 pub(super) const TEXTDRAW_DATA_OFFSET: usize = 0x963;
 pub(super) const TEXTDRAW_LETTER_WIDTH_OFFSET: usize = TEXTDRAW_DATA_OFFSET;
 pub(super) const TEXTDRAW_LETTER_HEIGHT_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x04;
@@ -229,7 +235,7 @@ pub(super) fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
     }
 }
 
-pub(super) unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
+pub(crate) unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
     if pointer.is_null() {
         return None;
     }

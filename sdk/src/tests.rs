@@ -257,10 +257,6 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, raw_player_pool) + function_size
     );
     assert_eq!(
-        mem::size_of::<SampClientSdkApiV1>(),
-        mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle) + function_size
-    );
-    assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, local_dialog_snapshot),
         mem::offset_of!(SampClientSdkApiV1, submit_create_text_label) + function_size
     );
@@ -299,6 +295,14 @@ fn newer_functions_are_appended_to_abi_v1() {
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle),
         mem::offset_of!(SampClientSdkApiV1, local_player_ped_handle) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, submit_register_chat_command),
+        mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle) + function_size
+    );
+    assert_eq!(
+        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, submit_register_chat_command) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, raw_rakclient),

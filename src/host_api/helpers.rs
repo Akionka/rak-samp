@@ -76,6 +76,7 @@ pub(super) fn host() -> &'static HostState {
         status: AtomicU32::new(STATUS_WAITING),
         bootstrap_started: AtomicBool::new(false),
         runtime: OnceLock::new(),
+        chat_commands: super::chat_commands::ChatCommandRegistry::new(),
         subscriptions: Mutex::new(HashMap::new()),
         next_subscription: AtomicU64::new(1),
     })

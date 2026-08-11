@@ -6,7 +6,7 @@
 
 mod addresses;
 mod handles;
-mod memory;
+pub(crate) mod memory;
 mod native_types;
 mod players;
 mod pools;

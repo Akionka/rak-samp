@@ -1,7 +1,7 @@
 use crate::{
-    ChatEntry, CommandReceipt, HostApi, LocalChatDisplayMode, LocalChatMessage, LocalCursorMode,
-    LocalDeathMessage, LocalDialog, LocalDialogState, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES,
-    SampClientSdkResult,
+    ChatCommandCallbackState, ChatCommandSubscription, ChatEntry, CommandReceipt, HostApi,
+    LocalChatDisplayMode, LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog,
+    LocalDialogState, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, SampClientSdkResult,
 };
 
 #[derive(Clone, Copy)]
@@ -179,6 +179,46 @@ impl ChatInput {
     pub fn process(self, text: &[u8]) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_local_chat_input_process(text)
     }
+
+    /// Registers one R1 local chat command and waits for its queued game-tick
+    /// installation before returning the owned subscription. Call this from a
+    /// plugin worker, never from `DllMain` or a callback.
+    pub fn register_command(
+        self,
+        name: &[u8],
+        handler: impl Fn(&[u8]) + Send + Sync + 'static,
+    ) -> Result<ChatCommandSubscription, SampClientSdkResult> {
+        if name.is_empty() || name.len() > 32 || name.contains(&0) {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let callback = Box::new(ChatCommandCallbackState {
+            handler: Box::new(handler),
+        });
+        let user_data = (&raw const *callback).cast_mut().cast();
+        let (raw, mut receipt) = self.api.submit_register_chat_command(
+            name,
+            crate::dispatch_chat_command_callback,
+            user_data,
+        )?;
+        let installed = loop {
+            match receipt.wait(std::time::Duration::MAX) {
+                Err(SampClientSdkResult::TimedOut) => continue,
+                result => break result,
+            }
+        };
+        match installed {
+            Ok(()) => Ok(ChatCommandSubscription {
+                api: self.api,
+                raw,
+                callback: Some(callback),
+            }),
+            Err(error) => {
+                let _ = unsafe { (self.api.raw.unregister)(raw) };
+                drop(callback);
+                Err(error)
+            }
+        }
+    }
 }
 
 impl DeathWindow {
@@ -302,6 +342,20 @@ mod tests {
     #[test]
     fn chat_input_text_is_an_owned_cached_value() {
         assert_eq!(samp().chat_input().text(), Ok(b"/sdk".to_vec()));
+    }
+
+    #[test]
+    fn chat_command_registration_waits_for_the_owned_subscription() {
+        let command = samp()
+            .chat_input()
+            .register_command(b"sdk", |_| {})
+            .unwrap();
+        assert_eq!(command.id(), 41);
+        command.unregister_and_wait().unwrap();
+        assert!(matches!(
+            samp().chat_input().register_command(&[], |_| {}),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
     }
 
     #[test]

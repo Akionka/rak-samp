@@ -332,6 +332,50 @@ impl BackendState {
         self.queue_game_command(GameCommand::ProcessChatInput(text))
     }
 
+    pub(super) fn submit_register_chat_command(
+        &self,
+        subscription: u64,
+        slot: u8,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || subscription == 0
+            || usize::from(slot) >= 144
+            || name.is_empty()
+            || name.len() > 32
+            || name.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::RegisterChatCommand {
+            subscription,
+            slot,
+            name,
+        })
+    }
+
+    pub(super) fn submit_unregister_chat_command(
+        &self,
+        subscription: u64,
+        name: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || subscription == 0
+            || name.is_empty()
+            || name.len() > 32
+            || name.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::UnregisterChatCommand { subscription, name })
+    }
+
     pub(super) fn submit_local_cursor_toggle(
         &self,
         show: bool,
@@ -815,6 +859,43 @@ impl BackendState {
                             .process_chat_input(&text)
                             .map_err(|_| CommandError::NativeFailure)
                     }),
+                GameCommand::RegisterChatCommand {
+                    subscription,
+                    slot,
+                    name,
+                } => {
+                    let result =
+                        self.r1_client
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|profile| {
+                                profile
+                                    .register_chat_command(
+                                        &name,
+                                        crate::host_api::chat_commands::trampoline(slot),
+                                    )
+                                    .map_err(|_| CommandError::NativeFailure)
+                            });
+                    crate::host_api::chat_commands::finish_registration(
+                        subscription,
+                        result.is_ok(),
+                    );
+                    result
+                }
+                GameCommand::UnregisterChatCommand { subscription, name } => {
+                    let result =
+                        self.r1_client
+                            .ok_or(CommandError::NativeFailure)
+                            .and_then(|profile| {
+                                profile
+                                    .unregister_chat_command(&name)
+                                    .map_err(|_| CommandError::NativeFailure)
+                            });
+                    crate::host_api::chat_commands::finish_unregistration(
+                        subscription,
+                        result.is_ok(),
+                    );
+                    result
+                }
                 GameCommand::SetChatDisplayMode(mode) => self
                     .r1_client
                     .ok_or(CommandError::NativeFailure)

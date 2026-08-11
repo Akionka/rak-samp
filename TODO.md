@@ -205,8 +205,8 @@ Tiers:
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampGetInputInfoPtr` | Unsafe raw | `raw::chat_input` |
-| [ ] | `sampRegisterChatCommand` | Queued mutation | `ChatInput::register_command` returning a subscription |
-| [ ] | `sampUnregisterChatCommand` | Queued mutation | `ChatCommandSubscription::unregister_and_wait` |
+| [x] | `sampRegisterChatCommand` | Queued mutation | `ChatInput::register_command` returning a subscription |
+| [x] | `sampUnregisterChatCommand` | Queued mutation | `ChatCommandSubscription::unregister_and_wait` |
 | [x] | `sampSetChatInputText` | Queued mutation | `ChatInput::set_text` |
 | [x] | `sampGetChatInputText` | Safe owned/read | `ChatInput::text` |
 | [x] | `sampSetChatInputEnabled` | Queued mutation | `ChatInput::set_enabled` |
