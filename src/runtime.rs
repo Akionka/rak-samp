@@ -206,6 +206,18 @@ pub(crate) struct PassengerSyncSnapshot {
     pub(crate) position: Vector3,
 }
 
+/// Host-owned R1 trailer synchronization data copied on the verified game
+/// thread. The trailer ID retains its native raw value.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct TrailerSyncSnapshot {
+    pub(crate) id: u16,
+    pub(crate) trailer_id: u16,
+    pub(crate) position: Vector3,
+    pub(crate) quaternion: [f32; 4],
+    pub(crate) speed: Vector3,
+    pub(crate) turn_speed: Vector3,
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -935,6 +947,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
         self.backend.passenger_sync(id)
+    }
+
+    pub(crate) fn trailer_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
+        self.backend.trailer_sync(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

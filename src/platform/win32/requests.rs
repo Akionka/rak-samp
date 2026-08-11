@@ -15,6 +15,7 @@ use super::{
     TEXT_LABEL_EXISTS_REQUESTS_PER_PUMP, TEXT_LABEL_REQUEST_QUEUE_CAPACITY,
     TEXT_LABEL_REQUESTS_PER_PUMP, TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY,
     TEXTDRAW_EXISTS_REQUESTS_PER_PUMP, TEXTDRAW_REQUEST_QUEUE_CAPACITY, TEXTDRAW_REQUESTS_PER_PUMP,
+    TRAILER_SYNC_REQUEST_QUEUE_CAPACITY, TRAILER_SYNC_REQUESTS_PER_PUMP,
     VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY, VEHICLE_EXISTS_REQUESTS_PER_PUMP,
     VEHICLE_HANDLE_REQUESTS_PER_PUMP, VEHICLE_HANDLE_REVERSE_REQUESTS_PER_PUMP, try_lock_direct,
 };
@@ -87,6 +88,14 @@ impl BackendState {
         queue_unique_request(
             &self.passenger_sync_requests,
             PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY,
+            id,
+        )
+    }
+
+    pub(super) fn queue_trailer_sync_request(&self, id: u16) -> Result<(), DirectClientError> {
+        queue_unique_request(
+            &self.trailer_sync_requests,
+            TRAILER_SYNC_REQUEST_QUEUE_CAPACITY,
             id,
         )
     }
@@ -196,6 +205,10 @@ impl BackendState {
             &self.passenger_sync_requests,
             PASSENGER_SYNC_REQUESTS_PER_PUMP,
         )
+    }
+
+    pub(super) fn take_trailer_sync_requests(&self) -> Vec<u16> {
+        take_requests(&self.trailer_sync_requests, TRAILER_SYNC_REQUESTS_PER_PUMP)
     }
 
     pub(super) fn take_vehicle_exists_requests(&self) -> Vec<u16> {

@@ -416,6 +416,23 @@ pub struct PassengerSync {
     pub position: crate::Vector3,
 }
 
+/// An owned R1 trailer synchronization record copied on the verified game
+/// thread for either the local or a defined remote player.
+///
+/// The trailer ID preserves its native raw value, including any sentinel. The
+/// first lookup can return [`SampClientSdkResult::NotReady`] while the
+/// game-thread cache refresh is pending. No client, player, vehicle, ped, or
+/// GTA pointer crosses this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TrailerSync {
+    pub id: u16,
+    pub trailer_id: u16,
+    pub position: crate::Vector3,
+    pub quaternion: [f32; 4],
+    pub speed: crate::Vector3,
+    pub turn_speed: crate::Vector3,
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top

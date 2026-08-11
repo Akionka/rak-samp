@@ -6,6 +6,7 @@ use crate::{
         InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
         LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
         PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        TrailerSyncSnapshot,
     },
 };
 use std::sync::Arc;
@@ -107,6 +108,13 @@ impl Backend {
         &self,
         _id: u16,
     ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn trailer_sync(
+        &self,
+        _id: u16,
+    ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

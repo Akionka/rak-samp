@@ -504,6 +504,107 @@ impl R1ClientProfile {
         })
     }
 
+    /// Copies one fixed R1 `STrailerData` record on the game thread. The local
+    /// player uses its local record; other IDs use a defined remote record.
+    pub(in super::super) fn trailer_sync(
+        self,
+        id: u16,
+    ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), PLAYER_POOL_LOCAL_ID_OFFSET + 2) {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_id =
+            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+                .and_then(assigned_player_id);
+        if local_id == Some(id) {
+            let get_local_player: PlayerPoolGetLocalPlayerFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let local = unsafe { get_local_player(pool) };
+            if local.is_null() {
+                return Ok(None);
+            }
+            return self
+                .trailer_sync_from_address(id, local as usize + LOCAL_PLAYER_TRAILER_OFFSET)
+                .map(Some);
+        }
+        let is_connected: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+        match unsafe { is_connected(pool, id) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let get_player: PlayerPoolGetRemotePlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+        let remote = unsafe { get_player(pool, id) };
+        if remote.is_null()
+            || !readable_range(
+                remote.cast(),
+                REMOTE_PLAYER_TRAILER_OFFSET + TRAILER_SYNC_SIZE,
+            )
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let does_exist: RemotePlayerDoesExistFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
+        match unsafe { does_exist(remote) } {
+            0 => Ok(None),
+            1 => self
+                .trailer_sync_from_address(id, remote as usize + REMOTE_PLAYER_TRAILER_OFFSET)
+                .map(Some),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
+    fn trailer_sync_from_address(
+        self,
+        id: u16,
+        address: usize,
+    ) -> Result<TrailerSyncSnapshot, DirectClientError> {
+        if !readable_range(address as *const u8, TRAILER_SYNC_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let trailer_id = unsafe { read_unaligned::<u16>(address + TRAILER_ID_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let position = unsafe { read_vector3(address + TRAILER_POSITION_OFFSET) }
+            .filter(|value| value.x.is_finite() && value.y.is_finite() && value.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let quaternion = [
+            unsafe { read_unaligned::<f32>(address + TRAILER_QUATERNION_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?,
+            unsafe { read_unaligned::<f32>(address + TRAILER_QUATERNION_OFFSET + 4) }
+                .ok_or(DirectClientError::NotReady)?,
+            unsafe { read_unaligned::<f32>(address + TRAILER_QUATERNION_OFFSET + 8) }
+                .ok_or(DirectClientError::NotReady)?,
+            unsafe { read_unaligned::<f32>(address + TRAILER_QUATERNION_OFFSET + 12) }
+                .ok_or(DirectClientError::NotReady)?,
+        ];
+        if !quaternion.iter().all(|value| value.is_finite()) {
+            return Err(DirectClientError::NotReady);
+        }
+        let speed = unsafe { read_vector3(address + TRAILER_SPEED_OFFSET) }
+            .filter(|value| value.x.is_finite() && value.y.is_finite() && value.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let turn_speed = unsafe { read_vector3(address + TRAILER_TURN_SPEED_OFFSET) }
+            .filter(|value| value.x.is_finite() && value.y.is_finite() && value.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(TrailerSyncSnapshot {
+            id,
+            trailer_id,
+            position,
+            quaternion,
+            speed,
+            turn_speed,
+        })
+    }
+
     /// Reads both R1 `CPlayerPool::GetCount` modes on the game-thread pump.
     /// The resulting scalar pair is published by the host; no pool layout or
     /// pointer crosses this private profile boundary.

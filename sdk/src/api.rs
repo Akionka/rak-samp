@@ -540,6 +540,36 @@ pub(crate) fn passenger_sync_from_abi(
     }
 }
 
+pub(crate) fn trailer_sync_from_abi(
+    raw: SampClientSdkTrailerSyncV1,
+) -> Result<Option<TrailerSync>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkTrailerSyncV1::default() => Ok(None),
+        1 if raw._reserved == [0; 3]
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite()
+            && raw.quaternion.iter().all(|value| value.is_finite())
+            && raw.speed.x.is_finite()
+            && raw.speed.y.is_finite()
+            && raw.speed.z.is_finite()
+            && raw.turn_speed.x.is_finite()
+            && raw.turn_speed.y.is_finite()
+            && raw.turn_speed.z.is_finite() =>
+        {
+            Ok(Some(TrailerSync {
+                id: raw.id,
+                trailer_id: raw.trailer_id,
+                position: raw.position,
+                quaternion: raw.quaternion,
+                speed: raw.speed,
+                turn_speed: raw.turn_speed,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn gangzone_from_abi(
     raw: SampClientSdkGangzoneV1,
 ) -> Result<Option<Gangzone>, SampClientSdkResult> {

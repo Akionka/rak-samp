@@ -19,7 +19,7 @@ use crate::runtime::{
     LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
     LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
     PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, Vector3,
+    TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;

@@ -227,6 +227,23 @@ pub struct SampClientSdkPassengerSyncV1 {
     pub position: Vector3,
 }
 
+/// C-compatible storage for an owned R1 trailer synchronization snapshot.
+///
+/// `exists` is zero when the latest completed query found no defined player.
+/// `trailer_id` preserves its native raw value, including any sentinel.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkTrailerSyncV1 {
+    pub exists: u8,
+    pub _reserved: [u8; 3],
+    pub id: u16,
+    pub trailer_id: u16,
+    pub position: Vector3,
+    pub quaternion: [f32; 4],
+    pub speed: Vector3,
+    pub turn_speed: Vector3,
+}
+
 /// C-compatible storage for an owned [`Gangzone`] result.
 ///
 /// `exists` is zero when the latest completed query found no gangzone. The
@@ -1115,6 +1132,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached owned R1 passenger synchronization record into `output`.
     pub passenger_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkPassengerSyncV1) -> SampClientSdkResult,
+    /// Copies a cached owned R1 trailer synchronization record into `output`.
+    pub trailer_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkTrailerSyncV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

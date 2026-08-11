@@ -402,6 +402,26 @@ mod tests {
             Ok(None)
         );
         assert_eq!(
+            samp.players()
+                .player(PlayerId::new(7).unwrap())
+                .trailer_sync()
+                .map(|sync| sync.map(|sync| (sync.trailer_id, sync.turn_speed))),
+            Ok(Some((
+                123,
+                crate::Vector3 {
+                    x: 7.0,
+                    y: 8.0,
+                    z: 9.0
+                }
+            )))
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(8).unwrap())
+                .trailer_sync(),
+            Ok(None)
+        );
+        assert_eq!(
             samp.textdraws().exists(TextdrawId::new(7).unwrap()),
             Ok(true)
         );

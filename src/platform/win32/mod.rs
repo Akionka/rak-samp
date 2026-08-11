@@ -31,6 +31,7 @@ use crate::{
         LocalDialogRequest, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
         PacketPriority, PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot,
         RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        TrailerSyncSnapshot,
     },
 };
 use hooks::{HookStorage, InlineHook, VtableHook};
@@ -66,6 +67,8 @@ const INCAR_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
 const INCAR_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
 const PASSENGER_SYNC_REQUESTS_PER_PUMP: usize = 4;
+const TRAILER_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
+const TRAILER_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
 const VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const VEHICLE_EXISTS_REQUESTS_PER_PUMP: usize = 4;
@@ -201,6 +204,8 @@ struct BackendState {
     incar_sync_requests: Mutex<VecDeque<u16>>,
     passenger_sync_cache: Mutex<Vec<PassengerSyncCacheEntry>>,
     passenger_sync_requests: Mutex<VecDeque<u16>>,
+    trailer_sync_cache: Mutex<Vec<TrailerSyncCacheEntry>>,
+    trailer_sync_requests: Mutex<VecDeque<u16>>,
     vehicle_exists_cache: Mutex<Vec<VehicleExistsCacheEntry>>,
     vehicle_exists_requests: Mutex<VecDeque<u16>>,
     text_label_exists_cache: Mutex<Vec<TextLabelExistsCacheEntry>>,
@@ -298,6 +303,12 @@ enum InCarSyncCacheEntry {
 enum PassengerSyncCacheEntry {
     Unknown,
     Known(Option<PassengerSyncSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum TrailerSyncCacheEntry {
+    Unknown,
+    Known(Option<TrailerSyncSnapshot>),
 }
 
 #[derive(Clone, Copy)]
@@ -569,6 +580,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         passenger_sync_requests: Mutex::new(VecDeque::with_capacity(
             PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY,
         )),
+        trailer_sync_cache: Mutex::new(vec![TrailerSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        trailer_sync_requests: Mutex::new(VecDeque::with_capacity(
+            TRAILER_SYNC_REQUEST_QUEUE_CAPACITY,
+        )),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::with_capacity(
             VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY,
@@ -803,6 +818,7 @@ impl BackendState {
         self.refresh_onfoot_sync(profile);
         self.refresh_incar_sync(profile);
         self.refresh_passenger_sync(profile);
+        self.refresh_trailer_sync(profile);
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
         self.refresh_vehicle_exists(profile);
@@ -885,6 +901,12 @@ impl BackendState {
     fn clear_passenger_sync_cache(&self) {
         if let Ok(mut cache) = self.passenger_sync_cache.try_lock() {
             cache.fill(PassengerSyncCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_trailer_sync_cache(&self) {
+        if let Ok(mut cache) = self.trailer_sync_cache.try_lock() {
+            cache.fill(TrailerSyncCacheEntry::Unknown);
         }
     }
 
@@ -996,6 +1018,14 @@ impl BackendState {
             .unwrap_or_else(|error| error.into_inner())
             .fill(PassengerSyncCacheEntry::Unknown);
         self.passenger_sync_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.trailer_sync_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(TrailerSyncCacheEntry::Unknown);
+        self.trailer_sync_requests
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
@@ -1212,6 +1242,10 @@ impl BackendState {
         }
         self.clear_passenger_sync_cache();
         if let Ok(mut requests) = self.passenger_sync_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_trailer_sync_cache();
+        if let Ok(mut requests) = self.trailer_sync_requests.try_lock() {
             requests.clear();
         }
         self.clear_vehicle_exists_cache();

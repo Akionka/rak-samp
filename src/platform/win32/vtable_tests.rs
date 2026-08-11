@@ -72,6 +72,8 @@ fn test_backend_state() -> BackendState {
         incar_sync_requests: Mutex::new(VecDeque::new()),
         passenger_sync_cache: Mutex::new(vec![PassengerSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         passenger_sync_requests: Mutex::new(VecDeque::new()),
+        trailer_sync_cache: Mutex::new(vec![TrailerSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        trailer_sync_requests: Mutex::new(VecDeque::new()),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::new()),
         text_label_exists_cache: Mutex::new(vec![

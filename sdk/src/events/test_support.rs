@@ -687,6 +687,42 @@ unsafe extern "system" fn test_passenger_sync(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_trailer_sync(
+    id: u16,
+    output: *mut crate::SampClientSdkTrailerSyncV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::SampClientSdkTrailerSyncV1 {
+            exists: 1,
+            _reserved: [0; 3],
+            id,
+            trailer_id: 123,
+            position: crate::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            quaternion: [0.0, 0.0, 0.0, 1.0],
+            speed: crate::Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            turn_speed: crate::Vector3 {
+                x: 7.0,
+                y: 8.0,
+                z: 9.0,
+            },
+        }
+    } else {
+        crate::SampClientSdkTrailerSyncV1::default()
+    };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;

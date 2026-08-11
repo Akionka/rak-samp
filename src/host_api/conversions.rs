@@ -4,6 +4,7 @@ use crate::runtime::{
     AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot, LocalDialogSnapshot,
     LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot,
     RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+    TrailerSyncSnapshot,
 };
 use sdk_abi::limits::{
     MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
@@ -14,7 +15,7 @@ use sdk_abi::{
     SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1,
     SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1,
     SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1,
-    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, SampClientSdkTrailerSyncV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -285,6 +286,46 @@ pub(super) fn passenger_sync_to_abi(
             x: snapshot.position.x,
             y: snapshot.position.y,
             z: snapshot.position.z,
+        },
+    })
+}
+
+pub(super) fn trailer_sync_to_abi(
+    snapshot: TrailerSyncSnapshot,
+) -> Result<SampClientSdkTrailerSyncV1, ()> {
+    if !snapshot.position.x.is_finite()
+        || !snapshot.position.y.is_finite()
+        || !snapshot.position.z.is_finite()
+        || !snapshot.quaternion.iter().all(|value| value.is_finite())
+        || !snapshot.speed.x.is_finite()
+        || !snapshot.speed.y.is_finite()
+        || !snapshot.speed.z.is_finite()
+        || !snapshot.turn_speed.x.is_finite()
+        || !snapshot.turn_speed.y.is_finite()
+        || !snapshot.turn_speed.z.is_finite()
+    {
+        return Err(());
+    }
+    Ok(SampClientSdkTrailerSyncV1 {
+        exists: 1,
+        _reserved: [0; 3],
+        id: snapshot.id,
+        trailer_id: snapshot.trailer_id,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
+        quaternion: snapshot.quaternion,
+        speed: Vector3 {
+            x: snapshot.speed.x,
+            y: snapshot.speed.y,
+            z: snapshot.speed.z,
+        },
+        turn_speed: Vector3 {
+            x: snapshot.turn_speed.x,
+            y: snapshot.turn_speed.y,
+            z: snapshot.turn_speed.z,
         },
     })
 }
