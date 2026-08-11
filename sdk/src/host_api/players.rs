@@ -1,8 +1,9 @@
 use crate::{
-    HostApi, InCarSync, LocalPlayer, MAX_SAMP_PLAYERS, OnFootSync, PlayerInfo, RemotePlayerState,
-    SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
-    onfoot_sync_from_abi, player_info_from_abi, remote_player_state_from_abi,
+    HostApi, InCarSync, LocalPlayer, MAX_SAMP_PLAYERS, OnFootSync, PassengerSync, PlayerInfo,
+    RemotePlayerState, SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1,
+    SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, onfoot_sync_from_abi,
+    passenger_sync_from_abi, player_info_from_abi, remote_player_state_from_abi,
     vehicle_sync_from_abi,
 };
 
@@ -110,6 +111,19 @@ impl HostApi {
         let mut raw = SampClientSdkInCarSyncV1::default();
         match unsafe { (self.raw.vehicle_sync)(id, &mut raw) } {
             SampClientSdkResult::Ok => vehicle_sync_from_abi(raw),
+            result => Err(result),
+        }
+    }
+    /// Returns an owned passenger synchronization snapshot for the local or a
+    /// defined remote player. `Ok(None)` means the latest completed query found
+    /// no matching player.
+    pub fn passenger_sync(self, id: u16) -> Result<Option<PassengerSync>, SampClientSdkResult> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let mut raw = SampClientSdkPassengerSyncV1::default();
+        match unsafe { (self.raw.passenger_sync)(id, &mut raw) } {
+            SampClientSdkResult::Ok => passenger_sync_from_abi(raw),
             result => Err(result),
         }
     }

@@ -2,8 +2,8 @@
 
 use crate::runtime::{
     AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot, LocalDialogSnapshot,
-    LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+    LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot,
+    RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
 };
 use sdk_abi::limits::{
     MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
@@ -12,9 +12,9 @@ use sdk_abi::limits::{
 use sdk_abi::{
     SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkChatEntryV1,
     SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1,
-    SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
-    SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1,
+    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1,
+    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -256,6 +256,36 @@ pub(super) fn vehicle_sync_to_abi(
         vehicle_health: snapshot.vehicle_health,
         trailer_id: snapshot.trailer_id,
         vehicle_specific: snapshot.vehicle_specific,
+    })
+}
+
+pub(super) fn passenger_sync_to_abi(
+    snapshot: PassengerSyncSnapshot,
+) -> Result<SampClientSdkPassengerSyncV1, ()> {
+    if !snapshot.position.x.is_finite()
+        || !snapshot.position.y.is_finite()
+        || !snapshot.position.z.is_finite()
+    {
+        return Err(());
+    }
+    Ok(SampClientSdkPassengerSyncV1 {
+        exists: 1,
+        seat_id: snapshot.seat_id,
+        weapon: snapshot.weapon,
+        health: snapshot.health,
+        armour: snapshot.armour,
+        _reserved: [0; 3],
+        id: snapshot.id,
+        vehicle_id: snapshot.vehicle_id,
+        controller_left_stick_x: snapshot.controller_left_stick_x,
+        controller_left_stick_y: snapshot.controller_left_stick_y,
+        controller_buttons: snapshot.controller_buttons,
+        _reserved2: 0,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
     })
 }
 

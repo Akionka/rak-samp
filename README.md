@@ -71,7 +71,8 @@ returns a normal completion receipt.
 `samp.players().player(id).onfoot_sync()` returns an owned, game-thread-cached
 R1 on-foot synchronization snapshot for local or defined remote players.
 `samp.players().player(id).vehicle_sync()` provides the corresponding owned
-in-car snapshot.
+in-car snapshot, while `.passenger_sync()` provides the owned passenger
+snapshot.
 
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and

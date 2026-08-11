@@ -276,6 +276,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_set_text_label_text: text_labels::submit_set_text_label_text,
     onfoot_sync: players::onfoot_sync,
     vehicle_sync: players::vehicle_sync,
+    passenger_sync: players::passenger_sync,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

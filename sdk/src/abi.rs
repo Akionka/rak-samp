@@ -205,6 +205,28 @@ pub struct SampClientSdkInCarSyncV1 {
     pub vehicle_specific: [u8; 4],
 }
 
+/// C-compatible storage for an owned R1 passenger synchronization snapshot.
+///
+/// `exists` is zero when the latest completed query found no defined player.
+/// `vehicle_id`, `seat_id`, and `weapon` preserve their native raw values.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkPassengerSyncV1 {
+    pub exists: u8,
+    pub seat_id: u8,
+    pub weapon: u8,
+    pub health: u8,
+    pub armour: u8,
+    pub _reserved: [u8; 3],
+    pub id: u16,
+    pub vehicle_id: u16,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub _reserved2: u16,
+    pub position: Vector3,
+}
+
 /// C-compatible storage for an owned [`Gangzone`] result.
 ///
 /// `exists` is zero when the latest completed query found no gangzone. The
@@ -1090,6 +1112,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached owned R1 in-car synchronization record into `output`.
     pub vehicle_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkInCarSyncV1) -> SampClientSdkResult,
+    /// Copies a cached owned R1 passenger synchronization record into `output`.
+    pub passenger_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkPassengerSyncV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

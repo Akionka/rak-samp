@@ -6,7 +6,8 @@ use super::{
     INCAR_SYNC_REQUESTS_PER_PUMP, OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY,
     OBJECT_EXISTS_REQUESTS_PER_PUMP, OBJECT_HANDLE_REQUESTS_PER_PUMP,
     OBJECT_HANDLE_REVERSE_REQUESTS_PER_PUMP, ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY,
-    ONFOOT_SYNC_REQUESTS_PER_PUMP, PICKUP_HANDLE_REQUESTS_PER_PUMP,
+    ONFOOT_SYNC_REQUESTS_PER_PUMP, PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY,
+    PASSENGER_SYNC_REQUESTS_PER_PUMP, PICKUP_HANDLE_REQUESTS_PER_PUMP,
     PICKUP_HANDLE_REVERSE_REQUESTS_PER_PUMP, PLAYER_HANDLE_REQUESTS_PER_PUMP,
     PLAYER_HANDLE_REVERSE_REQUESTS_PER_PUMP, PLAYER_INFO_REQUEST_QUEUE_CAPACITY,
     PLAYER_INFO_REQUESTS_PER_PUMP, REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
@@ -78,6 +79,14 @@ impl BackendState {
         queue_unique_request(
             &self.incar_sync_requests,
             INCAR_SYNC_REQUEST_QUEUE_CAPACITY,
+            id,
+        )
+    }
+
+    pub(super) fn queue_passenger_sync_request(&self, id: u16) -> Result<(), DirectClientError> {
+        queue_unique_request(
+            &self.passenger_sync_requests,
+            PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY,
             id,
         )
     }
@@ -180,6 +189,13 @@ impl BackendState {
 
     pub(super) fn take_incar_sync_requests(&self) -> Vec<u16> {
         take_requests(&self.incar_sync_requests, INCAR_SYNC_REQUESTS_PER_PUMP)
+    }
+
+    pub(super) fn take_passenger_sync_requests(&self) -> Vec<u16> {
+        take_requests(
+            &self.passenger_sync_requests,
+            PASSENGER_SYNC_REQUESTS_PER_PUMP,
+        )
     }
 
     pub(super) fn take_vehicle_exists_requests(&self) -> Vec<u16> {

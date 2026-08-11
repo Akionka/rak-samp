@@ -400,6 +400,110 @@ impl R1ClientProfile {
         })
     }
 
+    /// Copies one fixed R1 `SPassengerData` record on the game thread. The
+    /// local player uses its local record; other IDs use a defined remote record.
+    pub(in super::super) fn passenger_sync(
+        self,
+        id: u16,
+    ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), PLAYER_POOL_LOCAL_ID_OFFSET + 2) {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_id =
+            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+                .and_then(assigned_player_id);
+        if local_id == Some(id) {
+            let get_local_player: PlayerPoolGetLocalPlayerFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let local = unsafe { get_local_player(pool) };
+            if local.is_null() {
+                return Ok(None);
+            }
+            return self
+                .passenger_sync_from_address(id, local as usize + LOCAL_PLAYER_PASSENGER_OFFSET)
+                .map(Some);
+        }
+
+        let is_connected: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+        match unsafe { is_connected(pool, id) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let get_player: PlayerPoolGetRemotePlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+        let remote = unsafe { get_player(pool, id) };
+        if remote.is_null()
+            || !readable_range(
+                remote.cast(),
+                REMOTE_PLAYER_PASSENGER_OFFSET + PASSENGER_SYNC_SIZE,
+            )
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let does_exist: RemotePlayerDoesExistFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
+        match unsafe { does_exist(remote) } {
+            0 => Ok(None),
+            1 => self
+                .passenger_sync_from_address(id, remote as usize + REMOTE_PLAYER_PASSENGER_OFFSET)
+                .map(Some),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
+    fn passenger_sync_from_address(
+        self,
+        id: u16,
+        address: usize,
+    ) -> Result<PassengerSyncSnapshot, DirectClientError> {
+        if !readable_range(address as *const u8, PASSENGER_SYNC_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let vehicle_id = unsafe { read_unaligned::<u16>(address + PASSENGER_VEHICLE_ID_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let seat_id = unsafe { read_unaligned::<u8>(address + PASSENGER_SEAT_ID_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let weapon = unsafe { read_unaligned::<u8>(address + PASSENGER_WEAPON_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let health = unsafe { read_unaligned::<u8>(address + PASSENGER_HEALTH_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let armour = unsafe { read_unaligned::<u8>(address + PASSENGER_ARMOUR_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let controller_left_stick_x =
+            unsafe { read_unaligned::<i16>(address + PASSENGER_CONTROLLER_LEFT_STICK_X_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let controller_left_stick_y =
+            unsafe { read_unaligned::<i16>(address + PASSENGER_CONTROLLER_LEFT_STICK_Y_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let controller_buttons =
+            unsafe { read_unaligned::<i16>(address + PASSENGER_CONTROLLER_BUTTONS_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let position = unsafe { read_vector3(address + PASSENGER_POSITION_OFFSET) }
+            .filter(|value| value.x.is_finite() && value.y.is_finite() && value.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(PassengerSyncSnapshot {
+            id,
+            vehicle_id,
+            seat_id,
+            weapon,
+            health,
+            armour,
+            controller_left_stick_x,
+            controller_left_stick_y,
+            controller_buttons,
+            position,
+        })
+    }
+
     /// Reads both R1 `CPlayerPool::GetCount` modes on the game-thread pump.
     /// The resulting scalar pair is published by the host; no pool layout or
     /// pointer crosses this private profile boundary.

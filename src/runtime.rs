@@ -190,6 +190,22 @@ pub(crate) struct InCarSyncSnapshot {
     pub(crate) vehicle_specific: [u8; 4],
 }
 
+/// Host-owned R1 passenger synchronization data copied on the verified game
+/// thread. Vehicle, seat, and weapon values retain their native raw values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct PassengerSyncSnapshot {
+    pub(crate) id: u16,
+    pub(crate) vehicle_id: u16,
+    pub(crate) seat_id: u8,
+    pub(crate) weapon: u8,
+    pub(crate) health: u8,
+    pub(crate) armour: u8,
+    pub(crate) controller_left_stick_x: i16,
+    pub(crate) controller_left_stick_y: i16,
+    pub(crate) controller_buttons: i16,
+    pub(crate) position: Vector3,
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -912,6 +928,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
         self.backend.vehicle_sync(id)
+    }
+
+    pub(crate) fn passenger_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
+        self.backend.passenger_sync(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

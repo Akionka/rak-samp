@@ -29,8 +29,8 @@ use crate::{
         AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError, DirectClientError,
         GangzoneSnapshot, InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest,
         LocalDialogRequest, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
-        PacketPriority, PacketReliability, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        PacketPriority, PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot,
+        RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use hooks::{HookStorage, InlineHook, VtableHook};
@@ -64,6 +64,8 @@ const ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
 const ONFOOT_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const INCAR_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
 const INCAR_SYNC_REQUESTS_PER_PUMP: usize = 4;
+const PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
+const PASSENGER_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
 const VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const VEHICLE_EXISTS_REQUESTS_PER_PUMP: usize = 4;
@@ -197,6 +199,8 @@ struct BackendState {
     onfoot_sync_requests: Mutex<VecDeque<u16>>,
     incar_sync_cache: Mutex<Vec<InCarSyncCacheEntry>>,
     incar_sync_requests: Mutex<VecDeque<u16>>,
+    passenger_sync_cache: Mutex<Vec<PassengerSyncCacheEntry>>,
+    passenger_sync_requests: Mutex<VecDeque<u16>>,
     vehicle_exists_cache: Mutex<Vec<VehicleExistsCacheEntry>>,
     vehicle_exists_requests: Mutex<VecDeque<u16>>,
     text_label_exists_cache: Mutex<Vec<TextLabelExistsCacheEntry>>,
@@ -288,6 +292,12 @@ enum OnFootSyncCacheEntry {
 enum InCarSyncCacheEntry {
     Unknown,
     Known(Option<InCarSyncSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum PassengerSyncCacheEntry {
+    Unknown,
+    Known(Option<PassengerSyncSnapshot>),
 }
 
 #[derive(Clone, Copy)]
@@ -555,6 +565,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         )),
         incar_sync_cache: Mutex::new(vec![InCarSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         incar_sync_requests: Mutex::new(VecDeque::with_capacity(INCAR_SYNC_REQUEST_QUEUE_CAPACITY)),
+        passenger_sync_cache: Mutex::new(vec![PassengerSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        passenger_sync_requests: Mutex::new(VecDeque::with_capacity(
+            PASSENGER_SYNC_REQUEST_QUEUE_CAPACITY,
+        )),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::with_capacity(
             VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY,
@@ -788,6 +802,7 @@ impl BackendState {
         self.refresh_remote_player_state(profile);
         self.refresh_onfoot_sync(profile);
         self.refresh_incar_sync(profile);
+        self.refresh_passenger_sync(profile);
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
         self.refresh_vehicle_exists(profile);
@@ -864,6 +879,12 @@ impl BackendState {
     fn clear_incar_sync_cache(&self) {
         if let Ok(mut cache) = self.incar_sync_cache.try_lock() {
             cache.fill(InCarSyncCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_passenger_sync_cache(&self) {
+        if let Ok(mut cache) = self.passenger_sync_cache.try_lock() {
+            cache.fill(PassengerSyncCacheEntry::Unknown);
         }
     }
 
@@ -967,6 +988,14 @@ impl BackendState {
             .unwrap_or_else(|error| error.into_inner())
             .fill(InCarSyncCacheEntry::Unknown);
         self.incar_sync_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.passenger_sync_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(PassengerSyncCacheEntry::Unknown);
+        self.passenger_sync_requests
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
@@ -1179,6 +1208,10 @@ impl BackendState {
         }
         self.clear_incar_sync_cache();
         if let Ok(mut requests) = self.incar_sync_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_passenger_sync_cache();
+        if let Ok(mut requests) = self.passenger_sync_requests.try_lock() {
             requests.clear();
         }
         self.clear_vehicle_exists_cache();

@@ -512,6 +512,34 @@ pub(crate) fn vehicle_sync_from_abi(
     }
 }
 
+pub(crate) fn passenger_sync_from_abi(
+    raw: SampClientSdkPassengerSyncV1,
+) -> Result<Option<PassengerSync>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkPassengerSyncV1::default() => Ok(None),
+        1 if raw._reserved == [0; 3]
+            && raw._reserved2 == 0
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite() =>
+        {
+            Ok(Some(PassengerSync {
+                id: raw.id,
+                vehicle_id: raw.vehicle_id,
+                seat_id: raw.seat_id,
+                weapon: raw.weapon,
+                health: raw.health,
+                armour: raw.armour,
+                controller_left_stick_x: raw.controller_left_stick_x,
+                controller_left_stick_y: raw.controller_left_stick_y,
+                controller_buttons: raw.controller_buttons,
+                position: raw.position,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn gangzone_from_abi(
     raw: SampClientSdkGangzoneV1,
 ) -> Result<Option<Gangzone>, SampClientSdkResult> {

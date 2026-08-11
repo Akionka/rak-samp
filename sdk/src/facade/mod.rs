@@ -381,6 +381,27 @@ mod tests {
             Ok(None)
         );
         assert_eq!(
+            samp.players()
+                .player(PlayerId::new(7).unwrap())
+                .passenger_sync()
+                .map(|sync| sync.map(|sync| (sync.vehicle_id, sync.seat_id, sync.position))),
+            Ok(Some((
+                411,
+                2,
+                crate::Vector3 {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+            )))
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(8).unwrap())
+                .passenger_sync(),
+            Ok(None)
+        );
+        assert_eq!(
             samp.textdraws().exists(TextdrawId::new(7).unwrap()),
             Ok(true)
         );

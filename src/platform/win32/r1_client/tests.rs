@@ -13,13 +13,14 @@ use super::{
     LOCAL_PLAYER_INCAR_POSITION_OFFSET, LOCAL_PLAYER_INCAR_SPEED_OFFSET,
     LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET, LOCAL_PLAYER_ONFOOT_OFFSET,
     LOCAL_PLAYER_ONFOOT_POSITION_OFFSET, LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET,
-    LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, MAX_TEXT_LABEL_TEXT_BYTES, NET_GAME_GAME_STATE_OFFSET,
-    NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET, NET_GAME_POOLS_GANGZONE_POOL_OFFSET,
-    NET_GAME_POOLS_LABEL_POOL_OFFSET, NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET,
-    NET_GAME_POOLS_PICKUP_POOL_OFFSET, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET,
-    NET_GAME_SERVER_SETTINGS_OFFSET, NativeDxutComboBoxItem, OBJECT_POOL_NOT_EMPTY_OFFSET,
-    OBJECT_POOL_OBJECTS_OFFSET, PICKUP_POOL_HANDLES_OFFSET, PLAYER_POOL_LARGEST_ID_OFFSET,
-    PLAYER_POOL_LOCAL_ID_OFFSET, REMOTE_PLAYER_INCAR_OFFSET, REMOTE_PLAYER_ONFOOT_OFFSET,
+    LOCAL_PLAYER_ONFOOT_SPEED_OFFSET, LOCAL_PLAYER_PASSENGER_OFFSET, MAX_TEXT_LABEL_TEXT_BYTES,
+    NET_GAME_GAME_STATE_OFFSET, NET_GAME_HOST_ADDRESS_OFFSET, NET_GAME_HOSTNAME_OFFSET,
+    NET_GAME_POOLS_GANGZONE_POOL_OFFSET, NET_GAME_POOLS_LABEL_POOL_OFFSET,
+    NET_GAME_POOLS_OBJECT_POOL_OFFSET, NET_GAME_POOLS_OFFSET, NET_GAME_POOLS_PICKUP_POOL_OFFSET,
+    NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET, NET_GAME_SERVER_SETTINGS_OFFSET,
+    NativeDxutComboBoxItem, OBJECT_POOL_NOT_EMPTY_OFFSET, OBJECT_POOL_OBJECTS_OFFSET,
+    PICKUP_POOL_HANDLES_OFFSET, PLAYER_POOL_LARGEST_ID_OFFSET, PLAYER_POOL_LOCAL_ID_OFFSET,
+    REMOTE_PLAYER_INCAR_OFFSET, REMOTE_PLAYER_ONFOOT_OFFSET, REMOTE_PLAYER_PASSENGER_OFFSET,
     SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET,
     TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
     TEXTDRAW_BOX_COLOUR_OFFSET, TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET,
@@ -43,6 +44,8 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r1_remote_onfoot_offset() -> usize;
     fn samp_client_sdk_fixture_r1_local_incar_offset() -> usize;
     fn samp_client_sdk_fixture_r1_remote_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_passenger_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_remote_passenger_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_position_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_speed_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_special_action_offset() -> usize;
@@ -158,6 +161,14 @@ fn r1_sync_offsets_match_the_independent_x86_fixture() {
         assert_eq!(
             samp_client_sdk_fixture_r1_remote_incar_offset(),
             REMOTE_PLAYER_INCAR_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_passenger_offset(),
+            LOCAL_PLAYER_PASSENGER_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_remote_passenger_offset(),
+            REMOTE_PLAYER_PASSENGER_OFFSET
         );
         assert_eq!(
             samp_client_sdk_fixture_r1_onfoot_position_offset(),

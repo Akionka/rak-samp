@@ -434,12 +434,14 @@ static_assert(offsetof(FixtureR1RemotePlayerPrefix, special_action) == 0xBB);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, ped) == 0x00);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, onfoot) == 0xC8);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, incar) == 0x10C);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, passenger) == 0x181);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_armour) == 0x1B8);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_health) == 0x1BC);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, animation) == 0x1C0);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, status) == 0x1D1);
 static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
 static_assert(offsetof(FixtureR1LocalPlayerSyncPrefix, incar) == 0xAA);
+static_assert(offsetof(FixtureR1LocalPlayerSyncPrefix, passenger) == 0x5C);
 static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
 static_assert(sizeof(FixtureR1VehicleInfo) == 40);
@@ -610,6 +612,14 @@ std::size_t samp_client_sdk_fixture_r1_local_incar_offset() {
 
 std::size_t samp_client_sdk_fixture_r1_remote_incar_offset() {
     return offsetof(FixtureR1RemotePlayerPrefix, incar);
+}
+
+std::size_t samp_client_sdk_fixture_r1_local_passenger_offset() {
+    return offsetof(FixtureR1LocalPlayerSyncPrefix, passenger);
+}
+
+std::size_t samp_client_sdk_fixture_r1_remote_passenger_offset() {
+    return offsetof(FixtureR1RemotePlayerPrefix, passenger);
 }
 
 std::size_t samp_client_sdk_fixture_r1_onfoot_position_offset() {

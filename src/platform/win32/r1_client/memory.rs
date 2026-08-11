@@ -68,6 +68,7 @@ pub(super) const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
 pub(super) const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
 pub(super) const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC8;
 pub(super) const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x10C;
+pub(super) const REMOTE_PLAYER_PASSENGER_OFFSET: usize = 0x181;
 pub(super) const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
 pub(super) const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
 pub(super) const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
@@ -104,6 +105,17 @@ pub(super) const INCAR_SIREN_OFFSET: usize = 0x37;
 pub(super) const INCAR_LANDING_GEAR_OFFSET: usize = 0x38;
 pub(super) const INCAR_TRAILER_ID_OFFSET: usize = 0x39;
 pub(super) const INCAR_VEHICLE_SPECIFIC_OFFSET: usize = 0x3B;
+
+pub(super) const PASSENGER_SYNC_SIZE: usize = 24;
+pub(super) const PASSENGER_VEHICLE_ID_OFFSET: usize = 0x00;
+pub(super) const PASSENGER_SEAT_ID_OFFSET: usize = 0x02;
+pub(super) const PASSENGER_WEAPON_OFFSET: usize = 0x03;
+pub(super) const PASSENGER_HEALTH_OFFSET: usize = 0x04;
+pub(super) const PASSENGER_ARMOUR_OFFSET: usize = 0x05;
+pub(super) const PASSENGER_CONTROLLER_LEFT_STICK_X_OFFSET: usize = 0x06;
+pub(super) const PASSENGER_CONTROLLER_LEFT_STICK_Y_OFFSET: usize = 0x08;
+pub(super) const PASSENGER_CONTROLLER_BUTTONS_OFFSET: usize = 0x0A;
+pub(super) const PASSENGER_POSITION_OFFSET: usize = 0x0C;
 
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
@@ -181,6 +193,7 @@ pub(super) const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
 pub(super) const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0x14;
 pub(super) const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x18;
 pub(super) const LOCAL_PLAYER_INCAR_OFFSET: usize = 0xAA;
+pub(super) const LOCAL_PLAYER_PASSENGER_OFFSET: usize = 0x5C;
 pub(super) const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = ONFOOT_POSITION_OFFSET;
 pub(super) const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = ONFOOT_SPEED_OFFSET;
 pub(super) const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = ONFOOT_SPECIAL_ACTION_OFFSET;

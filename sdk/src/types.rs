@@ -395,6 +395,27 @@ pub struct InCarSync {
     pub vehicle_specific: [u8; 4],
 }
 
+/// An owned R1 passenger synchronization record copied on the verified game
+/// thread for either the local or a defined remote player.
+///
+/// Vehicle IDs, seat IDs, and weapon IDs retain their native raw values. The
+/// first lookup can return [`SampClientSdkResult::NotReady`] while the
+/// game-thread cache refresh is pending. No client, player, vehicle, ped, or
+/// GTA pointer crosses this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PassengerSync {
+    pub id: u16,
+    pub vehicle_id: u16,
+    pub seat_id: u8,
+    pub weapon: u8,
+    pub health: u8,
+    pub armour: u8,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub position: crate::Vector3,
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top

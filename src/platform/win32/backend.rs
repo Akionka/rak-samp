@@ -566,6 +566,13 @@ impl Backend {
         self.state.vehicle_sync(id)
     }
 
+    pub(crate) fn passenger_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<crate::runtime::PassengerSyncSnapshot>, DirectClientError> {
+        self.state.passenger_sync(id)
+    }
+
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.player_defined(id)
     }

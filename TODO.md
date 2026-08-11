@@ -283,7 +283,7 @@ Tiers:
 | [x] | `sampGetPlayerSpecialAction` | Safe owned/read | `Player::special_action` |
 | [x] | `sampStorePlayerOnfootData` | Safe owned/read | `Player::onfoot_sync` owned snapshot |
 | [x] | `sampStorePlayerIncarData` | Safe owned/read | `Player::vehicle_sync` owned snapshot |
-| [ ] | `sampStorePlayerPassengerData` | Safe owned/read | `Player::passenger_sync` owned snapshot |
+| [x] | `sampStorePlayerPassengerData` | Safe owned/read | `Player::passenger_sync` owned snapshot |
 | [ ] | `sampStorePlayerTrailerData` | Safe owned/read | `Player::trailer_sync` owned snapshot |
 | [ ] | `sampStorePlayerAimData` | Safe owned/read | `Player::aim_sync` owned snapshot |
 | [x] | `sampSendSpawn` | Queued mutation | `Local::send_spawn` |
