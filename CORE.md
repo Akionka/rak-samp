@@ -11,7 +11,7 @@
   native addresses, object layouts, and guarded memory access from operation
   sequencing. The Windows backend also separates bounded producer-side command
   and cache-refresh requests from game-thread execution, with scalar and owned
-  snapshot/catalog, chat-history, gangzone, object, player, owned on-foot sync, text-label, textdraw,
+  snapshot/catalog, chat-history, gangzone, object, player, owned on-foot and in-car sync, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
   publication. Native outbound packet and RPC sends execute from the game-thread
   command pump through the captured original RakClient functions. Incoming

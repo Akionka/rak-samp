@@ -168,6 +168,28 @@ pub(crate) struct OnFootSyncSnapshot {
     pub(crate) animation: u32,
 }
 
+/// Host-owned R1 in-car synchronization data copied on the verified game
+/// thread. Vehicle IDs and specific bytes retain their native raw values.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct InCarSyncSnapshot {
+    pub(crate) id: u16,
+    pub(crate) vehicle_id: u16,
+    pub(crate) controller_left_stick_x: i16,
+    pub(crate) controller_left_stick_y: i16,
+    pub(crate) controller_buttons: i16,
+    pub(crate) quaternion: [f32; 4],
+    pub(crate) position: Vector3,
+    pub(crate) speed: Vector3,
+    pub(crate) vehicle_health: f32,
+    pub(crate) driver_health: u8,
+    pub(crate) driver_armour: u8,
+    pub(crate) weapon: u8,
+    pub(crate) siren: bool,
+    pub(crate) landing_gear: bool,
+    pub(crate) trailer_id: u16,
+    pub(crate) vehicle_specific: [u8; 4],
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -883,6 +905,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
         self.backend.onfoot_sync(id)
+    }
+
+    pub(crate) fn vehicle_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
+        self.backend.vehicle_sync(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

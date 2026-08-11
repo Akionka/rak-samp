@@ -15,7 +15,7 @@ mod textdraws;
 mod ui;
 
 use crate::runtime::{
-    AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
+    AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot, InCarSyncSnapshot,
     LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
     LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot,
     RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, Vector3,

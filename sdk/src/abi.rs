@@ -176,6 +176,35 @@ pub struct SampClientSdkOnFootSyncV1 {
     pub animation: u32,
 }
 
+/// C-compatible storage for an owned R1 in-car synchronization snapshot.
+///
+/// `exists` is zero when the latest completed query found no defined player.
+/// `vehicle_id`, `trailer_id`, and `vehicle_specific` preserve the native raw
+/// values, including any sentinel or game-specific encoding.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkInCarSyncV1 {
+    pub exists: u8,
+    pub driver_health: u8,
+    pub driver_armour: u8,
+    pub weapon: u8,
+    pub siren: u8,
+    pub landing_gear: u8,
+    pub _reserved: [u8; 2],
+    pub id: u16,
+    pub vehicle_id: u16,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub _reserved2: u16,
+    pub quaternion: [f32; 4],
+    pub position: Vector3,
+    pub speed: Vector3,
+    pub vehicle_health: f32,
+    pub trailer_id: u16,
+    pub vehicle_specific: [u8; 4],
+}
+
 /// C-compatible storage for an owned [`Gangzone`] result.
 ///
 /// `exists` is zero when the latest completed query found no gangzone. The
@@ -1058,6 +1087,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached owned R1 on-foot synchronization record into `output`.
     pub onfoot_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkOnFootSyncV1) -> SampClientSdkResult,
+    /// Copies a cached owned R1 in-car synchronization record into `output`.
+    pub vehicle_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkInCarSyncV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

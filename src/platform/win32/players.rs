@@ -1,12 +1,12 @@
 //! Published local and remote player reads.
 
 use super::{
-    BackendState, MAX_SAMP_PLAYERS, OnFootSyncCacheEntry, PlayerInfoCacheEntry,
-    RemotePlayerStateCacheEntry, player_info_from_local, try_lock_direct,
+    BackendState, InCarSyncCacheEntry, MAX_SAMP_PLAYERS, OnFootSyncCacheEntry,
+    PlayerInfoCacheEntry, RemotePlayerStateCacheEntry, player_info_from_local, try_lock_direct,
 };
 use crate::runtime::{
-    DirectClientError, LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot,
-    RemotePlayerStateSnapshot,
+    DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
+    PlayerInfoSnapshot, RemotePlayerStateSnapshot,
 };
 use std::sync::atomic::Ordering;
 
@@ -120,6 +120,33 @@ impl BackendState {
             }
             OnFootSyncCacheEntry::Unknown => {
                 self.queue_onfoot_sync_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
+    pub(super) fn vehicle_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
+        if self.r1_client.is_none()
+            || self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || usize::from(id) >= MAX_SAMP_PLAYERS
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let cached = try_lock_direct(&self.incar_sync_cache)?
+            .get(usize::from(id))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?;
+        match cached {
+            InCarSyncCacheEntry::Known(snapshot) => {
+                let _ = self.queue_incar_sync_request(id);
+                Ok(snapshot)
+            }
+            InCarSyncCacheEntry::Unknown => {
+                self.queue_incar_sync_request(id)?;
                 Err(DirectClientError::NotReady)
             }
         }

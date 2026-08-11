@@ -62,6 +62,20 @@ impl BackendState {
         }
     }
 
+    pub(super) fn refresh_incar_sync(&self, profile: R1ClientProfile) {
+        for id in self.take_incar_sync_requests() {
+            let Ok(snapshot) = profile.incar_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.incar_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = InCarSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
     pub(super) fn refresh_player_count(&self, profile: R1ClientProfile) {
         match profile.player_counts() {
             Ok((including_npcs, excluding_npcs)) => {

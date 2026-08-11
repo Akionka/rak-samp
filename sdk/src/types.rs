@@ -368,6 +368,33 @@ pub struct OnFootSync {
     pub animation: u32,
 }
 
+/// An owned R1 in-car synchronization record copied on the verified game
+/// thread for either the local or a defined remote player.
+///
+/// Vehicle IDs and the four vehicle-specific bytes retain their native raw
+/// representation. The first lookup can return
+/// [`SampClientSdkResult::NotReady`] while the game-thread cache refresh is
+/// pending. No client, player, vehicle, ped, or GTA pointer crosses this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InCarSync {
+    pub id: u16,
+    pub vehicle_id: u16,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub quaternion: [f32; 4],
+    pub position: crate::Vector3,
+    pub speed: crate::Vector3,
+    pub vehicle_health: f32,
+    pub driver_health: u8,
+    pub driver_armour: u8,
+    pub weapon: u8,
+    pub siren: bool,
+    pub landing_gear: bool,
+    pub trailer_id: u16,
+    pub vehicle_specific: [u8; 4],
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top

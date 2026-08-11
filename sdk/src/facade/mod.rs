@@ -368,6 +368,19 @@ mod tests {
             Ok(None)
         );
         assert_eq!(
+            samp.players()
+                .player(PlayerId::new(7).unwrap())
+                .vehicle_sync()
+                .map(|sync| sync.map(|sync| (sync.vehicle_id, sync.siren, sync.vehicle_health))),
+            Ok(Some((411, true, 900.0)))
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(8).unwrap())
+                .vehicle_sync(),
+            Ok(None)
+        );
+        assert_eq!(
             samp.textdraws().exists(TextdrawId::new(7).unwrap()),
             Ok(true)
         );

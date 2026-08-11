@@ -19,17 +19,18 @@ use super::{
     NET_GAME_POOLS_PICKUP_POOL_OFFSET, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, NET_GAME_PORT_OFFSET,
     NET_GAME_SERVER_SETTINGS_OFFSET, NativeDxutComboBoxItem, OBJECT_POOL_NOT_EMPTY_OFFSET,
     OBJECT_POOL_OBJECTS_OFFSET, PICKUP_POOL_HANDLES_OFFSET, PLAYER_POOL_LARGEST_ID_OFFSET,
-    PLAYER_POOL_LOCAL_ID_OFFSET, REMOTE_PLAYER_ONFOOT_OFFSET, SAMP_PED_GAME_PED_OFFSET,
-    SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET, TEXTDRAW_ALIGN_LEFT_OFFSET,
-    TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET, TEXTDRAW_BOX_COLOUR_OFFSET,
-    TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET, TEXTDRAW_BOX_WIDTH_OFFSET,
-    TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET, TEXTDRAW_LETTER_HEIGHT_OFFSET,
-    TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET, TEXTDRAW_MODEL_COLOUR2_OFFSET,
-    TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
-    TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET, TEXTDRAW_ROTATION_OFFSET,
-    TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
-    TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_GAME_OBJECTS_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET,
-    assigned_player_id, bounded_c_string, bounded_dxut_listbox_item_text, mem, nul_terminated,
+    PLAYER_POOL_LOCAL_ID_OFFSET, REMOTE_PLAYER_INCAR_OFFSET, REMOTE_PLAYER_ONFOOT_OFFSET,
+    SAMP_PED_GAME_PED_OFFSET, SCOREBOARD_ENABLED_OFFSET, TEXTDRAW_ALIGN_CENTER_OFFSET,
+    TEXTDRAW_ALIGN_LEFT_OFFSET, TEXTDRAW_ALIGN_RIGHT_OFFSET, TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
+    TEXTDRAW_BOX_COLOUR_OFFSET, TEXTDRAW_BOX_ENABLED_OFFSET, TEXTDRAW_BOX_HEIGHT_OFFSET,
+    TEXTDRAW_BOX_WIDTH_OFFSET, TEXTDRAW_DATA_OFFSET, TEXTDRAW_LETTER_COLOUR_OFFSET,
+    TEXTDRAW_LETTER_HEIGHT_OFFSET, TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET,
+    TEXTDRAW_MODEL_COLOUR2_OFFSET, TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET,
+    TEXTDRAW_POOL_NOT_EMPTY_OFFSET, TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET,
+    TEXTDRAW_ROTATION_OFFSET, TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET,
+    TEXTDRAW_Y_OFFSET, TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_GAME_OBJECTS_OFFSET,
+    VEHICLE_POOL_NOT_EMPTY_OFFSET, assigned_player_id, bounded_c_string,
+    bounded_dxut_listbox_item_text, mem, nul_terminated,
 };
 
 unsafe extern "C" {
@@ -40,6 +41,8 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r1_local_current_vehicle_offset() -> usize;
     fn samp_client_sdk_fixture_r1_local_onfoot_offset() -> usize;
     fn samp_client_sdk_fixture_r1_remote_onfoot_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_remote_incar_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_position_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_speed_offset() -> usize;
     fn samp_client_sdk_fixture_r1_onfoot_special_action_offset() -> usize;
@@ -147,6 +150,14 @@ fn r1_sync_offsets_match_the_independent_x86_fixture() {
         assert_eq!(
             samp_client_sdk_fixture_r1_remote_onfoot_offset(),
             REMOTE_PLAYER_ONFOOT_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_incar_offset(),
+            LOCAL_PLAYER_INCAR_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_remote_incar_offset(),
+            REMOTE_PLAYER_INCAR_OFFSET
         );
         assert_eq!(
             samp_client_sdk_fixture_r1_onfoot_position_offset(),

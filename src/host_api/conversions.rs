@@ -1,7 +1,7 @@
 //! Runtime snapshot conversion into fixed ABI output storage.
 
 use crate::runtime::{
-    AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, LocalDialogSnapshot,
+    AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot, LocalDialogSnapshot,
     LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
     ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
 };
@@ -11,9 +11,10 @@ use sdk_abi::limits::{
 };
 use sdk_abi::{
     SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkChatEntryV1,
-    SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkLocalPlayerV1,
-    SampClientSdkOnFootSyncV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
-    SampClientSdkServerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1,
+    SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
+    SampClientSdkTextLabelV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -210,6 +211,51 @@ pub(super) fn onfoot_sync_to_abi(
         surfing_vehicle_id: snapshot.surfing_vehicle_id,
         _reserved3: 0,
         animation: snapshot.animation,
+    })
+}
+
+pub(super) fn vehicle_sync_to_abi(
+    snapshot: InCarSyncSnapshot,
+) -> Result<SampClientSdkInCarSyncV1, ()> {
+    if !snapshot.quaternion.iter().all(|value| value.is_finite())
+        || !snapshot.position.x.is_finite()
+        || !snapshot.position.y.is_finite()
+        || !snapshot.position.z.is_finite()
+        || !snapshot.speed.x.is_finite()
+        || !snapshot.speed.y.is_finite()
+        || !snapshot.speed.z.is_finite()
+        || !snapshot.vehicle_health.is_finite()
+    {
+        return Err(());
+    }
+    Ok(SampClientSdkInCarSyncV1 {
+        exists: 1,
+        driver_health: snapshot.driver_health,
+        driver_armour: snapshot.driver_armour,
+        weapon: snapshot.weapon,
+        siren: u8::from(snapshot.siren),
+        landing_gear: u8::from(snapshot.landing_gear),
+        _reserved: [0; 2],
+        id: snapshot.id,
+        vehicle_id: snapshot.vehicle_id,
+        controller_left_stick_x: snapshot.controller_left_stick_x,
+        controller_left_stick_y: snapshot.controller_left_stick_y,
+        controller_buttons: snapshot.controller_buttons,
+        _reserved2: 0,
+        quaternion: snapshot.quaternion,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
+        speed: Vector3 {
+            x: snapshot.speed.x,
+            y: snapshot.speed.y,
+            z: snapshot.speed.z,
+        },
+        vehicle_health: snapshot.vehicle_health,
+        trailer_id: snapshot.trailer_id,
+        vehicle_specific: snapshot.vehicle_specific,
     })
 }
 

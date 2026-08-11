@@ -3,8 +3,8 @@
 use super::{clone_initialized, conversions, direct_client_result, host};
 use sdk_abi::limits::MAX_SAMP_PLAYERS;
 use sdk_abi::{
-    SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1,
+    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
 };
 
 pub(super) unsafe extern "system" fn local_player(
@@ -102,6 +102,32 @@ pub(super) unsafe extern "system" fn onfoot_sync(
         },
         Ok(None) => {
             unsafe { *output = SampClientSdkOnFootSyncV1::default() };
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+pub(super) unsafe extern "system" fn vehicle_sync(
+    id: u16,
+    output: *mut SampClientSdkInCarSyncV1,
+) -> SampClientSdkResult {
+    if id >= MAX_SAMP_PLAYERS || output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.vehicle_sync(id) {
+        Ok(Some(snapshot)) => match conversions::vehicle_sync_to_abi(snapshot) {
+            Ok(snapshot) => {
+                unsafe { *output = snapshot };
+                SampClientSdkResult::Ok
+            }
+            Err(()) => SampClientSdkResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            unsafe { *output = SampClientSdkInCarSyncV1::default() };
             SampClientSdkResult::Ok
         }
         Err(error) => direct_client_result(error),

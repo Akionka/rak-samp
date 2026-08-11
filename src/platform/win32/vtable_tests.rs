@@ -68,6 +68,8 @@ fn test_backend_state() -> BackendState {
         remote_player_state_requests: Mutex::new(VecDeque::new()),
         onfoot_sync_cache: Mutex::new(vec![OnFootSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         onfoot_sync_requests: Mutex::new(VecDeque::new()),
+        incar_sync_cache: Mutex::new(vec![InCarSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        incar_sync_requests: Mutex::new(VecDeque::new()),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::new()),
         text_label_exists_cache: Mutex::new(vec![
@@ -840,6 +842,71 @@ fn onfoot_sync_requests_are_bounded_deduplicated_and_pump_limited() {
     assert_eq!(
         state.onfoot_sync_requests.lock().unwrap().len(),
         ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY - ONFOOT_SYNC_REQUESTS_PER_PUMP
+    );
+}
+
+#[test]
+fn incar_sync_reads_owned_cache_and_queues_a_refresh() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+
+    assert_eq!(state.vehicle_sync(7), Err(DirectClientError::NotReady));
+    assert_eq!(
+        state.incar_sync_requests.lock().unwrap().as_slices().0,
+        &[7]
+    );
+
+    let snapshot = InCarSyncSnapshot {
+        id: 7,
+        vehicle_id: 411,
+        controller_left_stick_x: -100,
+        controller_left_stick_y: 200,
+        controller_buttons: 0x1234,
+        quaternion: [0.0, 0.0, 0.0, 1.0],
+        position: crate::runtime::Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        speed: crate::runtime::Vector3 {
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+        },
+        vehicle_health: 900.0,
+        driver_health: 75,
+        driver_armour: 25,
+        weapon: 24,
+        siren: true,
+        landing_gear: false,
+        trailer_id: u16::MAX,
+        vehicle_specific: [1, 2, 3, 4],
+    };
+    state.incar_sync_cache.lock().unwrap()[7] = InCarSyncCacheEntry::Known(Some(snapshot));
+
+    assert_eq!(state.vehicle_sync(7), Ok(Some(snapshot)));
+}
+
+#[test]
+fn incar_sync_requests_are_bounded_deduplicated_and_pump_limited() {
+    let state = test_backend_state();
+    state.queue_incar_sync_request(7).unwrap();
+    state.queue_incar_sync_request(7).unwrap();
+    for id in 8..(7 + INCAR_SYNC_REQUEST_QUEUE_CAPACITY as u16) {
+        state.queue_incar_sync_request(id).unwrap();
+    }
+    assert_eq!(
+        state.queue_incar_sync_request(99),
+        Err(DirectClientError::QueueFull)
+    );
+    let drained = state.take_incar_sync_requests();
+    assert_eq!(drained.len(), INCAR_SYNC_REQUESTS_PER_PUMP);
+    assert_eq!(drained[0], 7);
+    assert_eq!(
+        state.incar_sync_requests.lock().unwrap().len(),
+        INCAR_SYNC_REQUEST_QUEUE_CAPACITY - INCAR_SYNC_REQUESTS_PER_PUMP
     );
 }
 

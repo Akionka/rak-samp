@@ -150,6 +150,20 @@ struct FixtureR1LocalPlayerPrefix {
     FixtureR1OnfootData onfoot;
 };
 
+struct FixtureR1LocalPlayerSyncPrefix {
+    void* ped;
+    unsigned int animation;
+    int field_8;
+    int active;
+    int wasted;
+    unsigned short current_vehicle;
+    unsigned short last_vehicle;
+    FixtureR1OnfootData onfoot;
+    FixtureR1PassengerData passenger;
+    FixtureR1TrailerData trailer;
+    FixtureR1IncarData incar;
+};
+
 // Independent packed equivalents of the R1 `CEntity` / `CPed` prefix. The
 // snapshot validates CPed's dedicated GTA-ped pointer before calling native
 // health and armour getters.
@@ -419,11 +433,13 @@ static_assert(sizeof(FixtureR1AimData) == 31);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, special_action) == 0xBB);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, ped) == 0x00);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, onfoot) == 0xC8);
+static_assert(offsetof(FixtureR1RemotePlayerPrefix, incar) == 0x10C);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_armour) == 0x1B8);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, reported_health) == 0x1BC);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, animation) == 0x1C0);
 static_assert(offsetof(FixtureR1RemotePlayerPrefix, status) == 0x1D1);
 static_assert(sizeof(FixtureR1LocalPlayerPrefix) == 92);
+static_assert(offsetof(FixtureR1LocalPlayerSyncPrefix, incar) == 0xAA);
 static_assert(offsetof(FixtureR1Ped, game_ped) == 0x2A4);
 static_assert(offsetof(FixtureR1PlayerPoolPrefix, local_id) == 0x04);
 static_assert(sizeof(FixtureR1VehicleInfo) == 40);
@@ -586,6 +602,14 @@ std::size_t samp_client_sdk_fixture_r1_local_onfoot_offset() {
 
 std::size_t samp_client_sdk_fixture_r1_remote_onfoot_offset() {
     return offsetof(FixtureR1RemotePlayerPrefix, onfoot);
+}
+
+std::size_t samp_client_sdk_fixture_r1_local_incar_offset() {
+    return offsetof(FixtureR1LocalPlayerSyncPrefix, incar);
+}
+
+std::size_t samp_client_sdk_fixture_r1_remote_incar_offset() {
+    return offsetof(FixtureR1RemotePlayerPrefix, incar);
 }
 
 std::size_t samp_client_sdk_fixture_r1_onfoot_position_offset() {

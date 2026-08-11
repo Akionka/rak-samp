@@ -611,6 +611,49 @@ unsafe extern "system" fn test_onfoot_sync(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_vehicle_sync(
+    id: u16,
+    output: *mut crate::SampClientSdkInCarSyncV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::SampClientSdkInCarSyncV1 {
+            exists: 1,
+            driver_health: 75,
+            driver_armour: 25,
+            weapon: 24,
+            siren: 1,
+            landing_gear: 0,
+            _reserved: [0; 2],
+            id,
+            vehicle_id: 411,
+            controller_left_stick_x: -100,
+            controller_left_stick_y: 200,
+            controller_buttons: 0x1234,
+            _reserved2: 0,
+            quaternion: [0.0, 0.0, 0.0, 1.0],
+            position: crate::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            speed: crate::Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            vehicle_health: 900.0,
+            trailer_id: u16::MAX,
+            vehicle_specific: [1, 2, 3, 4],
+        }
+    } else {
+        crate::SampClientSdkInCarSyncV1::default()
+    };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;

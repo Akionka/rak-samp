@@ -3,9 +3,9 @@ use crate::{
     event::Registry,
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
-        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-        LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot,
-        TextLabelSnapshot, TextdrawSnapshot,
+        InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+        LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot,
+        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use std::sync::Arc;
@@ -93,6 +93,13 @@ impl Backend {
         &self,
         _id: u16,
     ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn vehicle_sync(
+        &self,
+        _id: u16,
+    ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

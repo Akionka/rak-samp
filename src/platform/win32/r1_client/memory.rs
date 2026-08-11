@@ -67,6 +67,7 @@ pub(super) const GANGZONE_COLOUR_OFFSET: usize = 0x10;
 pub(super) const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
 pub(super) const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
 pub(super) const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC8;
+pub(super) const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x10C;
 pub(super) const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
 pub(super) const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
 pub(super) const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
@@ -86,6 +87,23 @@ pub(super) const ONFOOT_SPEED_OFFSET: usize = 0x26;
 pub(super) const ONFOOT_SURFING_OFFSET_OFFSET: usize = 0x32;
 pub(super) const ONFOOT_SURFING_VEHICLE_ID_OFFSET: usize = 0x3E;
 pub(super) const ONFOOT_ANIMATION_OFFSET: usize = 0x40;
+
+pub(super) const INCAR_SYNC_SIZE: usize = 63;
+pub(super) const INCAR_VEHICLE_ID_OFFSET: usize = 0x00;
+pub(super) const INCAR_CONTROLLER_LEFT_STICK_X_OFFSET: usize = 0x02;
+pub(super) const INCAR_CONTROLLER_LEFT_STICK_Y_OFFSET: usize = 0x04;
+pub(super) const INCAR_CONTROLLER_BUTTONS_OFFSET: usize = 0x06;
+pub(super) const INCAR_QUATERNION_OFFSET: usize = 0x08;
+pub(super) const INCAR_POSITION_OFFSET: usize = 0x18;
+pub(super) const INCAR_SPEED_OFFSET: usize = 0x24;
+pub(super) const INCAR_VEHICLE_HEALTH_OFFSET: usize = 0x30;
+pub(super) const INCAR_DRIVER_HEALTH_OFFSET: usize = 0x34;
+pub(super) const INCAR_DRIVER_ARMOUR_OFFSET: usize = 0x35;
+pub(super) const INCAR_WEAPON_OFFSET: usize = 0x36;
+pub(super) const INCAR_SIREN_OFFSET: usize = 0x37;
+pub(super) const INCAR_LANDING_GEAR_OFFSET: usize = 0x38;
+pub(super) const INCAR_TRAILER_ID_OFFSET: usize = 0x39;
+pub(super) const INCAR_VEHICLE_SPECIFIC_OFFSET: usize = 0x3B;
 
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same

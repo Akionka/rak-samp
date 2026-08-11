@@ -471,6 +471,47 @@ pub(crate) fn onfoot_sync_from_abi(
     }
 }
 
+pub(crate) fn vehicle_sync_from_abi(
+    raw: SampClientSdkInCarSyncV1,
+) -> Result<Option<InCarSync>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkInCarSyncV1::default() => Ok(None),
+        1 if matches!(raw.siren, 0 | 1)
+            && matches!(raw.landing_gear, 0 | 1)
+            && raw._reserved == [0; 2]
+            && raw._reserved2 == 0
+            && raw.quaternion.iter().all(|value| value.is_finite())
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite()
+            && raw.speed.x.is_finite()
+            && raw.speed.y.is_finite()
+            && raw.speed.z.is_finite()
+            && raw.vehicle_health.is_finite() =>
+        {
+            Ok(Some(InCarSync {
+                id: raw.id,
+                vehicle_id: raw.vehicle_id,
+                controller_left_stick_x: raw.controller_left_stick_x,
+                controller_left_stick_y: raw.controller_left_stick_y,
+                controller_buttons: raw.controller_buttons,
+                quaternion: raw.quaternion,
+                position: raw.position,
+                speed: raw.speed,
+                vehicle_health: raw.vehicle_health,
+                driver_health: raw.driver_health,
+                driver_armour: raw.driver_armour,
+                weapon: raw.weapon,
+                siren: raw.siren != 0,
+                landing_gear: raw.landing_gear != 0,
+                trailer_id: raw.trailer_id,
+                vehicle_specific: raw.vehicle_specific,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn gangzone_from_abi(
     raw: SampClientSdkGangzoneV1,
 ) -> Result<Option<Gangzone>, SampClientSdkResult> {

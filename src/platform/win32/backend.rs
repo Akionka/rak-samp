@@ -559,6 +559,13 @@ impl Backend {
         self.state.onfoot_sync(id)
     }
 
+    pub(crate) fn vehicle_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<crate::runtime::InCarSyncSnapshot>, DirectClientError> {
+        self.state.vehicle_sync(id)
+    }
+
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.player_defined(id)
     }
