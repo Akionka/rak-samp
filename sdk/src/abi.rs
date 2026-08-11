@@ -148,6 +148,34 @@ pub struct SampClientSdkRemotePlayerStateV1 {
     pub armour: f32,
 }
 
+/// C-compatible storage for an owned R1 on-foot synchronization snapshot.
+///
+/// `exists` is zero when the latest completed query found no defined player.
+/// `surfing_vehicle_id` preserves the native `0xFFFF` sentinel, and
+/// `animation` preserves the raw native animation bits.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkOnFootSyncV1 {
+    pub exists: u8,
+    pub health: u8,
+    pub armour: u8,
+    pub weapon: u8,
+    pub special_action: u8,
+    pub _reserved: [u8; 3],
+    pub id: u16,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub _reserved2: u16,
+    pub position: Vector3,
+    pub quaternion: [f32; 4],
+    pub speed: Vector3,
+    pub surfing_offset: Vector3,
+    pub surfing_vehicle_id: u16,
+    pub _reserved3: u16,
+    pub animation: u32,
+}
+
 /// C-compatible storage for an owned [`Gangzone`] result.
 ///
 /// `exists` is zero when the latest completed query found no gangzone. The
@@ -1027,6 +1055,9 @@ pub struct SampClientSdkApiV1 {
         usize,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
+    /// Copies a cached owned R1 on-foot synchronization record into `output`.
+    pub onfoot_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkOnFootSyncV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

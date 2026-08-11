@@ -1,7 +1,7 @@
 use super::{Net, PedHandle, PlayerId, Samp, VehicleId};
 use crate::{
-    CommandReceipt, HostApi, LocalAnimation, LocalPlayer, PlayerInfo, RemotePlayerState,
-    SampClientSdkResult, SpecialAction,
+    CommandReceipt, HostApi, LocalAnimation, LocalPlayer, OnFootSync, PlayerInfo,
+    RemotePlayerState, SampClientSdkResult, SpecialAction,
 };
 
 #[derive(Clone, Copy)]
@@ -175,6 +175,12 @@ impl Player {
 
     pub fn animation_id(self) -> Result<Option<u16>, SampClientSdkResult> {
         self.api.player_animation_id(self.id.get())
+    }
+
+    /// Returns an owned on-foot synchronization snapshot for this local or
+    /// remote player after the host has completed a game-thread refresh.
+    pub fn onfoot_sync(self) -> Result<Option<OnFootSync>, SampClientSdkResult> {
+        self.api.onfoot_sync(self.id.get())
     }
 
     pub fn is_defined(self) -> Result<bool, SampClientSdkResult> {

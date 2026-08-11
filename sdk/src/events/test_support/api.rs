@@ -130,6 +130,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     text_label_create_try_take: test_text_label_create_try_take,
     text_label_create_wait: test_text_label_create_wait,
     submit_set_text_label_text: test_submit_set_text_label_text,
+    onfoot_sync: test_onfoot_sync,
 };
 
 pub(crate) fn test_api() -> HostApi {

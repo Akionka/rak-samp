@@ -17,8 +17,8 @@ mod ui;
 use crate::runtime::{
     AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
     LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-    LocalDialogStyle, LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, Vector3,
+    LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot,
+    RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;

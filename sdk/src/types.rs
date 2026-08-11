@@ -342,6 +342,32 @@ pub struct RemotePlayerState {
     pub animation_id: u16,
 }
 
+/// An owned R1 on-foot synchronization record copied on the verified game
+/// thread for either the local or a defined remote player.
+///
+/// The controller and animation fields preserve their native raw bit patterns;
+/// `surfing_vehicle_id` preserves the native `0xFFFF` sentinel. The first
+/// lookup can return [`SampClientSdkResult::NotReady`] while the game-thread
+/// cache refresh is pending. No client, player, ped, or GTA pointer crosses
+/// this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct OnFootSync {
+    pub id: u16,
+    pub controller_left_stick_x: i16,
+    pub controller_left_stick_y: i16,
+    pub controller_buttons: i16,
+    pub position: crate::Vector3,
+    pub quaternion: [f32; 4],
+    pub health: u8,
+    pub armour: u8,
+    pub weapon: u8,
+    pub special_action: u8,
+    pub speed: crate::Vector3,
+    pub surfing_offset: crate::Vector3,
+    pub surfing_vehicle_id: u16,
+    pub animation: u32,
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top

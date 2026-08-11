@@ -148,6 +148,26 @@ pub(crate) struct RemotePlayerStateSnapshot {
     pub(crate) animation_id: u16,
 }
 
+/// Host-owned R1 on-foot synchronization data copied on the verified game
+/// thread. Controller and animation fields retain their native raw bits.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct OnFootSyncSnapshot {
+    pub(crate) id: u16,
+    pub(crate) controller_left_stick_x: i16,
+    pub(crate) controller_left_stick_y: i16,
+    pub(crate) controller_buttons: i16,
+    pub(crate) position: Vector3,
+    pub(crate) quaternion: [f32; 4],
+    pub(crate) health: u8,
+    pub(crate) armour: u8,
+    pub(crate) weapon: u8,
+    pub(crate) special_action: u8,
+    pub(crate) speed: Vector3,
+    pub(crate) surfing_offset: Vector3,
+    pub(crate) surfing_vehicle_id: u16,
+    pub(crate) animation: u32,
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -856,6 +876,13 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
         self.backend.remote_player_state(id)
+    }
+
+    pub(crate) fn onfoot_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
+        self.backend.onfoot_sync(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

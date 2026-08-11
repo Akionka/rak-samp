@@ -348,6 +348,26 @@ mod tests {
             Ok(Some(b"remote".to_vec()))
         );
         assert_eq!(
+            samp.players()
+                .player(PlayerId::new(7).unwrap())
+                .onfoot_sync()
+                .map(|sync| sync.map(|sync| (sync.position, sync.animation))),
+            Ok(Some((
+                crate::Vector3 {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+                0x1234_5678,
+            )))
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(8).unwrap())
+                .onfoot_sync(),
+            Ok(None)
+        );
+        assert_eq!(
             samp.textdraws().exists(TextdrawId::new(7).unwrap()),
             Ok(true)
         );

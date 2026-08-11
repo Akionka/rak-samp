@@ -5,6 +5,7 @@ use super::{
     GANGZONE_REQUEST_QUEUE_CAPACITY, GANGZONE_REQUESTS_PER_PUMP,
     OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY, OBJECT_EXISTS_REQUESTS_PER_PUMP,
     OBJECT_HANDLE_REQUESTS_PER_PUMP, OBJECT_HANDLE_REVERSE_REQUESTS_PER_PUMP,
+    ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY, ONFOOT_SYNC_REQUESTS_PER_PUMP,
     PICKUP_HANDLE_REQUESTS_PER_PUMP, PICKUP_HANDLE_REVERSE_REQUESTS_PER_PUMP,
     PLAYER_HANDLE_REQUESTS_PER_PUMP, PLAYER_HANDLE_REVERSE_REQUESTS_PER_PUMP,
     PLAYER_INFO_REQUEST_QUEUE_CAPACITY, PLAYER_INFO_REQUESTS_PER_PUMP,
@@ -61,6 +62,14 @@ impl BackendState {
         queue_unique_request(
             &self.remote_player_state_requests,
             REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
+            id,
+        )
+    }
+
+    pub(super) fn queue_onfoot_sync_request(&self, id: u16) -> Result<(), DirectClientError> {
+        queue_unique_request(
+            &self.onfoot_sync_requests,
+            ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY,
             id,
         )
     }
@@ -155,6 +164,10 @@ impl BackendState {
             &self.remote_player_state_requests,
             REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP,
         )
+    }
+
+    pub(super) fn take_onfoot_sync_requests(&self) -> Vec<u16> {
+        take_requests(&self.onfoot_sync_requests, ONFOOT_SYNC_REQUESTS_PER_PUMP)
     }
 
     pub(super) fn take_vehicle_exists_requests(&self) -> Vec<u16> {

@@ -1,11 +1,12 @@
 //! Published local and remote player reads.
 
 use super::{
-    BackendState, MAX_SAMP_PLAYERS, PlayerInfoCacheEntry, RemotePlayerStateCacheEntry,
-    player_info_from_local, try_lock_direct,
+    BackendState, MAX_SAMP_PLAYERS, OnFootSyncCacheEntry, PlayerInfoCacheEntry,
+    RemotePlayerStateCacheEntry, player_info_from_local, try_lock_direct,
 };
 use crate::runtime::{
-    DirectClientError, LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+    DirectClientError, LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot,
+    RemotePlayerStateSnapshot,
 };
 use std::sync::atomic::Ordering;
 
@@ -92,6 +93,33 @@ impl BackendState {
             }
             RemotePlayerStateCacheEntry::Unknown => {
                 self.queue_remote_player_state_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
+    pub(super) fn onfoot_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
+        if self.r1_client.is_none()
+            || self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || usize::from(id) >= MAX_SAMP_PLAYERS
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let cached = try_lock_direct(&self.onfoot_sync_cache)?
+            .get(usize::from(id))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?;
+        match cached {
+            OnFootSyncCacheEntry::Known(snapshot) => {
+                let _ = self.queue_onfoot_sync_request(id);
+                Ok(snapshot)
+            }
+            OnFootSyncCacheEntry::Unknown => {
+                self.queue_onfoot_sync_request(id)?;
                 Err(DirectClientError::NotReady)
             }
         }

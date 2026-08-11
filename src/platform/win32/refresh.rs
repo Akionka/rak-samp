@@ -48,6 +48,20 @@ impl BackendState {
         }
     }
 
+    pub(super) fn refresh_onfoot_sync(&self, profile: R1ClientProfile) {
+        for id in self.take_onfoot_sync_requests() {
+            let Ok(snapshot) = profile.onfoot_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.onfoot_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = OnFootSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
     pub(super) fn refresh_player_count(&self, profile: R1ClientProfile) {
         match profile.player_counts() {
             Ok((including_npcs, excluding_npcs)) => {

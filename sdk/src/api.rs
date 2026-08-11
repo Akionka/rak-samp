@@ -431,6 +431,46 @@ pub(crate) fn remote_player_state_from_abi(
     }
 }
 
+pub(crate) fn onfoot_sync_from_abi(
+    raw: SampClientSdkOnFootSyncV1,
+) -> Result<Option<OnFootSync>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkOnFootSyncV1::default() => Ok(None),
+        1 if raw._reserved == [0; 3]
+            && raw._reserved2 == 0
+            && raw._reserved3 == 0
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite()
+            && raw.quaternion.iter().all(|value| value.is_finite())
+            && raw.speed.x.is_finite()
+            && raw.speed.y.is_finite()
+            && raw.speed.z.is_finite()
+            && raw.surfing_offset.x.is_finite()
+            && raw.surfing_offset.y.is_finite()
+            && raw.surfing_offset.z.is_finite() =>
+        {
+            Ok(Some(OnFootSync {
+                id: raw.id,
+                controller_left_stick_x: raw.controller_left_stick_x,
+                controller_left_stick_y: raw.controller_left_stick_y,
+                controller_buttons: raw.controller_buttons,
+                position: raw.position,
+                quaternion: raw.quaternion,
+                health: raw.health,
+                armour: raw.armour,
+                weapon: raw.weapon,
+                special_action: raw.special_action,
+                speed: raw.speed,
+                surfing_offset: raw.surfing_offset,
+                surfing_vehicle_id: raw.surfing_vehicle_id,
+                animation: raw.animation,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn gangzone_from_abi(
     raw: SampClientSdkGangzoneV1,
 ) -> Result<Option<Gangzone>, SampClientSdkResult> {

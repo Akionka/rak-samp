@@ -66,10 +66,26 @@ pub(super) const GANGZONE_TOP_OFFSET: usize = 0x0C;
 pub(super) const GANGZONE_COLOUR_OFFSET: usize = 0x10;
 pub(super) const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
 pub(super) const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
+pub(super) const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC8;
 pub(super) const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
 pub(super) const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
 pub(super) const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
 pub(super) const REMOTE_PLAYER_STATE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
+
+pub(super) const ONFOOT_SYNC_SIZE: usize = 68;
+pub(super) const ONFOOT_CONTROLLER_LEFT_STICK_X_OFFSET: usize = 0x00;
+pub(super) const ONFOOT_CONTROLLER_LEFT_STICK_Y_OFFSET: usize = 0x02;
+pub(super) const ONFOOT_CONTROLLER_BUTTONS_OFFSET: usize = 0x04;
+pub(super) const ONFOOT_POSITION_OFFSET: usize = 0x06;
+pub(super) const ONFOOT_QUATERNION_OFFSET: usize = 0x12;
+pub(super) const ONFOOT_HEALTH_OFFSET: usize = 0x22;
+pub(super) const ONFOOT_ARMOUR_OFFSET: usize = 0x23;
+pub(super) const ONFOOT_WEAPON_OFFSET: usize = 0x24;
+pub(super) const ONFOOT_SPECIAL_ACTION_OFFSET: usize = 0x25;
+pub(super) const ONFOOT_SPEED_OFFSET: usize = 0x26;
+pub(super) const ONFOOT_SURFING_OFFSET_OFFSET: usize = 0x32;
+pub(super) const ONFOOT_SURFING_VEHICLE_ID_OFFSET: usize = 0x3E;
+pub(super) const ONFOOT_ANIMATION_OFFSET: usize = 0x40;
 
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
@@ -147,10 +163,10 @@ pub(super) const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
 pub(super) const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0x14;
 pub(super) const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x18;
 pub(super) const LOCAL_PLAYER_INCAR_OFFSET: usize = 0xAA;
-pub(super) const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = 0x06;
-pub(super) const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = 0x26;
-pub(super) const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = 0x25;
-pub(super) const LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET: usize = 0x40;
+pub(super) const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = ONFOOT_POSITION_OFFSET;
+pub(super) const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = ONFOOT_SPEED_OFFSET;
+pub(super) const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = ONFOOT_SPECIAL_ACTION_OFFSET;
+pub(super) const LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET: usize = ONFOOT_ANIMATION_OFFSET;
 pub(super) const LOCAL_PLAYER_INCAR_POSITION_OFFSET: usize = 0x18;
 pub(super) const LOCAL_PLAYER_INCAR_SPEED_OFFSET: usize = 0x24;
 

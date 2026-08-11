@@ -28,9 +28,9 @@ use crate::{
     runtime::{
         AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError, DirectClientError,
         GangzoneSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
-        LocalDialogSnapshot, LocalPlayerSnapshot, PacketPriority, PacketReliability,
-        PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-        TextdrawSnapshot,
+        LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PacketPriority,
+        PacketReliability, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
+        TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use hooks::{HookStorage, InlineHook, VtableHook};
@@ -60,6 +60,8 @@ const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP: usize = 4;
+const ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
+const ONFOOT_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const PLAYER_INFO_REQUESTS_PER_PUMP: usize = 4;
 const VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY: usize = 32;
 const VEHICLE_EXISTS_REQUESTS_PER_PUMP: usize = 4;
@@ -189,6 +191,8 @@ struct BackendState {
     player_info_requests: Mutex<VecDeque<u16>>,
     remote_player_state_cache: Mutex<Vec<RemotePlayerStateCacheEntry>>,
     remote_player_state_requests: Mutex<VecDeque<u16>>,
+    onfoot_sync_cache: Mutex<Vec<OnFootSyncCacheEntry>>,
+    onfoot_sync_requests: Mutex<VecDeque<u16>>,
     vehicle_exists_cache: Mutex<Vec<VehicleExistsCacheEntry>>,
     vehicle_exists_requests: Mutex<VecDeque<u16>>,
     text_label_exists_cache: Mutex<Vec<TextLabelExistsCacheEntry>>,
@@ -268,6 +272,12 @@ enum PlayerInfoCacheEntry {
 enum RemotePlayerStateCacheEntry {
     Unknown,
     Known(Option<RemotePlayerStateSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum OnFootSyncCacheEntry {
+    Unknown,
+    Known(Option<OnFootSyncSnapshot>),
 }
 
 #[derive(Clone, Copy)]
@@ -529,6 +539,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         remote_player_state_requests: Mutex::new(VecDeque::with_capacity(
             REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
         )),
+        onfoot_sync_cache: Mutex::new(vec![OnFootSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        onfoot_sync_requests: Mutex::new(VecDeque::with_capacity(
+            ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY,
+        )),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::with_capacity(
             VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY,
@@ -760,6 +774,7 @@ impl BackendState {
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
         self.refresh_remote_player_state(profile);
+        self.refresh_onfoot_sync(profile);
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
         self.refresh_vehicle_exists(profile);
@@ -824,6 +839,12 @@ impl BackendState {
     fn clear_remote_player_state_cache(&self) {
         if let Ok(mut cache) = self.remote_player_state_cache.try_lock() {
             cache.fill(RemotePlayerStateCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_onfoot_sync_cache(&self) {
+        if let Ok(mut cache) = self.onfoot_sync_cache.try_lock() {
+            cache.fill(OnFootSyncCacheEntry::Unknown);
         }
     }
 
@@ -911,6 +932,14 @@ impl BackendState {
             .unwrap_or_else(|error| error.into_inner())
             .fill(RemotePlayerStateCacheEntry::Unknown);
         self.remote_player_state_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.onfoot_sync_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(OnFootSyncCacheEntry::Unknown);
+        self.onfoot_sync_requests
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
@@ -1115,6 +1144,10 @@ impl BackendState {
         }
         self.clear_remote_player_state_cache();
         if let Ok(mut requests) = self.remote_player_state_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_onfoot_sync_cache();
+        if let Ok(mut requests) = self.onfoot_sync_requests.try_lock() {
             requests.clear();
         }
         self.clear_vehicle_exists_cache();

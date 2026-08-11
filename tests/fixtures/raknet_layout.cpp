@@ -584,6 +584,10 @@ std::size_t samp_client_sdk_fixture_r1_local_onfoot_offset() {
     return offsetof(FixtureR1LocalPlayerPrefix, onfoot);
 }
 
+std::size_t samp_client_sdk_fixture_r1_remote_onfoot_offset() {
+    return offsetof(FixtureR1RemotePlayerPrefix, onfoot);
+}
+
 std::size_t samp_client_sdk_fixture_r1_onfoot_position_offset() {
     return offsetof(FixtureR1OnfootData, position);
 }

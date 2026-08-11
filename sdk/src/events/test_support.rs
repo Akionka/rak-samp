@@ -565,6 +565,52 @@ unsafe extern "system" fn test_remote_player_state(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_onfoot_sync(
+    id: u16,
+    output: *mut crate::SampClientSdkOnFootSyncV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::SampClientSdkOnFootSyncV1 {
+            exists: 1,
+            health: 75,
+            armour: 25,
+            weapon: 24,
+            special_action: 3,
+            _reserved: [0; 3],
+            id,
+            controller_left_stick_x: -100,
+            controller_left_stick_y: 200,
+            controller_buttons: 0x1234,
+            _reserved2: 0,
+            position: crate::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            quaternion: [0.0, 0.0, 0.0, 1.0],
+            speed: crate::Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            surfing_offset: crate::Vector3 {
+                x: 7.0,
+                y: 8.0,
+                z: 9.0,
+            },
+            surfing_vehicle_id: u16::MAX,
+            _reserved3: 0,
+            animation: 0x1234_5678,
+        }
+    } else {
+        crate::SampClientSdkOnFootSyncV1::default()
+    };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;

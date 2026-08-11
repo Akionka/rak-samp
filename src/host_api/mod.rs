@@ -274,6 +274,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     text_label_create_try_take: commands::text_label_create_try_take,
     text_label_create_wait: commands::text_label_create_wait,
     submit_set_text_label_text: text_labels::submit_set_text_label_text,
+    onfoot_sync: players::onfoot_sync,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

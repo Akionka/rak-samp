@@ -552,6 +552,13 @@ impl Backend {
         self.state.remote_player_state(id)
     }
 
+    pub(crate) fn onfoot_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<crate::runtime::OnFootSyncSnapshot>, DirectClientError> {
+        self.state.onfoot_sync(id)
+    }
+
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.player_defined(id)
     }

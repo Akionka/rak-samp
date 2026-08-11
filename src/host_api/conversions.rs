@@ -2,8 +2,8 @@
 
 use crate::runtime::{
     AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, LocalDialogSnapshot,
-    LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
-    TextLabelSnapshot, TextdrawSnapshot,
+    LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
 };
 use sdk_abi::limits::{
     MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
@@ -12,8 +12,8 @@ use sdk_abi::limits::{
 use sdk_abi::{
     SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkChatEntryV1,
     SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkLocalPlayerV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1,
-    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
+    SampClientSdkOnFootSyncV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
+    SampClientSdkServerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -160,6 +160,56 @@ pub(super) fn remote_player_state_to_abi(
         animation_id: snapshot.animation_id,
         health: snapshot.health,
         armour: snapshot.armour,
+    })
+}
+
+pub(super) fn onfoot_sync_to_abi(
+    snapshot: OnFootSyncSnapshot,
+) -> Result<SampClientSdkOnFootSyncV1, ()> {
+    if !snapshot.position.x.is_finite()
+        || !snapshot.position.y.is_finite()
+        || !snapshot.position.z.is_finite()
+        || !snapshot.quaternion.iter().all(|value| value.is_finite())
+        || !snapshot.speed.x.is_finite()
+        || !snapshot.speed.y.is_finite()
+        || !snapshot.speed.z.is_finite()
+        || !snapshot.surfing_offset.x.is_finite()
+        || !snapshot.surfing_offset.y.is_finite()
+        || !snapshot.surfing_offset.z.is_finite()
+    {
+        return Err(());
+    }
+    Ok(SampClientSdkOnFootSyncV1 {
+        exists: 1,
+        health: snapshot.health,
+        armour: snapshot.armour,
+        weapon: snapshot.weapon,
+        special_action: snapshot.special_action,
+        _reserved: [0; 3],
+        id: snapshot.id,
+        controller_left_stick_x: snapshot.controller_left_stick_x,
+        controller_left_stick_y: snapshot.controller_left_stick_y,
+        controller_buttons: snapshot.controller_buttons,
+        _reserved2: 0,
+        position: Vector3 {
+            x: snapshot.position.x,
+            y: snapshot.position.y,
+            z: snapshot.position.z,
+        },
+        quaternion: snapshot.quaternion,
+        speed: Vector3 {
+            x: snapshot.speed.x,
+            y: snapshot.speed.y,
+            z: snapshot.speed.z,
+        },
+        surfing_offset: Vector3 {
+            x: snapshot.surfing_offset.x,
+            y: snapshot.surfing_offset.y,
+            z: snapshot.surfing_offset.z,
+        },
+        surfing_vehicle_id: snapshot.surfing_vehicle_id,
+        _reserved3: 0,
+        animation: snapshot.animation,
     })
 }
 

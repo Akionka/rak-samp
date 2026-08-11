@@ -4,8 +4,8 @@ use crate::{
     runtime::{
         AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
         LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-        LocalPlayerSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-        TextdrawSnapshot,
+        LocalPlayerSnapshot, OnFootSyncSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot,
+        TextLabelSnapshot, TextdrawSnapshot,
     },
 };
 use std::sync::Arc;
@@ -86,6 +86,13 @@ impl Backend {
         &self,
         _id: u16,
     ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+
+    pub(crate) fn onfoot_sync(
+        &self,
+        _id: u16,
+    ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

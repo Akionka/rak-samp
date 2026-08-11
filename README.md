@@ -68,6 +68,9 @@ the game thread. Its typed receipt resolves to the resulting `TextLabelId`.
 `samp.labels().set_text(id, text)` queues validated replacement text and
 returns a normal completion receipt.
 
+`samp.players().player(id).onfoot_sync()` returns an owned, game-thread-cached
+R1 on-foot synchronization snapshot for local or defined remote players.
+
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned

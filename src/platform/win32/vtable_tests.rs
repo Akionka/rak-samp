@@ -66,6 +66,8 @@ fn test_backend_state() -> BackendState {
             MAX_SAMP_PLAYERS
         ]),
         remote_player_state_requests: Mutex::new(VecDeque::new()),
+        onfoot_sync_cache: Mutex::new(vec![OnFootSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
+        onfoot_sync_requests: Mutex::new(VecDeque::new()),
         vehicle_exists_cache: Mutex::new(vec![VehicleExistsCacheEntry::Unknown; MAX_SAMP_VEHICLES]),
         vehicle_exists_requests: Mutex::new(VecDeque::new()),
         text_label_exists_cache: Mutex::new(vec![
@@ -771,6 +773,73 @@ fn vehicle_exists_requests_are_bounded_deduplicated_and_pump_limited() {
     assert_eq!(
         state.vehicle_exists_requests.lock().unwrap().len(),
         VEHICLE_EXISTS_REQUEST_QUEUE_CAPACITY - VEHICLE_EXISTS_REQUESTS_PER_PUMP
+    );
+}
+
+#[test]
+fn onfoot_sync_reads_owned_cache_and_queues_a_refresh() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+
+    assert_eq!(state.onfoot_sync(7), Err(DirectClientError::NotReady));
+    assert_eq!(
+        state.onfoot_sync_requests.lock().unwrap().as_slices().0,
+        &[7]
+    );
+
+    let snapshot = OnFootSyncSnapshot {
+        id: 7,
+        controller_left_stick_x: -100,
+        controller_left_stick_y: 200,
+        controller_buttons: 0x1234,
+        position: crate::runtime::Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+        quaternion: [0.0, 0.0, 0.0, 1.0],
+        health: 75,
+        armour: 25,
+        weapon: 24,
+        special_action: 3,
+        speed: crate::runtime::Vector3 {
+            x: 4.0,
+            y: 5.0,
+            z: 6.0,
+        },
+        surfing_offset: crate::runtime::Vector3 {
+            x: 7.0,
+            y: 8.0,
+            z: 9.0,
+        },
+        surfing_vehicle_id: u16::MAX,
+        animation: 0x1234_5678,
+    };
+    state.onfoot_sync_cache.lock().unwrap()[7] = OnFootSyncCacheEntry::Known(Some(snapshot));
+
+    assert_eq!(state.onfoot_sync(7), Ok(Some(snapshot)));
+}
+
+#[test]
+fn onfoot_sync_requests_are_bounded_deduplicated_and_pump_limited() {
+    let state = test_backend_state();
+    state.queue_onfoot_sync_request(7).unwrap();
+    state.queue_onfoot_sync_request(7).unwrap();
+    for id in 8..(7 + ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY as u16) {
+        state.queue_onfoot_sync_request(id).unwrap();
+    }
+    assert_eq!(
+        state.queue_onfoot_sync_request(99),
+        Err(DirectClientError::QueueFull)
+    );
+    let drained = state.take_onfoot_sync_requests();
+    assert_eq!(drained.len(), ONFOOT_SYNC_REQUESTS_PER_PUMP);
+    assert_eq!(drained[0], 7);
+    assert_eq!(
+        state.onfoot_sync_requests.lock().unwrap().len(),
+        ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY - ONFOOT_SYNC_REQUESTS_PER_PUMP
     );
 }
 
