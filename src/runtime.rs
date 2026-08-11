@@ -872,6 +872,9 @@ impl Runtime {
     pub(crate) fn submit_force_onfoot_sync(&self) -> Result<CommandId, DirectClientError> {
         self.backend.submit_force_onfoot_sync()
     }
+    pub(crate) fn submit_force_stats_sync(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_force_stats_sync()
+    }
 
     pub(crate) fn submit_send_rate(
         &self,

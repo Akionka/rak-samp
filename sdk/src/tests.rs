@@ -434,8 +434,12 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, submit_force_aim_sync) + function_size
     );
     assert_eq!(
-        mem::offset_of!(SampClientSdkApiV1, submit_connect_to_server),
+        mem::offset_of!(SampClientSdkApiV1, submit_force_stats_sync),
         mem::offset_of!(SampClientSdkApiV1, submit_force_onfoot_sync) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, submit_connect_to_server),
+        mem::offset_of!(SampClientSdkApiV1, submit_force_stats_sync) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, submit_disconnect_with_reason),

@@ -604,5 +604,8 @@ mod tests {
         let mut onfoot = samp.local().force_onfoot_sync().unwrap();
         assert_eq!(onfoot.id(), 24);
         assert_eq!(onfoot.try_take(), Ok(Some(())));
+        let mut stats = samp.local().force_stats_sync().unwrap();
+        assert_eq!(stats.id(), 25);
+        assert_eq!(stats.try_take(), Ok(Some(())));
     }
 }

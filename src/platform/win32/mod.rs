@@ -493,6 +493,7 @@ enum GameCommand {
     },
     ForceAimSync,
     ForceOnfootSync,
+    ForceStatsSync,
     SetPlayerColour {
         id: u16,
         colour: u32,

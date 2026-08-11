@@ -1298,6 +1298,11 @@ unsafe extern "system" fn test_submit_force_onfoot_sync(
 ) -> SampClientSdkResult {
     unsafe { test_submit_command(receipt, 24) }
 }
+unsafe extern "system" fn test_submit_force_stats_sync(
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    unsafe { test_submit_command(receipt, 25) }
+}
 
 unsafe extern "system" fn test_submit_connect_to_server(
     address: *const u8,

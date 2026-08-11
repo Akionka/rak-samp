@@ -296,7 +296,7 @@ Tiers:
 | [x] | `sampGetPlayerColor` | Safe owned/read | `Player::colour` |
 | [x] | `sampForceAimSync` | Queued mutation | `Local::force_aim_sync` |
 | [x] | `sampForceOnfootSync` | Queued mutation | `Local::force_onfoot_sync` |
-| [ ] | `sampForceStatsSync` | Queued mutation | `LocalPlayer::force_stats_sync` |
+| [x] | `sampForceStatsSync` | Queued mutation | `Local::force_stats_sync` |
 | [ ] | `sampForceTrailerSync` | Queued mutation | `LocalPlayer::force_trailer_sync` |
 | [ ] | `sampForceVehicleSync` | Queued mutation | `LocalPlayer::force_vehicle_sync` |
 | [x] | `sampGetLocalPlayerId` | Safe owned/read | `LocalPlayer::id` |

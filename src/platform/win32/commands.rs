@@ -912,6 +912,12 @@ impl BackendState {
         }
         self.queue_game_command(GameCommand::ForceOnfootSync)
     }
+    pub(super) fn submit_force_stats_sync(&self) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ForceStatsSync)
+    }
 
     pub(super) fn submit_send_rate(
         &self,
@@ -1420,6 +1426,14 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .force_onfoot_sync()
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ForceStatsSync => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .force_stats_sync()
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self
