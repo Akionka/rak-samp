@@ -544,6 +544,108 @@ impl BackendState {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn submit_create_text_label_auto(
+        &self,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none()
+            || self.rak_client.load(Ordering::Acquire) == 0
+            || text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+            || text.contains(&0)
+            || !position.x.is_finite()
+            || !position.y.is_finite()
+            || !position.z.is_finite()
+            || !draw_distance.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let mut completions = self
+            .auto_text_label_creates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let id = self.queue_game_command(GameCommand::CreateTextLabelAuto {
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        })?;
+        completions.insert(id, None);
+        Ok(id)
+    }
+
+    pub(super) fn try_take_created_text_label(
+        &self,
+        id: CommandId,
+    ) -> Result<Option<Result<u16, CommandError>>, CommandError> {
+        match self.game_commands.try_take(id)? {
+            Some(Ok(())) => Ok(Some(Ok(self.take_created_text_label_id(id)?))),
+            Some(Err(error)) => {
+                self.forget_created_text_label(id);
+                Ok(Some(Err(error)))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub(super) fn wait_for_created_text_label(
+        &self,
+        id: CommandId,
+        timeout: std::time::Duration,
+    ) -> Result<Result<u16, CommandError>, CommandError> {
+        match self.game_commands.wait(
+            id,
+            timeout,
+            !self.is_game_thread()
+                && !self.registry.is_dispatching_on_current_thread()
+                && !crate::host_api::chat_commands::is_dispatching_on_current_thread(),
+        ) {
+            Ok(Ok(())) => Ok(Ok(self.take_created_text_label_id(id)?)),
+            Ok(Err(error)) => {
+                self.forget_created_text_label(id);
+                Ok(Err(error))
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    fn take_created_text_label_id(&self, command: CommandId) -> Result<u16, CommandError> {
+        self.auto_text_label_creates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&command)
+            .flatten()
+            .ok_or(CommandError::NativeFailure)
+    }
+
+    fn complete_created_text_label(&self, command: CommandId, label: u16) {
+        if let Some(result) = self
+            .auto_text_label_creates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .get_mut(&command)
+        {
+            *result = Some(label);
+        }
+    }
+
+    pub(super) fn forget_created_text_label(&self, command: CommandId) {
+        let _ = self
+            .auto_text_label_creates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .remove(&command);
+    }
+
     pub(super) fn submit_set_textdraw_position(
         &self,
         id: u16,
@@ -1084,6 +1186,41 @@ impl BackendState {
                                 attached_vehicle_id,
                             )
                             .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::CreateTextLabelAuto {
+                    text,
+                    colour,
+                    position,
+                    draw_distance,
+                    behind_walls,
+                    attached_player_id,
+                    attached_vehicle_id,
+                } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        let id = profile
+                            .first_free_text_label_id()
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        profile
+                            .create_text_label(
+                                id,
+                                &text,
+                                colour,
+                                position,
+                                draw_distance,
+                                behind_walls,
+                                attached_player_id,
+                                attached_vehicle_id,
+                            )
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        let snapshot = profile
+                            .text_label(id)
+                            .map_err(|_| CommandError::NativeFailure)?
+                            .ok_or(CommandError::NativeFailure)?;
+                        self.publish_created_text_label(id, snapshot);
+                        self.complete_created_text_label(queued.id, id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawPosition { id, x, y } => self
                     .r1_client

@@ -63,6 +63,9 @@ plugin.
 `samp.chat_input().is_command_defined(b"hello")` queries the latest
 game-thread-published command table with exact, case-sensitive name matching.
 
+`samp.labels().create(...)` allocates the first free R1 3D text-label slot on
+the game thread. Its typed receipt resolves to the resulting `TextLabelId`.
+
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned

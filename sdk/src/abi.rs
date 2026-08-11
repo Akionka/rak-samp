@@ -385,6 +385,29 @@ impl Default for SampClientSdkCommandResultV1 {
     }
 }
 
+/// Fixed C-compatible completion storage for a game-thread-created R1 3D label.
+///
+/// `status` is meaningful only when the dedicated text-label completion call
+/// returns [`SampClientSdkResult::Ok`]. `id` is meaningful only when `status`
+/// is also [`SampClientSdkResult::Ok`].
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SampClientSdkTextLabelCreateResultV1 {
+    pub status: SampClientSdkResult,
+    pub id: u16,
+    pub reserved: u16,
+}
+
+impl Default for SampClientSdkTextLabelCreateResultV1 {
+    fn default() -> Self {
+        Self {
+            status: SampClientSdkResult::Ok,
+            id: 0,
+            reserved: 0,
+        }
+    }
+}
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct SampClientSdkSendOptions {
@@ -974,6 +997,29 @@ pub struct SampClientSdkApiV1 {
     /// Reports whether an exact bounded name is present in the game-thread-cached R1 command table.
     pub local_chat_command_defined:
         unsafe extern "system" fn(*const u8, usize, *mut u8) -> SampClientSdkResult,
+    /// Queues R1 3D text-label creation at the first native free pool slot.
+    pub submit_create_text_label_auto: unsafe extern "system" fn(
+        *const u8,
+        usize,
+        u32,
+        Vector3,
+        f32,
+        u8,
+        u16,
+        u16,
+        *mut SampClientSdkCommandReceipt,
+    ) -> SampClientSdkResult,
+    /// Polls a text-label creation receipt and copies its typed completion.
+    pub text_label_create_try_take: unsafe extern "system" fn(
+        SampClientSdkCommandReceipt,
+        *mut SampClientSdkTextLabelCreateResultV1,
+    ) -> SampClientSdkResult,
+    /// Waits for a text-label creation receipt and copies its typed completion.
+    pub text_label_create_wait: unsafe extern "system" fn(
+        SampClientSdkCommandReceipt,
+        u32,
+        *mut SampClientSdkTextLabelCreateResultV1,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

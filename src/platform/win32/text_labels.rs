@@ -8,6 +8,24 @@ use crate::runtime::{DirectClientError, TextLabelSnapshot};
 use std::sync::atomic::Ordering;
 
 impl BackendState {
+    pub(super) fn publish_created_text_label(&self, id: u16, snapshot: TextLabelSnapshot) {
+        let mut exists = self
+            .text_label_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(entry) = exists.get_mut(usize::from(id)) {
+            *entry = TextLabelExistsCacheEntry::Known(true);
+        }
+        drop(exists);
+        let mut cache = self
+            .text_label_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(entry) = cache.get_mut(usize::from(id)) {
+            *entry = TextLabelCacheEntry::Known(Some(snapshot));
+        }
+    }
+
     pub(super) fn text_label_exists(&self, id: u16) -> Result<bool, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);

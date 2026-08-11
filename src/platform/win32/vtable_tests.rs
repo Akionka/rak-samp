@@ -56,6 +56,7 @@ fn test_backend_state() -> BackendState {
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
         game_commands: CommandQueue::new(),
+        auto_text_label_creates: Mutex::new(HashMap::new()),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
         player_info_cache: Mutex::new(vec![PlayerInfoCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
@@ -514,6 +515,24 @@ fn game_command_queue_is_shared_fifo_and_bounded() {
         &snapshot[3].command,
         GameCommand::ShowDialog(request) if request.id == 3
     ));
+}
+
+#[test]
+fn typed_text_label_receipt_returns_the_game_thread_selected_id() {
+    let state = test_backend_state();
+    let command = state
+        .game_commands
+        .submit(GameCommand::DeleteTextLabel(0))
+        .unwrap();
+    state
+        .auto_text_label_creates
+        .lock()
+        .unwrap()
+        .insert(command, Some(7));
+    state.game_commands.complete(command, Ok(()));
+
+    assert_eq!(state.try_take_created_text_label(command), Ok(Some(Ok(7))));
+    assert!(state.auto_text_label_creates.lock().unwrap().is_empty());
 }
 
 #[test]

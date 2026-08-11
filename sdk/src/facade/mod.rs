@@ -383,6 +383,24 @@ mod tests {
                 .map(|receipt| receipt.id()),
             Ok(39)
         );
+        let mut created = samp
+            .labels()
+            .create(
+                b"fixture",
+                0xFF11_2233,
+                crate::Vector3 {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0,
+                },
+                25.0,
+                true,
+                Some(PlayerId::new(8).unwrap()),
+                None,
+            )
+            .unwrap();
+        assert_eq!(created.id(), 42);
+        assert_eq!(created.try_take(), Ok(Some(TextLabelId::new(7).unwrap())));
         assert_eq!(samp.dialogs().list_item_count(), Ok(3));
         assert_eq!(
             samp.chat().entry(7).map(|entry| (entry.text, entry.prefix)),

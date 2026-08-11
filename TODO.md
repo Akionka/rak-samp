@@ -219,7 +219,7 @@ Tiers:
 | Done | SF.lua global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampGetTextlabelPoolPtr` | Unsafe raw | `raw::text_label_pool` |
-| [ ] | `sampCreate3dText` | Queued mutation | `Labels::create` |
+| [x] | `sampCreate3dText` | Queued mutation | `Labels::create` |
 | [x] | `sampIs3dTextDefined` | Safe owned/read | `Labels::exists` |
 | [x] | `sampGet3dTextInfoById` | Safe owned/read | `Labels::get` |
 | [ ] | `sampSet3dTextString` | Queued mutation | `Label::set_text` |

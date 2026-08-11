@@ -126,6 +126,9 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     local_player_id_by_ped_handle: test_local_player_id_by_ped_handle,
     submit_register_chat_command: test_submit_register_chat_command,
     local_chat_command_defined: test_local_chat_command_defined,
+    submit_create_text_label_auto: test_submit_create_text_label_auto,
+    text_label_create_try_take: test_text_label_create_try_take,
+    text_label_create_wait: test_text_label_create_wait,
 };
 
 pub(crate) fn test_api() -> HostApi {

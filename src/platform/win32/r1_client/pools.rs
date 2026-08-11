@@ -83,6 +83,34 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Finds the lowest free R1 3D text-label slot on the game thread.
+    pub(in super::super) fn first_free_text_label_id(self) -> Result<u16, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|value| *value != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_LABEL_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_LABEL_POOL_OFFSET) }
+            .filter(|value| *value != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let flag_end =
+            LABEL_POOL_NOT_EMPTY_OFFSET + usize::from(MAX_SAMP_TEXT_LABELS) * mem::size_of::<i32>();
+        if !readable_range(pool as *const u8, flag_end) {
+            return Err(DirectClientError::NotReady);
+        }
+        for id in 0..usize::from(MAX_SAMP_TEXT_LABELS) {
+            if !read_r1_bool(pool + LABEL_POOL_NOT_EMPTY_OFFSET + id * mem::size_of::<i32>())? {
+                return Ok(id as u16);
+            }
+        }
+        Err(DirectClientError::NotReady)
+    }
+
     /// Invokes the documented R1 label-pool create method on the game thread.
     #[allow(clippy::too_many_arguments)]
     pub(in super::super) fn create_text_label(

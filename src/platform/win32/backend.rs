@@ -314,6 +314,28 @@ impl Backend {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_create_text_label_auto(
+        &self,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_create_text_label_auto(
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        )
+    }
+
     pub(crate) fn submit_set_textdraw_position(
         &self,
         id: u16,
@@ -447,7 +469,11 @@ impl Backend {
         &self,
         id: CommandId,
     ) -> Result<Option<Result<(), CommandError>>, CommandError> {
-        self.state.game_commands.try_take(id)
+        let result = self.state.game_commands.try_take(id);
+        if !matches!(result, Ok(None)) {
+            self.state.forget_created_text_label(id);
+        }
+        result
     }
 
     pub(crate) fn wait_for_command(
@@ -455,13 +481,20 @@ impl Backend {
         id: CommandId,
         timeout: Duration,
     ) -> Result<Result<(), CommandError>, CommandError> {
-        self.state.game_commands.wait(
+        let result = self.state.game_commands.wait(
             id,
             timeout,
             !self.state.is_game_thread()
                 && !self.state.registry.is_dispatching_on_current_thread()
                 && !crate::host_api::chat_commands::is_dispatching_on_current_thread(),
-        )
+        );
+        if !matches!(
+            result,
+            Err(CommandError::TimedOut | CommandError::WaitRejected)
+        ) {
+            self.state.forget_created_text_label(id);
+        }
+        result
     }
 
     pub(crate) fn command_wait_allowed(&self) -> bool {
@@ -471,7 +504,26 @@ impl Backend {
     }
 
     pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {
-        self.state.game_commands.detach(id)
+        let result = self.state.game_commands.detach(id);
+        if result.is_ok() {
+            self.state.forget_created_text_label(id);
+        }
+        result
+    }
+
+    pub(crate) fn try_take_created_text_label(
+        &self,
+        id: CommandId,
+    ) -> Result<Option<Result<u16, CommandError>>, CommandError> {
+        self.state.try_take_created_text_label(id)
+    }
+
+    pub(crate) fn wait_for_created_text_label(
+        &self,
+        id: CommandId,
+        timeout: Duration,
+    ) -> Result<Result<u16, CommandError>, CommandError> {
+        self.state.wait_for_created_text_label(id, timeout)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {

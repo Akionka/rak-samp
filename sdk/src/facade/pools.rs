@@ -2,7 +2,10 @@ use super::{
     GangzoneId, ObjectHandle, ObjectId, PickupHandle, PlayerId, Samp, TextLabelId, TextdrawId,
     VehicleHandle, VehicleId,
 };
-use crate::{CommandReceipt, Gangzone, HostApi, SampClientSdkResult, TextDraw, TextLabel};
+use crate::{
+    CommandReceipt, Gangzone, HostApi, SampClientSdkResult, TextDraw, TextLabel,
+    TextLabelCreateReceipt,
+};
 
 #[derive(Clone, Copy)]
 pub struct Textdraws {
@@ -147,6 +150,29 @@ impl Labels {
     /// Queues deletion of this documented R1 3D text-label-pool entry.
     pub fn delete(self, id: TextLabelId) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_delete_text_label(id.get())
+    }
+
+    /// Queues R1 3D text-label creation at the first native free pool ID.
+    #[allow(clippy::too_many_arguments)]
+    pub fn create(
+        self,
+        text: &[u8],
+        colour: u32,
+        position: crate::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: Option<PlayerId>,
+        attached_vehicle_id: Option<VehicleId>,
+    ) -> Result<TextLabelCreateReceipt, SampClientSdkResult> {
+        self.api.submit_create_text_label_auto(
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id.map(PlayerId::get),
+            attached_vehicle_id.map(VehicleId::get),
+        )
     }
 
     /// Queues creation of one R1 3D text label at a caller-selected pool ID.

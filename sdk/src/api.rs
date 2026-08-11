@@ -101,6 +101,104 @@ impl<T> Drop for CommandReceipt<T> {
     }
 }
 
+/// An owned typed completion receipt for queued R1 3D text-label creation.
+///
+/// Polling and waiting consume the receipt once creation either yields a
+/// checked [`crate::TextLabelId`] or reports a native failure. Dropping a
+/// pending receipt detaches only the caller; it does not cancel creation.
+#[must_use = "a text-label creation receipt owns one pending completion"]
+pub struct TextLabelCreateReceipt {
+    api: HostApi,
+    raw: SampClientSdkCommandReceipt,
+    active: bool,
+}
+
+impl TextLabelCreateReceipt {
+    pub(crate) fn new(api: HostApi, raw: SampClientSdkCommandReceipt) -> Self {
+        Self {
+            api,
+            raw,
+            active: true,
+        }
+    }
+
+    /// Returns the host-owned opaque command identity.
+    #[must_use]
+    pub const fn id(&self) -> u64 {
+        self.raw.id
+    }
+
+    /// Consumes and returns the created label ID, or reports `Ok(None)` while
+    /// creation remains pending.
+    pub fn try_take(&mut self) -> Result<Option<crate::TextLabelId>, SampClientSdkResult> {
+        if !self.active {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let mut output = SampClientSdkTextLabelCreateResultV1::default();
+        match unsafe { (self.api.raw.text_label_create_try_take)(self.raw, &mut output) } {
+            SampClientSdkResult::Ok => {
+                self.active = false;
+                text_label_create_result(output).map(Some)
+            }
+            SampClientSdkResult::CommandPending => Ok(None),
+            error => Err(error),
+        }
+    }
+
+    /// Waits for and consumes the created label ID.
+    ///
+    /// `TimedOut` leaves this receipt usable for another poll or wait. The
+    /// host rejects waits from callbacks and from the game thread.
+    pub fn wait(&mut self, timeout: Duration) -> Result<crate::TextLabelId, SampClientSdkResult> {
+        if !self.active {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let timeout_ms = timeout.as_millis().min(u128::from(u32::MAX)) as u32;
+        let mut output = SampClientSdkTextLabelCreateResultV1::default();
+        match unsafe { (self.api.raw.text_label_create_wait)(self.raw, timeout_ms, &mut output) } {
+            SampClientSdkResult::Ok => {
+                self.active = false;
+                text_label_create_result(output)
+            }
+            error => Err(error),
+        }
+    }
+
+    /// Detaches this waiter without cancelling the copied native creation.
+    pub fn release(mut self) -> Result<(), SampClientSdkResult> {
+        if !self.active {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        match unsafe { (self.api.raw.command_release)(self.raw) } {
+            SampClientSdkResult::Ok => {
+                self.active = false;
+                Ok(())
+            }
+            error => Err(error),
+        }
+    }
+}
+
+impl Drop for TextLabelCreateReceipt {
+    fn drop(&mut self) {
+        if self.active {
+            let _ = unsafe { (self.api.raw.command_release)(self.raw) };
+            self.active = false;
+        }
+    }
+}
+
+fn text_label_create_result(
+    result: SampClientSdkTextLabelCreateResultV1,
+) -> Result<crate::TextLabelId, SampClientSdkResult> {
+    match result.status {
+        SampClientSdkResult::Ok => {
+            crate::TextLabelId::new(result.id).ok_or(SampClientSdkResult::NativeCallFailed)
+        }
+        error => Err(error),
+    }
+}
+
 impl HostApi {
     pub(crate) fn command_receipt(
         self,

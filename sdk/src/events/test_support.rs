@@ -1280,6 +1280,61 @@ unsafe extern "system" fn test_submit_create_text_label(
     unsafe { test_submit_command(receipt, 39) }
 }
 
+unsafe extern "system" fn test_submit_create_text_label_auto(
+    text: *const u8,
+    text_len: usize,
+    _colour: u32,
+    position: crate::Vector3,
+    draw_distance: f32,
+    behind_walls: u8,
+    attached_player_id: u16,
+    attached_vehicle_id: u16,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if text.is_null()
+        || text_len > crate::limits::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+        || !position.x.is_finite()
+        || !position.y.is_finite()
+        || !position.z.is_finite()
+        || !draw_distance.is_finite()
+        || behind_walls > 1
+        || (attached_player_id != u16::MAX && attached_player_id >= crate::limits::MAX_SAMP_PLAYERS)
+        || (attached_vehicle_id != u16::MAX
+            && attached_vehicle_id >= crate::limits::MAX_SAMP_VEHICLES)
+    {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    if unsafe { std::slice::from_raw_parts(text, text_len) }.contains(&0) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 42) }
+}
+
+unsafe extern "system" fn test_text_label_create_try_take(
+    receipt: crate::SampClientSdkCommandReceipt,
+    output: *mut crate::SampClientSdkTextLabelCreateResultV1,
+) -> SampClientSdkResult {
+    if receipt.id != 42 || output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe {
+        output.write(crate::SampClientSdkTextLabelCreateResultV1 {
+            status: SampClientSdkResult::Ok,
+            id: 7,
+            reserved: 0,
+        });
+    }
+    SampClientSdkResult::Ok
+}
+
+unsafe extern "system" fn test_text_label_create_wait(
+    receipt: crate::SampClientSdkCommandReceipt,
+    _timeout_ms: u32,
+    output: *mut crate::SampClientSdkTextLabelCreateResultV1,
+) -> SampClientSdkResult {
+    unsafe { test_text_label_create_try_take(receipt, output) }
+}
+
 unsafe extern "system" fn test_local_dialog_list_item_count(
     output: *mut i32,
 ) -> SampClientSdkResult {

@@ -40,6 +40,7 @@ fn zero_only_abi_defaults_are_all_zero() {
     assert_default_is_zeroed::<SampClientSdkChatEntryV1>();
     assert_default_is_zeroed::<SampClientSdkTextDrawV1>();
     assert_default_is_zeroed::<SampClientSdkTextLabelV1>();
+    assert_default_is_zeroed::<SampClientSdkTextLabelCreateResultV1>();
     assert_default_is_zeroed::<SampClientSdkServerInfoV1>();
     assert_default_is_zeroed::<SampClientSdkAnimationV1>();
 }
@@ -305,8 +306,20 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, submit_register_chat_command) + function_size
     );
     assert_eq!(
-        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, submit_create_text_label_auto),
         mem::offset_of!(SampClientSdkApiV1, local_chat_command_defined) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, text_label_create_try_take),
+        mem::offset_of!(SampClientSdkApiV1, submit_create_text_label_auto) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, text_label_create_wait),
+        mem::offset_of!(SampClientSdkApiV1, text_label_create_try_take) + function_size
+    );
+    assert_eq!(
+        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, text_label_create_wait) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, raw_rakclient),

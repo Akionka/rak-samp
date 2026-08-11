@@ -642,6 +642,28 @@ impl Runtime {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn submit_create_text_label_auto(
+        &self,
+        text: Vec<u8>,
+        colour: u32,
+        position: Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_create_text_label_auto(
+            text,
+            colour,
+            position,
+            draw_distance,
+            behind_walls,
+            attached_player_id,
+            attached_vehicle_id,
+        )
+    }
+
     pub(crate) fn submit_set_textdraw_position(
         &self,
         id: u16,
@@ -793,6 +815,21 @@ impl Runtime {
 
     pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {
         self.backend.release_command(id)
+    }
+
+    pub(crate) fn try_take_created_text_label(
+        &self,
+        id: CommandId,
+    ) -> Result<Option<Result<u16, CommandError>>, CommandError> {
+        self.backend.try_take_created_text_label(id)
+    }
+
+    pub(crate) fn wait_for_created_text_label(
+        &self,
+        id: CommandId,
+        timeout: Duration,
+    ) -> Result<Result<u16, CommandError>, CommandError> {
+        self.backend.wait_for_created_text_label(id, timeout)
     }
 
     pub(crate) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
