@@ -466,6 +466,13 @@ impl Backend {
         self.state.submit_force_stats_sync()
     }
 
+    pub(crate) fn submit_force_trailer_sync(
+        &self,
+        trailer: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_force_trailer_sync(trailer)
+    }
+
     pub(crate) fn submit_send_rate(
         &self,
         kind: u8,

@@ -242,6 +242,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_force_aim_sync,
     submit_force_onfoot_sync,
     submit_force_stats_sync,
+    submit_force_trailer_sync,
     submit_connect_to_server: connection::submit_connect_to_server,
     submit_disconnect_with_reason: connection::submit_disconnect_with_reason,
     submit_delete_textdraw: textdraws::submit_delete_textdraw,
@@ -444,6 +445,20 @@ unsafe extern "system" fn submit_force_stats_sync(
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { submit_direct_command(receipt, |runtime| runtime.submit_force_stats_sync()) }
+}
+
+unsafe extern "system" fn submit_force_trailer_sync(
+    trailer: u16,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || trailer >= MAX_SAMP_VEHICLES {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_force_trailer_sync(trailer)
+        })
+    }
 }
 
 unsafe extern "system" fn submit_send_rate(

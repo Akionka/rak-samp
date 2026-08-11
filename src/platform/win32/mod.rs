@@ -494,6 +494,9 @@ enum GameCommand {
     ForceAimSync,
     ForceOnfootSync,
     ForceStatsSync,
+    ForceTrailerSync {
+        trailer: u16,
+    },
     SetPlayerColour {
         id: u16,
         colour: u32,

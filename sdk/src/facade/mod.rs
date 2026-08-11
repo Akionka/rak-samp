@@ -607,5 +607,11 @@ mod tests {
         let mut stats = samp.local().force_stats_sync().unwrap();
         assert_eq!(stats.id(), 25);
         assert_eq!(stats.try_take(), Ok(Some(())));
+        let mut trailer = samp
+            .local()
+            .force_trailer_sync(VehicleId::new(7).unwrap())
+            .unwrap();
+        assert_eq!(trailer.id(), 26);
+        assert_eq!(trailer.try_take(), Ok(Some(())));
     }
 }

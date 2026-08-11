@@ -1162,6 +1162,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached owned R1 aim synchronization record into `output`.
     pub aim_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkAimSyncV1) -> SampClientSdkResult,
+    /// Queues one documented R1 trailer synchronization send.
+    pub submit_force_trailer_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

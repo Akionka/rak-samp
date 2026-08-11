@@ -304,7 +304,7 @@ impl R1ClientProfile {
     pub(super) fn force_aim_sync(self) -> Result<(), DirectClientError> {
         let local_player = self.local_player_address()?;
         let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
-        if !readable_range(last_update.cast(), mem::size_of::<u32>()) {
+        if !writable_range(last_update.cast(), mem::size_of::<u32>()) {
             return Err(DirectClientError::NotReady);
         }
         unsafe { ptr::write_unaligned(last_update, 0) };
@@ -317,7 +317,7 @@ impl R1ClientProfile {
     pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
         let local_player = self.local_player_address()?;
         let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
-        if !readable_range(last_update.cast(), mem::size_of::<u32>()) {
+        if !writable_range(last_update.cast(), mem::size_of::<u32>()) {
             return Err(DirectClientError::NotReady);
         }
         unsafe { ptr::write_unaligned(last_update, 0) };
@@ -331,13 +331,31 @@ impl R1ClientProfile {
     pub(super) fn force_stats_sync(self) -> Result<(), DirectClientError> {
         let local_player = self.local_player_address()?;
         let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
-        if !readable_range(last_update.cast(), mem::size_of::<u32>()) {
+        if !writable_range(last_update.cast(), mem::size_of::<u32>()) {
             return Err(DirectClientError::NotReady);
         }
         unsafe { ptr::write_unaligned(last_update, 0) };
         let send: LocalPlayerSendStatsFn =
             unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_STATS_RVA) };
         unsafe { send(local_player) };
+        Ok(())
+    }
+
+    /// Invokes R1 `SCLocalPlayer::SendTrailerData` for one checked trailer ID
+    /// on the game thread.
+    pub(super) fn force_trailer_sync(self, trailer: u16) -> Result<(), DirectClientError> {
+        if trailer >= MAX_SAMP_VEHICLES {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_player = self.local_player_address()?;
+        let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
+        if !writable_range(last_update.cast(), mem::size_of::<u32>()) {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe { ptr::write_unaligned(last_update, 0) };
+        let send: LocalPlayerSendTrailerDataFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_TRAILER_DATA_RVA) };
+        unsafe { send(local_player, trailer) };
         Ok(())
     }
 
