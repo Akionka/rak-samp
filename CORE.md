@@ -87,8 +87,8 @@ GTA ASI loader
 1. `DllMain` starts a bootstrap worker and returns.
 2. The worker waits for `samp.dll`, recognizes the client build, and installs
    the owned RakClient constructor hook.
-3. RakClient construction installs the owned networking hooks and publishes
-   ready state.
+3. RakClient construction installs the owned networking hooks. The bootstrap
+   worker publishes ready state only after those hooks report ready.
 4. Plugin workers resolve `SampClientSdk_GetApiV1`, validate the table, and
    register owned subscriptions.
 5. Plugin workers unregister and wait for callbacks before their DLL unloads.

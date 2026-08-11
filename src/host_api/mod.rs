@@ -96,14 +96,18 @@ pub(crate) fn begin_bootstrap() {
             match Runtime::attach() {
                 Ok(runtime) => {
                     let runtime = Arc::new(runtime);
+                    if !wait_for_client_hooks(&runtime) {
+                        host().status.store(STATUS_FAILED, Ordering::Release);
+                        error!("host runtime failed to install RakClient packet and RPC hooks");
+                        return;
+                    }
                     if host().runtime.set(Arc::clone(&runtime)).is_err() {
                         host().status.store(STATUS_FAILED, Ordering::Release);
                         error!("host runtime was initialized more than once");
                         return;
                     }
                     host().status.store(STATUS_READY, Ordering::Release);
-                    info!("host runtime is ready");
-                    monitor_client_hooks(runtime);
+                    info!("host runtime and RakClient packet and RPC hooks are ready");
                     return;
                 }
                 Err(AttachError::SampNotLoaded) => std::thread::sleep(Duration::from_millis(10)),
@@ -117,18 +121,15 @@ pub(crate) fn begin_bootstrap() {
     });
 }
 
-fn monitor_client_hooks(runtime: Arc<Runtime>) {
+fn wait_for_client_hooks(runtime: &Runtime) -> bool {
     loop {
         match runtime.client_hook_status() {
             ClientHookStatus::Pending => std::thread::sleep(Duration::from_millis(10)),
             ClientHookStatus::Ready => {
-                info!("RakClient packet and RPC hooks are ready");
-                return;
+                return true;
             }
             ClientHookStatus::Failed => {
-                host().status.store(STATUS_FAILED, Ordering::Release);
-                error!("host runtime failed to install RakClient packet and RPC hooks");
-                return;
+                return false;
             }
         }
     }

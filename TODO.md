@@ -88,10 +88,8 @@ boundary.
 
 ### Phase 3 — facade and feature completion
 
-- [ ] Introduce `Samp::connect`, `Samp::connect_to`, subsystem facades, checked
+- [x] Introduce `Samp::connect`, `Samp::connect_to`, subsystem facades, checked
   SA-MP ID newtypes, typed GTA handles, `CommandReceipt<T>`, and typed errors.
-  (facades, checked IDs, receipts, and typed GTA handles are implemented;
-  `connect`/`connect_to` wait for the host worker)
 - [x] Make the raw ABI wrapper private or documentation-hidden and expose native
   addresses only through the explicit `unsafe raw` module.
 - [x] Move subscriptions, typed events, exact sends/emulation, string codecs,

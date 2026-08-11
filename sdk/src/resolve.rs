@@ -51,11 +51,19 @@ pub fn wait_for_host(module_name: &[u8], timeout: Duration) -> Result<HostApi, R
     if module_name.last() != Some(&0) {
         return Err(ResolveError::HostNotLoaded);
     }
+    wait_for_ready_host(timeout, || resolve_host(module_name), |api| api.status())
+}
+
+fn wait_for_ready_host<T>(
+    timeout: Duration,
+    mut resolve: impl FnMut() -> Result<T, ResolveError>,
+    status: impl Fn(&T) -> SampClientSdkHostStatus,
+) -> Result<T, ResolveError> {
     let started = Instant::now();
     loop {
-        match resolve_host(module_name) {
-            Ok(api) => match api.status() {
-                SampClientSdkHostStatus::Ready => return Ok(api),
+        match resolve() {
+            Ok(host) => match status(&host) {
+                SampClientSdkHostStatus::Ready => return Ok(host),
                 SampClientSdkHostStatus::Failed => return Err(ResolveError::HostFailed),
                 SampClientSdkHostStatus::WaitingForSamp => {}
             },
@@ -89,4 +97,53 @@ fn resolve_host(module_name: &[u8]) -> Result<HostApi, ResolveError> {
 #[cfg(not(all(windows, target_arch = "x86")))]
 fn resolve_host(_module_name: &[u8]) -> Result<HostApi, ResolveError> {
     Err(ResolveError::UnsupportedPlatform)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::VecDeque;
+
+    #[test]
+    fn host_waiter_retries_until_the_host_worker_reports_ready() {
+        let mut outcomes = VecDeque::from([
+            Err(ResolveError::HostNotLoaded),
+            Ok(SampClientSdkHostStatus::WaitingForSamp),
+            Ok(SampClientSdkHostStatus::Ready),
+        ]);
+
+        let status = wait_for_ready_host(
+            Duration::from_millis(50),
+            || outcomes.pop_front().expect("fixture has an outcome"),
+            |status| *status,
+        )
+        .expect("ready status resolves the host");
+
+        assert_eq!(status, SampClientSdkHostStatus::Ready);
+        assert!(outcomes.is_empty());
+    }
+
+    #[test]
+    fn host_waiter_returns_the_host_worker_failure() {
+        assert_eq!(
+            wait_for_ready_host(
+                Duration::ZERO,
+                || Ok(SampClientSdkHostStatus::Failed),
+                |status| *status,
+            ),
+            Err(ResolveError::HostFailed)
+        );
+    }
+
+    #[test]
+    fn host_waiter_times_out_while_the_host_worker_is_pending() {
+        assert_eq!(
+            wait_for_ready_host(
+                Duration::ZERO,
+                || Ok(SampClientSdkHostStatus::WaitingForSamp),
+                |status| *status,
+            ),
+            Err(ResolveError::TimedOut)
+        );
+    }
 }
