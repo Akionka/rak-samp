@@ -1,6 +1,6 @@
 //! Reads from game-thread-published scalar and snapshot caches.
 
-use super::{BackendState, cached_direct_client_value};
+use super::{BackendState, cached_direct_client_value, try_lock_direct};
 use crate::runtime::{
     AnimationSnapshot, DirectClientError, LocalDialogSnapshot, ServerInfoSnapshot,
 };
@@ -69,9 +69,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
-        self.server_info_snapshot
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        try_lock_direct(&self.server_info_snapshot)?
             .clone()
             .ok_or(DirectClientError::NotReady)
     }
@@ -88,11 +86,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        Ok(self
-            .local_dialog_snapshot
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
-            .clone())
+        Ok(try_lock_direct(&self.local_dialog_snapshot)?.clone())
     }
 
     pub(super) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
@@ -116,9 +110,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.local_chat_input_text
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        try_lock_direct(&self.local_chat_input_text)?
             .clone()
             .ok_or(DirectClientError::NotReady)
     }
@@ -151,9 +143,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
-        self.animation_catalog
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        try_lock_direct(&self.animation_catalog)?
             .clone()
             .ok_or(DirectClientError::NotReady)
     }

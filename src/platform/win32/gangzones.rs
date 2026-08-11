@@ -1,6 +1,6 @@
 //! Published gangzone pool reads.
 
-use super::{BackendState, GangzoneCacheEntry, MAX_SAMP_GANGZONES};
+use super::{BackendState, GangzoneCacheEntry, MAX_SAMP_GANGZONES, try_lock_direct};
 use crate::runtime::{DirectClientError, GangzoneSnapshot};
 use std::sync::atomic::Ordering;
 
@@ -15,10 +15,7 @@ impl BackendState {
         if usize::from(id) >= MAX_SAMP_GANGZONES {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .gangzone_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.gangzone_cache)?
             .get(usize::from(id))
             .cloned()
             .ok_or(DirectClientError::NotReady)?

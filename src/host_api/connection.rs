@@ -1,6 +1,6 @@
 //! Connection lifecycle command ABI entry points.
 
-use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
+use super::{copied_nul_free_string, submit_direct_command};
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult};
 
 pub(super) unsafe extern "system" fn submit_connect_to_server(
@@ -18,15 +18,10 @@ pub(super) unsafe extern "system" fn submit_connect_to_server(
     if address.is_empty() {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_connect_to_server(address, port) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_connect_to_server(address, port)
+        })
     }
 }
 
@@ -37,14 +32,9 @@ pub(super) unsafe extern "system" fn submit_disconnect_with_reason(
     if receipt.is_null() {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_disconnect_with_reason(block_duration) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_disconnect_with_reason(block_duration)
+        })
     }
 }

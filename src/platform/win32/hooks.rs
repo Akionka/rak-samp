@@ -1,12 +1,15 @@
 //! Native packet and RPC listener dispatch helpers.
 
 use super::{
-    BackendState, ClientHookInstallState, GameProcessFn, IncomingRpcFn, OutgoingPacketFn,
+    BackendState, ClientHookInstallState, DEALLOCATE_PACKET_SLOT, GameProcessFn,
+    INCOMING_PACKET_SLOT, IncomingRpcFn, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT, OutgoingPacketFn,
     OutgoingRpcFn, RawBitStream, RawPacket, RpcPlayerId, active_state, packet_stream, packets,
     remaining_stream_bounded,
 };
-use crate::{BitStream, Direction, event::HookAction};
+use crate::{AttachError, BitStream, Direction, event::HookAction};
+use minhook::MinHook;
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
+use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
 
 pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
 
@@ -353,6 +356,182 @@ pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
         log::error!("RakClient hook installation failed: {error}");
     }
     client
+}
+
+#[derive(Default)]
+pub(super) struct HookStorage {
+    pub(super) constructor: Option<InlineHook>,
+    pub(super) incoming_rpc: Option<InlineHook>,
+    pub(super) game_process: Option<InlineHook>,
+    pub(super) vtable: Option<VtableHook>,
+}
+
+pub(super) struct VtableHook {
+    vtable: usize,
+    entries: [VtableEntry; 3],
+}
+
+#[derive(Clone, Copy)]
+struct VtableEntry {
+    slot: usize,
+    original: usize,
+    detour: usize,
+}
+
+pub(super) struct InlineHook {
+    target: usize,
+    enabled: bool,
+}
+
+impl InlineHook {
+    pub(super) fn create(target: usize, detour: usize) -> Result<(Self, usize), ()> {
+        let trampoline = unsafe {
+            MinHook::create_hook(target as *mut c_void, detour as *mut c_void).map_err(|_| ())?
+        };
+        Ok((
+            Self {
+                target,
+                enabled: false,
+            },
+            trampoline as usize,
+        ))
+    }
+
+    pub(super) fn enable(&mut self) -> Result<(), ()> {
+        unsafe { MinHook::enable_hook(self.target as *mut c_void) }.map_err(|_| ())?;
+        self.enabled = true;
+        Ok(())
+    }
+
+    pub(super) fn disable(mut self) {
+        self.remove();
+    }
+
+    fn remove(&mut self) {
+        if self.target == 0 {
+            return;
+        }
+        let target = self.target as *mut c_void;
+        if self.enabled {
+            let _ = unsafe { MinHook::disable_hook(target) };
+        }
+        let _ = unsafe { MinHook::remove_hook(target) };
+        self.target = 0;
+        self.enabled = false;
+    }
+}
+
+impl Drop for InlineHook {
+    fn drop(&mut self) {
+        self.remove();
+    }
+}
+
+impl VtableHook {
+    pub(super) unsafe fn install(
+        client: *mut c_void,
+        state: &BackendState,
+    ) -> Result<Self, AttachError> {
+        let object_vtable = client.cast::<*mut usize>();
+        let vtable = unsafe { object_vtable.read() };
+        if vtable.is_null() {
+            return Err(AttachError::ClientNotReady);
+        }
+
+        let replacements = [
+            (
+                OUTGOING_PACKET_SLOT,
+                outgoing_packet_detour as *const () as usize,
+            ),
+            (
+                INCOMING_PACKET_SLOT,
+                incoming_packet_detour as *const () as usize,
+            ),
+            (OUTGOING_RPC_SLOT, outgoing_rpc_detour as *const () as usize),
+        ];
+        let mut entries = [VtableEntry {
+            slot: 0,
+            original: 0,
+            detour: 0,
+        }; 3];
+        for (index, (slot, detour)) in replacements.into_iter().enumerate() {
+            let original = unsafe { vtable.add(slot).read() };
+            if original == 0 {
+                return Err(AttachError::ClientNotReady);
+            }
+            entries[index] = VtableEntry {
+                slot,
+                original,
+                detour,
+            };
+        }
+
+        state
+            .outgoing_packet_original
+            .store(entries[0].original, Ordering::Release);
+        state
+            .incoming_packet_original
+            .store(entries[1].original, Ordering::Release);
+        state.deallocate_packet_original.store(
+            unsafe { vtable.add(DEALLOCATE_PACKET_SLOT).read() },
+            Ordering::Release,
+        );
+        state
+            .outgoing_rpc_original
+            .store(entries[2].original, Ordering::Release);
+
+        for (index, entry) in entries.iter().enumerate() {
+            if unsafe { write_protected(vtable.add(entry.slot), entry.detour) }.is_err() {
+                for restore in entries[..index].iter().rev() {
+                    let _ = unsafe { write_protected(vtable.add(restore.slot), restore.original) };
+                }
+                return Err(AttachError::HookInstallFailed("patching RakClient vtable"));
+            }
+        }
+
+        Ok(Self {
+            vtable: vtable as usize,
+            entries,
+        })
+    }
+}
+
+impl Drop for VtableHook {
+    fn drop(&mut self) {
+        let vtable = self.vtable as *mut usize;
+        for entry in self.entries.iter().rev() {
+            let slot = unsafe { vtable.add(entry.slot) };
+            if unsafe { slot.read() } == entry.detour {
+                let _ = unsafe { write_protected(slot, entry.original) };
+            }
+        }
+    }
+}
+
+unsafe fn write_protected<T>(address: *mut T, value: T) -> Result<(), AttachError> {
+    let mut old_protection = 0;
+    if unsafe {
+        VirtualProtect(
+            address.cast(),
+            mem::size_of::<T>(),
+            PAGE_READWRITE,
+            &mut old_protection,
+        )
+    } == 0
+    {
+        return Err(AttachError::HookInstallFailed("changing vtable protection"));
+    }
+    unsafe { address.write(value) };
+    let mut ignored = 0;
+    let _ = unsafe {
+        VirtualProtect(
+            address.cast(),
+            mem::size_of::<T>(),
+            old_protection,
+            &mut ignored,
+        )
+    };
+    Ok(())
 }
 
 #[cfg(test)]

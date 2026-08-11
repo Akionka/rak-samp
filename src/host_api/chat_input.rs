@@ -1,6 +1,8 @@
 //! Cached local chat-input ABI reads.
 
-use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
+use super::{
+    clone_initialized, copied_nul_free_string, direct_client_result, host, submit_direct_command,
+};
 use sdk_abi::{SampClientSdkChatInputTextV1, SampClientSdkCommandReceipt, SampClientSdkResult};
 
 pub(super) unsafe extern "system" fn submit_local_chat_input_text(
@@ -14,15 +16,10 @@ pub(super) unsafe extern "system" fn submit_local_chat_input_text(
     let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_text(text) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_local_chat_input_text(text)
+        })
     }
 }
 
@@ -33,15 +30,10 @@ pub(super) unsafe extern "system" fn submit_local_chat_input_enabled(
     if receipt.is_null() || enabled > 1 {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_enabled(enabled != 0) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_local_chat_input_enabled(enabled != 0)
+        })
     }
 }
 
@@ -56,15 +48,10 @@ pub(super) unsafe extern "system" fn submit_local_chat_input_process(
     let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 128) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_input_process(text) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_local_chat_input_process(text)
+        })
     }
 }
 

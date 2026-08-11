@@ -1,6 +1,6 @@
 //! Published object pool reads.
 
-use super::{BackendState, MAX_SAMP_OBJECTS, ObjectExistsCacheEntry};
+use super::{BackendState, MAX_SAMP_OBJECTS, ObjectExistsCacheEntry, try_lock_direct};
 use crate::runtime::DirectClientError;
 use std::sync::atomic::Ordering;
 
@@ -15,10 +15,7 @@ impl BackendState {
         if usize::from(id) >= MAX_SAMP_OBJECTS {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .object_exists_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.object_exists_cache)?
             .get(usize::from(id))
             .copied()
             .ok_or(DirectClientError::NotReady)?

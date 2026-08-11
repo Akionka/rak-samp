@@ -2,7 +2,7 @@
 
 use super::{
     BackendState, MAX_SAMP_PLAYERS, PlayerInfoCacheEntry, RemotePlayerStateCacheEntry,
-    player_info_from_local,
+    player_info_from_local, try_lock_direct,
 };
 use crate::runtime::{
     DirectClientError, LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
@@ -17,9 +17,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
-        self.local_player_snapshot
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        try_lock_direct(&self.local_player_snapshot)?
             .clone()
             .ok_or(DirectClientError::NotReady)
     }
@@ -38,10 +36,7 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
 
-        if let Some(local) = self
-            .local_player_snapshot
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        if let Some(local) = try_lock_direct(&self.local_player_snapshot)?
             .as_ref()
             .filter(|player| player.id == id)
             .map(player_info_from_local)
@@ -49,10 +44,7 @@ impl BackendState {
             return Ok(Some(local));
         }
 
-        let cached = self
-            .player_info_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        let cached = try_lock_direct(&self.player_info_cache)?
             .get(usize::from(id))
             .cloned()
             .ok_or(DirectClientError::NotReady)?;
@@ -89,10 +81,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        let cached = self
-            .remote_player_state_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        let cached = try_lock_direct(&self.remote_player_state_cache)?
             .get(usize::from(id))
             .cloned()
             .ok_or(DirectClientError::NotReady)?;

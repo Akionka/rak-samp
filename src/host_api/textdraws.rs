@@ -1,6 +1,6 @@
 //! Textdraw command ABI entry points.
 
-use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
+use super::{copied_nul_free_string, submit_direct_command};
 use sdk_abi::limits::MAX_SAMP_TEXTDRAWS;
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult};
 
@@ -11,16 +11,7 @@ pub(super) unsafe extern "system" fn submit_delete_textdraw(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_delete_textdraw(id) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
+    unsafe { submit_direct_command(receipt, |runtime| runtime.submit_delete_textdraw(id)) }
 }
 
 pub(super) unsafe extern "system" fn submit_set_textdraw_position(
@@ -32,15 +23,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_position(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || !x.is_finite() || !y.is_finite() {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_position(id, x, y) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_position(id, x, y)
+        })
     }
 }
 
@@ -54,15 +40,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_letter_style(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || !width.is_finite() || !height.is_finite() {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_letter_style(id, width, height, colour) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_letter_style(id, width, height, colour)
+        })
     }
 }
 
@@ -74,15 +55,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_proportional(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || proportional > 1 {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_proportional(id, proportional != 0) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_proportional(id, proportional != 0)
+        })
     }
 }
 
@@ -95,15 +71,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_shadow(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_shadow(id, shadow, colour) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_shadow(id, shadow, colour)
+        })
     }
 }
 
@@ -116,15 +87,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_outline(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_outline(id, outline, colour) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_outline(id, outline, colour)
+        })
     }
 }
 
@@ -144,15 +110,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_box(
     {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_box(id, enabled != 0, colour, width, height) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_box(id, enabled != 0, colour, width, height)
+        })
     }
 }
 
@@ -164,15 +125,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_alignment(
     if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || !(1..=3).contains(&alignment) {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_alignment(id, alignment) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_alignment(id, alignment)
+        })
     }
 }
 
@@ -188,15 +144,10 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_string(
     let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 1_601) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_string(id, text) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_string(id, text)
+        })
     }
 }
 
@@ -219,20 +170,15 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_model_style(
     {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_set_textdraw_model_style(
-        id,
-        crate::runtime::Vector3 { x, y, z },
-        zoom,
-        colour1,
-        colour2,
-    ) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_model_style(
+                id,
+                crate::runtime::Vector3 { x, y, z },
+                zoom,
+                colour1,
+                colour2,
+            )
+        })
     }
 }

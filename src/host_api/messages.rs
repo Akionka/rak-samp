@@ -1,6 +1,6 @@
 //! Local display-message command ABI entry points.
 
-use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
+use super::{copied_nul_free_string, submit_direct_command};
 use crate::runtime::{LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest};
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult};
 
@@ -26,21 +26,16 @@ pub(super) unsafe extern "system" fn submit_local_chat_message(
     let Ok(prefix) = (unsafe { copied_nul_free_string(prefix, prefix_len, 27) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_chat_message(LocalChatMessageRequest {
-        style,
-        text,
-        prefix,
-        text_colour,
-        prefix_colour,
-    }) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_local_chat_message(LocalChatMessageRequest {
+                style,
+                text,
+                prefix,
+                text_colour,
+                prefix_colour,
+            })
+        })
     }
 }
 
@@ -63,20 +58,15 @@ pub(super) unsafe extern "system" fn submit_local_death_message(
     let Ok(victim) = (unsafe { copied_nul_free_string(victim, victim_len, 24) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_local_death_message(LocalDeathMessageRequest {
-        killer,
-        victim,
-        killer_colour,
-        victim_colour,
-        weapon,
-    }) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_local_death_message(LocalDeathMessageRequest {
+                killer,
+                victim,
+                killer_colour,
+                victim_colour,
+                weapon,
+            })
+        })
     }
 }

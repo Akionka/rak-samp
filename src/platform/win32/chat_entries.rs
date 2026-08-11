@@ -1,6 +1,6 @@
 //! Published fixed chat-history entry reads.
 
-use super::{BackendState, ChatEntryCacheEntry, MAX_CHAT_ENTRIES};
+use super::{BackendState, ChatEntryCacheEntry, MAX_CHAT_ENTRIES, try_lock_direct};
 use crate::runtime::{ChatEntrySnapshot, DirectClientError};
 use std::sync::atomic::Ordering;
 
@@ -16,10 +16,7 @@ impl BackendState {
         if index >= MAX_CHAT_ENTRIES {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .chat_entry_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.chat_entry_cache)?
             .get(index)
             .cloned()
             .ok_or(DirectClientError::NotReady)?

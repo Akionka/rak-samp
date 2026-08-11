@@ -10,6 +10,26 @@ new facade (or the explicit `unsafe raw` tier), covered by tests, and documented
 An existing `HostApi` helper is reusable implementation material, not completion
 of the renamed public API.
 
+## Supporting plans
+
+- [x] Complete the focused [deduplication plan](docs/deduplication-plan.md),
+  using its detailed checklist to track implementation and verification.
+- [x] Complete the [structural split follow-up plan](docs/structural-split-plan.md),
+  reducing large Rust roots without changing public paths, ABI/native layouts,
+  or runtime behavior.
+
+### Structural split tracker
+
+- [x] Extract root tests plus SDK types, resolution, subscriptions, and host
+  helpers while preserving root SDK re-exports.
+- [x] Split R1 singleton/native-type, textdraw, and UI operations.
+- [x] Split Win32 backend forwarding, command submission/execution, request
+  draining, cache refresh, and native bitstream helpers.
+- [x] Extract SDK ABI/API ownership and Host API listener lifecycle.
+- [x] Split remaining R1 player/pool/handle operations and event fixture support.
+- [x] Consolidate Win32 hook primitives, audit release DLL exports, and complete
+  the structural split plan.
+
 Use [SF.lua](https://github.com/SF-lua/SF.lua) and
 [SAMP-API.lua](https://github.com/imring/SAMP-API.lua) as the primary native
 references for offsets, addresses, structures, field layouts, calling

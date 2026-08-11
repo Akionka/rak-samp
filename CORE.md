@@ -55,9 +55,23 @@
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers.
   `host_api/textdraws.rs` owns textdraw command producers.
 
+Public nonblocking cache reads and refresh-request producers report `Busy` when
+another thread currently owns their mutex. `QueueFull` remains a real bounded
+queue-capacity result, while unpublished, absent, disconnected, and poisoned
+cache state remains `NotReady`; callers may retry `Busy` later.
+
 Leaf tests are colocated with their stable codecs and facade views. Parent test
 modules retain mock-ABI behavior, native ABI/layout checks, and cross-module
 Win32 queue, pump, cache-publication, invalidation, and hook-lifecycle tests.
+
+The SDK root re-exports safe types, ABI declarations, wrapper glue, resolution,
+and subscription ownership from dedicated modules. The Win32 root retains only
+shared state and tick ordering; backend forwarding, command execution, queue
+draining, refresh publication, native bitstream/string work, and hook patching
+live in dedicated child modules. The R1 profile likewise delegates singleton
+lookup, native aliases, textdraws, UI, player/pool reads, and handle lookups to
+focused child modules. The Host API root retains its export and ordered ABI
+table while `listeners.rs` owns listener lifecycle and dispatch.
 
 ## Process model
 

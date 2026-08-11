@@ -8,7 +8,9 @@ impl HostApi {
     /// Returns a cloned, nonblocking current-server snapshot.
     ///
     /// This returns [`SampClientSdkResult::NotReady`] until the verified R1 game
-    /// thread has published a valid address and port.
+    /// thread has published a valid address and port. It returns
+    /// [`SampClientSdkResult::Busy`] when another thread is publishing the
+    /// nonblocking snapshot; callers may retry later.
     pub fn server_info(self) -> Result<ServerInfo, SampClientSdkResult> {
         let mut raw = SampClientSdkServerInfoV1::default();
         match unsafe { (self.raw.server_info)(&mut raw) } {

@@ -1,6 +1,9 @@
 //! Published 3D text-label pool reads.
 
-use super::{BackendState, MAX_SAMP_TEXT_LABELS, TextLabelCacheEntry, TextLabelExistsCacheEntry};
+use super::{
+    BackendState, MAX_SAMP_TEXT_LABELS, TextLabelCacheEntry, TextLabelExistsCacheEntry,
+    try_lock_direct,
+};
 use crate::runtime::{DirectClientError, TextLabelSnapshot};
 use std::sync::atomic::Ordering;
 
@@ -15,10 +18,7 @@ impl BackendState {
         if usize::from(id) >= MAX_SAMP_TEXT_LABELS {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .text_label_exists_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.text_label_exists_cache)?
             .get(usize::from(id))
             .copied()
             .ok_or(DirectClientError::NotReady)?
@@ -49,10 +49,7 @@ impl BackendState {
         if usize::from(id) >= MAX_SAMP_TEXT_LABELS {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .text_label_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.text_label_cache)?
             .get(usize::from(id))
             .cloned()
             .ok_or(DirectClientError::NotReady)?

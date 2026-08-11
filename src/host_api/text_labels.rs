@@ -1,6 +1,6 @@
 //! Text-label command ABI entry points.
 
-use super::{clone_initialized, direct_client_result, host};
+use super::submit_direct_command;
 use sdk_abi::limits::{MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS};
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult, Vector3};
 use std::slice;
@@ -12,16 +12,7 @@ pub(super) unsafe extern "system" fn submit_delete_text_label(
     if receipt.is_null() || id >= MAX_SAMP_TEXT_LABELS {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_delete_text_label(id) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
-    }
+    unsafe { submit_direct_command(receipt, |runtime| runtime.submit_delete_text_label(id)) }
 }
 
 pub(super) unsafe extern "system" fn submit_create_text_label(
@@ -52,27 +43,22 @@ pub(super) unsafe extern "system" fn submit_create_text_label(
     if text.contains(&0) {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    match runtime.submit_create_text_label(
-        id,
-        text.to_vec(),
-        colour,
-        crate::runtime::Vector3 {
-            x: position.x,
-            y: position.y,
-            z: position.z,
-        },
-        draw_distance,
-        behind_walls != 0,
-        attached_player_id,
-        attached_vehicle_id,
-    ) {
-        Ok(id) => {
-            unsafe { receipt.write(SampClientSdkCommandReceipt { id }) };
-            SampClientSdkResult::Ok
-        }
-        Err(error) => direct_client_result(error),
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_create_text_label(
+                id,
+                text.to_vec(),
+                colour,
+                crate::runtime::Vector3 {
+                    x: position.x,
+                    y: position.y,
+                    z: position.z,
+                },
+                draw_distance,
+                behind_walls != 0,
+                attached_player_id,
+                attached_vehicle_id,
+            )
+        })
     }
 }

@@ -6,7 +6,7 @@ use super::{
     OBJECT_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY,
     PICKUP_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY,
     PLAYER_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY,
-    VEHICLE_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY,
+    VEHICLE_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, try_lock_direct,
 };
 use crate::runtime::DirectClientError;
 use std::{
@@ -126,9 +126,7 @@ impl BackendState {
         if index >= maximum || !client_available || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
-        match cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(cache)?
             .get(index)
             .cloned()
             .ok_or(DirectClientError::NotReady)?
@@ -158,12 +156,7 @@ impl BackendState {
         if !client_available || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
-        if let Some(id) = cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
-            .get(&handle)
-            .copied()
-        {
+        if let Some(id) = try_lock_direct(cache)?.get(&handle).copied() {
             let _ = self.queue_handle_id_request(requests, queue_capacity, handle);
             return Ok(id);
         }

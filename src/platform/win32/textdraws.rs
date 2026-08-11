@@ -1,6 +1,8 @@
 //! Published global and local textdraw pool reads.
 
-use super::{BackendState, MAX_SAMP_TEXTDRAWS, TextdrawCacheEntry, TextdrawExistsCacheEntry};
+use super::{
+    BackendState, MAX_SAMP_TEXTDRAWS, TextdrawCacheEntry, TextdrawExistsCacheEntry, try_lock_direct,
+};
 use crate::runtime::{DirectClientError, TextdrawSnapshot};
 use std::sync::atomic::Ordering;
 
@@ -15,10 +17,7 @@ impl BackendState {
         if usize::from(pool_index) >= MAX_SAMP_TEXTDRAWS {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .textdraw_exists_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.textdraw_exists_cache)?
             .get(usize::from(pool_index))
             .cloned()
             .ok_or(DirectClientError::NotReady)?
@@ -49,10 +48,7 @@ impl BackendState {
         if usize::from(pool_index) >= MAX_SAMP_TEXTDRAWS {
             return Err(DirectClientError::NotReady);
         }
-        match self
-            .textdraw_cache
-            .try_lock()
-            .map_err(|_| DirectClientError::NotReady)?
+        match try_lock_direct(&self.textdraw_cache)?
             .get(usize::from(pool_index))
             .cloned()
             .ok_or(DirectClientError::NotReady)?
