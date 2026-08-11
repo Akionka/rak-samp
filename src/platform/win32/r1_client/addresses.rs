@@ -47,6 +47,7 @@ pub(super) const LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA: usize = 0x30C0;
 pub(super) const LOCAL_PLAYER_SPAWN_RVA: usize = 0x3AD0;
 pub(super) const LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA: usize = 0x4B30;
 pub(super) const LOCAL_PLAYER_SEND_AIM_DATA_RVA: usize = 0x4FF0;
+pub(super) const LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA: usize = 0x4D10;
 pub(super) const ONFOOT_SEND_RATE_RVA: usize = 0xEC0A8;
 pub(super) const INCAR_SEND_RATE_RVA: usize = 0xEC0AC;
 pub(super) const AIM_SEND_RATE_RVA: usize = 0xEC0B0;

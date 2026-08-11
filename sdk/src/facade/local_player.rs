@@ -48,6 +48,10 @@ impl Local {
     pub fn force_aim_sync(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_force_aim_sync()
     }
+    /// Queues the documented R1 on-foot synchronization send.
+    pub fn force_onfoot_sync(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_force_onfoot_sync()
+    }
 
     /// Queues the protocol-level class request without changing local class state.
     pub fn request_class(self, class_id: i32) -> Result<CommandReceipt<()>, SampClientSdkResult> {

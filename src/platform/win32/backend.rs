@@ -459,6 +459,9 @@ impl Backend {
     pub(crate) fn submit_force_aim_sync(&self) -> Result<CommandId, DirectClientError> {
         self.state.submit_force_aim_sync()
     }
+    pub(crate) fn submit_force_onfoot_sync(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_force_onfoot_sync()
+    }
 
     pub(crate) fn submit_send_rate(
         &self,

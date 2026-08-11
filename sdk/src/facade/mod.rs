@@ -601,5 +601,8 @@ mod tests {
         let mut aim = samp.local().force_aim_sync().unwrap();
         assert_eq!(aim.id(), 23);
         assert_eq!(aim.try_take(), Ok(Some(())));
+        let mut onfoot = samp.local().force_onfoot_sync().unwrap();
+        assert_eq!(onfoot.id(), 24);
+        assert_eq!(onfoot.try_take(), Ok(Some(())));
     }
 }

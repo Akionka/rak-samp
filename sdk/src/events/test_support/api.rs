@@ -96,6 +96,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     submit_local_player_name: test_submit_local_player_name,
     submit_force_unoccupied_sync: test_submit_force_unoccupied_sync,
     submit_force_aim_sync: test_submit_force_aim_sync,
+    submit_force_onfoot_sync: test_submit_force_onfoot_sync,
     submit_connect_to_server: test_submit_connect_to_server,
     submit_disconnect_with_reason: test_submit_disconnect_with_reason,
     submit_delete_textdraw: test_submit_delete_textdraw,

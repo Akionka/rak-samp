@@ -1293,6 +1293,12 @@ unsafe extern "system" fn test_submit_force_aim_sync(
     unsafe { test_submit_command(receipt, 23) }
 }
 
+unsafe extern "system" fn test_submit_force_onfoot_sync(
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    unsafe { test_submit_command(receipt, 24) }
+}
+
 unsafe extern "system" fn test_submit_connect_to_server(
     address: *const u8,
     address_len: usize,

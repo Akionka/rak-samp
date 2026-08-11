@@ -313,6 +313,19 @@ impl R1ClientProfile {
         unsafe { send(local_player) };
         Ok(())
     }
+    /// Invokes R1 `SCLocalPlayer::SendOnfootData` on the game thread.
+    pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
+        let local_player = self.local_player_address()?;
+        let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
+        if !readable_range(last_update.cast(), mem::size_of::<u32>()) {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe { ptr::write_unaligned(last_update, 0) };
+        let send: LocalPlayerSendOnfootDataFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA) };
+        unsafe { send(local_player) };
+        Ok(())
+    }
 
     /// Invokes R1 `SCLocalPlayer::Spawn` on the game thread.
     pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {

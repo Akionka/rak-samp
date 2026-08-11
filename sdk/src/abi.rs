@@ -961,6 +961,9 @@ pub struct SampClientSdkApiV1 {
     /// Queues the documented R1 aim synchronization send.
     pub submit_force_aim_sync:
         unsafe extern "system" fn(*mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
+    /// Queues the documented R1 on-foot synchronization send.
+    pub submit_force_onfoot_sync:
+        unsafe extern "system" fn(*mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
     /// Copies and queues the documented R1 reconnect sequence.
     pub submit_connect_to_server: unsafe extern "system" fn(
         *const u8,
