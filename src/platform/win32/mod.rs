@@ -382,6 +382,10 @@ enum GameCommand {
         attached_player_id: u16,
         attached_vehicle_id: u16,
     },
+    SetTextLabelText {
+        id: u16,
+        text: Vec<u8>,
+    },
     DeleteTextdraw(u16),
     SetTextdrawPosition {
         id: u16,

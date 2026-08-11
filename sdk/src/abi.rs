@@ -1020,6 +1020,13 @@ pub struct SampClientSdkApiV1 {
         u32,
         *mut SampClientSdkTextLabelCreateResultV1,
     ) -> SampClientSdkResult,
+    /// Queues replacement text for an existing R1 3D text label.
+    pub submit_set_text_label_text: unsafe extern "system" fn(
+        u16,
+        *const u8,
+        usize,
+        *mut SampClientSdkCommandReceipt,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

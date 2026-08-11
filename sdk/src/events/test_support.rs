@@ -1310,6 +1310,23 @@ unsafe extern "system" fn test_submit_create_text_label_auto(
     unsafe { test_submit_command(receipt, 42) }
 }
 
+unsafe extern "system" fn test_submit_set_text_label_text(
+    id: u16,
+    text: *const u8,
+    text_len: usize,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if id >= crate::limits::MAX_SAMP_TEXT_LABELS
+        || text.is_null()
+        || text_len == 0
+        || text_len > crate::limits::MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+        || unsafe { std::slice::from_raw_parts(text, text_len) }.contains(&0)
+    {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 43) }
+}
+
 unsafe extern "system" fn test_text_label_create_try_take(
     receipt: crate::SampClientSdkCommandReceipt,
     output: *mut crate::SampClientSdkTextLabelCreateResultV1,

@@ -222,7 +222,7 @@ Tiers:
 | [x] | `sampCreate3dText` | Queued mutation | `Labels::create` |
 | [x] | `sampIs3dTextDefined` | Safe owned/read | `Labels::exists` |
 | [x] | `sampGet3dTextInfoById` | Safe owned/read | `Labels::get` |
-| [ ] | `sampSet3dTextString` | Queued mutation | `Label::set_text` |
+| [x] | `sampSet3dTextString` | Queued mutation | `Labels::set_text` |
 | [x] | `sampDestroy3dText` | Queued mutation | `Labels::delete` |
 | [x] | `sampCreate3dTextEx` | Queued mutation | `Labels::create_at` |
 

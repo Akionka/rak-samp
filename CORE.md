@@ -54,7 +54,8 @@
   `host_api/pools.rs` owns bounded pool-existence reads, and
   `host_api/snapshots.rs` owns pooled gangzone, text-label, textdraw, and chat
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers,
-  including typed receipts for game-thread-selected free label IDs.
+  including typed receipts for game-thread-selected free label IDs and validated
+  text replacement.
   `host_api/textdraws.rs` owns textdraw command producers.
 
 Public nonblocking cache reads and refresh-request producers report `Busy` when

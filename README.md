@@ -65,6 +65,8 @@ game-thread-published command table with exact, case-sensitive name matching.
 
 `samp.labels().create(...)` allocates the first free R1 3D text-label slot on
 the game thread. Its typed receipt resolves to the resulting `TextLabelId`.
+`samp.labels().set_text(id, text)` queues validated replacement text and
+returns a normal completion receipt.
 
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and

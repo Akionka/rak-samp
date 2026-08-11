@@ -318,8 +318,12 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, text_label_create_try_take) + function_size
     );
     assert_eq!(
-        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, submit_set_text_label_text),
         mem::offset_of!(SampClientSdkApiV1, text_label_create_wait) + function_size
+    );
+    assert_eq!(
+        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, submit_set_text_label_text) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, raw_rakclient),

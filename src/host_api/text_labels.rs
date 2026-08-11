@@ -1,6 +1,8 @@
 //! Text-label command ABI entry points.
 
-use super::{clone_initialized, direct_client_result, host, submit_direct_command};
+use super::{
+    clone_initialized, copied_nul_free_string, direct_client_result, host, submit_direct_command,
+};
 use sdk_abi::limits::{
     MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS, MAX_SAMP_VEHICLES,
 };
@@ -15,6 +17,30 @@ pub(super) unsafe extern "system" fn submit_delete_text_label(
         return SampClientSdkResult::InvalidArgument;
     }
     unsafe { submit_direct_command(receipt, |runtime| runtime.submit_delete_text_label(id)) }
+}
+
+pub(super) unsafe extern "system" fn submit_set_text_label_text(
+    id: u16,
+    text: *const u8,
+    text_len: usize,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || id >= MAX_SAMP_TEXT_LABELS {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Ok(text) =
+        (unsafe { copied_nul_free_string(text, text_len, MAX_SAMP_TEXT_LABEL_TEXT_BYTES) })
+    else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    if text.is_empty() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_text_label_text(id, text)
+        })
+    }
 }
 
 pub(super) unsafe extern "system" fn submit_create_text_label(

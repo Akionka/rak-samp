@@ -49,6 +49,19 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
+    /// Queues replacement text for an existing R1 3D text label.
+    pub fn submit_set_text_label_text(
+        self,
+        id: u16,
+        text: &[u8],
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe {
+            (self.raw.submit_set_text_label_text)(id, text.as_ptr(), text.len(), &mut receipt)
+        };
+        self.command_receipt(result, receipt)
+    }
+
     /// Queues R1 3D text-label creation at a selected pool ID.
     #[allow(clippy::too_many_arguments)]
     pub fn submit_create_text_label(

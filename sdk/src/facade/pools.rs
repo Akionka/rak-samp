@@ -152,6 +152,17 @@ impl Labels {
         self.api.submit_delete_text_label(id.get())
     }
 
+    /// Queues replacement text for an existing R1 3D text label.
+    ///
+    /// The replacement must be non-empty, bounded, and contain no NUL byte.
+    pub fn set_text(
+        self,
+        id: TextLabelId,
+        text: &[u8],
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_set_text_label_text(id.get(), text)
+    }
+
     /// Queues R1 3D text-label creation at the first native free pool ID.
     #[allow(clippy::too_many_arguments)]
     pub fn create(

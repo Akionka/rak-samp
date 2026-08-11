@@ -583,6 +583,25 @@ impl BackendState {
         Ok(id)
     }
 
+    pub(super) fn submit_set_text_label_text(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXT_LABELS
+            || text.is_empty()
+            || text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
+            || text.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextLabelText { id, text })
+    }
+
     pub(super) fn try_take_created_text_label(
         &self,
         id: CommandId,
@@ -1220,6 +1239,33 @@ impl BackendState {
                             .ok_or(CommandError::NativeFailure)?;
                         self.publish_created_text_label(id, snapshot);
                         self.complete_created_text_label(queued.id, id);
+                        Ok(())
+                    }),
+                GameCommand::SetTextLabelText { id, text } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        let label = profile
+                            .text_label(id)
+                            .map_err(|_| CommandError::NativeFailure)?
+                            .ok_or(CommandError::NativeFailure)?;
+                        profile
+                            .create_text_label(
+                                id,
+                                &text,
+                                label.colour,
+                                label.position,
+                                label.draw_distance,
+                                label.behind_walls,
+                                label.attached_player_id.unwrap_or(u16::MAX),
+                                label.attached_vehicle_id.unwrap_or(u16::MAX),
+                            )
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        let snapshot = profile
+                            .text_label(id)
+                            .map_err(|_| CommandError::NativeFailure)?
+                            .ok_or(CommandError::NativeFailure)?;
+                        self.publish_created_text_label(id, snapshot);
                         Ok(())
                     }),
                 GameCommand::SetTextdrawPosition { id, x, y } => self

@@ -536,6 +536,27 @@ fn typed_text_label_receipt_returns_the_game_thread_selected_id() {
 }
 
 #[test]
+fn text_label_text_update_copies_nonempty_text_into_the_game_command() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(0x1000, Ordering::Release);
+
+    let mut text = b"updated".to_vec();
+    state.submit_set_text_label_text(7, text.clone()).unwrap();
+    text[0] = b'X';
+
+    let snapshot = state.game_commands.take_tick_snapshot();
+    assert!(matches!(
+        &snapshot[0].command,
+        GameCommand::SetTextLabelText { id: 7, text } if text.as_slice() == b"updated"
+    ));
+    assert_eq!(
+        state.submit_set_text_label_text(7, Vec::new()),
+        Err(DirectClientError::NotReady)
+    );
+}
+
+#[test]
 fn network_commands_copy_payloads_and_detach_the_legacy_waiter() {
     let state = test_backend_state();
     let mut payload = BitStream::new();

@@ -401,6 +401,16 @@ mod tests {
             .unwrap();
         assert_eq!(created.id(), 42);
         assert_eq!(created.try_take(), Ok(Some(TextLabelId::new(7).unwrap())));
+        let mut updated = samp
+            .labels()
+            .set_text(TextLabelId::new(7).unwrap(), b"updated")
+            .unwrap();
+        assert_eq!(updated.id(), 43);
+        assert_eq!(updated.try_take(), Ok(Some(())));
+        assert!(matches!(
+            samp.labels().set_text(TextLabelId::new(7).unwrap(), b""),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
         assert_eq!(samp.dialogs().list_item_count(), Ok(3));
         assert_eq!(
             samp.chat().entry(7).map(|entry| (entry.text, entry.prefix)),

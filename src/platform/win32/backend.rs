@@ -336,6 +336,14 @@ impl Backend {
         )
     }
 
+    pub(crate) fn submit_set_text_label_text(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_text_label_text(id, text)
+    }
+
     pub(crate) fn submit_set_textdraw_position(
         &self,
         id: u16,
