@@ -244,6 +244,21 @@ pub struct SampClientSdkTrailerSyncV1 {
     pub turn_speed: Vector3,
 }
 
+/// C-compatible storage for an owned R1 aim synchronization snapshot.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkAimSyncV1 {
+    pub exists: u8,
+    pub camera_mode: u8,
+    pub zoom_and_weapon_state: u8,
+    pub aspect_ratio: u8,
+    pub id: u16,
+    pub _reserved: u16,
+    pub aim_first: Vector3,
+    pub aim_position: Vector3,
+    pub aim_z: f32,
+}
+
 /// C-compatible storage for an owned [`Gangzone`] result.
 ///
 /// `exists` is zero when the latest completed query found no gangzone. The
@@ -1135,6 +1150,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached owned R1 trailer synchronization record into `output`.
     pub trailer_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkTrailerSyncV1) -> SampClientSdkResult,
+    /// Copies a cached owned R1 aim synchronization record into `output`.
+    pub aim_sync:
+        unsafe extern "system" fn(u16, *mut SampClientSdkAimSyncV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

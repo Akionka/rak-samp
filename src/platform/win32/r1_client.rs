@@ -15,11 +15,11 @@ mod textdraws;
 mod ui;
 
 use crate::runtime::{
-    AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot, InCarSyncSnapshot,
-    LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot,
-    LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
-    PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
+    InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+    LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot,
+    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
+    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;

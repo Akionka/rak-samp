@@ -1,7 +1,8 @@
 //! Producer-side bounded cache-refresh request queues.
 
 use super::{
-    BackendState, CHAT_ENTRY_REQUEST_QUEUE_CAPACITY, CHAT_ENTRY_REQUESTS_PER_PUMP,
+    AIM_SYNC_REQUEST_QUEUE_CAPACITY, AIM_SYNC_REQUESTS_PER_PUMP, BackendState,
+    CHAT_ENTRY_REQUEST_QUEUE_CAPACITY, CHAT_ENTRY_REQUESTS_PER_PUMP,
     GANGZONE_REQUEST_QUEUE_CAPACITY, GANGZONE_REQUESTS_PER_PUMP, INCAR_SYNC_REQUEST_QUEUE_CAPACITY,
     INCAR_SYNC_REQUESTS_PER_PUMP, OBJECT_EXISTS_REQUEST_QUEUE_CAPACITY,
     OBJECT_EXISTS_REQUESTS_PER_PUMP, OBJECT_HANDLE_REQUESTS_PER_PUMP,
@@ -98,6 +99,9 @@ impl BackendState {
             TRAILER_SYNC_REQUEST_QUEUE_CAPACITY,
             id,
         )
+    }
+    pub(super) fn queue_aim_sync_request(&self, id: u16) -> Result<(), DirectClientError> {
+        queue_unique_request(&self.aim_sync_requests, AIM_SYNC_REQUEST_QUEUE_CAPACITY, id)
     }
 
     pub(super) fn queue_vehicle_exists_request(&self, id: u16) -> Result<(), DirectClientError> {
@@ -209,6 +213,9 @@ impl BackendState {
 
     pub(super) fn take_trailer_sync_requests(&self) -> Vec<u16> {
         take_requests(&self.trailer_sync_requests, TRAILER_SYNC_REQUESTS_PER_PUMP)
+    }
+    pub(super) fn take_aim_sync_requests(&self) -> Vec<u16> {
+        take_requests(&self.aim_sync_requests, AIM_SYNC_REQUESTS_PER_PUMP)
     }
 
     pub(super) fn take_vehicle_exists_requests(&self) -> Vec<u16> {

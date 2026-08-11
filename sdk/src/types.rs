@@ -433,6 +433,23 @@ pub struct TrailerSync {
     pub turn_speed: crate::Vector3,
 }
 
+/// An owned R1 aim synchronization record copied on the verified game thread
+/// for either the local or a defined remote player.
+///
+/// The zoom/weapon-state and aspect-ratio bytes retain their native raw
+/// values. The first lookup can return [`SampClientSdkResult::NotReady`] while
+/// the game-thread cache refresh is pending. No native pointer crosses this API.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct AimSync {
+    pub id: u16,
+    pub camera_mode: u8,
+    pub aim_first: crate::Vector3,
+    pub aim_position: crate::Vector3,
+    pub aim_z: f32,
+    pub zoom_and_weapon_state: u8,
+    pub aspect_ratio: u8,
+}
+
 /// An owned R1 gangzone record copied from the game-thread cache.
 ///
 /// The four coordinates retain the native pool's left, bottom, right, top

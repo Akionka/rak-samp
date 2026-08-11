@@ -723,6 +723,39 @@ unsafe extern "system" fn test_trailer_sync(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_aim_sync(
+    id: u16,
+    output: *mut crate::SampClientSdkAimSyncV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::SampClientSdkAimSyncV1 {
+            exists: 1,
+            camera_mode: 4,
+            zoom_and_weapon_state: 0x12,
+            aspect_ratio: 3,
+            id,
+            _reserved: 0,
+            aim_first: crate::Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            aim_position: crate::Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            aim_z: 7.0,
+        }
+    } else {
+        crate::SampClientSdkAimSyncV1::default()
+    };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_player_defined(id: u16, output: *mut u8) -> SampClientSdkResult {
     let Some(output) = (unsafe { output.as_mut() }) else {
         return SampClientSdkResult::InvalidArgument;

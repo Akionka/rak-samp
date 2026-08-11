@@ -70,6 +70,7 @@ pub(super) const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC8;
 pub(super) const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x10C;
 pub(super) const REMOTE_PLAYER_PASSENGER_OFFSET: usize = 0x181;
 pub(super) const REMOTE_PLAYER_TRAILER_OFFSET: usize = 0x14B;
+pub(super) const REMOTE_PLAYER_AIM_OFFSET: usize = 0x199;
 pub(super) const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
 pub(super) const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
 pub(super) const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
@@ -124,6 +125,14 @@ pub(super) const TRAILER_POSITION_OFFSET: usize = 0x02;
 pub(super) const TRAILER_QUATERNION_OFFSET: usize = 0x0E;
 pub(super) const TRAILER_SPEED_OFFSET: usize = 0x1E;
 pub(super) const TRAILER_TURN_SPEED_OFFSET: usize = 0x2A;
+
+pub(super) const AIM_SYNC_SIZE: usize = 31;
+pub(super) const AIM_CAMERA_MODE_OFFSET: usize = 0x00;
+pub(super) const AIM_FIRST_OFFSET: usize = 0x01;
+pub(super) const AIM_POSITION_OFFSET: usize = 0x0D;
+pub(super) const AIM_Z_OFFSET: usize = 0x19;
+pub(super) const AIM_ZOOM_WEAPON_STATE_OFFSET: usize = 0x1D;
+pub(super) const AIM_ASPECT_RATIO_OFFSET: usize = 0x1E;
 
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
@@ -203,6 +212,7 @@ pub(super) const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x18;
 pub(super) const LOCAL_PLAYER_INCAR_OFFSET: usize = 0xAA;
 pub(super) const LOCAL_PLAYER_PASSENGER_OFFSET: usize = 0x5C;
 pub(super) const LOCAL_PLAYER_TRAILER_OFFSET: usize = 0x74;
+pub(super) const LOCAL_PLAYER_AIM_OFFSET: usize = 0xE9;
 pub(super) const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = ONFOOT_POSITION_OFFSET;
 pub(super) const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = ONFOOT_SPEED_OFFSET;
 pub(super) const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = ONFOOT_SPECIAL_ACTION_OFFSET;

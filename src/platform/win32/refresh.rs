@@ -103,6 +103,19 @@ impl BackendState {
             }
         }
     }
+    pub(super) fn refresh_aim_sync(&self, profile: R1ClientProfile) {
+        for id in self.take_aim_sync_requests() {
+            let Ok(snapshot) = profile.aim_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.aim_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = AimSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
 
     pub(super) fn refresh_player_count(&self, profile: R1ClientProfile) {
         match profile.player_counts() {

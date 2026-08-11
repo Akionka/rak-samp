@@ -218,6 +218,17 @@ pub(crate) struct TrailerSyncSnapshot {
     pub(crate) turn_speed: Vector3,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct AimSyncSnapshot {
+    pub(crate) id: u16,
+    pub(crate) camera_mode: u8,
+    pub(crate) aim_first: Vector3,
+    pub(crate) aim_position: Vector3,
+    pub(crate) aim_z: f32,
+    pub(crate) zoom_and_weapon_state: u8,
+    pub(crate) aspect_ratio: u8,
+}
+
 /// Host-owned gangzone data copied from the verified R1 game thread.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct GangzoneSnapshot {
@@ -954,6 +965,9 @@ impl Runtime {
         id: u16,
     ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
         self.backend.trailer_sync(id)
+    }
+    pub(crate) fn aim_sync(&self, id: u16) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
+        self.backend.aim_sync(id)
     }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {

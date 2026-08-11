@@ -579,6 +579,12 @@ impl Backend {
     ) -> Result<Option<crate::runtime::TrailerSyncSnapshot>, DirectClientError> {
         self.state.trailer_sync(id)
     }
+    pub(crate) fn aim_sync(
+        &self,
+        id: u16,
+    ) -> Result<Option<crate::runtime::AimSyncSnapshot>, DirectClientError> {
+        self.state.aim_sync(id)
+    }
 
     pub(crate) fn player_defined(&self, id: u16) -> Result<bool, DirectClientError> {
         self.state.player_defined(id)

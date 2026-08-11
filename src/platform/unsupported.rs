@@ -2,11 +2,11 @@ use crate::{
     AttachError, BitStream, SampVersion, SendError, SendOptions,
     event::Registry,
     runtime::{
-        AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError, GangzoneSnapshot,
-        InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
-        LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
-        PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
-        TrailerSyncSnapshot,
+        AimSyncSnapshot, AnimationSnapshot, ClientHookStatus, CodecError, DirectClientError,
+        GangzoneSnapshot, InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest,
+        LocalDialogRequest, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
+        PassengerSyncSnapshot, PlayerInfoSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+        TextdrawSnapshot, TrailerSyncSnapshot,
     },
 };
 use std::sync::Arc;
@@ -115,6 +115,9 @@ impl Backend {
         &self,
         _id: u16,
     ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
+        Err(DirectClientError::UnsupportedVersion)
+    }
+    pub(crate) fn aim_sync(&self, _id: u16) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
         Err(DirectClientError::UnsupportedVersion)
     }
 

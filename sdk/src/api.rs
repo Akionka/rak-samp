@@ -570,6 +570,34 @@ pub(crate) fn trailer_sync_from_abi(
     }
 }
 
+pub(crate) fn aim_sync_from_abi(
+    raw: SampClientSdkAimSyncV1,
+) -> Result<Option<AimSync>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkAimSyncV1::default() => Ok(None),
+        1 if raw._reserved == 0
+            && raw.aim_first.x.is_finite()
+            && raw.aim_first.y.is_finite()
+            && raw.aim_first.z.is_finite()
+            && raw.aim_position.x.is_finite()
+            && raw.aim_position.y.is_finite()
+            && raw.aim_position.z.is_finite()
+            && raw.aim_z.is_finite() =>
+        {
+            Ok(Some(AimSync {
+                id: raw.id,
+                camera_mode: raw.camera_mode,
+                aim_first: raw.aim_first,
+                aim_position: raw.aim_position,
+                aim_z: raw.aim_z,
+                zoom_and_weapon_state: raw.zoom_and_weapon_state,
+                aspect_ratio: raw.aspect_ratio,
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn gangzone_from_abi(
     raw: SampClientSdkGangzoneV1,
 ) -> Result<Option<Gangzone>, SampClientSdkResult> {

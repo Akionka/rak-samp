@@ -1,21 +1,22 @@
 //! Runtime snapshot conversion into fixed ABI output storage.
 
 use crate::runtime::{
-    AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot, LocalDialogSnapshot,
-    LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot,
-    RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
-    TrailerSyncSnapshot,
+    AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot,
+    LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
+    PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
+    TextdrawSnapshot, TrailerSyncSnapshot,
 };
 use sdk_abi::limits::{
     MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
     MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXTDRAW_STRING_BYTES,
 };
 use sdk_abi::{
-    SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkChatEntryV1,
-    SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1,
-    SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1,
-    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1, SampClientSdkTrailerSyncV1, Vector3,
+    SampClientSdkActiveDialogV1, SampClientSdkAimSyncV1, SampClientSdkAnimationV1,
+    SampClientSdkChatEntryV1, SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1,
+    SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1,
+    SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
+    SampClientSdkServerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
+    SampClientSdkTrailerSyncV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -327,6 +328,38 @@ pub(super) fn trailer_sync_to_abi(
             y: snapshot.turn_speed.y,
             z: snapshot.turn_speed.z,
         },
+    })
+}
+
+pub(super) fn aim_sync_to_abi(snapshot: AimSyncSnapshot) -> Result<SampClientSdkAimSyncV1, ()> {
+    if !snapshot.aim_first.x.is_finite()
+        || !snapshot.aim_first.y.is_finite()
+        || !snapshot.aim_first.z.is_finite()
+        || !snapshot.aim_position.x.is_finite()
+        || !snapshot.aim_position.y.is_finite()
+        || !snapshot.aim_position.z.is_finite()
+        || !snapshot.aim_z.is_finite()
+    {
+        return Err(());
+    }
+    Ok(SampClientSdkAimSyncV1 {
+        exists: 1,
+        camera_mode: snapshot.camera_mode,
+        zoom_and_weapon_state: snapshot.zoom_and_weapon_state,
+        aspect_ratio: snapshot.aspect_ratio,
+        id: snapshot.id,
+        _reserved: 0,
+        aim_first: Vector3 {
+            x: snapshot.aim_first.x,
+            y: snapshot.aim_first.y,
+            z: snapshot.aim_first.z,
+        },
+        aim_position: Vector3 {
+            x: snapshot.aim_position.x,
+            y: snapshot.aim_position.y,
+            z: snapshot.aim_position.z,
+        },
+        aim_z: snapshot.aim_z,
     })
 }
 

@@ -605,6 +605,94 @@ impl R1ClientProfile {
         })
     }
 
+    pub(in super::super) fn aim_sync(
+        self,
+        id: u16,
+    ) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), PLAYER_POOL_LOCAL_ID_OFFSET + 2) {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_id =
+            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+                .and_then(assigned_player_id);
+        if local_id == Some(id) {
+            let get_local: PlayerPoolGetLocalPlayerFn =
+                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let local = unsafe { get_local(pool) };
+            if local.is_null() {
+                return Ok(None);
+            }
+            return self
+                .aim_sync_from_address(id, local as usize + LOCAL_PLAYER_AIM_OFFSET)
+                .map(Some);
+        }
+        let connected: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+        match unsafe { connected(pool, id) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let get_remote: PlayerPoolGetRemotePlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+        let remote = unsafe { get_remote(pool, id) };
+        if remote.is_null()
+            || !readable_range(remote.cast(), REMOTE_PLAYER_AIM_OFFSET + AIM_SYNC_SIZE)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let does_exist: RemotePlayerDoesExistFn =
+            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
+        match unsafe { does_exist(remote) } {
+            0 => Ok(None),
+            1 => self
+                .aim_sync_from_address(id, remote as usize + REMOTE_PLAYER_AIM_OFFSET)
+                .map(Some),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+    fn aim_sync_from_address(
+        self,
+        id: u16,
+        address: usize,
+    ) -> Result<AimSyncSnapshot, DirectClientError> {
+        if !readable_range(address as *const u8, AIM_SYNC_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let camera_mode = unsafe { read_unaligned::<u8>(address + AIM_CAMERA_MODE_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let aim_first = unsafe { read_vector3(address + AIM_FIRST_OFFSET) }
+            .filter(|v| v.x.is_finite() && v.y.is_finite() && v.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let aim_position = unsafe { read_vector3(address + AIM_POSITION_OFFSET) }
+            .filter(|v| v.x.is_finite() && v.y.is_finite() && v.z.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let aim_z = unsafe { read_unaligned::<f32>(address + AIM_Z_OFFSET) }
+            .filter(|v| v.is_finite())
+            .ok_or(DirectClientError::NotReady)?;
+        let zoom_and_weapon_state =
+            unsafe { read_unaligned::<u8>(address + AIM_ZOOM_WEAPON_STATE_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let aspect_ratio = unsafe { read_unaligned::<u8>(address + AIM_ASPECT_RATIO_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(AimSyncSnapshot {
+            id,
+            camera_mode,
+            aim_first,
+            aim_position,
+            aim_z,
+            zoom_and_weapon_state,
+            aspect_ratio,
+        })
+    }
+
     /// Reads both R1 `CPlayerPool::GetCount` modes on the game-thread pump.
     /// The resulting scalar pair is published by the host; no pool layout or
     /// pointer crosses this private profile boundary.

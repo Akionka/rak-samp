@@ -134,6 +134,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     vehicle_sync: test_vehicle_sync,
     passenger_sync: test_passenger_sync,
     trailer_sync: test_trailer_sync,
+    aim_sync: test_aim_sync,
 };
 
 pub(crate) fn test_api() -> HostApi {
