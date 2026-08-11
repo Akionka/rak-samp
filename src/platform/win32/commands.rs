@@ -868,12 +868,16 @@ impl BackendState {
                         self.r1_client
                             .ok_or(CommandError::NativeFailure)
                             .and_then(|profile| {
-                                profile
+                                let result = profile
                                     .register_chat_command(
                                         &name,
                                         crate::host_api::chat_commands::trampoline(slot),
                                     )
-                                    .map_err(|_| CommandError::NativeFailure)
+                                    .map_err(|_| CommandError::NativeFailure);
+                                if result.is_ok() {
+                                    self.refresh_local_chat_input_commands(profile);
+                                }
+                                result
                             });
                     crate::host_api::chat_commands::finish_registration(
                         subscription,
@@ -886,9 +890,13 @@ impl BackendState {
                         self.r1_client
                             .ok_or(CommandError::NativeFailure)
                             .and_then(|profile| {
-                                profile
+                                let result = profile
                                     .unregister_chat_command(&name)
-                                    .map_err(|_| CommandError::NativeFailure)
+                                    .map_err(|_| CommandError::NativeFailure);
+                                if result.is_ok() {
+                                    self.refresh_local_chat_input_commands(profile);
+                                }
+                                result
                             });
                     crate::host_api::chat_commands::finish_unregistration(
                         subscription,

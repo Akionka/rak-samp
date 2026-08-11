@@ -971,6 +971,9 @@ pub struct SampClientSdkApiV1 {
         *mut SampClientSdkSubscription,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
+    /// Reports whether an exact bounded name is present in the game-thread-cached R1 command table.
+    pub local_chat_command_defined:
+        unsafe extern "system" fn(*const u8, usize, *mut u8) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

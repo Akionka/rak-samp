@@ -60,6 +60,9 @@ let command = samp.chat_input().register_command(b"hello", |args| {
 Call `command.unregister_and_wait()` from a worker thread before unloading the
 plugin.
 
+`samp.chat_input().is_command_defined(b"hello")` queries the latest
+game-thread-published command table with exact, case-sensitive name matching.
+
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned

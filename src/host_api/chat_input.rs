@@ -77,3 +77,29 @@ pub(super) unsafe extern "system" fn local_chat_input_text(
         Err(error) => direct_client_result(error),
     }
 }
+
+pub(super) unsafe extern "system" fn local_chat_command_defined(
+    name: *const u8,
+    name_len: usize,
+    output: *mut u8,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, 32) }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    if name.is_empty() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.local_chat_command_defined(&name) {
+        Ok(defined) => {
+            *output = u8::from(defined);
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}

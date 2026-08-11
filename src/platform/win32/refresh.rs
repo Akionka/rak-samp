@@ -427,6 +427,28 @@ impl BackendState {
         }
     }
 
+    pub(super) fn refresh_local_chat_input_commands(&self, profile: R1ClientProfile) {
+        match profile.chat_input_commands() {
+            Ok(commands) => {
+                let Ok(mut snapshot) = self.local_chat_input_commands.try_lock() else {
+                    self.local_chat_input_commands_ready
+                        .store(false, Ordering::Release);
+                    return;
+                };
+                *snapshot = Some(commands);
+                self.local_chat_input_commands_ready
+                    .store(true, Ordering::Release);
+            }
+            Err(_) => {
+                self.local_chat_input_commands_ready
+                    .store(false, Ordering::Release);
+                if let Ok(mut snapshot) = self.local_chat_input_commands.try_lock() {
+                    *snapshot = None;
+                }
+            }
+        }
+    }
+
     pub(super) fn refresh_animation_catalog(&self, profile: R1ClientProfile) {
         let Ok(mut catalog) = self.animation_catalog.try_lock() else {
             return;

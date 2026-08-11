@@ -242,6 +242,8 @@ struct BackendState {
     local_chat_input_active_ready: AtomicBool,
     local_chat_input_text: Mutex<Option<Vec<u8>>>,
     local_chat_input_text_ready: AtomicBool,
+    local_chat_input_commands: Mutex<Option<Vec<Vec<u8>>>>,
+    local_chat_input_commands_ready: AtomicBool,
     animation_catalog: Mutex<Option<Vec<AnimationSnapshot>>>,
     cache_generation: AtomicU64,
     hooks: Mutex<HookStorage>,
@@ -596,6 +598,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_chat_input_active_ready: AtomicBool::new(false),
         local_chat_input_text: Mutex::new(None),
         local_chat_input_text_ready: AtomicBool::new(false),
+        local_chat_input_commands: Mutex::new(None),
+        local_chat_input_commands_ready: AtomicBool::new(false),
         animation_catalog: Mutex::new(None),
         cache_generation: AtomicU64::new(0),
         hooks: Mutex::new(HookStorage::default()),
@@ -735,6 +739,7 @@ impl BackendState {
         self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(profile);
         self.refresh_local_chat_input_text(profile);
+        self.refresh_local_chat_input_commands(profile);
         self.refresh_animation_catalog(profile);
         self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
@@ -1150,6 +1155,11 @@ impl BackendState {
         self.local_chat_input_text_ready
             .store(false, Ordering::Release);
         if let Ok(mut snapshot) = self.local_chat_input_text.try_lock() {
+            *snapshot = None;
+        }
+        self.local_chat_input_commands_ready
+            .store(false, Ordering::Release);
+        if let Ok(mut snapshot) = self.local_chat_input_commands.try_lock() {
             *snapshot = None;
         }
         self.player_count_ready.store(false, Ordering::Release);

@@ -476,6 +476,29 @@ impl R1ClientProfile {
         read_r1_bool(input as usize + INPUT_ENABLED_OFFSET)
     }
 
+    /// Copies the active bounded R1 local chat-command names on the game thread.
+    pub(in super::super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)? as *const u8;
+        let count = unsafe { read_unaligned::<i32>(input as usize + INPUT_COMMAND_COUNT_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        if !(0..=MAX_CHAT_COMMANDS as i32).contains(&count) {
+            return Err(DirectClientError::NotReady);
+        }
+        let count = count as usize;
+        let mut commands = Vec::with_capacity(count);
+        for index in 0..count {
+            let name = unsafe {
+                bounded_c_string(
+                    input.add(INPUT_COMMAND_NAME_OFFSET + index * INPUT_COMMAND_NAME_CAPACITY),
+                    INPUT_COMMAND_NAME_CAPACITY,
+                )
+            }
+            .ok_or(DirectClientError::NotReady)?;
+            commands.push(name);
+        }
+        Ok(commands)
+    }
+
     /// Updates the R1 chat edit box through its native DXUT method.
     pub(in super::super) fn set_chat_input_text(
         self,

@@ -115,6 +115,26 @@ impl BackendState {
             .ok_or(DirectClientError::NotReady)
     }
 
+    pub(super) fn local_chat_command_defined(
+        &self,
+        name: &[u8],
+    ) -> Result<bool, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || !self.local_chat_input_commands_ready.load(Ordering::Acquire)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(try_lock_direct(&self.local_chat_input_commands)?
+            .as_ref()
+            .ok_or(DirectClientError::NotReady)?
+            .iter()
+            .any(|candidate| candidate == name))
+    }
+
     pub(super) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
         self.animation_catalog().and_then(|catalog| {
             catalog

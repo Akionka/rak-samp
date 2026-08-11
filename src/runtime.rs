@@ -957,6 +957,13 @@ impl Runtime {
         self.backend.local_chat_input_text()
     }
 
+    pub(crate) fn local_chat_command_defined(
+        &self,
+        name: &[u8],
+    ) -> Result<bool, DirectClientError> {
+        self.backend.local_chat_command_defined(name)
+    }
+
     pub(crate) fn local_animation(&self, id: u16) -> Result<AnimationSnapshot, DirectClientError> {
         self.backend.local_animation(id)
     }

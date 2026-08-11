@@ -1,3 +1,4 @@
+use crate::limits::MAX_SAMP_CHAT_COMMAND_NAME_BYTES;
 use crate::{
     ChatCommandCallbackState, ChatCommandSubscription, ChatEntry, CommandReceipt, HostApi,
     LocalChatDisplayMode, LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog,
@@ -160,6 +161,14 @@ impl ChatInput {
     /// Returns the owned game-thread-cached R1 chat-input text.
     pub fn text(self) -> Result<Vec<u8>, SampClientSdkResult> {
         self.api.local_chat_input_text()
+    }
+
+    /// Reports whether the exact R1 chat-command name is currently defined.
+    pub fn is_command_defined(self, name: &[u8]) -> Result<bool, SampClientSdkResult> {
+        if name.is_empty() || name.len() > MAX_SAMP_CHAT_COMMAND_NAME_BYTES || name.contains(&0) {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        self.api.local_chat_command_defined(name)
     }
 
     /// Queues a copied R1 chat-input text update. Text is limited to 128 bytes
@@ -342,6 +351,16 @@ mod tests {
     #[test]
     fn chat_input_text_is_an_owned_cached_value() {
         assert_eq!(samp().chat_input().text(), Ok(b"/sdk".to_vec()));
+    }
+
+    #[test]
+    fn chat_input_command_lookup_uses_exact_bounded_names() {
+        assert_eq!(samp().chat_input().is_command_defined(b"sdk"), Ok(true));
+        assert_eq!(samp().chat_input().is_command_defined(b"SDK"), Ok(false));
+        assert!(matches!(
+            samp().chat_input().is_command_defined(&[]),
+            Err(SampClientSdkResult::InvalidArgument)
+        ));
     }
 
     #[test]

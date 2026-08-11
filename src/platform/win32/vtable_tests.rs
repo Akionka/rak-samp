@@ -125,6 +125,8 @@ fn test_backend_state() -> BackendState {
         local_chat_input_active_ready: AtomicBool::new(false),
         local_chat_input_text: Mutex::new(None),
         local_chat_input_text_ready: AtomicBool::new(false),
+        local_chat_input_commands: Mutex::new(None),
+        local_chat_input_commands_ready: AtomicBool::new(false),
         animation_catalog: Mutex::new(None),
         cache_generation: AtomicU64::new(2),
         hooks: Mutex::new(HookStorage::default()),
@@ -456,6 +458,26 @@ fn cached_ui_flags_require_game_thread_publication() {
         cached_direct_client_value(true, true, true, Some(true)),
         Ok(true)
     );
+}
+
+#[test]
+fn cached_chat_command_lookup_uses_exact_published_names() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+
+    assert_eq!(
+        state.local_chat_command_defined(b"sdk"),
+        Err(DirectClientError::NotReady)
+    );
+    *state.local_chat_input_commands.lock().unwrap() = Some(vec![b"sdk".to_vec()]);
+    state
+        .local_chat_input_commands_ready
+        .store(true, Ordering::Release);
+
+    assert_eq!(state.local_chat_command_defined(b"sdk"), Ok(true));
+    assert_eq!(state.local_chat_command_defined(b"SDK"), Ok(false));
 }
 
 #[test]

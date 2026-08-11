@@ -269,6 +269,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     local_player_ped_handle: handles::local_player_ped_handle,
     local_player_id_by_ped_handle: handles::local_player_id_by_ped_handle,
     submit_register_chat_command: chat_commands::submit_register_chat_command,
+    local_chat_command_defined: chat_input::local_chat_command_defined,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

@@ -301,8 +301,12 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, local_player_id_by_ped_handle) + function_size
     );
     assert_eq!(
-        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, local_chat_command_defined),
         mem::offset_of!(SampClientSdkApiV1, submit_register_chat_command) + function_size
+    );
+    assert_eq!(
+        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, local_chat_command_defined) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, raw_rakclient),

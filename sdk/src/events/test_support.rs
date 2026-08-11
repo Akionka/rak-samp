@@ -1519,6 +1519,22 @@ unsafe extern "system" fn test_submit_local_chat_input_process(
     unsafe { test_submit_command(receipt, 19) }
 }
 
+unsafe extern "system" fn test_local_chat_command_defined(
+    name: *const u8,
+    name_len: usize,
+    output: *mut u8,
+) -> SampClientSdkResult {
+    if name.is_null() || name_len == 0 || name_len > 32 || output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let name = unsafe { std::slice::from_raw_parts(name, name_len) };
+    if name.contains(&0) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { output.write(u8::from(name == b"sdk")) };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_submit_register_chat_command(
     name: *const u8,
     name_len: usize,

@@ -211,7 +211,7 @@ Tiers:
 | [x] | `sampGetChatInputText` | Safe owned/read | `ChatInput::text` |
 | [x] | `sampSetChatInputEnabled` | Queued mutation | `ChatInput::set_enabled` |
 | [x] | `sampIsChatInputActive` | Safe owned/read | `ChatInput::is_active` |
-| [ ] | `sampIsChatCommandDefined` | Safe owned/read | `ChatInput::is_command_defined` |
+| [x] | `sampIsChatCommandDefined` | Safe owned/read | `ChatInput::is_command_defined` |
 | [x] | `sampProcessChatInput` | Queued mutation | `ChatInput::process` |
 
 ### 3D labels (`label.lua`) — 7

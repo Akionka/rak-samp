@@ -6,6 +6,22 @@ use crate::{
 };
 
 impl HostApi {
+    /// Reports whether an exact bounded name is present in the cached R1 command table.
+    pub fn local_chat_command_defined(self, name: &[u8]) -> Result<bool, SampClientSdkResult> {
+        let mut defined = 0_u8;
+        let result = unsafe {
+            (self.raw.local_chat_command_defined)(name.as_ptr(), name.len(), &mut defined)
+        };
+        if result != SampClientSdkResult::Ok {
+            return Err(result);
+        }
+        match defined {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(SampClientSdkResult::NativeCallFailed),
+        }
+    }
+
     /// Copies and queues a R1 chat-input text update.
     pub fn submit_local_chat_input_text(
         self,
