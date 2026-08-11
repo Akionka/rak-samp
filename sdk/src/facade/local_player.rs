@@ -44,6 +44,10 @@ impl Local {
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_force_unoccupied_sync(vehicle.get(), seat)
     }
+    /// Queues the documented R1 aim synchronization send.
+    pub fn force_aim_sync(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_force_aim_sync()
+    }
 
     /// Queues the protocol-level class request without changing local class state.
     pub fn request_class(self, class_id: i32) -> Result<CommandReceipt<()>, SampClientSdkResult> {

@@ -866,6 +866,9 @@ impl Runtime {
     ) -> Result<CommandId, DirectClientError> {
         self.backend.submit_force_unoccupied_sync(vehicle, seat)
     }
+    pub(crate) fn submit_force_aim_sync(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_force_aim_sync()
+    }
 
     pub(crate) fn submit_send_rate(
         &self,

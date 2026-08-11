@@ -491,6 +491,7 @@ enum GameCommand {
         vehicle: u16,
         seat: i32,
     },
+    ForceAimSync,
     SetPlayerColour {
         id: u16,
         colour: u32,

@@ -900,6 +900,13 @@ impl BackendState {
         self.queue_game_command(GameCommand::ForceUnoccupiedSync { vehicle, seat })
     }
 
+    pub(super) fn submit_force_aim_sync(&self) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ForceAimSync)
+    }
+
     pub(super) fn submit_send_rate(
         &self,
         kind: u8,
@@ -1391,6 +1398,14 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .force_unoccupied_sync(vehicle, seat)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ForceAimSync => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .force_aim_sync()
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self

@@ -276,6 +276,12 @@ impl HostApi {
             unsafe { (self.raw.submit_force_unoccupied_sync)(vehicle, seat, &mut receipt) };
         self.command_receipt(result, receipt)
     }
+    /// Queues the documented R1 aim synchronization send.
+    pub fn submit_force_aim_sync(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe { (self.raw.submit_force_aim_sync)(&mut receipt) };
+        self.command_receipt(result, receipt)
+    }
 
     /// Queues one bounded R1 chat-history entry replacement.
     pub fn submit_local_chat_entry(

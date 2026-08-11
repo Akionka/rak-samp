@@ -598,5 +598,8 @@ mod tests {
             .unwrap();
         assert_eq!(unoccupied.id(), 23);
         assert_eq!(unoccupied.try_take(), Ok(Some(())));
+        let mut aim = samp.local().force_aim_sync().unwrap();
+        assert_eq!(aim.id(), 23);
+        assert_eq!(aim.try_take(), Ok(Some(())));
     }
 }

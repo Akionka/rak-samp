@@ -239,6 +239,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_player_colour: player_commands::submit_player_colour,
     submit_local_player_name: player_commands::submit_local_player_name,
     submit_force_unoccupied_sync,
+    submit_force_aim_sync,
     submit_connect_to_server: connection::submit_connect_to_server,
     submit_disconnect_with_reason: connection::submit_disconnect_with_reason,
     submit_delete_textdraw: textdraws::submit_delete_textdraw,
@@ -415,6 +416,15 @@ unsafe extern "system" fn submit_force_unoccupied_sync(
             runtime.submit_force_unoccupied_sync(vehicle, seat)
         })
     }
+}
+
+unsafe extern "system" fn submit_force_aim_sync(
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { submit_direct_command(receipt, |runtime| runtime.submit_force_aim_sync()) }
 }
 
 unsafe extern "system" fn submit_send_rate(
