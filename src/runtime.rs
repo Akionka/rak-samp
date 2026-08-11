@@ -883,6 +883,13 @@ impl Runtime {
         self.backend.submit_force_trailer_sync(trailer)
     }
 
+    pub(crate) fn submit_force_vehicle_sync(
+        &self,
+        vehicle: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_force_vehicle_sync(vehicle)
+    }
+
     pub(crate) fn submit_send_rate(
         &self,
         kind: u8,

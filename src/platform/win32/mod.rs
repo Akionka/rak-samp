@@ -497,6 +497,9 @@ enum GameCommand {
     ForceTrailerSync {
         trailer: u16,
     },
+    ForceVehicleSync {
+        vehicle: u16,
+    },
     SetPlayerColour {
         id: u16,
         colour: u32,

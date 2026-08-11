@@ -359,6 +359,30 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Updates R1 local in-car data and invokes `SCLocalPlayer::SendIncarData`
+    /// for one checked vehicle ID on the game thread.
+    pub(super) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {
+        if vehicle >= MAX_SAMP_VEHICLES {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_player = self.local_player_address()?;
+        let incar_vehicle = (local_player as usize
+            + LOCAL_PLAYER_INCAR_OFFSET
+            + INCAR_VEHICLE_ID_OFFSET) as *mut u16;
+        let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
+        if !writable_range(incar_vehicle.cast(), mem::size_of::<u16>())
+            || !writable_range(last_update.cast(), mem::size_of::<u32>())
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe { ptr::write_unaligned(incar_vehicle, vehicle) };
+        unsafe { ptr::write_unaligned(last_update, 0) };
+        let send: LocalPlayerSendIncarDataFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_INCAR_DATA_RVA) };
+        unsafe { send(local_player) };
+        Ok(())
+    }
+
     /// Invokes R1 `SCLocalPlayer::Spawn` on the game thread.
     pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
         let local_player = self.local_player_address()?;

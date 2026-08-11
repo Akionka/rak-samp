@@ -56,6 +56,7 @@ pub(super) type LocalPlayerSendAimDataFn = unsafe extern "thiscall" fn(*mut c_vo
 pub(super) type LocalPlayerSendOnfootDataFn = unsafe extern "thiscall" fn(*mut c_void);
 pub(super) type LocalPlayerSendStatsFn = unsafe extern "thiscall" fn(*mut c_void);
 pub(super) type LocalPlayerSendTrailerDataFn = unsafe extern "thiscall" fn(*mut c_void, u16);
+pub(super) type LocalPlayerSendIncarDataFn = unsafe extern "thiscall" fn(*mut c_void);
 pub(super) type GameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
 pub(super) type GameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
 pub(super) type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;

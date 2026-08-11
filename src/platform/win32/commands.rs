@@ -933,6 +933,20 @@ impl BackendState {
         self.queue_game_command(GameCommand::ForceTrailerSync { trailer })
     }
 
+    pub(super) fn submit_force_vehicle_sync(
+        &self,
+        vehicle: u16,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(vehicle) >= MAX_SAMP_VEHICLES
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ForceVehicleSync { vehicle })
+    }
+
     pub(super) fn submit_send_rate(
         &self,
         kind: u8,
@@ -1456,6 +1470,14 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .force_trailer_sync(trailer)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ForceVehicleSync { vehicle } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .force_vehicle_sync(vehicle)
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self

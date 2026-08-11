@@ -65,6 +65,14 @@ impl Local {
         self.api.submit_force_trailer_sync(trailer.get())
     }
 
+    /// Queues one documented R1 in-car synchronization send.
+    pub fn force_vehicle_sync(
+        self,
+        vehicle: VehicleId,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_force_vehicle_sync(vehicle.get())
+    }
+
     /// Queues the protocol-level class request without changing local class state.
     pub fn request_class(self, class_id: i32) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         Net::from_api(self.api).send_request_class(class_id)
