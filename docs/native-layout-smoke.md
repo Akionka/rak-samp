@@ -43,19 +43,36 @@ be inferred from a passing smoke status.
 
 ## Initial isolated attach observations (2026-08-12)
 
-These are partial observations from the release host in the isolated
-`C:\Games\GTASA-SDK-LIVE-TEST` root against `127.0.0.1:7777`. The test root
-used the pinned DLL for each launch; the regular `C:\Games\GTASA` installation
-was not changed. They prove only that the selected inline-hook RVAs can be
-installed and, where noted, invoked. They do **not** complete any checklist
-below: no packet/RPC send, bitstream lock/unlock, codec round-trip, reconnect,
-or hook-restoration test ran.
+These are observations from release hosts in isolated test roots against
+`127.0.0.1:7777`. Each root used the pinned DLL for its launch; the regular
+`C:\Games\GTASA` installation was not changed. The table summarizes the
+evidence below; none of these observations completes the broader layout,
+reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | Host attached; `CGame::Process`, RakClient constructor, and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`19` bytes, `152` bits). | Partial pass |
+| R3-1 | The corrected static `CGame::Process` hook entered, and the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`). | Partial pass: outbound/original-handler proof, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
+
+## R3-1 network smoke observation (2026-08-12)
+
+The pinned R3-1 `samp.dll` was installed only in
+`C:\Games\GTASA-SDK-R3-LIVE-TEST`. Its SHA-256 was
+`9C9B2CC31A4CED6967420B1880C096B5C4E7630E227AA379BE4019C21B6FDDC1`, and its
+PE entry-point RVA was independently read as `0x0CC4D0` before launch.
+
+The existing version-neutral network smoke registered self-blocking packet/RPC
+listeners, performed the native codec round trip, waited for a real inbound RPC
+to capture the receiver, then submitted one exact three-bit packet-emulation
+command. The host logged the R3 constructor target `0x03B57170`, the incoming
+RPC target `0x03B5A6A0`, game-tick entry, receiver capture, and successful
+game-command completion. The plugin recorded `status=0x0000007F`, `failure=0`.
+
+This proves the selected R3 network-only `AddressSet`—constructor and incoming
+RPC hooks, packet allocation, bitstream lock/unlock, string codec, and blocked
+exact-bit packet/RPC callbacks—on the pinned client. It sends no custom server
+traffic and does not prove outbound delivery or original-handler continuation.
 
 ## R5-1 network smoke observation (2026-08-12)
 
@@ -114,9 +131,9 @@ Pinned artifact: installed `samp.dll`, SHA-256
 Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
 `9C9B2CC31A4CED6967420B1880C096B5C4E7630E227AA379BE4019C21B6FDDC1`.
 
-- [ ] Confirm the PE entry-point RVA is `0x0CC4D0` and the logged fingerprint
+- [x] Confirm the PE entry-point RVA is `0x0CC4D0` and the recorded fingerprint
   matches the pinned hash.
-- [ ] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
+- [x] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
   packet allocation, bitstream lock/unlock, and string codec round-trip.
 - [ ] Prove the profile's `CNetGame`, `CInput`, and `CDialog` values against
   the fixture before enabling any helper that consumes them.

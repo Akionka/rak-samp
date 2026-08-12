@@ -519,8 +519,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 
 | Capability | R1 | R3-1 | R5-1 | DL | Evidence / required validation |
 | --- | --- | --- | --- | --- | --- |
-| `samp.dll` entry point | [x] `0x31DF13` | [ ] `0x0CC4D0` | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
-| Network `AddressSet` selection | [x] | [ ] live verify | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
+| `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
+| Network `AddressSet` selection | [x] | [x] R3 smoke | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
 | Native profile selected after build detection | [x] `NativeProfile::R1` | [ ] `R3ClientProfile` | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
 | Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
 | Dialog-close hook target | [x] | [ ] profile RVA + ABI | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
@@ -545,14 +545,14 @@ or the live object pointer is safe; those checks remain required below.
 
 | Address / use | R1 | R3-1 | R5-1 | DL | Evidence / validation |
 | --- | --- | --- | --- | --- | --- |
-| Incoming RPC handler | [x] `0x372F0` | [ ] `0x3A6A0` | [ ] `0x3ADE0` | [ ] `0x3A8A0` | `src/client.rs`; MinHook/trampoline RPC smoke |
-| RakClient constructor | [x] `0x33DC0` | [ ] `0x37170` | [ ] `0x378B0` | [ ] `0x37370` | `src/client.rs`; constructor/vtable capture smoke |
-| Allocate packet | [x] `0x347E0` | [ ] `0x37B90` | [ ] `0x382D0` | [ ] `0x37D90` | `src/client.rs`; incoming packet emulation smoke |
-| Bitstream write lock | [x] `0x35B10` | [ ] `0x38EC0` | [ ] `0x39600` | [ ] `0x390C0` | `src/client.rs`; exact-bit send smoke |
-| Bitstream write unlock | [x] `0x35B50` | [ ] `0x38F00` | [ ] `0x39640` | [ ] `0x39100` | `src/client.rs`; exact-bit send smoke |
-| String encode | [x] `0x506B0` | [ ] `0x53A60` | [ ] `0x541A0` | [ ] `0x53C60` | SF.lua for R1/R3/R5; codec round-trip |
-| String decode | [x] `0x507E0` | [ ] `0x53B90` | [ ] `0x542D0` | [ ] `0x53D90` | SF.lua for R1/R3/R5; codec round-trip |
-| String-compressor pointer | [x] `0x10D894` | [ ] `0x121914` | [ ] `0x121A3C` | [ ] `0x15FA54` | Static `StringCompressor::Instance()` cross-check; validate the live object/range before codec call |
+| Incoming RPC handler | [x] `0x372F0` | [x] `0x3A6A0`; R3 smoke | [ ] `0x3ADE0` | [ ] `0x3A8A0` | `src/client.rs`; MinHook/trampoline RPC smoke |
+| RakClient constructor | [x] `0x33DC0` | [x] `0x37170`; R3 smoke | [ ] `0x378B0` | [ ] `0x37370` | `src/client.rs`; constructor/vtable capture smoke |
+| Allocate packet | [x] `0x347E0` | [x] `0x37B90`; R3 smoke | [ ] `0x382D0` | [ ] `0x37D90` | `src/client.rs`; incoming packet emulation smoke |
+| Bitstream write lock | [x] `0x35B10` | [x] `0x38EC0`; R3 smoke | [ ] `0x39600` | [ ] `0x390C0` | `src/client.rs`; exact-bit send smoke |
+| Bitstream write unlock | [x] `0x35B50` | [x] `0x38F00`; R3 smoke | [ ] `0x39640` | [ ] `0x39100` | `src/client.rs`; exact-bit send smoke |
+| String encode | [x] `0x506B0` | [x] `0x53A60`; R3 smoke | [ ] `0x541A0` | [ ] `0x53C60` | SF.lua for R1/R3/R5; codec round-trip |
+| String decode | [x] `0x507E0` | [x] `0x53B90`; R3 smoke | [ ] `0x542D0` | [ ] `0x53D90` | SF.lua for R1/R3/R5; codec round-trip |
+| String-compressor pointer | [x] `0x10D894` | [x] `0x121914`; R3 smoke | [ ] `0x121A3C` | [ ] `0x15FA54` | Static `StringCompressor::Instance()` cross-check; validate the live object/range before codec call |
 
 ### Native singleton and method RVAs
 
