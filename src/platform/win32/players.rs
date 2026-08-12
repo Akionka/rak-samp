@@ -75,7 +75,7 @@ impl BackendState {
     }
 
     pub(super) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
@@ -90,7 +90,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
@@ -136,7 +136,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -165,7 +165,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<Vector3>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -192,7 +192,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -219,7 +219,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -246,7 +246,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -273,7 +273,7 @@ impl BackendState {
         &self,
         id: u16,
     ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -296,7 +296,7 @@ impl BackendState {
         }
     }
     pub(super) fn aim_sync(&self, id: u16) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
-        if self.r1_client.is_none()
+        if self.r1_client().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || !self.cache_is_published()
             || usize::from(id) >= MAX_SAMP_PLAYERS
@@ -325,7 +325,7 @@ impl BackendState {
     }
 
     pub(super) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -343,7 +343,7 @@ impl BackendState {
     }
 
     pub(super) fn player_max_id(&self) -> Result<u16, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0

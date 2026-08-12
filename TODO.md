@@ -506,7 +506,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 | --- | --- | --- | --- | --- | --- |
 | `samp.dll` entry point | [x] `0x31DF13` | [ ] `0x0CC4D0` | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
 | Network `AddressSet` selection | [x] | [ ] live verify | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `R1ClientProfile` | [ ] `R3ClientProfile` | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [ ] `R3ClientProfile` | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
 | Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
 | Dialog-close hook target | [x] | [ ] profile RVA + ABI | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
 | RakClient vtable contract | [x] | [ ] verify slots/ABI | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
@@ -645,7 +645,7 @@ known.
 
 | Task | R1 | R3-1 | R5-1 | DL | Required proof |
 | --- | --- | --- | --- | --- | --- |
-| Replace R1-only field with a version-neutral native-profile dispatch boundary | [ ] preserve behavior | [ ] | [ ] | [ ] | Existing R1 tests unchanged; non-R1 remains gated |
+| Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] remains gated | [x] remains gated | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no non-R1 direct helper enabled |
 | Network observe/send, codec, packet/RPC emulation | [x] | [ ] | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
 | Lifecycle/version/status and raw module base | [x] | [ ] | [ ] | [ ] | Attachment/version identity test |
 | Cached game/server/local-player scalars | [x] | [ ] | [ ] | [ ] | Profile fixture and game-thread publication test |

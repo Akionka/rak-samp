@@ -29,6 +29,10 @@ unsafe extern "thiscall" fn fake_game_process(_game: *mut c_void) {
     GAME_PROCESS_CALLS.fetch_add(1, Ordering::AcqRel);
 }
 
+fn r1_native_profile() -> Option<NativeProfile> {
+    R1ClientProfile::verify(0x10000, SampVersion::R1.entry_point()).map(NativeProfile::R1)
+}
+
 fn test_backend_state() -> BackendState {
     BackendState {
         context: BackendContext {
@@ -36,7 +40,7 @@ fn test_backend_state() -> BackendState {
             module_base: 0,
             version: SampVersion::R1,
             addresses: AddressSet::for_version(SampVersion::R1),
-            r1_client: None,
+            native_profile: None,
         },
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
@@ -167,7 +171,7 @@ fn test_dialog(id: u16) -> LocalDialogRequest {
 #[test]
 fn dialog_response_take_is_one_shot() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(1, Ordering::Release);
     *state
         .local_dialog_response
@@ -337,7 +341,7 @@ fn direct_helpers_are_unsupported_without_the_r1_profile() {
 #[test]
 fn handle_reads_are_deduplicated_queued_and_published_per_pump() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -368,7 +372,7 @@ fn handle_reads_are_deduplicated_queued_and_published_per_pump() {
 #[test]
 fn handle_reverse_requests_are_deduplicated() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -442,7 +446,7 @@ fn handle_caches_are_cleared_across_connection_boundaries() {
 #[test]
 fn dialog_editbox_text_command_is_bounded_and_queued() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     let mut oversized = vec![b'x'; 129];
     oversized.push(0);
@@ -510,7 +514,7 @@ fn cached_ui_flags_require_game_thread_publication() {
 #[test]
 fn cached_chat_command_lookup_uses_exact_published_names() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -584,7 +588,7 @@ fn typed_text_label_receipt_returns_the_game_thread_selected_id() {
 #[test]
 fn text_label_text_update_copies_nonempty_text_into_the_game_command() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
 
     let mut text = b"updated".to_vec();
@@ -830,7 +834,7 @@ fn remote_player_state_requests_are_bounded_deduplicated_and_pump_limited() {
 #[test]
 fn streamed_out_player_position_reads_owned_cache_and_queues_a_refresh() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -993,7 +997,7 @@ fn vehicle_exists_requests_are_bounded_deduplicated_and_pump_limited() {
 #[test]
 fn onfoot_sync_reads_owned_cache_and_queues_a_refresh() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -1060,7 +1064,7 @@ fn onfoot_sync_requests_are_bounded_deduplicated_and_pump_limited() {
 #[test]
 fn incar_sync_reads_owned_cache_and_queues_a_refresh() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -1125,7 +1129,7 @@ fn incar_sync_requests_are_bounded_deduplicated_and_pump_limited() {
 #[test]
 fn passenger_sync_reads_owned_cache_and_queues_a_refresh() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -1285,7 +1289,7 @@ fn chat_entry_requests_are_bounded_deduplicated_and_pump_limited() {
 #[test]
 fn chat_entry_reads_queue_unknown_and_return_published_snapshot() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -1378,7 +1382,7 @@ fn contended_request_drain_preserves_the_queue() {
 #[test]
 fn contended_direct_cache_read_returns_busy() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
     let _guard = state.player_info_cache.lock().unwrap();
@@ -1389,7 +1393,7 @@ fn contended_direct_cache_read_returns_busy() {
 #[test]
 fn known_direct_cache_value_survives_refresh_queue_contention() {
     let mut state = test_backend_state();
-    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.context.native_profile = r1_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
     let expected = player_info_from_local(&test_snapshot(7));

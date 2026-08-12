@@ -10,6 +10,7 @@ mod gangzones;
 mod handles;
 mod hooks;
 mod native_bitstream;
+mod native_profile;
 mod objects;
 mod packets;
 mod players;
@@ -41,6 +42,7 @@ use hooks::{HookStorage, InlineHook, VtableHook};
 #[cfg(test)]
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
+use native_profile::NativeProfile;
 use r1_client::R1ClientProfile;
 use std::{
     collections::{HashMap, VecDeque},
@@ -175,7 +177,16 @@ struct BackendContext {
     module_base: usize,
     version: SampVersion,
     addresses: AddressSet,
-    r1_client: Option<R1ClientProfile>,
+    native_profile: Option<NativeProfile>,
+}
+
+impl BackendContext {
+    /// Extracts the existing R1 implementation from the version-selected
+    /// native-profile boundary. This keeps every fixed R1 layout call gated
+    /// until the corresponding build-specific implementation exists.
+    fn r1_client(&self) -> Option<R1ClientProfile> {
+        self.native_profile.and_then(NativeProfile::as_r1)
+    }
 }
 
 struct BackendState {
@@ -568,8 +579,8 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let version = SampVersion::from_entry_point(entry_point)
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
-    let r1_client = R1ClientProfile::verify(module_base, entry_point);
-    if r1_client.is_some() {
+    let native_profile = NativeProfile::select(module_base, version, entry_point);
+    if native_profile.is_some() {
         log::info!("direct R1 client helpers are enabled with fixed offsets");
     }
 
@@ -585,7 +596,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             module_base,
             version,
             addresses,
-            r1_client,
+            native_profile,
         },
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
@@ -778,7 +789,7 @@ impl BackendState {
     }
 
     fn install_dialog_close_hook(&self) -> Result<(), AttachError> {
-        let Some(profile) = self.r1_client else {
+        let Some(profile) = self.r1_client() else {
             return Ok(());
         };
         let (mut detour, trampoline) = InlineHook::create(
@@ -888,7 +899,7 @@ impl BackendState {
     /// is running remain owned by the following tick.
     fn pump_game_tick(&self, commands: Vec<QueuedCommand<GameCommand>>) {
         self.execute_game_commands(commands);
-        let Some(profile) = self.r1_client else {
+        let Some(profile) = self.r1_client() else {
             return;
         };
         // Odd generations are in-flight. Readers only observe the next even

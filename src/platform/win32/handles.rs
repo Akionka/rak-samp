@@ -120,7 +120,7 @@ impl BackendState {
         queue_capacity: usize,
         client_available: bool,
     ) -> Result<Option<i32>, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if index >= maximum || !client_available || !self.cache_is_published() {
@@ -150,7 +150,7 @@ impl BackendState {
         queue_capacity: usize,
         client_available: bool,
     ) -> Result<Option<u16>, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if !client_available || !self.cache_is_published() {

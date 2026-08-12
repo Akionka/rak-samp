@@ -369,7 +369,7 @@ pub(super) unsafe extern "thiscall" fn dialog_close_detour(dialog: *mut c_void, 
 
 impl BackendState {
     fn capture_dialog_response(&self, dialog: *mut c_void, button: u8) {
-        let Some(profile) = self.r1_client else {
+        let Some(profile) = self.r1_client() else {
             return;
         };
         let Ok(Some(response)) = profile.dialog_response_on_close(dialog, button) else {

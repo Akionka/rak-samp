@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 
 impl BackendState {
     pub(super) fn vehicle_exists(&self, id: u16) -> Result<bool, DirectClientError> {
-        if self.r1_client.is_none() {
+        if self.r1_client().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
