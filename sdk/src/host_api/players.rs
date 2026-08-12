@@ -40,7 +40,7 @@ impl HostApi {
             result => Err(result),
         }
     }
-    /// Returns the latest cached R1 player-pool count.
+    /// Returns the latest cached supported player-pool count.
     pub fn player_count(self, include_npcs: bool) -> Result<u16, SampClientSdkResult> {
         let mut count = 0;
         match unsafe { (self.raw.player_count)(u8::from(include_npcs), &mut count) } {
@@ -48,7 +48,7 @@ impl HostApi {
             result => Err(result),
         }
     }
-    /// Returns the latest cached R1 non-streamed player maximum ID.
+    /// Returns the latest cached supported player-pool largest ID.
     pub fn player_max_id(self) -> Result<u16, SampClientSdkResult> {
         let mut id = 0;
         match unsafe { (self.raw.player_max_id)(&mut id) } {

@@ -145,7 +145,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_count(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_player_count(&self, profile: NativeProfile) {
         match profile.player_counts() {
             Ok((including_npcs, excluding_npcs)) => {
                 self.player_count_including_npcs
@@ -158,7 +158,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_max_id(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_player_max_id(&self, profile: NativeProfile) {
         match profile.player_max_id() {
             Ok(id) => {
                 self.player_max_id.store(i32::from(id), Ordering::Release);

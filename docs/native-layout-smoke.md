@@ -107,9 +107,9 @@ incoming callback; the operator visually confirmed the green
 
 This validates the R3 CNetGame singleton slot plus every field consumed by the
 new read-only scalar slice. The native host field is deliberately not claimed
-to be the server-config display hostname. Except for the narrow read-only
-chat-input and dialog-active caches below, broader R3 UI, remote-player, pool,
-handle, raw, and mutation helpers remain unsupported.
+to be the server-config display hostname. Except for the narrow player-pool,
+chat-input, and dialog-active caches below, broader R3 UI, remote-player,
+pool-directory, handle, raw, and mutation helpers remain unsupported.
 
 ## R3-1 local-player cache observation (2026-08-12)
 
@@ -127,6 +127,22 @@ operator visually confirmed the green `R3_SDK_INCOMING_20260812` message.
 This enables only the copied local-player snapshot. R3 raw player addresses,
 pool/entity directory reads, sync snapshots, broader UI helpers, and
 local-player mutations remain unsupported.
+
+## R3-1 player-pool scalar observation (2026-08-12)
+
+The same isolated client and disposable loopback produced `status=0x00001FFF`,
+`failure=0` after the game-thread cache published public
+`Samp::players().count(true)`, `count(false)`, and `max_id()` values. The
+single-player session recorded `0`, `0`, and `Some(0)`: `GetCount` enumerates
+remote `CPlayerPool` records and deliberately excludes the local player, while
+the largest-ID scalar still identifies the local ID.
+
+The independent fixture pins the packed R3 `CPlayerPool` size `0x2F3E`,
+`m_nLargestId` at `0x00`, and the `CPlayerInfo` NPC flag at `0x28`. The pinned
+image's `0x13670` entry was checked before the native `__thiscall` invocation.
+This enables only copied count and largest-ID scalars; remote-player records,
+player directory reads, raw pool addresses, handles, and every mutation remain
+unsupported.
 
 ## R3-1 chat-input cache observation (2026-08-12)
 
@@ -153,7 +169,11 @@ every UI mutation remain R1-only.
 The same probe first completed the chat-input active/name/text check, then submitted its bounded
 `R3_SDK_DIALOG_REQUEST_20260812` loopback marker. The disposable server logged
 `R3_DIALOG_SENT playerid=0` and displayed a normal SA-MP message-box dialog.
-With that dialog left open, the probe recorded `status=0x00000FFF`,
+`failure=0` after `Samp::dialogs().is_active()` observed true from the
+game-thread cache.
+With that dialog left open, the probe recorded `status=0x00001FFF`,
+`failure=0` after `Samp::dialogs().is_active()` observed true from the
+game-thread cache, including the player-pool scalar stage above.
 `failure=0` after `Samp::dialogs().is_active()` observed true from the
 game-thread cache.
 

@@ -56,6 +56,8 @@ pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
 pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
 /// The R3 cached local-player snapshot passed bounded sanity checks.
 pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
+/// The R3 cached player-pool count pair and largest ID matched the loopback session.
+pub const STATUS_PLAYER_POOL_SCALARS: u32 = 1 << 12;
 /// The R3 cached chat-input active flag and command names passed the live check.
 pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 /// The R3 cached dialog active flag observed the disposable server dialog.
@@ -80,6 +82,7 @@ static INITIALIZATION_FINISHED: Condvar = Condvar::new();
 static STATUS: AtomicU32 = AtomicU32::new(0);
 static FAILURE: AtomicU32 = AtomicU32::new(SampClientSdkResult::Ok as u32);
 static SCALAR_OBSERVATION: Mutex<Option<ScalarObservation>> = Mutex::new(None);
+static PLAYER_POOL_OBSERVATION: Mutex<Option<PlayerPoolObservation>> = Mutex::new(None);
 
 struct PluginState {
     subscription: Option<Subscription>,
@@ -93,6 +96,13 @@ struct ScalarObservation {
     address: Vec<u8>,
     hostname: Vec<u8>,
     port: u16,
+}
+
+/// The copied player-pool values observed only by this opt-in local probe.
+struct PlayerPoolObservation {
+    including_npcs: u16,
+    excluding_npcs: u16,
+    max_id: Option<u16>,
 }
 
 impl PluginState {
@@ -129,6 +139,9 @@ unsafe extern "system" fn DllMain(
             STATUS.store(0, Ordering::Release);
             FAILURE.store(SampClientSdkResult::Ok as u32, Ordering::Release);
             *SCALAR_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = None;
+            *PLAYER_POOL_OBSERVATION
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = None;
             STATE
@@ -214,6 +227,9 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     publish_status();
     verify_cached_local_player(samp)?;
     STATUS.fetch_or(STATUS_LOCAL_PLAYER_SNAPSHOT, Ordering::AcqRel);
+    publish_status();
+    verify_cached_player_pool_scalars(samp)?;
+    STATUS.fetch_or(STATUS_PLAYER_POOL_SCALARS, Ordering::AcqRel);
     publish_status();
 
     let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
@@ -331,6 +347,43 @@ fn local_player_snapshot_is_valid(player: &samp_client_sdk::LocalPlayer) -> bool
         && player.velocity.y.is_finite()
         && player.velocity.z.is_finite()
         && player.vehicle_id.is_none_or(|id| id < 2000)
+}
+
+fn verify_cached_player_pool_scalars(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match (
+            samp.players().count(true),
+            samp.players().count(false),
+            samp.players().max_id(),
+        ) {
+            (Ok(including_npcs), Ok(excluding_npcs), Ok(max_id)) => {
+                let max_id = max_id.map(|id| id.get());
+                *PLAYER_POOL_OBSERVATION
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = Some(PlayerPoolObservation {
+                    including_npcs,
+                    excluding_npcs,
+                    max_id,
+                });
+                if (including_npcs, excluding_npcs, max_id) == (0, 0, Some(0)) {
+                    return Ok(());
+                }
+                return Err(SampClientSdkResult::NativeCallFailed);
+            }
+            (Err(SampClientSdkResult::NotReady), _, _)
+            | (_, Err(SampClientSdkResult::NotReady), _)
+            | (_, _, Err(SampClientSdkResult::NotReady)) => {}
+            (Err(error), _, _) | (_, Err(error), _) | (_, _, Err(error)) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
 }
 
 fn verify_cached_chat_input(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -547,11 +600,20 @@ fn publish_status() {
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .as_ref(),
+            PLAYER_POOL_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .as_ref(),
         ),
     );
 }
 
-fn status_record(status: u32, failure: u32, scalar: Option<&ScalarObservation>) -> String {
+fn status_record(
+    status: u32,
+    failure: u32,
+    scalar: Option<&ScalarObservation>,
+    player_pool: Option<&PlayerPoolObservation>,
+) -> String {
     let mut record = format!("status=0x{status:08X}\nfailure={failure}\n");
     if let Some(scalar) = scalar {
         use std::fmt::Write;
@@ -560,6 +622,21 @@ fn status_record(status: u32, failure: u32, scalar: Option<&ScalarObservation>) 
         let _ = writeln!(record, "address_hex={}", hex(&scalar.address));
         let _ = writeln!(record, "hostname_hex={}", hex(&scalar.hostname));
         let _ = writeln!(record, "port={}", scalar.port);
+    }
+    if let Some(player_pool) = player_pool {
+        use std::fmt::Write;
+
+        let _ = writeln!(
+            record,
+            "player_count_including_npcs={}",
+            player_pool.including_npcs
+        );
+        let _ = writeln!(
+            record,
+            "player_count_excluding_npcs={}",
+            player_pool.excluding_npcs
+        );
+        let _ = writeln!(record, "player_max_id={:?}", player_pool.max_id);
     }
     record
 }
@@ -599,7 +676,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success after text and dialog confirmation is `0xFFF`.
+/// Returns the probe stage bitset; success after the scalar, text, and dialog checks is `0x1FFF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)
@@ -618,7 +695,12 @@ mod tests {
     #[test]
     fn status_record_is_bounded_and_machine_readable() {
         assert_eq!(
-            status_record(STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT, 0, None),
+            status_record(
+                STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT,
+                0,
+                None,
+                None
+            ),
             "status=0x00000011\nfailure=0\n"
         );
     }

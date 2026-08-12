@@ -18,7 +18,7 @@ The ASI writes `samp-client-sdk-r3-network-probe.status` in the GTA working
 directory:
 
 ```text
-status=0x00000FFF
+status=0x00001FFF
 failure=0
 game_state=6
 address_hex=3132372E302E302E31
@@ -26,10 +26,13 @@ hostname_hex=53412D4D50
 port=7777
 ```
 
-`0xFFF` also proves the public ready/version APIs and the SDK's opaque module
+`0x1FFF` also proves the public ready/version APIs and the SDK's opaque module
 base identify the R3-1 PE entry point, and that the R3 scalar cache reports its
 R3 `AwaitingJoin` state (`6`), loopback address/port, and native `CNetGame`
-host field (`SA-MP`). It additionally proves that the public local-player
+host field (`SA-MP`), then verifies the public player-pool count (with and
+without NPCs) and largest ID as `0`, `0`, and `0` for the single-player
+loopback session: the local player is not an entry in `CPlayerPool::GetCount`.
+It additionally proves that the public local-player
 snapshot is spawned, bounded, and contains finite spatial and health values before it
 proves listener registration, inbound readiness, successful outbound receipt,
 and the matching incoming reply callback. The probe then waits for an operator

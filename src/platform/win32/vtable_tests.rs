@@ -549,6 +549,31 @@ fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
 }
 
 #[test]
+fn r3_player_pool_scalars_use_exact_published_values() {
+    let mut state = test_backend_state();
+    state.context.native_profile = r3_scalar_profile();
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+
+    assert_eq!(state.player_count(true), Err(DirectClientError::NotReady));
+    assert_eq!(state.player_max_id(), Err(DirectClientError::NotReady));
+
+    state
+        .player_count_including_npcs
+        .store(3, Ordering::Release);
+    state
+        .player_count_excluding_npcs
+        .store(2, Ordering::Release);
+    state.player_count_ready.store(true, Ordering::Release);
+    state.player_max_id.store(42, Ordering::Release);
+    state.player_max_id_ready.store(true, Ordering::Release);
+
+    assert_eq!(state.player_count(true), Ok(3));
+    assert_eq!(state.player_count(false), Ok(2));
+    assert_eq!(state.player_max_id(), Ok(42));
+}
+
+#[test]
 fn cached_chat_display_mode_requires_game_thread_publication() {
     assert_eq!(
         cached_direct_client_value(true, true, true, None::<i32>),

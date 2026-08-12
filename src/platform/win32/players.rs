@@ -325,7 +325,7 @@ impl BackendState {
     }
 
     pub(super) fn player_count(&self, include_npcs: bool) -> Result<u16, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -343,7 +343,7 @@ impl BackendState {
     }
 
     pub(super) fn player_max_id(&self) -> Result<u16, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0

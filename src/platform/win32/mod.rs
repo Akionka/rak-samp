@@ -928,6 +928,8 @@ impl BackendState {
         self.refresh_server_info_snapshot(scalar_profile);
         if matches!(scalar_profile, NativeProfile::R3Scalars(_)) {
             self.refresh_r3_local_player_snapshot(scalar_profile);
+            self.refresh_player_count(scalar_profile);
+            self.refresh_player_max_id(scalar_profile);
             self.refresh_local_dialog_active(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
             self.refresh_local_chat_input_text(scalar_profile);
@@ -958,8 +960,8 @@ impl BackendState {
         self.refresh_passenger_sync(profile);
         self.refresh_trailer_sync(profile);
         self.refresh_aim_sync(profile);
-        self.refresh_player_count(profile);
-        self.refresh_player_max_id(profile);
+        self.refresh_player_count(scalar_profile);
+        self.refresh_player_max_id(scalar_profile);
         self.refresh_vehicle_exists(profile);
         self.refresh_text_label_exists(profile);
         self.refresh_text_labels(profile);

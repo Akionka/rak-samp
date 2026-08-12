@@ -74,6 +74,22 @@ impl NativeProfile {
         }
     }
 
+    /// Reads the copied player-pool count pair available on this profile.
+    pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.player_counts(),
+            Self::R3Scalars(profile) => profile.player_counts(),
+        }
+    }
+
+    /// Reads the copied player-pool largest ID available on this profile.
+    pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.player_max_id(),
+            Self::R3Scalars(profile) => profile.player_max_id(),
+        }
+    }
+
     /// Reads the copied chat-input enabled flag available on this profile.
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
         match self {

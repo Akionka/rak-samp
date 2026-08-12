@@ -21,12 +21,14 @@ const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 const NET_GAME_SCALAR_READABLE_SIZE: usize = NET_GAME_GAME_STATE_OFFSET + mem::size_of::<i32>();
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
+const PLAYER_POOL_GET_COUNT_RVA: usize = 0x13670;
 const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6E140;
 const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6E150;
 const PLAYER_POOL_GET_NAME_RVA: usize = 0x16F00;
 const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3DA0;
 const PED_GET_HEALTH_RVA: usize = 0xAB4C0;
 const PED_GET_ARMOUR_RVA: usize = 0xAB500;
+const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x2F1C;
 const LOCAL_PLAYER_INCAR_OFFSET: usize = 0x04;
 const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x98;
@@ -58,6 +60,7 @@ const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
+type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
 type PlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
@@ -219,6 +222,20 @@ impl R3ClientProfile {
         })
     }
 
+    /// Copies both R3-1 `CPlayerPool::GetCount` modes on the game thread.
+    pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
+        let pool = self.player_pool()?;
+        let get_count: PlayerPoolGetCountFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_COUNT_RVA) };
+        copy_player_counts(pool, get_count)
+    }
+
+    /// Copies the R3-1 player-pool largest ID from its verified prefix.
+    pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
+        let pool = self.player_pool()?;
+        copy_player_max_id(pool)
+    }
+
     /// Copies the R3-1 chat-input enabled flag without invoking its UI methods.
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
         let input = self.input().ok_or(DirectClientError::NotReady)?;
@@ -331,6 +348,30 @@ fn copy_chat_input_text(
         .ok_or(DirectClientError::NotReady)
 }
 
+fn copy_player_counts(
+    pool: *mut c_void,
+    get_count: PlayerPoolGetCountFn,
+) -> Result<(u16, u16), DirectClientError> {
+    let including_npcs = unsafe { get_count(pool, 1) };
+    let excluding_npcs = unsafe { get_count(pool, 0) };
+    let including_npcs = u16::try_from(including_npcs)
+        .ok()
+        .filter(|count| *count <= MAX_SAMP_PLAYERS)
+        .ok_or(DirectClientError::NotReady)?;
+    let excluding_npcs = u16::try_from(excluding_npcs)
+        .ok()
+        .filter(|count| *count <= including_npcs)
+        .ok_or(DirectClientError::NotReady)?;
+    Ok((including_npcs, excluding_npcs))
+}
+
+fn copy_player_max_id(pool: *mut c_void) -> Result<u16, DirectClientError> {
+    unsafe { read_unaligned::<i32>(pool as usize + PLAYER_POOL_LARGEST_ID_OFFSET) }
+        .and_then(|id| u16::try_from(id).ok())
+        .filter(|id| *id < MAX_SAMP_PLAYERS)
+        .ok_or(DirectClientError::NotReady)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -440,6 +481,61 @@ mod tests {
 
     unsafe extern "thiscall" fn fake_editbox_get_text(_editbox: *mut c_void) -> *const u8 {
         c"/r3".as_ptr().cast()
+    }
+
+    unsafe extern "thiscall" fn fake_player_pool_get_count(
+        _pool: *mut c_void,
+        include_npcs: i32,
+    ) -> i32 {
+        if include_npcs == 1 { 3 } else { 2 }
+    }
+
+    unsafe extern "thiscall" fn fake_player_pool_get_invalid_count(
+        _pool: *mut c_void,
+        _include_npcs: i32,
+    ) -> i32 {
+        1005
+    }
+
+    #[test]
+    fn copies_validated_r3_player_pool_scalars() {
+        let mut pool = vec![0_u8; PLAYER_POOL_LOCAL_ID_OFFSET + mem::size_of::<u16>()];
+        unsafe {
+            ptr::write_unaligned(
+                pool.as_mut_ptr()
+                    .add(PLAYER_POOL_LARGEST_ID_OFFSET)
+                    .cast::<i32>(),
+                42,
+            );
+        }
+
+        assert_eq!(
+            copy_player_counts(pool.as_mut_ptr().cast(), fake_player_pool_get_count),
+            Ok((3, 2))
+        );
+        assert_eq!(copy_player_max_id(pool.as_mut_ptr().cast()), Ok(42));
+    }
+
+    #[test]
+    fn rejects_invalid_r3_player_pool_scalars() {
+        let mut pool = vec![0_u8; PLAYER_POOL_LOCAL_ID_OFFSET + mem::size_of::<u16>()];
+        unsafe {
+            ptr::write_unaligned(
+                pool.as_mut_ptr()
+                    .add(PLAYER_POOL_LARGEST_ID_OFFSET)
+                    .cast::<i32>(),
+                i32::from(MAX_SAMP_PLAYERS),
+            );
+        }
+
+        assert_eq!(
+            copy_player_counts(pool.as_mut_ptr().cast(), fake_player_pool_get_invalid_count,),
+            Err(DirectClientError::NotReady)
+        );
+        assert_eq!(
+            copy_player_max_id(pool.as_mut_ptr().cast()),
+            Err(DirectClientError::NotReady)
+        );
     }
 
     #[test]

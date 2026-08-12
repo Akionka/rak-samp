@@ -469,14 +469,32 @@ struct FixtureR3_1NetGame {
     void* pools;
 };
 
-struct FixtureR3_1PlayerPoolPrefix {
+struct FixtureR3_1String {
+    std::uint8_t storage[0x18];
+};
+
+struct FixtureR3_1PlayerInfo {
+    void* player;
+    std::int32_t ping;
+    std::int32_t align;
+    FixtureR3_1String nickname;
+    std::int32_t score;
+    std::int32_t is_npc;
+};
+
+struct FixtureR3_1PlayerPool {
     std::int32_t largest_id;
-    void* objects[1004];
+    FixtureR3_1PlayerInfo* objects[1004];
     std::int32_t not_empty[1004];
     std::int32_t previous_collision[1004];
-    std::int32_t local_ping;
-    std::int32_t local_score;
-    std::uint16_t local_id;
+    struct {
+        std::int32_t ping;
+        std::int32_t score;
+        std::uint16_t id;
+        std::int32_t align;
+        FixtureR3_1String name;
+        void* player;
+    } local_info;
 };
 
 struct FixtureR3_1LocalPlayerPrefix {
@@ -752,8 +770,17 @@ static_assert(offsetof(FixtureR3_1NetGame, hostname) == 0x131);
 static_assert(offsetof(FixtureR3_1NetGame, port) == 0x235);
 static_assert(offsetof(FixtureR3_1NetGame, game_state) == 0x3CD);
 static_assert(offsetof(FixtureR3_1NetGame, pools) == 0x3DE);
-static_assert(sizeof(FixtureR3_1PlayerPoolPrefix) == 0x2F1E);
-static_assert(offsetof(FixtureR3_1PlayerPoolPrefix, local_id) == 0x2F1C);
+static_assert(sizeof(FixtureR3_1String) == 0x18);
+static_assert(sizeof(FixtureR3_1PlayerInfo) == 0x2C);
+static_assert(offsetof(FixtureR3_1PlayerInfo, is_npc) == 0x28);
+static_assert(sizeof(FixtureR3_1PlayerPool) == 0x2F3E);
+static_assert(offsetof(FixtureR3_1PlayerPool, largest_id) == 0x00);
+static_assert(offsetof(FixtureR3_1PlayerPool, objects) == 0x04);
+static_assert(offsetof(FixtureR3_1PlayerPool, not_empty) == 0x0FB4);
+static_assert(offsetof(FixtureR3_1PlayerPool, previous_collision) == 0x1F64);
+static_assert(offsetof(FixtureR3_1PlayerPool, local_info.ping) == 0x2F14);
+static_assert(offsetof(FixtureR3_1PlayerPool, local_info.score) == 0x2F18);
+static_assert(offsetof(FixtureR3_1PlayerPool, local_info.id) == 0x2F1C);
 static_assert(sizeof(FixtureR3_1LocalPlayerPrefix) == 0xFE);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, incar) == 0x04);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, onfoot) == 0x98);
@@ -1277,7 +1304,23 @@ std::size_t samp_client_sdk_fixture_r3_1_netgame_pools_offset() {
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_player_pool_local_id_offset() {
-    return offsetof(FixtureR3_1PlayerPoolPrefix, local_id);
+    return offsetof(FixtureR3_1PlayerPool, local_info.id);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_player_pool_size() {
+    return sizeof(FixtureR3_1PlayerPool);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_player_pool_largest_id_offset() {
+    return offsetof(FixtureR3_1PlayerPool, largest_id);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_player_info_size() {
+    return sizeof(FixtureR3_1PlayerInfo);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_player_info_is_npc_offset() {
+    return offsetof(FixtureR3_1PlayerInfo, is_npc);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_local_player_incar_offset() {

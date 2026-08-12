@@ -811,9 +811,9 @@ pub struct SampClientSdkApiV1 {
     /// Copies a cached local or demand-refreshed remote R1 player directory entry.
     pub player_info:
         unsafe extern "system" fn(u16, *mut SampClientSdkPlayerInfoV1) -> SampClientSdkResult,
-    /// Copies the latest game-thread-cached R1 player-pool count into `output`.
+    /// Copies the latest game-thread-cached supported player-pool count into `output`.
     pub player_count: unsafe extern "system" fn(u8, *mut u16) -> SampClientSdkResult,
-    /// Copies the latest game-thread-cached R1 non-streamed player maximum ID into `output`.
+    /// Copies the latest game-thread-cached supported player-pool largest ID into `output`.
     pub player_max_id: unsafe extern "system" fn(*mut u16) -> SampClientSdkResult,
     /// Copies a cached R1 vehicle-pool existence flag into `output`.
     pub vehicle_exists: unsafe extern "system" fn(u16, *mut u8) -> SampClientSdkResult,
