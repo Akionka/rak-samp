@@ -492,6 +492,9 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Retry the R5-1 isolated attach after clearing the stale launcher; record
   the constructor, RPC-hook, and first-packet result without promoting the
   incomplete profile.
+- [x] Add an opt-in isolated network smoke plugin for the native codec and
+  blocked exact-bit packet/RPC emulation paths; retain separate live proof for
+  outbound sends and original-handler delivery.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

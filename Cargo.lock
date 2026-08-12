@@ -125,6 +125,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "samp-client-sdk-network-smoke-plugin"
+version = "0.1.0"
+dependencies = [
+ "samp-client-sdk",
+ "windows-sys",
+]
+
+[[package]]
 name = "samp-client-sdk-sample-plugin"
 version = "0.1.0"
 dependencies = [

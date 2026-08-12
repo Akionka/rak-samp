@@ -28,6 +28,7 @@ targets = ["i686-pc-windows-msvc"]
 members = [
     "sdk",
     "examples/chat_command_plugin",
+    "examples/network_smoke_plugin",
     "examples/sample_plugin",
 ]
 default-members = ["."]

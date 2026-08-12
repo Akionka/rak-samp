@@ -22,6 +22,20 @@ hook restoration failure, or mismatched binary identity.
 Every checklist below is intentionally unchecked: its existence does not mean
 the live validation has run.
 
+## Network smoke plugin
+
+The opt-in [network smoke plugin](../examples/network_smoke_plugin) provides a
+repeatable safe first pass for the network-only `AddressSet` on an isolated
+server. It round-trips the native codec and queues a fixed three-bit packet;
+its incoming listener blocks that packet before SA-MP can process it. It also
+dispatches and blocks a fixed three-bit RPC. A complete `0x7F` status therefore
+proves the codec, packet allocation/queue lock, incoming-packet hook, and
+exact-bit callback handling worked together for that run.
+
+It deliberately does **not** send traffic to the server or enter SA-MP through
+the original RPC handler. Those are separate checklist obligations and must not
+be inferred from a passing smoke status.
+
 ## Initial isolated attach observations (2026-08-12)
 
 These are partial observations from the release host in the isolated

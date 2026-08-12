@@ -89,6 +89,8 @@ exactly-once dispatch semantics. Direct state reads are copied into host-owned
 snapshots; plugins never dereference native client memory through the safe API.
 
 The [sample plugin](examples/sample_plugin) shows a minimal subscription. The
+[network smoke plugin](examples/network_smoke_plugin) is an opt-in isolated
+validation aid for the native codec and blocked exact-bit emulation paths. The
 [chat-command example](examples/chat_command_plugin) can be deployed with:
 
 ```powershell
