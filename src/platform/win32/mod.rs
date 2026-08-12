@@ -209,6 +209,9 @@ struct BackendState {
     outgoing_rpc_original: AtomicUsize,
     client_hook_status: AtomicU32,
     incoming_packet_diagnostic_logged: AtomicBool,
+    game_process_diagnostic_logged: AtomicBool,
+    game_command_snapshot_diagnostic_logged: AtomicBool,
+    game_command_completion_diagnostic_logged: AtomicBool,
     string_codec: Mutex<()>,
     game_commands: CommandQueue<GameCommand, ()>,
     auto_text_label_creates: Mutex<HashMap<CommandId, Option<u16>>>,
@@ -616,6 +619,9 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         outgoing_rpc_original: AtomicUsize::new(0),
         client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
+        game_process_diagnostic_logged: AtomicBool::new(false),
+        game_command_snapshot_diagnostic_logged: AtomicBool::new(false),
+        game_command_completion_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
         game_commands: CommandQueue::new(),
         auto_text_label_creates: Mutex::new(HashMap::new()),
@@ -1332,6 +1338,20 @@ impl BackendState {
         self.game_thread_id
             .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
         let commands = self.prepare_game_tick();
+        if let Some(commands) = commands.as_ref().filter(|commands| !commands.is_empty())
+            && !self
+                .game_command_snapshot_diagnostic_logged
+                .swap(true, Ordering::AcqRel)
+        {
+            let first_id = commands[0].id;
+            let last_id = commands.last().map_or(first_id, |command| command.id);
+            // Snapshot metadata lets a live smoke prove the command crossed
+            // the game-thread boundary without exposing plugin payloads.
+            log::debug!(
+                "captured first game command snapshot: count={}, first_id={first_id}, last_id={last_id}",
+                commands.len(),
+            );
+        }
         unsafe { original(game) };
         if let Some(commands) = commands {
             self.pump_game_tick(commands);

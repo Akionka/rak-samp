@@ -60,6 +60,9 @@ fn test_backend_state() -> BackendState {
         outgoing_rpc_original: AtomicUsize::new(0),
         client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
+        game_process_diagnostic_logged: AtomicBool::new(false),
+        game_command_snapshot_diagnostic_logged: AtomicBool::new(false),
+        game_command_completion_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
         game_commands: CommandQueue::new(),
         auto_text_label_creates: Mutex::new(HashMap::new()),
@@ -639,6 +642,34 @@ fn game_tick_calls_original_once_and_marks_the_game_thread() {
 
     assert_eq!(GAME_PROCESS_CALLS.load(Ordering::Acquire), 1);
     assert!(state.is_game_thread());
+}
+
+#[test]
+fn game_tick_leaves_commands_pending_until_the_rak_client_is_ready() {
+    let state = test_backend_state();
+    let id = state
+        .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
+        .unwrap();
+
+    unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+
+    assert_eq!(state.game_commands.try_take(id), Ok(None));
+}
+
+#[test]
+fn game_tick_completes_commands_after_the_rak_client_is_ready() {
+    let state = test_backend_state();
+    state.rak_client.store(1, Ordering::Release);
+    let id = state
+        .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
+        .unwrap();
+
+    unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+
+    assert_eq!(
+        state.game_commands.try_take(id),
+        Ok(Some(Err(CommandError::NativeFailure)))
+    );
 }
 
 #[test]

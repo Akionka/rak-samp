@@ -499,6 +499,9 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   SAMPFUNCS, so R5/DL validation is observable from the test root.
 - [x] Add a payload-free one-per-connection log for the inbound-RPC receiver
   capture that packet emulation depends on.
+- [x] Add payload-free, one-shot game-process/snapshot/completion diagnostics
+  so a live network smoke can distinguish an unentered hook, an undrained
+  command, and a native command failure.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

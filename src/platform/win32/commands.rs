@@ -1618,6 +1618,18 @@ impl BackendState {
                     .map(|_| ())
                     .map_err(|_| CommandError::NativeFailure),
             };
+            if !self
+                .game_command_completion_diagnostic_logged
+                .swap(true, Ordering::AcqRel)
+            {
+                // Do not include the command variant or its payload: plugins
+                // can own text, packet, or RPC data.
+                log::debug!(
+                    "completed first game command: id={}, success={}",
+                    queued.id,
+                    result.is_ok(),
+                );
+            }
             match result {
                 Ok(()) => self.game_commands.complete(queued.id, Ok(())),
                 Err(error) => {

@@ -354,6 +354,12 @@ pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
         return;
     }
     let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
+    if !state
+        .game_process_diagnostic_logged
+        .swap(true, Ordering::AcqRel)
+    {
+        log::debug!("entered CGame::Process detour for the first time");
+    }
     unsafe { state.run_game_process_tick(game, original) };
 }
 
