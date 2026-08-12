@@ -434,7 +434,7 @@ remains permanently excluded.
 | [x] | `sampForceWeaponsSync` | Queued mutation | `LocalPlayer::force_weapons_sync` |
 | [x] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |
 | [x] | `sampGetRpcCallbackByRpcId` | Unsafe raw | `raw::rpc_callback` |
-| [ ] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
+| [x] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
 | [x] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
 | [x] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
 | [ ] | `sampSetClientCommandDescription` | Queued mutation | `ChatInput::set_command_description` |

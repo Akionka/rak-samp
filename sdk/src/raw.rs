@@ -119,6 +119,24 @@ pub unsafe fn rakclient_function(
     Ok(unsafe { vtable_function(client, index) })
 }
 
+/// Returns the packed R1 RakPeer RPC node for one RPC index.
+///
+/// A missing RPC node returns `Ok(None)`.
+///
+/// # Safety
+///
+/// `samp` must refer to a live host attached to SA-MP 0.3.7 R1. The returned
+/// address must not be made into a Rust reference or retained after
+/// RakClient/RakPeer or SA-MP unloads. This accessor reads the native packed
+/// RPC-node table and does not create a Rust reference to it.
+pub unsafe fn rpc_node(
+    samp: crate::Samp,
+    rpc_id: u8,
+) -> Result<Option<NonNull<c_void>>, crate::SampClientSdkResult> {
+    let peer = unsafe { rakpeer(samp) }?;
+    Ok(unsafe { r1_rpc_node(peer, rpc_id) })
+}
+
 /// Returns the callback address registered for one R1 RakPeer RPC index.
 ///
 /// A missing RPC node or callback returns `Ok(None)`.
@@ -370,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn rpc_callback_reads_the_packed_r1_rpc_node_table() {
+    fn rpc_node_and_callback_read_the_packed_r1_rpc_node_table() {
         let callback = 0x3000usize as *mut c_void;
         let rpc_id = 17;
         let mut node =
