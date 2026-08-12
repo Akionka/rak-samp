@@ -61,6 +61,8 @@ pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
 pub const STATUS_PLAYER_POOL_SCALARS: u32 = 1 << 12;
 /// The R3 cached scoreboard flag observed both the open and closed states.
 pub const STATUS_SCOREBOARD_CACHE: u32 = 1 << 13;
+/// The R3 cached chat display mode returned a documented native value.
+pub const STATUS_CHAT_DISPLAY_MODE: u32 = 1 << 14;
 /// The R3 cached chat-input active flag and command names passed the live check.
 pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 /// The R3 cached dialog active flag observed the disposable server dialog.
@@ -234,6 +236,9 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     verify_cached_player_pool_scalars(samp)?;
     STATUS.fetch_or(STATUS_PLAYER_POOL_SCALARS, Ordering::AcqRel);
     publish_status();
+    verify_cached_chat_display_mode(samp)?;
+    STATUS.fetch_or(STATUS_CHAT_DISPLAY_MODE, Ordering::AcqRel);
+    publish_status();
 
     let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
     wait_for_receipt(receipt)?;
@@ -384,6 +389,24 @@ fn verify_cached_player_pool_scalars(samp: Samp) -> Result<(), SampClientSdkResu
             | (_, Err(SampClientSdkResult::NotReady), _)
             | (_, _, Err(SampClientSdkResult::NotReady)) => {}
             (Err(error), _, _) | (_, Err(error), _) | (_, _, Err(error)) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn verify_cached_chat_display_mode(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match samp.chat().display_mode() {
+            Ok(_) => return Ok(()),
+            Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
         }
         if deadline.saturating_duration_since(Instant::now()).is_zero() {
             return Err(SampClientSdkResult::TimedOut);
@@ -702,7 +725,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success after all cache and dialog checks is `0x3FFF`.
+/// Returns the probe stage bitset; success after all cache and dialog checks is `0x7FFF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)

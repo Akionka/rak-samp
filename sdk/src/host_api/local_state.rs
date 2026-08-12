@@ -6,7 +6,7 @@ use crate::{
 };
 
 impl HostApi {
-    /// Returns the cached R1 local chat-window display mode.
+    /// Returns the cached R1/R3-1 local chat-window display mode.
     pub fn local_chat_display_mode(self) -> Result<LocalChatDisplayMode, SampClientSdkResult> {
         let mut raw = 0;
         match unsafe { (self.raw.local_chat_display_mode)(&mut raw) } {
@@ -17,7 +17,7 @@ impl HostApi {
         }
     }
 
-    /// Returns whether the cached R1 local chat window is visible.
+    /// Returns whether the cached R1/R3-1 local chat window is visible.
     pub fn is_local_chat_visible(self) -> Result<bool, SampClientSdkResult> {
         self.local_chat_display_mode()
             .map(|mode| mode != LocalChatDisplayMode::Off)

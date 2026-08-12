@@ -1,7 +1,7 @@
 //! Private SA-MP 0.3.7 R3-1 profile for verified read-only caches.
 //!
 //! This deliberately covers only copied server/game, local-player, narrow
-//! chat-input, dialog-active, and scoreboard-active snapshots. Broader R3 UI, remote-player, pool,
+//! chat-input, chat-display, dialog-active, and scoreboard-active snapshots. Broader R3 UI, remote-player, pool,
 //! raw-address, and mutation helpers remain unavailable until each family has
 //! an independent fixture and live validation.
 
@@ -54,6 +54,8 @@ const INPUT_CACHE_READABLE_SIZE: usize = INPUT_ENABLED_OFFSET + mem::size_of::<i
 const MAX_CHAT_COMMANDS: usize = 144;
 const CHAT_INPUT_TEXT_CAPACITY: usize = 129;
 const DXUT_EDIT_BOX_GET_TEXT_RVA: usize = 0x84F40;
+const CHAT_SINGLETON_RVA: usize = 0x26_E8_C8;
+const CHAT_GET_MODE_RVA: usize = 0x60B40;
 const DIALOG_SINGLETON_RVA: usize = 0x26_E8_98;
 const DIALOG_ACTIVE_OFFSET: usize = 0x28;
 const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::<i32>();
@@ -69,6 +71,7 @@ type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *con
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
+type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 
 /// The narrowly verified R3-1 read-only cache profile.
 #[derive(Clone, Copy, Debug)]
@@ -292,6 +295,14 @@ impl R3ClientProfile {
         copy_chat_input_text(editbox.cast(), get_text)
     }
 
+    /// Copies the R3-1 chat display mode through the native accessor.
+    pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
+        let chat = self.chat().ok_or(DirectClientError::NotReady)?;
+        let get_mode: ChatGetModeFn =
+            unsafe { mem::transmute(self.module_base + CHAT_GET_MODE_RVA) };
+        copy_chat_display_mode(chat, get_mode)
+    }
+
     /// Copies the R3-1 dialog active flag without reading dialog controls.
     pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
@@ -350,6 +361,12 @@ impl R3ClientProfile {
             .then_some(scoreboard)
     }
 
+    fn chat(self) -> Option<*mut c_void> {
+        let chat: *mut c_void =
+            unsafe { read_pointer(self.module_base.checked_add(CHAT_SINGLETON_RVA)?) }?.cast();
+        (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
+    }
+
     fn net_game(self) -> Option<*mut c_void> {
         let net_game: *mut c_void =
             unsafe { read_pointer(self.module_base.checked_add(NET_GAME_SINGLETON_RVA)?) }?.cast();
@@ -366,6 +383,19 @@ fn copy_chat_input_text(
         return Err(DirectClientError::NotReady);
     }
     unsafe { bounded_c_string(get_text(editbox), CHAT_INPUT_TEXT_CAPACITY) }
+        .ok_or(DirectClientError::NotReady)
+}
+
+fn copy_chat_display_mode(
+    chat: *mut c_void,
+    get_mode: ChatGetModeFn,
+) -> Result<i32, DirectClientError> {
+    if chat.is_null() || !readable_range(chat.cast(), 1) {
+        return Err(DirectClientError::NotReady);
+    }
+    let mode = unsafe { get_mode(chat) };
+    matches!(mode, 0..=2)
+        .then_some(mode)
         .ok_or(DirectClientError::NotReady)
 }
 
@@ -529,6 +559,26 @@ mod tests {
 
     unsafe extern "thiscall" fn fake_editbox_get_text(_editbox: *mut c_void) -> *const u8 {
         c"/r3".as_ptr().cast()
+    }
+
+    unsafe extern "thiscall" fn fake_chat_get_mode(_chat: *mut c_void) -> i32 {
+        2
+    }
+
+    unsafe extern "thiscall" fn fake_chat_get_invalid_mode(_chat: *mut c_void) -> i32 {
+        3
+    }
+
+    #[test]
+    fn copies_validated_r3_chat_display_mode() {
+        let chat = 0_u8;
+        let chat = (&raw const chat).cast_mut().cast();
+
+        assert_eq!(copy_chat_display_mode(chat, fake_chat_get_mode), Ok(2));
+        assert_eq!(
+            copy_chat_display_mode(chat, fake_chat_get_invalid_mode),
+            Err(DirectClientError::NotReady)
+        );
     }
 
     unsafe extern "thiscall" fn fake_player_pool_get_count(

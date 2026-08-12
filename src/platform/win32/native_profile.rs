@@ -15,7 +15,7 @@ use crate::{
 ///
 /// More variants are added only with their own fixture-backed layout and live
 /// validation. The R3-1 variant is deliberately limited to copied CNetGame,
-/// local-player, chat-input, dialog-active, and scoreboard-active cache reads; all other R3
+/// local-player, chat-input, chat-display, dialog-active, and scoreboard-active cache reads; all other R3
 /// direct helpers remain unavailable.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum NativeProfile {
@@ -111,6 +111,14 @@ impl NativeProfile {
         match self {
             Self::R1(profile) => profile.chat_input_text(),
             Self::R3Scalars(profile) => profile.chat_input_text(),
+        }
+    }
+
+    /// Reads the copied chat display mode available on this profile.
+    pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.chat_display_mode(),
+            Self::R3Scalars(profile) => profile.chat_display_mode(),
         }
     }
 
