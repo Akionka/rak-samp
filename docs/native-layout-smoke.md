@@ -51,7 +51,7 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player caches passed fixture and spawned loopback checks (`0x000000FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
@@ -107,8 +107,25 @@ incoming callback; the operator visually confirmed the green
 
 This validates the R3 CNetGame singleton slot plus every field consumed by the
 new read-only scalar slice. The native host field is deliberately not claimed
-to be the server-config display hostname. R3 UI, player, pool, handle, raw,
+to be the server-config display hostname. R3 UI, remote-player, pool, handle, raw,
 and mutation helpers remain unsupported.
+
+## R3-1 local-player cache observation (2026-08-12)
+
+The same pinned client and disposable loopback server produced
+`status=0x000000FF`, `failure=0` after the public `Samp::local().player()`
+cache published a valid, spawned local-player snapshot. Its fixture separately
+verified the consumed `CPlayerPool` local ID, `CLocalPlayer` packed sync and
+state fields, and `CPed` GTA-ped pointer offset. The probe tolerates the normal
+valid pre-spawn snapshot, then requires `spawned=true` plus bounded nickname,
+finite health/armour/position/velocity values, and an in-range optional vehicle
+ID before it sends the loopback chat marker.
+
+The disposable server logged `R3_OUTBOUND_OK` and `R3_INCOMING_SENT`; the
+operator visually confirmed the green `R3_SDK_INCOMING_20260812` message.
+This enables only the copied local-player snapshot. R3 raw player addresses,
+pool/entity directory reads, sync snapshots, UI helpers, and local-player
+mutations remain unsupported.
 
 ## R5-1 network smoke observation (2026-08-12)
 
@@ -180,6 +197,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   enable any direct helper.
 - [x] Publish and read the R3 CNetGame game-state/server scalar cache on the
   game thread, with a fixture gate and loopback observation.
+- [x] Publish and read the R3 local-player snapshot on the game thread, with
+  `CPlayerPool`/`CLocalPlayer`/`CPed` fixture gates and spawned loopback smoke.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
 - [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.

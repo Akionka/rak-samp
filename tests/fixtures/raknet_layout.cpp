@@ -469,6 +469,33 @@ struct FixtureR3_1NetGame {
     void* pools;
 };
 
+struct FixtureR3_1PlayerPoolPrefix {
+    std::int32_t largest_id;
+    void* objects[1004];
+    std::int32_t not_empty[1004];
+    std::int32_t previous_collision[1004];
+    std::int32_t local_ping;
+    std::int32_t local_score;
+    std::uint16_t local_id;
+};
+
+struct FixtureR3_1LocalPlayerPrefix {
+    void* ped;
+    FixtureR1IncarData incar;
+    FixtureR1AimData aim;
+    FixtureR1TrailerData trailer;
+    FixtureR1OnfootData onfoot;
+    FixtureR1PassengerData passenger;
+    std::int32_t active;
+    std::int32_t wasted;
+    std::uint16_t current_vehicle;
+};
+
+struct FixtureR3_1PedPrefix {
+    std::uint8_t pad[0x2A4];
+    void* game_ped;
+};
+
 struct FixtureR3_1Input {
     void* device;
     void* game_ui;
@@ -725,6 +752,14 @@ static_assert(offsetof(FixtureR3_1NetGame, hostname) == 0x131);
 static_assert(offsetof(FixtureR3_1NetGame, port) == 0x235);
 static_assert(offsetof(FixtureR3_1NetGame, game_state) == 0x3CD);
 static_assert(offsetof(FixtureR3_1NetGame, pools) == 0x3DE);
+static_assert(sizeof(FixtureR3_1PlayerPoolPrefix) == 0x2F1E);
+static_assert(offsetof(FixtureR3_1PlayerPoolPrefix, local_id) == 0x2F1C);
+static_assert(sizeof(FixtureR3_1LocalPlayerPrefix) == 0xFE);
+static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, incar) == 0x04);
+static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, onfoot) == 0x98);
+static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, active) == 0xF4);
+static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, current_vehicle) == 0xFC);
+static_assert(offsetof(FixtureR3_1PedPrefix, game_ped) == 0x2A4);
 static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
 static_assert(offsetof(FixtureR3_1Input, command_count) == 0x14DC);
 static_assert(offsetof(FixtureR3_1Input, enabled) == 0x14E0);
@@ -1236,6 +1271,30 @@ std::size_t samp_client_sdk_fixture_r3_1_netgame_game_state_offset() {
 
 std::size_t samp_client_sdk_fixture_r3_1_netgame_pools_offset() {
     return offsetof(FixtureR3_1NetGame, pools);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_player_pool_local_id_offset() {
+    return offsetof(FixtureR3_1PlayerPoolPrefix, local_id);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_local_player_incar_offset() {
+    return offsetof(FixtureR3_1LocalPlayerPrefix, incar);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_local_player_onfoot_offset() {
+    return offsetof(FixtureR3_1LocalPlayerPrefix, onfoot);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_local_player_active_offset() {
+    return offsetof(FixtureR3_1LocalPlayerPrefix, active);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_local_player_current_vehicle_offset() {
+    return offsetof(FixtureR3_1LocalPlayerPrefix, current_vehicle);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_ped_game_ped_offset() {
+    return offsetof(FixtureR3_1PedPrefix, game_ped);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_input_size() {

@@ -3,6 +3,11 @@
 use super::*;
 
 impl BackendState {
+    pub(super) fn refresh_r3_local_player_snapshot(&self, profile: NativeProfile) {
+        self.raw_local_player.store(0, Ordering::Release);
+        self.cache_local_player_snapshot(profile.local_player().ok());
+    }
+
     pub(super) fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
         if !self.samp_game_state_ready.load(Ordering::Acquire)
             || !is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire))

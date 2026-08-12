@@ -75,7 +75,7 @@ impl BackendState {
     }
 
     pub(super) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {

@@ -50,6 +50,8 @@ pub const STATUS_HOST_CONNECTED: u32 = 1 << 0;
 pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
 /// The R3 CNetGame scalar cache reported the expected connected server values.
 pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
+/// The R3 cached local-player snapshot passed bounded sanity checks.
+pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
 /// The non-blocking RPC 93 listener was registered.
 pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
 /// A real inbound RPC supplied the native receiver required for a connected client.
@@ -198,6 +200,9 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     verify_cached_cnetgame_scalars(samp)?;
     STATUS.fetch_or(STATUS_CNETGAME_SCALARS, Ordering::AcqRel);
     publish_status();
+    verify_cached_local_player(samp)?;
+    STATUS.fetch_or(STATUS_LOCAL_PLAYER_SNAPSHOT, Ordering::AcqRel);
+    publish_status();
 
     let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
     wait_for_receipt(receipt)?;
@@ -260,6 +265,46 @@ fn record_scalar_observation(game_state: i32, info: &samp_client_sdk::ServerInfo
         hostname: info.hostname.clone(),
         port: info.port,
     });
+}
+
+fn verify_cached_local_player(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match samp.local().player() {
+            Ok(player) => {
+                if !local_player_snapshot_is_valid(&player) {
+                    return Err(SampClientSdkResult::NativeCallFailed);
+                }
+                if player.spawned {
+                    return Ok(());
+                }
+            }
+            Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn local_player_snapshot_is_valid(player: &samp_client_sdk::LocalPlayer) -> bool {
+    player.id < 1004
+        && !player.nickname.is_empty()
+        && player.nickname.len() <= 256
+        && player.health.is_finite()
+        && player.armour.is_finite()
+        && player.position.x.is_finite()
+        && player.position.y.is_finite()
+        && player.position.z.is_finite()
+        && player.velocity.x.is_finite()
+        && player.velocity.y.is_finite()
+        && player.velocity.z.is_finite()
+        && player.vehicle_id.is_none_or(|id| id < 2000)
 }
 
 /// Reads only the bounded DOS/PE headers from an already-loaded module.
@@ -465,7 +510,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success before visual confirmation is `0x7F`.
+/// Returns the probe stage bitset; success before visual confirmation is `0xFF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)
@@ -509,5 +554,35 @@ mod tests {
             }),
             Some(R3_1_ENTRY_POINT_RVA)
         );
+    }
+
+    #[test]
+    fn valid_unspawned_local_player_remains_retryable() {
+        let player = samp_client_sdk::LocalPlayer {
+            id: 0,
+            nickname: b"R3 probe".to_vec(),
+            colour: 0,
+            spawned: false,
+            health: 100.0,
+            armour: 0.0,
+            position: samp_client_sdk::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            velocity: samp_client_sdk::Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            special_action: 0,
+            animation_id: 0,
+            vehicle_id: None,
+            score: 0,
+            ping: 0,
+        };
+
+        assert!(local_player_snapshot_is_valid(&player));
+        assert!(!player.spawned);
     }
 }

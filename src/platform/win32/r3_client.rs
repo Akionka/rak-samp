@@ -1,11 +1,13 @@
-//! Private SA-MP 0.3.7 R3-1 profile for verified cached CNetGame scalars.
+//! Private SA-MP 0.3.7 R3-1 profile for verified read-only caches.
 //!
-//! This deliberately covers only the read-only server metadata and game-state
-//! fields. R3 player, UI, pool, and sync layouts remain unavailable until each
-//! family has an independent fixture and live validation of its own.
+//! This deliberately covers only copied server/game and local-player snapshots.
+//! R3 UI, remote-player, pool, raw-address, and mutation helpers remain
+//! unavailable until each family has an independent fixture and live validation.
 
-use super::r1_client::memory::{bounded_c_string, read_pointer, read_unaligned, readable_range};
-use crate::runtime::{DirectClientError, ServerInfoSnapshot};
+use super::r1_client::memory::{
+    bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
+};
+use crate::runtime::{DirectClientError, LocalPlayerSnapshot, ServerInfoSnapshot};
 use std::{ffi::c_void, mem};
 
 const SAMP_R3_1_ENTRY_POINT: u32 = 0x0C_C4_D0;
@@ -16,6 +18,36 @@ const NET_GAME_PORT_OFFSET: usize = 0x235;
 const NET_GAME_GAME_STATE_OFFSET: usize = 0x3CD;
 const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
 const NET_GAME_SCALAR_READABLE_SIZE: usize = NET_GAME_GAME_STATE_OFFSET + mem::size_of::<i32>();
+const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
+const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
+const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6E140;
+const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6E150;
+const PLAYER_POOL_GET_NAME_RVA: usize = 0x16F00;
+const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3DA0;
+const PED_GET_HEALTH_RVA: usize = 0xAB4C0;
+const PED_GET_ARMOUR_RVA: usize = 0xAB500;
+const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x2F1C;
+const LOCAL_PLAYER_INCAR_OFFSET: usize = 0x04;
+const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x98;
+const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0xF4;
+const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0xFC;
+const LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE: usize = LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET + 2;
+const SAMP_PED_GAME_PED_OFFSET: usize = 0x2A4;
+const INVALID_ID: u16 = u16::MAX;
+const MAX_SAMP_PLAYERS: u16 = 1004;
+const ONFOOT_POSITION_OFFSET: usize = 0x06;
+const ONFOOT_SPECIAL_ACTION_OFFSET: usize = 0x25;
+const ONFOOT_SPEED_OFFSET: usize = 0x26;
+const ONFOOT_ANIMATION_OFFSET: usize = 0x40;
+const INCAR_POSITION_OFFSET: usize = 0x18;
+const INCAR_SPEED_OFFSET: usize = 0x24;
+
+type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
+type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
+type PlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
+type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
+type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 
 /// The narrowly verified R3-1 CNetGame scalar profile.
 #[derive(Clone, Copy, Debug)]
@@ -71,6 +103,121 @@ impl R3ClientProfile {
             hostname,
             port,
         })
+    }
+
+    /// Copies the verified R3-1 local-player cache surface on the game thread.
+    pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        let pool = self.player_pool()?;
+        let id = unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            .filter(|id| *id < MAX_SAMP_PLAYERS)
+            .ok_or(DirectClientError::NotReady)?;
+        let get_local: PlayerPoolGetLocalPlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+        let local = unsafe { get_local(pool) };
+        if local.is_null() || !readable_range(local.cast(), LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE) {
+            return Err(DirectClientError::NotReady);
+        }
+        let ped = unsafe { read_pointer(local as usize) }
+            .filter(|ped| !ped.is_null())
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            ped.cast(),
+            SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let game_ped = unsafe { read_pointer(ped as usize + SAMP_PED_GAME_PED_OFFSET) }
+            .filter(|ped| !ped.is_null())
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(game_ped.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+
+        let get_name: PlayerPoolGetNameFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_NAME_RVA) };
+        let get_score: PlayerPoolGetLocalStatFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_SCORE_RVA) };
+        let get_ping: PlayerPoolGetLocalStatFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PING_RVA) };
+        let get_colour: LocalPlayerGetColourArgbFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_GET_COLOUR_ARGB_RVA) };
+        let get_health: PedGetStatFn =
+            unsafe { mem::transmute(self.module_base + PED_GET_HEALTH_RVA) };
+        let get_armour: PedGetStatFn =
+            unsafe { mem::transmute(self.module_base + PED_GET_ARMOUR_RVA) };
+
+        let nickname = unsafe { bounded_c_string(get_name(pool, id), 256) }
+            .filter(|name| !name.is_empty())
+            .ok_or(DirectClientError::NotReady)?;
+        let current_vehicle =
+            unsafe { read_unaligned::<u16>(local as usize + LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?;
+        let vehicle_id = (current_vehicle != INVALID_ID).then_some(current_vehicle);
+        let (position, velocity) = if vehicle_id.is_some() {
+            (
+                unsafe {
+                    read_vector3(local as usize + LOCAL_PLAYER_INCAR_OFFSET + INCAR_POSITION_OFFSET)
+                },
+                unsafe {
+                    read_vector3(local as usize + LOCAL_PLAYER_INCAR_OFFSET + INCAR_SPEED_OFFSET)
+                },
+            )
+        } else {
+            (
+                unsafe {
+                    read_vector3(
+                        local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_POSITION_OFFSET,
+                    )
+                },
+                unsafe {
+                    read_vector3(local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_SPEED_OFFSET)
+                },
+            )
+        };
+
+        Ok(LocalPlayerSnapshot {
+            id,
+            nickname,
+            colour: unsafe { get_colour(local) },
+            spawned: unsafe { read_unaligned::<u32>(local as usize + LOCAL_PLAYER_ACTIVE_OFFSET) }
+                .ok_or(DirectClientError::NotReady)?
+                != 0,
+            health: unsafe { get_health(ped.cast()) },
+            armour: unsafe { get_armour(ped.cast()) },
+            position: position.ok_or(DirectClientError::NotReady)?,
+            velocity: velocity.ok_or(DirectClientError::NotReady)?,
+            special_action: unsafe {
+                read_unaligned::<u8>(
+                    local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_SPECIAL_ACTION_OFFSET,
+                )
+            }
+            .ok_or(DirectClientError::NotReady)?,
+            animation_id: unsafe {
+                read_unaligned::<u32>(
+                    local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_ANIMATION_OFFSET,
+                )
+            }
+            .ok_or(DirectClientError::NotReady)? as u16,
+            vehicle_id,
+            score: unsafe { get_score(pool) },
+            ping: (unsafe { get_ping(pool) }).max(0) as u32,
+        })
+    }
+
+    fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_pool(net_game) };
+        if pool.is_null()
+            || !readable_range(
+                pool.cast(),
+                PLAYER_POOL_LOCAL_ID_OFFSET + mem::size_of::<u16>(),
+            )
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(pool)
     }
 
     fn net_game(self) -> Option<*mut c_void> {

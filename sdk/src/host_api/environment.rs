@@ -29,7 +29,7 @@ impl HostApi {
         })
     }
 
-    /// Returns the cached native `CNetGame` state for the verified R1 client.
+    /// Returns the cached native `CNetGame` state for a verified client profile.
     ///
     /// The value is deliberately an opaque scalar: SA-MP has no stable public
     /// enum ABI for it. Like [`Self::local_player`], this never calls client

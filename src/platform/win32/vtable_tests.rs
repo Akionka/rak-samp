@@ -498,7 +498,7 @@ fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
 }
 
 #[test]
-fn r3_scalar_cache_reads_do_not_enable_r1_helpers() {
+fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
     let mut state = test_backend_state();
     state.context.version = SampVersion::R3_1;
     state.context.native_profile = r3_scalar_profile();
@@ -513,6 +513,24 @@ fn r3_scalar_cache_reads_do_not_enable_r1_helpers() {
         hostname: b"R3 probe".to_vec(),
         port: 7777,
     });
+    *state
+        .local_player_snapshot
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(LocalPlayerSnapshot {
+        id: 0,
+        nickname: b"R3 probe".to_vec(),
+        colour: 0xFF00_FF00,
+        spawned: true,
+        health: 100.0,
+        armour: 0.0,
+        position: Vector3::default(),
+        velocity: Vector3::default(),
+        special_action: 0,
+        animation_id: 0,
+        vehicle_id: None,
+        score: 0,
+        ping: 1,
+    });
 
     assert_eq!(state.samp_game_state(), Ok(6));
     assert_eq!(
@@ -523,6 +541,7 @@ fn r3_scalar_cache_reads_do_not_enable_r1_helpers() {
             port: 7777,
         })
     );
+    assert_eq!(state.local_player().map(|player| player.id), Ok(0));
     assert_eq!(
         state.local_chat_display_mode(),
         Err(DirectClientError::UnsupportedVersion)

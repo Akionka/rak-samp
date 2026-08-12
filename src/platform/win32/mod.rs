@@ -595,7 +595,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             log::info!("direct R1 client helpers are enabled with fixed offsets");
         }
         Some(NativeProfile::R3Scalars(_)) => {
-            log::info!("R3-1 CNetGame scalar cache reads are enabled with fixed offsets");
+            log::info!("R3-1 read-only server, game, and local-player caches are enabled");
         }
         None => {}
     }
@@ -926,6 +926,11 @@ impl BackendState {
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
         self.refresh_samp_game_state(scalar_profile);
         self.refresh_server_info_snapshot(scalar_profile);
+        if matches!(scalar_profile, NativeProfile::R3Scalars(_)) {
+            self.refresh_r3_local_player_snapshot(scalar_profile);
+            self.cache_generation.fetch_add(1, Ordering::Release);
+            return;
+        }
         let Some(profile) = self.r1_client() else {
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;

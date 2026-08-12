@@ -18,7 +18,7 @@ The ASI writes `samp-client-sdk-r3-network-probe.status` in the GTA working
 directory:
 
 ```text
-status=0x0000007F
+status=0x000000FF
 failure=0
 game_state=6
 address_hex=3132372E302E302E31
@@ -26,10 +26,12 @@ hostname_hex=53412D4D50
 port=7777
 ```
 
-`0x7F` also proves the public ready/version APIs and the SDK's opaque module
+`0xFF` also proves the public ready/version APIs and the SDK's opaque module
 base identify the R3-1 PE entry point, and that the R3 scalar cache reports its
 R3 `AwaitingJoin` state (`6`), loopback address/port, and native `CNetGame`
-host field (`SA-MP`), before it proves listener registration,
+host field (`SA-MP`). It additionally proves that the public local-player
+snapshot is spawned, bounded, and contains finite spatial and health values before it
+proves listener registration,
 inbound readiness, successful outbound receipt, and the matching incoming reply
 callback. The listener returns `Continue`; a human must additionally verify that
 the reply marker appears in ordinary SA-MP chat. That visible result proves the

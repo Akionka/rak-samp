@@ -15,6 +15,10 @@ impl Local {
         Self { api }
     }
 
+    /// Returns the latest game-thread-captured local-player snapshot.
+    ///
+    /// Available on the verified R1 profile and the read-only R3-1 cache
+    /// profile. Local-player commands remain R1-only.
     pub fn player(self) -> Result<LocalPlayer, SampClientSdkResult> {
         self.api.local_player()
     }

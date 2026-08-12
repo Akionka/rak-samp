@@ -16,6 +16,12 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r3_1_netgame_port_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_game_state_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_pools_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_player_pool_local_id_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_local_player_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_local_player_onfoot_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_local_player_active_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_local_player_current_vehicle_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_ped_game_ped_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_command_count_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_enabled_offset() -> usize;
@@ -122,6 +128,21 @@ fn r3_scalar_layout_matches_the_independent_cpp_fixture() {
         )
     };
     assert_eq!(observed, (0x30, 0x131, 0x235));
+}
+
+#[test]
+fn r3_local_player_snapshot_layout_matches_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        (
+            samp_client_sdk_fixture_r3_1_player_pool_local_id_offset(),
+            samp_client_sdk_fixture_r3_1_local_player_incar_offset(),
+            samp_client_sdk_fixture_r3_1_local_player_onfoot_offset(),
+            samp_client_sdk_fixture_r3_1_local_player_active_offset(),
+            samp_client_sdk_fixture_r3_1_local_player_current_vehicle_offset(),
+            samp_client_sdk_fixture_r3_1_ped_game_ped_offset(),
+        )
+    };
+    assert_eq!(observed, (0x2F1C, 0x04, 0x98, 0xF4, 0xFC, 0x2A4));
 }
 
 #[test]

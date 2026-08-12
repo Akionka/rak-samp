@@ -8,14 +8,14 @@
 use super::{r1_client::R1ClientProfile, r3_client::R3ClientProfile};
 use crate::{
     SampVersion,
-    runtime::{DirectClientError, ServerInfoSnapshot},
+    runtime::{DirectClientError, LocalPlayerSnapshot, ServerInfoSnapshot},
 };
 
 /// A verified direct-native profile selected for the loaded SA-MP build.
 ///
 /// More variants are added only with their own fixture-backed layout and live
-/// validation. The R3-1 variant is deliberately limited to CNetGame scalar
-/// cache reads; all other R3 direct helpers remain unavailable.
+/// validation. The R3-1 variant is deliberately limited to copied CNetGame
+/// and local-player cache reads; all other R3 direct helpers remain unavailable.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum NativeProfile {
     R1(R1ClientProfile),
@@ -62,6 +62,14 @@ impl NativeProfile {
         match self {
             Self::R1(profile) => profile.server_info(),
             Self::R3Scalars(profile) => profile.server_info(),
+        }
+    }
+
+    /// Reads the copied local-player snapshot available on this profile.
+    pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.local_player(),
+            Self::R3Scalars(profile) => profile.local_player(),
         }
     }
 }

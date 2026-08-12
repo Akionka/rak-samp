@@ -282,7 +282,7 @@ pub(crate) unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
         .then(|| unsafe { (address as *const T).read_unaligned() })
 }
 
-pub(super) unsafe fn read_vector3(address: usize) -> Option<Vector3> {
+pub(crate) unsafe fn read_vector3(address: usize) -> Option<Vector3> {
     Some(Vector3 {
         x: unsafe { read_unaligned::<f32>(address) }?,
         y: unsafe { read_unaligned::<f32>(address.checked_add(4)?) }?,
