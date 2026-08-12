@@ -363,6 +363,40 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Updates R1 local passenger data and invokes
+    /// `SCLocalPlayer::SendPassengerData` for one checked vehicle and seat on
+    /// the game thread.
+    pub(super) fn force_passenger_sync(
+        self,
+        vehicle: u16,
+        seat: u8,
+    ) -> Result<(), DirectClientError> {
+        if vehicle >= MAX_SAMP_VEHICLES {
+            return Err(DirectClientError::NotReady);
+        }
+        let local_player = self.local_player_address()?;
+        let passenger_vehicle = (local_player as usize
+            + LOCAL_PLAYER_PASSENGER_OFFSET
+            + PASSENGER_VEHICLE_ID_OFFSET) as *mut u16;
+        let passenger_seat = (local_player as usize
+            + LOCAL_PLAYER_PASSENGER_OFFSET
+            + PASSENGER_SEAT_ID_OFFSET) as *mut u8;
+        let last_update = (local_player as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
+        if !writable_range(passenger_vehicle.cast(), mem::size_of::<u16>())
+            || !writable_range(passenger_seat.cast(), mem::size_of::<u8>())
+            || !writable_range(last_update.cast(), mem::size_of::<u32>())
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe { ptr::write_unaligned(passenger_vehicle, vehicle) };
+        unsafe { ptr::write_unaligned(passenger_seat, seat) };
+        unsafe { ptr::write_unaligned(last_update, 0) };
+        let send: LocalPlayerSendPassengerDataFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA) };
+        unsafe { send(local_player) };
+        Ok(())
+    }
+
     /// Updates R1 local in-car data and invokes `SCLocalPlayer::SendIncarData`
     /// for one checked vehicle ID on the game thread.
     pub(super) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {

@@ -1324,6 +1324,17 @@ unsafe extern "system" fn test_submit_force_vehicle_sync(
     unsafe { test_submit_command(receipt, 27) }
 }
 
+unsafe extern "system" fn test_submit_force_passenger_sync(
+    vehicle: u16,
+    _seat: u8,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if vehicle >= crate::MAX_SAMP_VEHICLES {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 28) }
+}
+
 unsafe extern "system" fn test_submit_connect_to_server(
     address: *const u8,
     address_len: usize,

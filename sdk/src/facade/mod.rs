@@ -628,5 +628,11 @@ mod tests {
             .unwrap();
         assert_eq!(vehicle.id(), 27);
         assert_eq!(vehicle.try_take(), Ok(Some(())));
+        let mut passenger = samp
+            .local()
+            .force_passenger_sync(VehicleId::new(7).unwrap(), 1)
+            .unwrap();
+        assert_eq!(passenger.id(), 28);
+        assert_eq!(passenger.try_take(), Ok(Some(())));
     }
 }

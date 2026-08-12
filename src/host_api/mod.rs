@@ -287,6 +287,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     trailer_sync: players::trailer_sync,
     aim_sync: players::aim_sync,
     take_local_dialog_response: dialog::take_local_dialog_response,
+    submit_force_passenger_sync,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {
@@ -475,6 +476,21 @@ unsafe extern "system" fn submit_force_vehicle_sync(
     unsafe {
         submit_direct_command(receipt, |runtime| {
             runtime.submit_force_vehicle_sync(vehicle)
+        })
+    }
+}
+
+unsafe extern "system" fn submit_force_passenger_sync(
+    vehicle: u16,
+    seat: u8,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || vehicle >= MAX_SAMP_VEHICLES {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_force_passenger_sync(vehicle, seat)
         })
     }
 }

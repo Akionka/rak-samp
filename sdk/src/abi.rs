@@ -1219,6 +1219,9 @@ pub struct SampClientSdkApiV1 {
     /// Takes the newest owned R1 client-side dialog-close response, if one is pending.
     pub take_local_dialog_response:
         unsafe extern "system" fn(*mut SampClientSdkDialogResponseV1) -> SampClientSdkResult,
+    /// Queues one documented R1 passenger synchronization send.
+    pub submit_force_passenger_sync:
+        unsafe extern "system" fn(u16, u8, *mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

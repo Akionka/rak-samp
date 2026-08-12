@@ -313,6 +313,17 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
+    /// Queues one documented R1 passenger synchronization send.
+    pub fn submit_force_passenger_sync(
+        self,
+        vehicle: u16,
+        seat: u8,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe { (self.raw.submit_force_passenger_sync)(vehicle, seat, &mut receipt) };
+        self.command_receipt(result, receipt)
+    }
+
     /// Queues one bounded R1 chat-history entry replacement.
     pub fn submit_local_chat_entry(
         self,

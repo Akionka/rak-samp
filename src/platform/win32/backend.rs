@@ -498,6 +498,14 @@ impl Backend {
         self.state.submit_force_vehicle_sync(vehicle)
     }
 
+    pub(crate) fn submit_force_passenger_sync(
+        &self,
+        vehicle: u16,
+        seat: u8,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_force_passenger_sync(vehicle, seat)
+    }
+
     pub(crate) fn submit_send_rate(
         &self,
         kind: u8,

@@ -510,6 +510,10 @@ enum GameCommand {
     ForceTrailerSync {
         trailer: u16,
     },
+    ForcePassengerSync {
+        vehicle: u16,
+        seat: u8,
+    },
     ForceVehicleSync {
         vehicle: u16,
     },
