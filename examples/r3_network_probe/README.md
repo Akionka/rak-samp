@@ -16,15 +16,16 @@ The ASI writes `samp-client-sdk-r3-network-probe.status` in the GTA working
 directory:
 
 ```text
-status=0x0000001F
+status=0x0000003F
 failure=0
 ```
 
-`0x1F` proves host connection, listener registration, inbound readiness,
-successful outbound receipt, and the matching incoming reply callback. The
-listener returns `Continue`; a human must additionally verify that the reply
-marker appears in ordinary SA-MP chat. That visible result proves the original
-incoming-RPC handler ran.
+`0x3F` also proves the public ready/version APIs and the SDK's opaque module
+base identify the R3-1 PE entry point before it proves listener registration,
+inbound readiness, successful outbound receipt, and the matching incoming
+reply callback. The listener returns `Continue`; a human must additionally
+verify that the reply marker appears in ordinary SA-MP chat. That visible result
+proves the original incoming-RPC handler ran.
 
 Use only with the supplied disposable loopback server configuration. Do not use
 this probe on public servers.

@@ -664,8 +664,8 @@ known.
 | --- | --- | --- | --- | --- | --- |
 | Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] remains gated | [x] remains gated | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no non-R1 direct helper enabled |
 | Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture; remains gated | [x] independent fixture; remains gated | [x] independent fixture; remains gated | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
-| Network observe/send, codec, packet/RPC emulation | [x] | [ ] | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
-| Lifecycle/version/status and raw module base | [x] | [ ] | [ ] | [ ] | Attachment/version identity test |
+| Network observe/send, codec, packet/RPC emulation | [x] | [x] R3 smoke and loopback | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
+| Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [ ] | [ ] | Attachment/version identity test |
 | Cached game/server/local-player scalars | [x] | [ ] | [ ] | [ ] | Profile fixture and game-thread publication test |
 | UI, dialog, chat input, native command registry | [x] | [ ] | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [ ] | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |

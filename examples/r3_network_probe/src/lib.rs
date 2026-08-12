@@ -8,12 +8,14 @@
 compile_error!("samp_client_sdk_r3_network_probe supports only 32-bit Windows x86 targets");
 
 use samp_client_sdk::{
-    CommandReceipt, Samp, SampClientSdkDirection, SampClientSdkResult, Subscription,
+    CommandReceipt, Samp, SampClientSdkClientVersion, SampClientSdkDirection,
+    SampClientSdkHostStatus, SampClientSdkResult, Subscription,
     events::{RpcAction, rpc::incoming},
+    raw,
 };
 use std::{
     ffi::c_void,
-    fs,
+    fs, ptr,
     sync::{
         Condvar, Mutex,
         atomic::{AtomicU32, Ordering},
@@ -37,17 +39,21 @@ const INCOMING_READY_TIMEOUT: Duration = Duration::from_secs(60);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
 const STATUS_FILE: &str = "samp-client-sdk-r3-network-probe.status";
+const R3_1_ENTRY_POINT_RVA: u32 = 0x0CC4D0;
+const MAX_PE_HEADER_OFFSET: usize = 0x1000;
 
 /// The SDK host API resolved for this probe.
 pub const STATUS_HOST_CONNECTED: u32 = 1 << 0;
+/// Public host status, version, and the opaque module base identify the pinned R3-1 image.
+pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
 /// The non-blocking RPC 93 listener was registered.
-pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 1;
+pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
 /// A real inbound RPC supplied the native receiver required for a connected client.
-pub const STATUS_INCOMING_READY: u32 = 1 << 2;
+pub const STATUS_INCOMING_READY: u32 = 1 << 3;
 /// The single outgoing chat command completed successfully on the game thread.
-pub const STATUS_OUTBOUND_RECEIPT: u32 = 1 << 3;
+pub const STATUS_OUTBOUND_RECEIPT: u32 = 1 << 4;
 /// The matching server reply was observed before continuing to the original handler.
-pub const STATUS_REPLY_OBSERVED: u32 = 1 << 4;
+pub const STATUS_REPLY_OBSERVED: u32 = 1 << 5;
 /// An initialization, command, or reply stage failed.
 pub const STATUS_FAILED: u32 = 1 << 31;
 
@@ -127,6 +133,13 @@ fn initialize() {
     };
     STATUS.fetch_or(STATUS_HOST_CONNECTED, Ordering::AcqRel);
     publish_status();
+    if let Err(error) = verify_runtime_identity(samp) {
+        record_failure(error);
+        publish_status();
+        return;
+    }
+    STATUS.fetch_or(STATUS_RUNTIME_IDENTITY, Ordering::AcqRel);
+    publish_status();
 
     let subscription = match samp.net().on_typed_rpc(
         SampClientSdkDirection::Incoming,
@@ -174,6 +187,62 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     publish_status();
 
     wait_for_status(STATUS_REPLY_OBSERVED, CALLBACK_TIMEOUT)
+}
+
+fn verify_runtime_identity(samp: Samp) -> Result<(), SampClientSdkResult> {
+    if samp.status() != SampClientSdkHostStatus::Ready || !samp.probe().is_samp_loaded() {
+        return Err(SampClientSdkResult::NotReady);
+    }
+    if samp.version()? != SampClientSdkClientVersion::R3_1 {
+        return Err(SampClientSdkResult::NativeCallFailed);
+    }
+    let Some(base) = (unsafe { raw::base() }) else {
+        return Err(SampClientSdkResult::NotReady);
+    };
+    if unsafe { module_entry_point_rva(base.as_ptr()) } != Some(R3_1_ENTRY_POINT_RVA) {
+        return Err(SampClientSdkResult::NativeCallFailed);
+    }
+    Ok(())
+}
+
+/// Reads only the bounded DOS/PE headers from an already-loaded module.
+///
+/// The caller first verifies the host's ready state and version, then supplies
+/// the opaque `samp.dll` base. No Rust reference is constructed for client memory.
+unsafe fn module_entry_point_rva(base: *mut c_void) -> Option<u32> {
+    let base = base.cast::<u8>() as usize;
+    parse_pe_entry_point_rva(|offset, destination| {
+        let Some(address) = base.checked_add(offset) else {
+            return false;
+        };
+        unsafe {
+            ptr::copy_nonoverlapping(
+                address as *const u8,
+                destination.as_mut_ptr(),
+                destination.len(),
+            )
+        };
+        true
+    })
+}
+
+fn parse_pe_entry_point_rva(mut read: impl FnMut(usize, &mut [u8]) -> bool) -> Option<u32> {
+    let mut dos = [0_u8; 64];
+    if !read(0, &mut dos) || dos[..2] != *b"MZ" {
+        return None;
+    }
+    let pe_offset = usize::try_from(u32::from_le_bytes(dos[0x3C..0x40].try_into().ok()?)).ok()?;
+    if !(0x40..=MAX_PE_HEADER_OFFSET).contains(&pe_offset) {
+        return None;
+    }
+    let mut header = [0_u8; 44];
+    if !read(pe_offset, &mut header)
+        || header[..4] != *b"PE\0\0"
+        || header[24..26] != 0x10B_u16.to_le_bytes()
+    {
+        return None;
+    }
+    Some(u32::from_le_bytes(header[40..44].try_into().ok()?))
 }
 
 fn connect_host() -> Option<Samp> {
@@ -322,7 +391,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success before visual confirmation is `0x1F`.
+/// Returns the probe stage bitset; success before visual confirmation is `0x3F`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)
@@ -342,7 +411,29 @@ mod tests {
     fn status_record_is_bounded_and_machine_readable() {
         assert_eq!(
             status_record(STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT, 0),
-            "status=0x00000009\nfailure=0\n"
+            "status=0x00000011\nfailure=0\n"
+        );
+    }
+
+    #[test]
+    fn parses_the_r3_entry_point_from_a_bounded_pe_header() {
+        let mut image = vec![0_u8; 0x200];
+        image[..2].copy_from_slice(b"MZ");
+        image[0x3C..0x40].copy_from_slice(&(0x80_u32).to_le_bytes());
+        image[0x80..0x84].copy_from_slice(b"PE\0\0");
+        image[0x98..0x9A].copy_from_slice(&0x10B_u16.to_le_bytes());
+        image[0xA8..0xAC].copy_from_slice(&R3_1_ENTRY_POINT_RVA.to_le_bytes());
+
+        assert_eq!(
+            parse_pe_entry_point_rva(|offset, destination| {
+                let Some(source) = image.get(offset..offset.saturating_add(destination.len()))
+                else {
+                    return false;
+                };
+                destination.copy_from_slice(source);
+                true
+            }),
+            Some(R3_1_ENTRY_POINT_RVA)
         );
     }
 }
