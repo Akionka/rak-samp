@@ -523,7 +523,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 | --- | --- | --- | --- | --- | --- |
 | `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
 | Network `AddressSet` selection | [x] | [x] R3 smoke | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `NativeProfile::R1` | [ ] `R3ClientProfile` | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; server/game cache only | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
 | Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
 | Dialog-close hook target | [x] | [ ] profile RVA + ABI | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
 | RakClient vtable contract | [x] | [ ] verify slots/ABI | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
@@ -662,7 +662,7 @@ known.
 
 | Task | R1 | R3-1 | R5-1 | DL | Required proof |
 | --- | --- | --- | --- | --- | --- |
-| Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] remains gated | [x] remains gated | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no non-R1 direct helper enabled |
+| Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] scalar-only; other helpers gated | [x] remains gated | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no unverified non-R1 helper enabled |
 | Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture; remains gated | [x] independent fixture; remains gated | [x] independent fixture; remains gated | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
 | Network observe/send, codec, packet/RPC emulation | [x] | [x] R3 smoke and loopback | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
 | Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [ ] | [ ] | Attachment/version identity test |
