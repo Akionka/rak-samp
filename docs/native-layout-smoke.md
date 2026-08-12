@@ -51,7 +51,7 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The corrected static `CGame::Process` hook entered, and the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`). | Partial pass: outbound/original-handler proof, reconnect, and hook-restoration proof remain |
+| R3-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
@@ -72,7 +72,24 @@ game-command completion. The plugin recorded `status=0x0000007F`, `failure=0`.
 This proves the selected R3 network-only `AddressSet`—constructor and incoming
 RPC hooks, packet allocation, bitstream lock/unlock, string codec, and blocked
 exact-bit packet/RPC callbacks—on the pinned client. It sends no custom server
-traffic and does not prove outbound delivery or original-handler continuation.
+traffic. Outbound delivery and original-handler continuation are covered
+separately below.
+
+## R3-1 loopback delivery observation (2026-08-12)
+
+The opt-in [R3 network probe](../examples/r3_network_probe) ran against the
+disposable `C:\\Games\\SAMP-R3-LOOPBACK-PROBE` server at `127.0.0.1:7777`.
+After the host captured a real incoming-RPC receiver, the probe sent exactly
+one fixed chat RPC. The server filter logged `R3_OUTBOUND_OK playerid=0`, sent
+the fixed green response, and logged `R3_INCOMING_SENT playerid=0`.
+
+The plugin recorded `status=0x0000001F`, `failure=0`: host connected, typed
+RPC subscription installed, receiver captured, outgoing command receipt
+succeeded, and the matching typed incoming callback ran. The operator also
+visually confirmed `R3_SDK_INCOMING_20260812` in normal in-game chat. This
+proves the selected R3 outbound RPC route and that the SDK's typed listener
+continued to SA-MP's original incoming-RPC handler for this message. It does
+not replace the remaining full network, layout, reconnect, or unload checks.
 
 ## R5-1 network smoke observation (2026-08-12)
 
@@ -135,6 +152,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   matches the pinned hash.
 - [x] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
   packet allocation, bitstream lock/unlock, and string codec round-trip.
+- [x] Prove loopback outbound RPC delivery and non-blocking original incoming-RPC
+  handler continuation with a disposable server filter and human chat check.
 - [ ] Prove the profile's `CNetGame`, `CInput`, and `CDialog` values against
   the fixture before enabling any helper that consumes them.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate

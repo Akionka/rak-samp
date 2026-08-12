@@ -29,6 +29,7 @@ members = [
     "sdk",
     "examples/chat_command_plugin",
     "examples/network_smoke_plugin",
+    "examples/r3_network_probe",
     "examples/r5_network_probe",
     "examples/sample_plugin",
 ]
