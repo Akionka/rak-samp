@@ -433,7 +433,7 @@ remains permanently excluded.
 | [x] | `sampForcePassengerSyncSeatId` | Queued mutation | `LocalPlayer::force_passenger_sync` |
 | [x] | `sampForceWeaponsSync` | Queued mutation | `LocalPlayer::force_weapons_sync` |
 | [x] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |
-| [ ] | `sampGetRpcCallbackByRpcId` | Unsafe raw | `raw::rpc_callback` |
+| [x] | `sampGetRpcCallbackByRpcId` | Unsafe raw | `raw::rpc_callback` |
 | [ ] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
 | [x] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
 | [x] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |

@@ -19,6 +19,8 @@ const R1_OBJECT_POOL_OFFSET: usize = 0x04;
 const R1_GANGZONE_POOL_OFFSET: usize = 0x08;
 const R1_TEXT_LABEL_POOL_OFFSET: usize = 0x0C;
 const R1_TEXTDRAW_POOL_OFFSET: usize = 0x10;
+const R1_RAKPEER_RPC_NODE_TABLE_OFFSET: usize = 0x801;
+const R1_RPC_NODE_CALLBACK_OFFSET: usize = 0x01;
 const RAKCLIENT_VTABLE_SLOT_COUNT: usize = 26;
 
 /// Returns the loaded `samp.dll` module base as an opaque native address.
@@ -115,6 +117,25 @@ pub unsafe fn rakclient_function(
     }
     let client = unsafe { rakclient(samp) }?;
     Ok(unsafe { vtable_function(client, index) })
+}
+
+/// Returns the callback address registered for one R1 RakPeer RPC index.
+///
+/// A missing RPC node or callback returns `Ok(None)`.
+///
+/// # Safety
+///
+/// `samp` must refer to a live host attached to SA-MP 0.3.7 R1. The returned
+/// code address must not be called with an invented signature or retained
+/// after RakClient/RakPeer or SA-MP unloads. This accessor reads the native
+/// packed RPC-node table and does not create a Rust reference to it.
+pub unsafe fn rpc_callback(
+    samp: crate::Samp,
+    rpc_id: u8,
+) -> Result<Option<NonNull<c_void>>, crate::SampClientSdkResult> {
+    let peer = unsafe { rakpeer(samp) }?;
+    Ok(unsafe { r1_rpc_node(peer, rpc_id) }
+        .and_then(|node| unsafe { r1_field(node, R1_RPC_NODE_CALLBACK_OFFSET) }))
 }
 
 /// Returns the address of an owned [`crate::raknet::BitStream`]'s byte storage.
@@ -296,6 +317,12 @@ unsafe fn vtable_function(object: NonNull<c_void>, index: usize) -> Option<NonNu
     NonNull::new(unsafe { slot.read_unaligned().cast_mut() })
 }
 
+unsafe fn r1_rpc_node(peer: NonNull<c_void>, rpc_id: u8) -> Option<NonNull<c_void>> {
+    let offset = R1_RAKPEER_RPC_NODE_TABLE_OFFSET
+        .checked_add(usize::from(rpc_id).checked_mul(core::mem::size_of::<*mut c_void>())?)?;
+    unsafe { r1_field(peer, offset) }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -339,6 +366,57 @@ mod tests {
         assert_eq!(
             unsafe { vtable_function(object, 25) }.unwrap().as_ptr() as usize,
             0x2000
+        );
+    }
+
+    #[test]
+    fn rpc_callback_reads_the_packed_r1_rpc_node_table() {
+        let callback = 0x3000usize as *mut c_void;
+        let rpc_id = 17;
+        let mut node =
+            vec![0_u8; R1_RPC_NODE_CALLBACK_OFFSET + core::mem::size_of::<*mut c_void>()];
+        let mut peer = vec![
+            0_u8;
+            R1_RAKPEER_RPC_NODE_TABLE_OFFSET
+                + (usize::from(u8::MAX) + 1) * core::mem::size_of::<*mut c_void>()
+        ];
+        unsafe {
+            node.as_mut_ptr()
+                .add(R1_RPC_NODE_CALLBACK_OFFSET)
+                .cast::<*mut c_void>()
+                .write_unaligned(callback);
+            peer.as_mut_ptr()
+                .add(
+                    R1_RAKPEER_RPC_NODE_TABLE_OFFSET
+                        + usize::from(rpc_id) * core::mem::size_of::<*mut c_void>(),
+                )
+                .cast::<*mut c_void>()
+                .write_unaligned(node.as_mut_ptr().cast());
+            peer.as_mut_ptr()
+                .add(
+                    R1_RAKPEER_RPC_NODE_TABLE_OFFSET
+                        + usize::from(u8::MAX) * core::mem::size_of::<*mut c_void>(),
+                )
+                .cast::<*mut c_void>()
+                .write_unaligned(node.as_mut_ptr().cast());
+        }
+        let peer = NonNull::new(peer.as_mut_ptr()).unwrap().cast();
+
+        assert_eq!(
+            unsafe { r1_rpc_node(peer, rpc_id) }.unwrap().as_ptr(),
+            node.as_mut_ptr().cast()
+        );
+        assert_eq!(unsafe { r1_rpc_node(peer, rpc_id + 1) }, None,);
+        assert_eq!(
+            unsafe { r1_rpc_node(peer, u8::MAX) }.unwrap().as_ptr(),
+            node.as_mut_ptr().cast()
+        );
+        assert_eq!(
+            unsafe { r1_rpc_node(peer, rpc_id) }
+                .and_then(|node| unsafe { r1_field(node, R1_RPC_NODE_CALLBACK_OFFSET) })
+                .unwrap()
+                .as_ptr(),
+            callback,
         );
     }
 
