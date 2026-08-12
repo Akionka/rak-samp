@@ -505,7 +505,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_text(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_chat_input_text(&self, profile: NativeProfile) {
         match profile.chat_input_text() {
             Ok(text) => {
                 let Ok(mut snapshot) = self.local_chat_input_text.try_lock() else {

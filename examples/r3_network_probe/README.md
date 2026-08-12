@@ -18,7 +18,7 @@ The ASI writes `samp-client-sdk-r3-network-probe.status` in the GTA working
 directory:
 
 ```text
-status=0x000007FF
+status=0x00000FFF
 failure=0
 game_state=6
 address_hex=3132372E302E302E31
@@ -26,7 +26,7 @@ hostname_hex=53412D4D50
 port=7777
 ```
 
-`0x7FF` also proves the public ready/version APIs and the SDK's opaque module
+`0xFFF` also proves the public ready/version APIs and the SDK's opaque module
 base identify the R3-1 PE entry point, and that the R3 scalar cache reports its
 R3 `AwaitingJoin` state (`6`), loopback address/port, and native `CNetGame`
 host field (`SA-MP`). It additionally proves that the public local-player
@@ -35,7 +35,8 @@ proves listener registration, inbound readiness, successful outbound receipt,
 and the matching incoming reply callback. The probe then waits for an operator
 to open chat with `T`; it verifies that the cached active flag is true, the
 built-in `quit` command is present, and a fixed nonexistent name is absent.
-The listener returns `Continue`; a human must additionally verify that the
+The operator then enters, without sending, `R3_SDK_TEXT_CACHE_20260812`; the
+probe verifies the exact owned cached text. The listener returns `Continue`; a human must additionally verify that the
 reply marker appears in ordinary SA-MP chat. It then sends one more bounded
 loopback marker that makes the disposable filter open a message-box dialog and
 verifies the public cached `Samp::dialogs().is_active()` flag while that dialog

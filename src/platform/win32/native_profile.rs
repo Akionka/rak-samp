@@ -90,6 +90,14 @@ impl NativeProfile {
         }
     }
 
+    /// Reads copied chat-input text available on this profile.
+    pub(super) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.chat_input_text(),
+            Self::R3Scalars(profile) => profile.chat_input_text(),
+        }
+    }
+
     /// Reads the copied dialog active flag available on this profile.
     pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         match self {

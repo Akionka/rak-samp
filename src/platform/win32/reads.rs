@@ -114,7 +114,7 @@ impl BackendState {
     }
 
     pub(super) fn local_chat_input_text(&self) -> Result<Vec<u8>, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0

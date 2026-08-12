@@ -51,7 +51,7 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player/chat-input/dialog-active caches passed fixture and interactive loopback checks (`0x000007FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player/chat-input/dialog-active caches passed fixture and interactive loopback checks (`0x00000FFF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
@@ -136,20 +136,24 @@ recorded `status=0x000001FF`, `failure=0`. After the normal green
 it open long enough for the game-thread cache to publish. The probe then read
 `Samp::chat_input().is_active()` as true, found the built-in exact `quit`
 command name, and confirmed that the deliberately absent
-`r3_sdk_probe_missing_command` name was false.
+`r3_sdk_probe_missing_command` name was false. In the same session, the
+operator entered but did not send `R3_SDK_TEXT_CACHE_20260812`; the probe
+copied that exact bounded text from the R3 DXUT editbox cache.
 
 The independent fixture pins the consumed R3 `CInput` fields: command-name
 table offset `0x24C`, 33-byte name capacity, command-count offset `0x14DC`,
-and enabled-flag offset `0x14E0`. This enables only copied active and
-command-name reads. Chat-input text, dialog, chat rendering, command
-registration, and every UI mutation remain R1-only.
+enabled-flag offset `0x14E0`, and editbox pointer offset `0x08`. The installed
+R3 image's `0x84F40` `GetText` entry was also checked as the expected forwarding
+thunk before the live read. This enables only copied active, bounded text, and
+command-name reads. Dialog detail, chat rendering, command registration, and
+every UI mutation remain R1-only.
 
 ## R3-1 dialog-active cache observation (2026-08-12)
 
-The same probe first completed the chat-input check, then submitted its bounded
+The same probe first completed the chat-input active/name/text check, then submitted its bounded
 `R3_SDK_DIALOG_REQUEST_20260812` loopback marker. The disposable server logged
 `R3_DIALOG_SENT playerid=0` and displayed a normal SA-MP message-box dialog.
-With that dialog left open, the probe recorded `status=0x000007FF`,
+With that dialog left open, the probe recorded `status=0x00000FFF`,
 `failure=0` after `Samp::dialogs().is_active()` observed true from the
 game-thread cache.
 
@@ -230,8 +234,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   game thread, with a fixture gate and loopback observation.
 - [x] Publish and read the R3 local-player snapshot on the game thread, with
   `CPlayerPool`/`CLocalPlayer`/`CPed` fixture gates and spawned loopback smoke.
-- [x] Publish and read the R3 chat-input active flag and exact command lookup
-  on the game thread, with a `CInput` fixture gate and interactive loopback smoke.
+- [x] Publish and read the R3 chat-input active flag, bounded text, and exact
+  command lookup on the game thread, with a `CInput` fixture gate and interactive loopback smoke.
 - [x] Publish and read the R3 dialog active flag on the game thread, with a
   `CDialog` fixture gate and server-dialog loopback smoke.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate

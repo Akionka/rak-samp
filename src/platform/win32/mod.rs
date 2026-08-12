@@ -930,6 +930,7 @@ impl BackendState {
             self.refresh_r3_local_player_snapshot(scalar_profile);
             self.refresh_local_dialog_active(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
+            self.refresh_local_chat_input_text(scalar_profile);
             self.refresh_local_chat_input_commands(scalar_profile);
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;
@@ -945,7 +946,7 @@ impl BackendState {
         self.refresh_local_dialog_active(scalar_profile);
         self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(scalar_profile);
-        self.refresh_local_chat_input_text(profile);
+        self.refresh_local_chat_input_text(scalar_profile);
         self.refresh_local_chat_input_commands(scalar_profile);
         self.refresh_animation_catalog(profile);
         self.refresh_local_player_snapshot(profile);

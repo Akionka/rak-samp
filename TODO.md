@@ -576,7 +576,7 @@ the matching call signature and object/layout proof to that profile.
 | `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [ ] `0x69000` SAPI | [ ] `0x69770` SAPI | [ ] SF/disasm |
 | `INPUT_PROCESS_RVA` | [x] `0x65D30` | [ ] `0x69260` SAPI | [ ] `0x699D0` SAPI | [ ] SF/disasm |
 | `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [ ] SF/disasm | [ ] SF/disasm | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [ ] SF/disasm | [ ] SF/disasm | [ ] SF/disasm |
+| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [x] `0x84F40`; fixture, PE-thunk, and live cache read | [ ] SF/disasm | [ ] SF/disasm |
 | `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [ ] `0x26E8C8` SAPI | [ ] `0x26EB80` SAPI | [ ] SF/disasm |
 | `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [ ] `0x67460` SAPI | [ ] `0x67BE0` SAPI | [ ] SF/disasm |
 | `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [ ] `0x60B40` SAPI | [ ] `0x612B0` SAPI | [ ] SF/disasm |
@@ -644,7 +644,7 @@ build-specific fixture before its profile can be enabled.
 | --- | --- | --- | --- | --- | --- |
 | Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
 | `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] scalar slice fixture/live probe; pools deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
-| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] active/name cache fixture/live; editbox/native calls deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
+| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] active/name/text cache fixture/live; mutations deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
 | `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] active cache fixture/live; controls and calls deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
 | Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
 | Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify pool sizes, not-empty arrays, and pointer indirection |
@@ -668,7 +668,7 @@ known.
 | Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [ ] | [ ] | Attachment/version identity test |
 | Cached game/server scalars | [x] | [x] R3 fixture, game-thread cache, and loopback probe | [ ] | [ ] | Profile fixture and game-thread publication test |
 | Local-player scalars | [x] | [x] `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and spawned loopback smoke | [ ] | [ ] | Separate `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and in-game spawn smoke |
-| Read-only chat-input active flag and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [ ] | [ ] | Copy only `enabled` and bounded command names; leave text and commands gated |
+| Read-only chat-input active flag, text, and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [ ] | [ ] | Copy only `enabled`, bounded text, and command names; leave mutations and commands gated |
 | Read-only dialog active flag | [x] | [x] `CDialog` fixture and server-dialog loopback smoke | [ ] | [ ] | Copy only `m_bIsActive`; leave dialog snapshots, controls, hooks, and mutations gated |
 | UI, dialog, chat input, native command registry | [x] | [ ] | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [ ] | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |

@@ -585,12 +585,20 @@ fn r3_cached_dialog_and_chat_input_reads_use_exact_published_values() {
         Err(DirectClientError::NotReady)
     );
     assert_eq!(
+        state.local_chat_input_text(),
+        Err(DirectClientError::NotReady)
+    );
+    assert_eq!(
         state.local_chat_command_defined(b"sdk"),
         Err(DirectClientError::NotReady)
     );
     state.local_chat_input_active.store(true, Ordering::Release);
     state
         .local_chat_input_active_ready
+        .store(true, Ordering::Release);
+    *state.local_chat_input_text.lock().unwrap() = Some(b"/r3".to_vec());
+    state
+        .local_chat_input_text_ready
         .store(true, Ordering::Release);
     state.local_dialog_active.store(true, Ordering::Release);
     state
@@ -603,6 +611,7 @@ fn r3_cached_dialog_and_chat_input_reads_use_exact_published_values() {
 
     assert_eq!(state.local_dialog_active(), Ok(true));
     assert_eq!(state.local_chat_input_active(), Ok(true));
+    assert_eq!(state.local_chat_input_text(), Ok(b"/r3".to_vec()));
     assert_eq!(state.local_chat_command_defined(b"sdk"), Ok(true));
     assert_eq!(state.local_chat_command_defined(b"SDK"), Ok(false));
 }

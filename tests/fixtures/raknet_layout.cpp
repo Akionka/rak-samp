@@ -761,6 +761,7 @@ static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, active) == 0xF4);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, current_vehicle) == 0xFC);
 static_assert(offsetof(FixtureR3_1PedPrefix, game_ped) == 0x2A4);
 static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
+static_assert(offsetof(FixtureR3_1Input, editbox) == 0x08);
 static_assert(offsetof(FixtureR3_1Input, command_count) == 0x14DC);
 static_assert(offsetof(FixtureR3_1Input, enabled) == 0x14E0);
 static_assert(offsetof(FixtureR3_1Input, command_names) == 0x24C);
@@ -1301,6 +1302,10 @@ std::size_t samp_client_sdk_fixture_r3_1_ped_game_ped_offset() {
 
 std::size_t samp_client_sdk_fixture_r3_1_input_size() {
     return sizeof(FixtureR3_1Input);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_editbox_offset() {
+    return offsetof(FixtureR3_1Input, editbox);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_input_command_count_offset() {

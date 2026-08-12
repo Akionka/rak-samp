@@ -155,8 +155,8 @@ pub struct DeathWindow {
 
 /// Safe cached state for SA-MP's local chat-input UI.
 ///
-/// R3-1 currently supports only [`Self::is_active`] and
-/// [`Self::is_command_defined`]; text reads and mutations remain R1-only.
+/// R3-1 currently supports only [`Self::is_active`], [`Self::text`], and
+/// [`Self::is_command_defined`]; mutations remain R1-only.
 #[derive(Clone, Copy)]
 pub struct ChatInput {
     api: HostApi,
@@ -171,7 +171,7 @@ impl ChatInput {
         self.api.is_local_chat_input_active()
     }
 
-    /// Returns the owned game-thread-cached R1 chat-input text.
+    /// Returns owned game-thread-cached chat-input text.
     pub fn text(self) -> Result<Vec<u8>, SampClientSdkResult> {
         self.api.local_chat_input_text()
     }

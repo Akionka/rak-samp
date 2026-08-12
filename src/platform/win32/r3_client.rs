@@ -43,12 +43,15 @@ const ONFOOT_ANIMATION_OFFSET: usize = 0x40;
 const INCAR_POSITION_OFFSET: usize = 0x18;
 const INCAR_SPEED_OFFSET: usize = 0x24;
 const INPUT_SINGLETON_RVA: usize = 0x26_E8_CC;
+const INPUT_EDIT_BOX_OFFSET: usize = 0x08;
 const INPUT_COMMAND_NAME_OFFSET: usize = 0x24C;
 const INPUT_COMMAND_NAME_CAPACITY: usize = 33;
 const INPUT_COMMAND_COUNT_OFFSET: usize = 0x14DC;
 const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 const INPUT_CACHE_READABLE_SIZE: usize = INPUT_ENABLED_OFFSET + mem::size_of::<i32>();
 const MAX_CHAT_COMMANDS: usize = 144;
+const CHAT_INPUT_TEXT_CAPACITY: usize = 129;
+const DXUT_EDIT_BOX_GET_TEXT_RVA: usize = 0x84F40;
 const DIALOG_SINGLETON_RVA: usize = 0x26_E8_98;
 const DIALOG_ACTIVE_OFFSET: usize = 0x28;
 const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::<i32>();
@@ -59,6 +62,7 @@ type PlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
+type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 
 /// The narrowly verified R3-1 read-only cache profile.
 #[derive(Clone, Copy, Debug)]
@@ -257,6 +261,17 @@ impl R3ClientProfile {
         Ok(commands)
     }
 
+    /// Copies the R3-1 chat-input editbox text on the game thread.
+    pub(super) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        let editbox = unsafe { read_pointer(input as usize + INPUT_EDIT_BOX_OFFSET) }
+            .filter(|editbox| !editbox.is_null())
+            .ok_or(DirectClientError::NotReady)?;
+        let get_text: DxutEditBoxGetTextFn =
+            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_GET_TEXT_RVA) };
+        copy_chat_input_text(editbox.cast(), get_text)
+    }
+
     /// Copies the R3-1 dialog active flag without reading dialog controls.
     pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
@@ -303,6 +318,17 @@ impl R3ClientProfile {
         (!net_game.is_null() && readable_range(net_game.cast(), NET_GAME_SCALAR_READABLE_SIZE))
             .then_some(net_game)
     }
+}
+
+fn copy_chat_input_text(
+    editbox: *mut c_void,
+    get_text: DxutEditBoxGetTextFn,
+) -> Result<Vec<u8>, DirectClientError> {
+    if editbox.is_null() || !readable_range(editbox.cast(), 1) {
+        return Err(DirectClientError::NotReady);
+    }
+    unsafe { bounded_c_string(get_text(editbox), CHAT_INPUT_TEXT_CAPACITY) }
+        .ok_or(DirectClientError::NotReady)
 }
 
 #[cfg(test)]
@@ -410,5 +436,22 @@ mod tests {
         let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.dialog_is_active(), Ok(true));
+    }
+
+    unsafe extern "thiscall" fn fake_editbox_get_text(_editbox: *mut c_void) -> *const u8 {
+        c"/r3".as_ptr().cast()
+    }
+
+    #[test]
+    fn copies_bounded_r3_chat_input_text() {
+        let editbox = 0_u8;
+
+        assert_eq!(
+            copy_chat_input_text(
+                (&raw const editbox).cast_mut().cast(),
+                fake_editbox_get_text,
+            ),
+            Ok(b"/r3".to_vec())
+        );
     }
 }
