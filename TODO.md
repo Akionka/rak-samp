@@ -497,6 +497,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   outbound sends and original-handler delivery.
 - [x] Persist the isolated network smoke stage result without relying on
   SAMPFUNCS, so R5/DL validation is observable from the test root.
+- [x] Add a payload-free one-per-connection log for the inbound-RPC receiver
+  capture that packet emulation depends on.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

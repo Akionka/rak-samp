@@ -310,9 +310,12 @@ pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
     let Some(state) = active_state() else {
         return false;
     };
-    state
-        .rpc_receiver
-        .store(receiver as usize, Ordering::Release);
+    let previous_receiver = state.rpc_receiver.swap(receiver as usize, Ordering::AcqRel);
+    if previous_receiver == 0 && !receiver.is_null() {
+        // This establishes the native receive queue needed by packet emulation.
+        // Log only metadata; packet and RPC payloads must never reach diagnostics.
+        log::debug!("captured incoming-RPC receiver for packet emulation: length={length}");
+    }
     state
         .player_address
         .store(player.binary_address, Ordering::Release);
