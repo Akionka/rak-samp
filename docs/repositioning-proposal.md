@@ -76,7 +76,7 @@ native mutations race against the game thread.
 
 New design:
 
-- Detour **`CGame::Process`** (SA 1.0 US `0x53E4B0`, the same hook plugin-sdk
+- Detour **`CGame::Process`** (SA 1.0 US `0x53BEE0`, the same hook plugin-sdk
   uses). This is the game tick:
   - refresh all caches (local snapshot, player directory, textdraws, labels,
     objects, gangzones, UI flags, server info, animation table),

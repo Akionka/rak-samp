@@ -345,7 +345,7 @@ pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }
 
-pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
+pub(super) unsafe extern "C" fn game_process_detour() {
     let Some(state) = active_state() else {
         return;
     };
@@ -360,7 +360,7 @@ pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     {
         log::debug!("entered CGame::Process detour for the first time");
     }
-    unsafe { state.run_game_process_tick(game, original) };
+    unsafe { state.run_game_process_tick(original) };
 }
 
 pub(super) unsafe extern "thiscall" fn dialog_close_detour(dialog: *mut c_void, button: u8) {

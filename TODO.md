@@ -69,7 +69,8 @@ boundary.
 
 ### Phase 2 — game-thread foundation
 
-- [x] Hook `CGame::Process` at `0x53E4B0`, retain its trampoline, call the
+- [x] Hook `CGame::Process` at the verified static GTA 1.0 US entry
+  `0x53BEE0`, retain its trampoline, call the
   original exactly once per entry, and restore it during shutdown.
 - [x] Remove cache and UI pumping from the incoming-packet detour.
 - [x] Add the bounded 256-entry owned `GameCommand` queue and drain one accepted

@@ -25,7 +25,7 @@ unsafe extern "thiscall" fn fake_outgoing_packet(
     true
 }
 
-unsafe extern "thiscall" fn fake_game_process(_game: *mut c_void) {
+unsafe extern "C" fn fake_game_process() {
     GAME_PROCESS_CALLS.fetch_add(1, Ordering::AcqRel);
 }
 
@@ -638,7 +638,7 @@ fn game_tick_calls_original_once_and_marks_the_game_thread() {
     let state = test_backend_state();
     GAME_PROCESS_CALLS.store(0, Ordering::Release);
 
-    unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+    unsafe { state.run_game_process_tick(fake_game_process) };
 
     assert_eq!(GAME_PROCESS_CALLS.load(Ordering::Acquire), 1);
     assert!(state.is_game_thread());
@@ -651,7 +651,7 @@ fn game_tick_leaves_commands_pending_until_the_rak_client_is_ready() {
         .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
         .unwrap();
 
-    unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+    unsafe { state.run_game_process_tick(fake_game_process) };
 
     assert_eq!(state.game_commands.try_take(id), Ok(None));
 }
@@ -664,7 +664,7 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
         .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
         .unwrap();
 
-    unsafe { state.run_game_process_tick(ptr::null_mut(), fake_game_process) };
+    unsafe { state.run_game_process_tick(fake_game_process) };
 
     assert_eq!(
         state.game_commands.try_take(id),

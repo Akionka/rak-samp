@@ -125,7 +125,7 @@ const R1_CONNECTED_GAME_STATE: i32 = 14;
 /// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
 /// module base and is supported only for the fixed GTA executable selected by
 /// the host's R1/GTA configuration.
-const GTA_SA_10_US_CGAME_PROCESS: usize = 0x53E4B0;
+const GTA_SA_10_US_CGAME_PROCESS: usize = 0x53BEE0;
 
 fn try_lock_direct<T>(mutex: &Mutex<T>) -> Result<MutexGuard<'_, T>, DirectClientError> {
     match mutex.try_lock() {
@@ -1332,7 +1332,7 @@ impl BackendState {
         game_thread != 0 && game_thread == unsafe { GetCurrentThreadId() }
     }
 
-    unsafe fn run_game_process_tick(&self, game: *mut c_void, original: GameProcessFn) {
+    unsafe fn run_game_process_tick(&self, original: GameProcessFn) {
         // Publish this before entering GTA so a plugin reached from the native
         // process path cannot block the game thread on its own command receipt.
         self.game_thread_id
@@ -1352,7 +1352,7 @@ impl BackendState {
                 commands.len(),
             );
         }
-        unsafe { original(game) };
+        unsafe { original() };
         if let Some(commands) = commands {
             self.pump_game_tick(commands);
         }
@@ -1585,7 +1585,7 @@ mod vtable_tests;
 #[cfg(test)]
 mod inline_hook_tests;
 
-type GameProcessFn = unsafe extern "thiscall" fn(*mut c_void);
+type GameProcessFn = unsafe extern "C" fn();
 type StringWriteEncoderFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, i32, *mut RawBitStream, i32);
 type StringReadDecoderFn =

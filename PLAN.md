@@ -43,7 +43,7 @@
         package, symbol, and compatibility break.
 
   3. Phase 2 — game-thread execution foundation
-      - Install an inline CGame::Process hook at GTA SA 1.0 US address 0x53E4B0, capturing and restoring its
+      - Install an inline CGame::Process hook at GTA SA 1.0 US address 0x53BEE0, capturing and restoring its
         trampoline alongside the existing owned hooks.
 
       - Each detour invocation calls the original exactly once, drains the commands accepted before that tick, then
