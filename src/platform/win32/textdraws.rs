@@ -7,6 +7,24 @@ use crate::runtime::{DirectClientError, TextdrawSnapshot};
 use std::sync::atomic::Ordering;
 
 impl BackendState {
+    pub(super) fn publish_created_textdraw(&self, id: u16) {
+        let mut exists = self
+            .textdraw_exists_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(entry) = exists.get_mut(usize::from(id)) {
+            *entry = TextdrawExistsCacheEntry::Known(true);
+        }
+        drop(exists);
+        let mut cache = self
+            .textdraw_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if let Some(entry) = cache.get_mut(usize::from(id)) {
+            *entry = TextdrawCacheEntry::Unknown;
+        }
+    }
+
     pub(super) fn textdraw_exists(&self, pool_index: u16) -> Result<bool, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);

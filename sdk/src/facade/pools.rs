@@ -25,6 +25,18 @@ impl Textdraws {
         self.api.textdraw(id.get())
     }
 
+    /// Queues an R1 textdraw creation in one caller-selected free pool slot.
+    /// Text is NUL-free and limited to 800 bytes; coordinates must be finite.
+    pub fn create(
+        self,
+        id: TextdrawId,
+        text: &[u8],
+        x: f32,
+        y: f32,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_create_textdraw(id.get(), text, x, y)
+    }
+
     /// Queues the documented R1 textdraw-pool deletion.
     pub fn delete(self, id: TextdrawId) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_delete_textdraw(id.get())
@@ -331,6 +343,16 @@ mod tests {
             .delete(TextdrawId::new(7).unwrap())
             .unwrap();
         assert_eq!(receipt.id(), 26);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn textdraw_create_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .textdraws()
+            .create(TextdrawId::new(7).unwrap(), b"fixture", 12.5, 34.0)
+            .unwrap();
+        assert_eq!(receipt.id(), 50);
         assert_eq!(receipt.try_take(), Ok(Some(())));
     }
 

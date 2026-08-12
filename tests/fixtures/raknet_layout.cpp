@@ -325,6 +325,30 @@ struct FixtureR1TextDrawData {
     unsigned int field_9d2;
 };
 
+#pragma pack(push, 1)
+struct FixtureR1TextDrawTransmit {
+    unsigned char flags;
+    float letter_width;
+    float letter_height;
+    unsigned int letter_colour;
+    float box_width;
+    float box_height;
+    unsigned int box_colour;
+    unsigned char shadow;
+    unsigned char outline;
+    unsigned int background_colour;
+    unsigned char style;
+    unsigned char unknown;
+    float x;
+    float y;
+    unsigned short model_id;
+    FixtureVector3 rotation;
+    float zoom;
+    unsigned short model_colour1;
+    unsigned short model_colour2;
+};
+#pragma pack(pop)
+
 struct FixtureR1TextDraw {
     char text[801];
     char string[1602];
@@ -475,6 +499,9 @@ static_assert(offsetof(FixtureR1LabelPoolExistsPrefix, not_empty) == 0xE800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, not_empty) == 0);
 static_assert(sizeof(FixtureR1TextDrawPoolExistsPrefix) == 0x4800);
 static_assert(offsetof(FixtureR1TextDrawPoolExistsPrefix, objects) == 0x2400);
+static_assert(sizeof(FixtureR1TextDrawTransmit) == 0x3F);
+static_assert(offsetof(FixtureR1TextDrawTransmit, x) == 0x21);
+static_assert(offsetof(FixtureR1TextDrawTransmit, y) == 0x25);
 static_assert(offsetof(FixtureR1TextDraw, data) == 0x963);
 static_assert(offsetof(FixtureR1TextDraw, string) == 801);
 static_assert(offsetof(FixtureR1TextDrawData, letter_width) == 0x00);
@@ -778,6 +805,18 @@ std::size_t samp_client_sdk_fixture_r1_textdraw_pool_objects_offset() {
 
 std::size_t samp_client_sdk_fixture_r1_textdraw_data_offset() {
     return offsetof(FixtureR1TextDraw, data);
+}
+
+std::size_t samp_client_sdk_fixture_r1_textdraw_transmit_size() {
+    return sizeof(FixtureR1TextDrawTransmit);
+}
+
+std::size_t samp_client_sdk_fixture_r1_textdraw_transmit_x_offset() {
+    return offsetof(FixtureR1TextDrawTransmit, x);
+}
+
+std::size_t samp_client_sdk_fixture_r1_textdraw_transmit_y_offset() {
+    return offsetof(FixtureR1TextDrawTransmit, y);
 }
 
 std::size_t samp_client_sdk_fixture_r1_textdraw_string_offset() {

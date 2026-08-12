@@ -388,7 +388,7 @@ Tiers:
 | --- | --- | --- | --- |
 | [x] | `sampGetTextdrawPoolPtr` | Unsafe raw | `raw::textdraw_pool` |
 | [x] | `sampTextdrawIsExists` | Safe owned/read | `Textdraws::exists` |
-| [ ] | `sampTextdrawCreate` | Queued mutation | `Textdraws::create` |
+| [x] | `sampTextdrawCreate` | Queued mutation | `Textdraws::create` |
 | [x] | `sampTextdrawSetBoxColorAndSize` | Queued mutation | `Textdraws::set_box` |
 | [x] | `sampTextdrawGetString` | Safe owned/read | `Textdraw::text` |
 | [x] | `sampTextdrawDelete` | Queued mutation | `Textdraws::delete` |

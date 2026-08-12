@@ -1,6 +1,21 @@
 use crate::{CommandReceipt, HostApi, SampClientSdkCommandReceipt, SampClientSdkResult, Vector3};
 
 impl HostApi {
+    /// Queues an R1 textdraw creation in one caller-selected free pool slot.
+    pub fn submit_create_textdraw(
+        self,
+        id: u16,
+        text: &[u8],
+        x: f32,
+        y: f32,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe {
+            (self.raw.submit_create_textdraw)(id, text.as_ptr(), text.len(), x, y, &mut receipt)
+        };
+        self.command_receipt(result, receipt)
+    }
+
     /// Queues a documented R1 textdraw-pool deletion.
     pub fn submit_delete_textdraw(
         self,

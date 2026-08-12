@@ -1168,6 +1168,15 @@ pub struct SampClientSdkApiV1 {
     /// Queues one documented R1 in-car synchronization send.
     pub submit_force_vehicle_sync:
         unsafe extern "system" fn(u16, *mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
+    /// Copies and queues a documented R1 textdraw-pool creation in an explicit slot.
+    pub submit_create_textdraw: unsafe extern "system" fn(
+        u16,
+        *const u8,
+        usize,
+        f32,
+        f32,
+        *mut SampClientSdkCommandReceipt,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

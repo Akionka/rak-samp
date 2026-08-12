@@ -65,6 +65,78 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Creates one R1 textdraw in a caller-selected free pool slot. The native
+    /// pool constructor owns allocation and copies the transient stack data.
+    pub(in super::super) fn create_textdraw(
+        self,
+        pool_index: u16,
+        text: &[u8],
+        x: f32,
+        y: f32,
+    ) -> Result<(), DirectClientError> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS
+            || text.len() > MAX_TEXTDRAW_CREATE_TEXT_BYTES
+            || text.contains(&0)
+            || !x.is_finite()
+            || !y.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let flags_end =
+            TEXTDRAW_POOL_NOT_EMPTY_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<i32>();
+        let objects_end =
+            TEXTDRAW_POOL_OBJECTS_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<usize>();
+        if !readable_range(pool as *const u8, flags_end.max(objects_end)) {
+            return Err(DirectClientError::NotReady);
+        }
+        let flag =
+            pool + TEXTDRAW_POOL_NOT_EMPTY_OFFSET + usize::from(pool_index) * mem::size_of::<i32>();
+        let object_slot =
+            pool + TEXTDRAW_POOL_OBJECTS_OFFSET + usize::from(pool_index) * mem::size_of::<usize>();
+        let object =
+            unsafe { read_unaligned::<usize>(object_slot) }.ok_or(DirectClientError::NotReady)?;
+        if read_r1_bool(flag)? || object != 0 {
+            return Err(DirectClientError::NotReady);
+        }
+
+        let mut transmit = [0_u8; TEXTDRAW_TRANSMIT_SIZE];
+        transmit[TEXTDRAW_TRANSMIT_X_OFFSET..TEXTDRAW_TRANSMIT_X_OFFSET + mem::size_of::<f32>()]
+            .copy_from_slice(&x.to_le_bytes());
+        transmit[TEXTDRAW_TRANSMIT_Y_OFFSET..TEXTDRAW_TRANSMIT_Y_OFFSET + mem::size_of::<f32>()]
+            .copy_from_slice(&y.to_le_bytes());
+        let mut native_text = Vec::with_capacity(text.len() + 1);
+        native_text.extend_from_slice(text);
+        native_text.push(0);
+        let create: TextdrawPoolCreateFn =
+            unsafe { mem::transmute(self.module_base + TEXTDRAW_POOL_CREATE_RVA) };
+        if unsafe {
+            create(
+                (pool as *mut u8).cast(),
+                i32::from(pool_index),
+                transmit.as_mut_ptr().cast(),
+                native_text.as_ptr(),
+            )
+        }
+        .is_null()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(())
+    }
+
     /// Updates one existing R1 textdraw's finite screen position on the game
     /// thread. The fixture-backed pool, object, and two scalar fields are
     /// validated before the direct write.

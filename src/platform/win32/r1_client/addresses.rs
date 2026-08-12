@@ -68,4 +68,5 @@ pub(super) const CPOOLS_GET_VEHICLE_REF: usize = 0x54FFC0;
 
 pub(super) const LABEL_POOL_CREATE_RVA: usize = 0x11C0;
 pub(super) const LABEL_POOL_DELETE_RVA: usize = 0x12D0;
+pub(super) const TEXTDRAW_POOL_CREATE_RVA: usize = 0x1AE20;
 pub(super) const TEXTDRAW_POOL_DELETE_RVA: usize = 0x1AD00;

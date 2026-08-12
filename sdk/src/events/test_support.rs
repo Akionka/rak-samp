@@ -1343,6 +1343,28 @@ unsafe extern "system" fn test_submit_disconnect_with_reason(
     unsafe { test_submit_command(receipt, 25) }
 }
 
+unsafe extern "system" fn test_submit_create_textdraw(
+    id: u16,
+    text: *const u8,
+    text_len: usize,
+    x: f32,
+    y: f32,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS
+        || text_len > 800
+        || !x.is_finite()
+        || !y.is_finite()
+        || (text.is_null() && text_len != 0)
+    {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    if text_len != 0 && unsafe { std::slice::from_raw_parts(text, text_len) }.contains(&0) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 50) }
+}
+
 unsafe extern "system" fn test_submit_delete_textdraw(
     id: u16,
     receipt: *mut crate::SampClientSdkCommandReceipt,

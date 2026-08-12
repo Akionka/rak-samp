@@ -14,6 +14,27 @@ pub(super) unsafe extern "system" fn submit_delete_textdraw(
     unsafe { submit_direct_command(receipt, |runtime| runtime.submit_delete_textdraw(id)) }
 }
 
+pub(super) unsafe extern "system" fn submit_create_textdraw(
+    id: u16,
+    text: *const u8,
+    text_len: usize,
+    x: f32,
+    y: f32,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || !x.is_finite() || !y.is_finite() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Ok(text) = (unsafe { copied_nul_free_string(text, text_len, 800) }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_create_textdraw(id, text, x, y)
+        })
+    }
+}
+
 pub(super) unsafe extern "system" fn submit_set_textdraw_position(
     id: u16,
     x: f32,
@@ -180,5 +201,49 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_model_style(
                 colour2,
             )
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn create_textdraw_rejects_invalid_abi_inputs() {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        assert_eq!(
+            unsafe {
+                submit_create_textdraw(7, std::ptr::null(), 0, 1.0, 2.0, std::ptr::null_mut())
+            },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe {
+                submit_create_textdraw(
+                    MAX_SAMP_TEXTDRAWS,
+                    std::ptr::null(),
+                    0,
+                    1.0,
+                    2.0,
+                    &mut receipt,
+                )
+            },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { submit_create_textdraw(7, std::ptr::null(), 0, f32::NAN, 2.0, &mut receipt) },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { submit_create_textdraw(7, b"bad\0text".as_ptr(), 8, 1.0, 2.0, &mut receipt) },
+            SampClientSdkResult::InvalidArgument
+        );
+        let too_long = [b'x'; 801];
+        assert_eq!(
+            unsafe {
+                submit_create_textdraw(7, too_long.as_ptr(), too_long.len(), 1.0, 2.0, &mut receipt)
+            },
+            SampClientSdkResult::InvalidArgument
+        );
     }
 }

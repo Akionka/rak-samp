@@ -247,6 +247,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_connect_to_server: connection::submit_connect_to_server,
     submit_disconnect_with_reason: connection::submit_disconnect_with_reason,
     submit_delete_textdraw: textdraws::submit_delete_textdraw,
+    submit_create_textdraw: textdraws::submit_create_textdraw,
     submit_set_textdraw_position: textdraws::submit_set_textdraw_position,
     submit_set_textdraw_letter_style: textdraws::submit_set_textdraw_letter_style,
     submit_set_textdraw_proportional: textdraws::submit_set_textdraw_proportional,

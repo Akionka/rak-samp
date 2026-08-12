@@ -498,6 +498,28 @@ impl BackendState {
         self.queue_game_command(GameCommand::DeleteTextdraw(id))
     }
 
+    pub(super) fn submit_create_textdraw(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || text.len() > MAX_TEXTDRAW_CREATE_TEXT_BYTES
+            || text.contains(&0)
+            || !x.is_finite()
+            || !y.is_finite()
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::CreateTextdraw { id, text, x, y })
+    }
+
     pub(super) fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -1218,6 +1240,16 @@ impl BackendState {
                         profile
                             .delete_textdraw(id)
                             .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::CreateTextdraw { id, text, x, y } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .create_textdraw(id, &text, x, y)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.publish_created_textdraw(id);
+                        Ok(())
                     }),
                 GameCommand::DeleteTextLabel(id) => self
                     .r1_client

@@ -29,7 +29,8 @@ use super::{
     TEXTDRAW_LETTER_WIDTH_OFFSET, TEXTDRAW_MODEL_COLOUR1_OFFSET, TEXTDRAW_MODEL_COLOUR2_OFFSET,
     TEXTDRAW_MODEL_ID_OFFSET, TEXTDRAW_OUTLINE_OFFSET, TEXTDRAW_POOL_NOT_EMPTY_OFFSET,
     TEXTDRAW_POOL_OBJECTS_OFFSET, TEXTDRAW_PROPORTIONAL_OFFSET, TEXTDRAW_ROTATION_OFFSET,
-    TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
+    TEXTDRAW_SHADOW_OFFSET, TEXTDRAW_STYLE_OFFSET, TEXTDRAW_TRANSMIT_SIZE,
+    TEXTDRAW_TRANSMIT_X_OFFSET, TEXTDRAW_TRANSMIT_Y_OFFSET, TEXTDRAW_X_OFFSET, TEXTDRAW_Y_OFFSET,
     TEXTDRAW_ZOOM_OFFSET, VEHICLE_POOL_GAME_OBJECTS_OFFSET, VEHICLE_POOL_NOT_EMPTY_OFFSET,
     assigned_player_id, bounded_c_string, bounded_dxut_listbox_item_text, mem, nul_terminated,
 };
@@ -85,6 +86,9 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
     fn samp_client_sdk_fixture_r1_textdraw_pool_objects_offset() -> usize;
     fn samp_client_sdk_fixture_r1_textdraw_data_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_size() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_x_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_y_offset() -> usize;
     fn samp_client_sdk_fixture_r1_textdraw_letter_width_offset() -> usize;
     fn samp_client_sdk_fixture_r1_textdraw_letter_height_offset() -> usize;
     fn samp_client_sdk_fixture_r1_textdraw_letter_colour_offset() -> usize;
@@ -320,6 +324,18 @@ fn r1_sync_offsets_match_the_independent_x86_fixture() {
         assert_eq!(
             samp_client_sdk_fixture_r1_textdraw_pool_not_empty_offset(),
             TEXTDRAW_POOL_NOT_EMPTY_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_size(),
+            TEXTDRAW_TRANSMIT_SIZE
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_x_offset(),
+            TEXTDRAW_TRANSMIT_X_OFFSET
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_y_offset(),
+            TEXTDRAW_TRANSMIT_Y_OFFSET
         );
         let textdraw_offsets = [
             (

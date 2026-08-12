@@ -56,7 +56,8 @@
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers,
   including typed receipts for game-thread-selected free label IDs and validated
   text replacement.
-  `host_api/textdraws.rs` owns textdraw command producers.
+  `host_api/textdraws.rs` owns textdraw command producers, including
+  explicit-slot native creation.
 
 Public nonblocking cache reads and refresh-request producers report `Busy` when
 another thread currently owns their mutex. `QueueFull` remains a real bounded

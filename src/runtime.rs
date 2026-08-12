@@ -695,6 +695,16 @@ impl Runtime {
         self.backend.submit_delete_textdraw(id)
     }
 
+    pub(crate) fn submit_create_textdraw(
+        &self,
+        id: u16,
+        text: Vec<u8>,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_create_textdraw(id, text, x, y)
+    }
+
     pub(crate) fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
         self.backend.submit_delete_text_label(id)
     }

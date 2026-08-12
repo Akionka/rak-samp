@@ -109,6 +109,7 @@ const MAX_SAMP_VEHICLES: usize = 2000;
 const MAX_SAMP_TEXT_LABELS: usize = 2048;
 const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
+const MAX_TEXTDRAW_CREATE_TEXT_BYTES: usize = 800;
 const MAX_CHAT_ENTRIES: usize = 100;
 const MAX_SAMP_OBJECTS: usize = 1000;
 const MAX_SAMP_PICKUPS: usize = 4096;
@@ -435,6 +436,12 @@ enum GameCommand {
     SetTextLabelText {
         id: u16,
         text: Vec<u8>,
+    },
+    CreateTextdraw {
+        id: u16,
+        text: Vec<u8>,
+        x: f32,
+        y: f32,
     },
     DeleteTextdraw(u16),
     SetTextdrawPosition {
