@@ -104,7 +104,7 @@ impl BackendState {
 
     pub(super) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {
         cached_direct_client_value(
-            self.r1_client().is_some(),
+            self.scalar_profile().is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
             self.cache_is_published(),
             self.local_chat_input_active_ready
@@ -132,7 +132,7 @@ impl BackendState {
         &self,
         name: &[u8],
     ) -> Result<bool, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0

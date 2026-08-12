@@ -1104,7 +1104,7 @@ impl BackendState {
                                 )
                                 .map_err(|_| CommandError::NativeFailure);
                             if result.is_ok() {
-                                self.refresh_local_chat_input_commands(profile);
+                                self.refresh_local_chat_input_commands(NativeProfile::R1(profile));
                             }
                             result
                         });
@@ -1123,7 +1123,7 @@ impl BackendState {
                                 .unregister_chat_command(&name)
                                 .map_err(|_| CommandError::NativeFailure);
                             if result.is_ok() {
-                                self.refresh_local_chat_input_commands(profile);
+                                self.refresh_local_chat_input_commands(NativeProfile::R1(profile));
                             }
                             result
                         });

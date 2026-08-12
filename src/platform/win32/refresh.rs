@@ -490,7 +490,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_active(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_chat_input_active(&self, profile: NativeProfile) {
         match profile.chat_input_is_active() {
             Ok(active) => {
                 self.local_chat_input_active
@@ -524,7 +524,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_commands(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_chat_input_commands(&self, profile: NativeProfile) {
         match profile.chat_input_commands() {
             Ok(commands) => {
                 let Ok(mut snapshot) = self.local_chat_input_commands.try_lock() else {

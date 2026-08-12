@@ -1,7 +1,7 @@
 //! Private SA-MP 0.3.7 R3-1 profile for verified read-only caches.
 //!
-//! This deliberately covers only copied server/game and local-player snapshots.
-//! R3 UI, remote-player, pool, raw-address, and mutation helpers remain
+//! This deliberately covers only copied server/game, local-player, and narrow
+//! chat-input snapshots. R3 UI, remote-player, pool, raw-address, and mutation helpers remain
 //! unavailable until each family has an independent fixture and live validation.
 
 use super::r1_client::memory::{
@@ -41,6 +41,13 @@ const ONFOOT_SPEED_OFFSET: usize = 0x26;
 const ONFOOT_ANIMATION_OFFSET: usize = 0x40;
 const INCAR_POSITION_OFFSET: usize = 0x18;
 const INCAR_SPEED_OFFSET: usize = 0x24;
+const INPUT_SINGLETON_RVA: usize = 0x26_E8_CC;
+const INPUT_COMMAND_NAME_OFFSET: usize = 0x24C;
+const INPUT_COMMAND_NAME_CAPACITY: usize = 33;
+const INPUT_COMMAND_COUNT_OFFSET: usize = 0x14DC;
+const INPUT_ENABLED_OFFSET: usize = 0x14E0;
+const INPUT_CACHE_READABLE_SIZE: usize = INPUT_ENABLED_OFFSET + mem::size_of::<i32>();
+const MAX_CHAT_COMMANDS: usize = 144;
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -49,7 +56,7 @@ type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *con
 type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 
-/// The narrowly verified R3-1 CNetGame scalar profile.
+/// The narrowly verified R3-1 read-only cache profile.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct R3ClientProfile {
     module_base: usize,
@@ -204,6 +211,48 @@ impl R3ClientProfile {
         })
     }
 
+    /// Copies the R3-1 chat-input enabled flag without invoking its UI methods.
+    pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        match unsafe { read_unaligned::<i32>(input as usize + INPUT_ENABLED_OFFSET) } {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
+    /// Copies the bounded R3-1 native chat-command names on the game thread.
+    pub(super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)? as *const u8;
+        let count = unsafe { read_unaligned::<i32>(input as usize + INPUT_COMMAND_COUNT_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        if !(0..=MAX_CHAT_COMMANDS as i32).contains(&count) {
+            return Err(DirectClientError::NotReady);
+        }
+        let count = count as usize;
+        let names = (input as usize)
+            .checked_add(INPUT_COMMAND_NAME_OFFSET)
+            .ok_or(DirectClientError::NotReady)?;
+        let names_length = count
+            .checked_mul(INPUT_COMMAND_NAME_CAPACITY)
+            .ok_or(DirectClientError::NotReady)?;
+        if names_length != 0 && !readable_range(names as *const u8, names_length) {
+            return Err(DirectClientError::NotReady);
+        }
+
+        let mut commands = Vec::with_capacity(count);
+        for index in 0..count {
+            let address = names
+                .checked_add(index * INPUT_COMMAND_NAME_CAPACITY)
+                .ok_or(DirectClientError::NotReady)?;
+            let name =
+                unsafe { bounded_c_string(address as *const u8, INPUT_COMMAND_NAME_CAPACITY) }
+                    .ok_or(DirectClientError::NotReady)?;
+            commands.push(name);
+        }
+        Ok(commands)
+    }
+
     fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn =
@@ -218,6 +267,13 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         Ok(pool)
+    }
+
+    fn input(self) -> Option<*mut c_void> {
+        let input: *mut c_void =
+            unsafe { read_pointer(self.module_base.checked_add(INPUT_SINGLETON_RVA)?) }?.cast();
+        (!input.is_null() && readable_range(input.cast(), INPUT_CACHE_READABLE_SIZE))
+            .then_some(input)
     }
 
     fn net_game(self) -> Option<*mut c_void> {
@@ -280,5 +336,36 @@ mod tests {
     fn rejects_other_entry_points() {
         assert!(R3ClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT).is_some());
         assert!(R3ClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT - 1).is_none());
+    }
+
+    #[test]
+    fn reads_verified_r3_chat_input_cache() {
+        let mut module = vec![0_u8; INPUT_SINGLETON_RVA + std::mem::size_of::<usize>()];
+        let mut input = vec![0_u8; INPUT_CACHE_READABLE_SIZE];
+        let module_base = module.as_mut_ptr() as usize;
+        let input_pointer = input.as_mut_ptr();
+        unsafe {
+            ptr::write_unaligned(
+                module.as_mut_ptr().add(INPUT_SINGLETON_RVA).cast::<usize>(),
+                input_pointer as usize,
+            );
+            ptr::write_unaligned(
+                input_pointer.add(INPUT_COMMAND_COUNT_OFFSET).cast::<i32>(),
+                2,
+            );
+            ptr::write_unaligned(input_pointer.add(INPUT_ENABLED_OFFSET).cast::<i32>(), 1);
+        }
+        input[INPUT_COMMAND_NAME_OFFSET..INPUT_COMMAND_NAME_OFFSET + 5].copy_from_slice(b"quit\0");
+        input[INPUT_COMMAND_NAME_OFFSET + INPUT_COMMAND_NAME_CAPACITY
+            ..INPUT_COMMAND_NAME_OFFSET + INPUT_COMMAND_NAME_CAPACITY + 5]
+            .copy_from_slice(b"help\0");
+
+        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+
+        assert_eq!(profile.chat_input_is_active(), Ok(true));
+        assert_eq!(
+            profile.chat_input_commands(),
+            Ok(vec![b"quit".to_vec(), b"help".to_vec()])
+        );
     }
 }

@@ -36,6 +36,7 @@ const OUTBOUND_MARKER: &[u8] = b"R3_SDK_OUTBOUND_20260812";
 const INCOMING_MARKER: &[u8] = b"R3_SDK_INCOMING_20260812";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(45);
 const SCALAR_CACHE_TIMEOUT: Duration = Duration::from_secs(45);
+const CHAT_INPUT_CACHE_TIMEOUT: Duration = Duration::from_secs(60);
 const INCOMING_READY_TIMEOUT: Duration = Duration::from_secs(60);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
@@ -52,6 +53,8 @@ pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
 pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
 /// The R3 cached local-player snapshot passed bounded sanity checks.
 pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
+/// The R3 cached chat-input active flag and command names passed the live check.
+pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 /// The non-blocking RPC 93 listener was registered.
 pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
 /// A real inbound RPC supplied the native receiver required for a connected client.
@@ -210,6 +213,10 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     publish_status();
 
     wait_for_status(STATUS_REPLY_OBSERVED, CALLBACK_TIMEOUT)
+        .and_then(|()| verify_cached_chat_input(samp))?;
+    STATUS.fetch_or(STATUS_CHAT_INPUT_CACHE, Ordering::AcqRel);
+    publish_status();
+    Ok(())
 }
 
 fn verify_runtime_identity(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -305,6 +312,33 @@ fn local_player_snapshot_is_valid(player: &samp_client_sdk::LocalPlayer) -> bool
         && player.velocity.y.is_finite()
         && player.velocity.z.is_finite()
         && player.vehicle_id.is_none_or(|id| id < 2000)
+}
+
+fn verify_cached_chat_input(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + CHAT_INPUT_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        let input = samp.chat_input();
+        match (
+            input.is_active(),
+            input.is_command_defined(b"quit"),
+            input.is_command_defined(b"r3_sdk_probe_missing_command"),
+        ) {
+            (Ok(true), Ok(true), Ok(false)) => return Ok(()),
+            (Ok(_), Ok(_), Ok(false)) => {}
+            (Err(SampClientSdkResult::NotReady), _, _)
+            | (_, Err(SampClientSdkResult::NotReady), _)
+            | (_, _, Err(SampClientSdkResult::NotReady)) => {}
+            (Err(error), _, _) | (_, Err(error), _) | (_, _, Err(error)) => return Err(error),
+            _ => return Err(SampClientSdkResult::NativeCallFailed),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
 }
 
 /// Reads only the bounded DOS/PE headers from an already-loaded module.
@@ -510,7 +544,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success before visual confirmation is `0xFF`.
+/// Returns the probe stage bitset; success after chat-input confirmation is `0x1FF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)

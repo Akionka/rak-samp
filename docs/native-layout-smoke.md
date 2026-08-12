@@ -51,7 +51,7 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player caches passed fixture and spawned loopback checks (`0x000000FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player/chat-input caches passed fixture and interactive loopback checks (`0x000001FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
@@ -107,8 +107,9 @@ incoming callback; the operator visually confirmed the green
 
 This validates the R3 CNetGame singleton slot plus every field consumed by the
 new read-only scalar slice. The native host field is deliberately not claimed
-to be the server-config display hostname. R3 UI, remote-player, pool, handle, raw,
-and mutation helpers remain unsupported.
+to be the server-config display hostname. Except for the narrow read-only
+chat-input cache below, R3 UI, remote-player, pool, handle, raw, and mutation
+helpers remain unsupported.
 
 ## R3-1 local-player cache observation (2026-08-12)
 
@@ -124,8 +125,24 @@ ID before it sends the loopback chat marker.
 The disposable server logged `R3_OUTBOUND_OK` and `R3_INCOMING_SENT`; the
 operator visually confirmed the green `R3_SDK_INCOMING_20260812` message.
 This enables only the copied local-player snapshot. R3 raw player addresses,
-pool/entity directory reads, sync snapshots, UI helpers, and local-player
-mutations remain unsupported.
+pool/entity directory reads, sync snapshots, broader UI helpers, and
+local-player mutations remain unsupported.
+
+## R3-1 chat-input cache observation (2026-08-12)
+
+With the same pinned client and disposable loopback server, the extended probe
+recorded `status=0x000001FF`, `failure=0`. After the normal green
+`R3_SDK_INCOMING_20260812` message, the operator opened chat with `T` and left
+it open long enough for the game-thread cache to publish. The probe then read
+`Samp::chat_input().is_active()` as true, found the built-in exact `quit`
+command name, and confirmed that the deliberately absent
+`r3_sdk_probe_missing_command` name was false.
+
+The independent fixture pins the consumed R3 `CInput` fields: command-name
+table offset `0x24C`, 33-byte name capacity, command-count offset `0x14DC`,
+and enabled-flag offset `0x14E0`. This enables only copied active and
+command-name reads. Chat-input text, dialog, chat rendering, command
+registration, and every UI mutation remain R1-only.
 
 ## R5-1 network smoke observation (2026-08-12)
 
@@ -199,6 +216,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   game thread, with a fixture gate and loopback observation.
 - [x] Publish and read the R3 local-player snapshot on the game thread, with
   `CPlayerPool`/`CLocalPlayer`/`CPed` fixture gates and spawned loopback smoke.
+- [x] Publish and read the R3 chat-input active flag and exact command lookup
+  on the game thread, with a `CInput` fixture gate and interactive loopback smoke.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
 - [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.

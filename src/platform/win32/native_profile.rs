@@ -14,8 +14,9 @@ use crate::{
 /// A verified direct-native profile selected for the loaded SA-MP build.
 ///
 /// More variants are added only with their own fixture-backed layout and live
-/// validation. The R3-1 variant is deliberately limited to copied CNetGame
-/// and local-player cache reads; all other R3 direct helpers remain unavailable.
+/// validation. The R3-1 variant is deliberately limited to copied CNetGame,
+/// local-player, and chat-input cache reads; all other R3 direct helpers remain
+/// unavailable.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum NativeProfile {
     R1(R1ClientProfile),
@@ -70,6 +71,22 @@ impl NativeProfile {
         match self {
             Self::R1(profile) => profile.local_player(),
             Self::R3Scalars(profile) => profile.local_player(),
+        }
+    }
+
+    /// Reads the copied chat-input enabled flag available on this profile.
+    pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.chat_input_is_active(),
+            Self::R3Scalars(profile) => profile.chat_input_is_active(),
+        }
+    }
+
+    /// Reads copied native chat-command names available on this profile.
+    pub(super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.chat_input_commands(),
+            Self::R3Scalars(profile) => profile.chat_input_commands(),
         }
     }
 }

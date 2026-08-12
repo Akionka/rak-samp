@@ -150,6 +150,9 @@ pub struct DeathWindow {
 }
 
 /// Safe cached state for SA-MP's local chat-input UI.
+///
+/// R3-1 currently supports only [`Self::is_active`] and
+/// [`Self::is_command_defined`]; text reads and mutations remain R1-only.
 #[derive(Clone, Copy)]
 pub struct ChatInput {
     api: HostApi,
@@ -169,7 +172,7 @@ impl ChatInput {
         self.api.local_chat_input_text()
     }
 
-    /// Reports whether the exact R1 chat-command name is currently defined.
+    /// Reports whether the exact cached chat-command name is currently defined.
     pub fn is_command_defined(self, name: &[u8]) -> Result<bool, SampClientSdkResult> {
         if name.is_empty() || name.len() > MAX_SAMP_CHAT_COMMAND_NAME_BYTES || name.contains(&0) {
             return Err(SampClientSdkResult::InvalidArgument);

@@ -763,6 +763,8 @@ static_assert(offsetof(FixtureR3_1PedPrefix, game_ped) == 0x2A4);
 static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
 static_assert(offsetof(FixtureR3_1Input, command_count) == 0x14DC);
 static_assert(offsetof(FixtureR3_1Input, enabled) == 0x14E0);
+static_assert(offsetof(FixtureR3_1Input, command_names) == 0x24C);
+static_assert(sizeof(FixtureR3_1Input::command_names[0]) == 33);
 static_assert(sizeof(FixtureR3_1Dialog) == 0x29D);
 static_assert(offsetof(FixtureR3_1Dialog, active) == 0x28);
 static_assert(offsetof(FixtureR3_1Dialog, caption) == 0x40);
@@ -1303,6 +1305,14 @@ std::size_t samp_client_sdk_fixture_r3_1_input_size() {
 
 std::size_t samp_client_sdk_fixture_r3_1_input_command_count_offset() {
     return offsetof(FixtureR3_1Input, command_count);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_command_names_offset() {
+    return offsetof(FixtureR3_1Input, command_names);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_command_name_capacity() {
+    return sizeof(FixtureR3_1Input::command_names[0]);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_input_enabled_offset() {

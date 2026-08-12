@@ -24,6 +24,8 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r3_1_ped_game_ped_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_command_count_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_input_command_names_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_input_command_name_capacity() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_enabled_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_dialog_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_dialog_active_offset() -> usize;
@@ -143,6 +145,19 @@ fn r3_local_player_snapshot_layout_matches_the_independent_cpp_fixture() {
         )
     };
     assert_eq!(observed, (0x2F1C, 0x04, 0x98, 0xF4, 0xFC, 0x2A4));
+}
+
+#[test]
+fn r3_chat_input_cache_layout_matches_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        (
+            samp_client_sdk_fixture_r3_1_input_command_names_offset(),
+            samp_client_sdk_fixture_r3_1_input_command_name_capacity(),
+            samp_client_sdk_fixture_r3_1_input_command_count_offset(),
+            samp_client_sdk_fixture_r3_1_input_enabled_offset(),
+        )
+    };
+    assert_eq!(observed, (0x24C, 33, 0x14DC, 0x14E0));
 }
 
 #[test]

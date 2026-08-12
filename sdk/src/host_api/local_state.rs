@@ -50,7 +50,7 @@ impl HostApi {
         self.cached_boolean(self.raw.local_dialog_active)
     }
 
-    /// Returns whether the cached R1 local chat input is active.
+    /// Returns whether the cached local chat input is active.
     pub fn is_local_chat_input_active(self) -> Result<bool, SampClientSdkResult> {
         self.cached_boolean(self.raw.local_chat_input_active)
     }

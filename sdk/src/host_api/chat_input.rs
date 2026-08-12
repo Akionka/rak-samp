@@ -6,7 +6,7 @@ use crate::{
 };
 
 impl HostApi {
-    /// Reports whether an exact bounded name is present in the cached R1 command table.
+    /// Reports whether an exact bounded name is present in the cached command table.
     pub fn local_chat_command_defined(self, name: &[u8]) -> Result<bool, SampClientSdkResult> {
         let mut defined = 0_u8;
         let result = unsafe {
