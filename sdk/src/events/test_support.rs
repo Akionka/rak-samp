@@ -1387,6 +1387,17 @@ unsafe extern "system" fn test_submit_set_textdraw_position(
     unsafe { test_submit_command(receipt, 27) }
 }
 
+unsafe extern "system" fn test_submit_set_textdraw_style(
+    id: u16,
+    style: i32,
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if id >= crate::limits::MAX_SAMP_TEXTDRAWS || !(0..=5).contains(&style) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { test_submit_command(receipt, 51) }
+}
+
 unsafe extern "system" fn test_submit_set_textdraw_letter_style(
     id: u16,
     width: f32,

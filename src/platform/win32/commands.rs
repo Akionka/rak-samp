@@ -706,6 +706,23 @@ impl BackendState {
         self.queue_game_command(GameCommand::SetTextdrawPosition { id, x, y })
     }
 
+    pub(super) fn submit_set_textdraw_style(
+        &self,
+        id: u16,
+        style: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0
+            || usize::from(id) >= MAX_SAMP_TEXTDRAWS
+            || !(0..=5).contains(&style)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::SetTextdrawStyle { id, style })
+    }
+
     pub(super) fn submit_set_textdraw_letter_style(
         &self,
         id: u16,
@@ -1354,6 +1371,16 @@ impl BackendState {
                         profile
                             .set_textdraw_position(id, x, y)
                             .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::SetTextdrawStyle { id, style } => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .set_textdraw_style(id, style)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawLetterStyle {
                     id,

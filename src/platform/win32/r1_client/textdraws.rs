@@ -190,6 +190,54 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Updates one existing R1 textdraw's supported font/style selector on
+    /// the game thread.
+    pub(in super::super) fn set_textdraw_style(
+        self,
+        pool_index: u16,
+        style: i32,
+    ) -> Result<(), DirectClientError> {
+        if pool_index >= MAX_SAMP_TEXTDRAWS || !(0..=5).contains(&style) {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
+            .filter(|pools| *pools != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(
+            pools as *const u8,
+            NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET) }
+            .filter(|pool| *pool != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let flags_end =
+            TEXTDRAW_POOL_NOT_EMPTY_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<i32>();
+        let objects_end =
+            TEXTDRAW_POOL_OBJECTS_OFFSET + (usize::from(pool_index) + 1) * mem::size_of::<usize>();
+        if !readable_range(pool as *const u8, flags_end.max(objects_end))
+            || !read_r1_bool(
+                pool + TEXTDRAW_POOL_NOT_EMPTY_OFFSET
+                    + usize::from(pool_index) * mem::size_of::<i32>(),
+            )?
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let object_slot =
+            pool + TEXTDRAW_POOL_OBJECTS_OFFSET + usize::from(pool_index) * mem::size_of::<usize>();
+        let object = unsafe { read_unaligned::<usize>(object_slot) }
+            .filter(|object| *object != 0)
+            .ok_or(DirectClientError::NotReady)?;
+        let field = (object + TEXTDRAW_STYLE_OFFSET) as *mut i32;
+        if !writable_range(field.cast(), mem::size_of::<i32>()) {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe { ptr::write_unaligned(field, style) };
+        Ok(())
+    }
+
     /// Updates one existing R1 textdraw's finite letter dimensions and colour.
     pub(in super::super) fn set_textdraw_letter_style(
         self,

@@ -363,6 +363,14 @@ impl Backend {
         self.state.submit_set_textdraw_position(id, x, y)
     }
 
+    pub(crate) fn submit_set_textdraw_style(
+        &self,
+        id: u16,
+        style: i32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_set_textdraw_style(id, style)
+    }
+
     pub(crate) fn submit_set_textdraw_letter_style(
         &self,
         id: u16,

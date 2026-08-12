@@ -51,6 +51,21 @@ pub(super) unsafe extern "system" fn submit_set_textdraw_position(
     }
 }
 
+pub(super) unsafe extern "system" fn submit_set_textdraw_style(
+    id: u16,
+    style: i32,
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() || id >= MAX_SAMP_TEXTDRAWS || !(0..=5).contains(&style) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe {
+        submit_direct_command(receipt, |runtime| {
+            runtime.submit_set_textdraw_style(id, style)
+        })
+    }
+}
+
 pub(super) unsafe extern "system" fn submit_set_textdraw_letter_style(
     id: u16,
     width: f32,
@@ -243,6 +258,27 @@ mod tests {
             unsafe {
                 submit_create_textdraw(7, too_long.as_ptr(), too_long.len(), 1.0, 2.0, &mut receipt)
             },
+            SampClientSdkResult::InvalidArgument
+        );
+    }
+
+    #[test]
+    fn set_textdraw_style_rejects_invalid_abi_inputs() {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        assert_eq!(
+            unsafe { submit_set_textdraw_style(7, 4, std::ptr::null_mut()) },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { submit_set_textdraw_style(MAX_SAMP_TEXTDRAWS, 4, &mut receipt) },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { submit_set_textdraw_style(7, -1, &mut receipt) },
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            unsafe { submit_set_textdraw_style(7, 6, &mut receipt) },
             SampClientSdkResult::InvalidArgument
         );
     }

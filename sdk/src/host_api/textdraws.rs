@@ -38,6 +38,17 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
+    /// Queues a documented R1 textdraw font/style update.
+    pub fn submit_set_textdraw_style(
+        self,
+        id: u16,
+        style: i32,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe { (self.raw.submit_set_textdraw_style)(id, style, &mut receipt) };
+        self.command_receipt(result, receipt)
+    }
+
     /// Queues finite R1 textdraw letter dimensions and a native colour value.
     pub fn submit_set_textdraw_letter_style(
         self,

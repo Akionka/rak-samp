@@ -52,6 +52,15 @@ impl Textdraws {
         self.api.submit_set_textdraw_position(id.get(), x, y)
     }
 
+    /// Queues an R1 textdraw font/style update. Valid styles are `0..=5`.
+    pub fn set_style(
+        self,
+        id: TextdrawId,
+        style: i32,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        self.api.submit_set_textdraw_style(id.get(), style)
+    }
+
     /// Queues finite R1 textdraw letter dimensions and a native colour value.
     pub fn set_letter_style(
         self,
@@ -363,6 +372,16 @@ mod tests {
             .set_position(TextdrawId::new(7).unwrap(), 12.5, 34.0)
             .unwrap();
         assert_eq!(receipt.id(), 27);
+        assert_eq!(receipt.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn textdraw_style_returns_an_owned_completion_receipt() {
+        let mut receipt = samp()
+            .textdraws()
+            .set_style(TextdrawId::new(7).unwrap(), 4)
+            .unwrap();
+        assert_eq!(receipt.id(), 51);
         assert_eq!(receipt.try_take(), Ok(Some(())));
     }
 

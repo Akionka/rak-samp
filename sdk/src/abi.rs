@@ -1177,6 +1177,12 @@ pub struct SampClientSdkApiV1 {
         f32,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
+    /// Queues a documented R1 textdraw font/style update.
+    pub submit_set_textdraw_style: unsafe extern "system" fn(
+        u16,
+        i32,
+        *mut SampClientSdkCommandReceipt,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

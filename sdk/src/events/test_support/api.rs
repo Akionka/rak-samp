@@ -105,6 +105,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     submit_delete_textdraw: test_submit_delete_textdraw,
     submit_create_textdraw: test_submit_create_textdraw,
     submit_set_textdraw_position: test_submit_set_textdraw_position,
+    submit_set_textdraw_style: test_submit_set_textdraw_style,
     submit_set_textdraw_letter_style: test_submit_set_textdraw_letter_style,
     submit_set_textdraw_proportional: test_submit_set_textdraw_proportional,
     submit_set_textdraw_shadow: test_submit_set_textdraw_shadow,

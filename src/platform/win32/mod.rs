@@ -449,6 +449,10 @@ enum GameCommand {
         x: f32,
         y: f32,
     },
+    SetTextdrawStyle {
+        id: u16,
+        style: i32,
+    },
     SetTextdrawLetterStyle {
         id: u16,
         width: f32,

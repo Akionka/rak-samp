@@ -407,7 +407,7 @@ Tiers:
 | [x] | `sampTextdrawSetModelRotationZoomVehColor` | Queued mutation | `Textdraws::set_model_style` |
 | [x] | `sampTextdrawSetOutlineColor` | Queued mutation | `Textdraws::set_outline` |
 | [x] | `sampTextdrawSetShadow` | Queued mutation | `Textdraws::set_shadow` |
-| [ ] | `sampTextdrawSetStyle` | Queued mutation | `Textdraw::set_style` |
+| [x] | `sampTextdrawSetStyle` | Queued mutation | `Textdraws::set_style` |
 | [x] | `sampTextdrawSetProportional` | Queued mutation | `Textdraws::set_proportional` |
 | [x] | `sampTextdrawSetAlign` | Queued mutation | `Textdraws::set_alignment` |
 
