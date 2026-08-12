@@ -39,6 +39,7 @@ const CHAT_INPUT_TEXT_MARKER: &[u8] = b"R3_SDK_TEXT_CACHE_20260812";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(45);
 const SCALAR_CACHE_TIMEOUT: Duration = Duration::from_secs(45);
 const CHAT_INPUT_CACHE_TIMEOUT: Duration = Duration::from_secs(60);
+const SCOREBOARD_CACHE_TIMEOUT: Duration = Duration::from_secs(60);
 const DIALOG_ACTIVE_CACHE_TIMEOUT: Duration = Duration::from_secs(15);
 const INCOMING_READY_TIMEOUT: Duration = Duration::from_secs(60);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
@@ -58,6 +59,8 @@ pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
 pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
 /// The R3 cached player-pool count pair and largest ID matched the loopback session.
 pub const STATUS_PLAYER_POOL_SCALARS: u32 = 1 << 12;
+/// The R3 cached scoreboard flag observed both the open and closed states.
+pub const STATUS_SCOREBOARD_CACHE: u32 = 1 << 13;
 /// The R3 cached chat-input active flag and command names passed the live check.
 pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 /// The R3 cached dialog active flag observed the disposable server dialog.
@@ -238,7 +241,10 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     publish_status();
 
     wait_for_status(STATUS_REPLY_OBSERVED, CALLBACK_TIMEOUT)
-        .and_then(|()| verify_cached_chat_input(samp))?;
+        .and_then(|()| verify_cached_scoreboard_transition(samp))?;
+    STATUS.fetch_or(STATUS_SCOREBOARD_CACHE, Ordering::AcqRel);
+    publish_status();
+    verify_cached_chat_input(samp)?;
     STATUS.fetch_or(STATUS_CHAT_INPUT_CACHE, Ordering::AcqRel);
     publish_status();
     verify_cached_chat_input_text(samp)?;
@@ -422,6 +428,26 @@ fn verify_cached_chat_input_text(samp: Samp) -> Result<(), SampClientSdkResult> 
         match samp.chat_input().text() {
             Ok(text) if text == CHAT_INPUT_TEXT_MARKER => return Ok(()),
             Ok(_) | Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn verify_cached_scoreboard_transition(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCOREBOARD_CACHE_TIMEOUT;
+    let mut observed_open = false;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match samp.scoreboard().is_open() {
+            Ok(true) => observed_open = true,
+            Ok(false) if observed_open => return Ok(()),
+            Ok(false) | Err(SampClientSdkResult::NotReady) => {}
             Err(error) => return Err(error),
         }
         if deadline.saturating_duration_since(Instant::now()).is_zero() {
@@ -676,7 +702,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success after the scalar, text, and dialog checks is `0x1FFF`.
+/// Returns the probe stage bitset; success after all cache and dialog checks is `0x3FFF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)

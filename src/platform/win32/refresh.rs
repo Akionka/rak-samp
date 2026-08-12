@@ -446,7 +446,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_scoreboard_open(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_scoreboard_open(&self, profile: NativeProfile) {
         match profile.scoreboard_is_open() {
             Ok(open) => {
                 self.local_scoreboard_open.store(open, Ordering::Release);

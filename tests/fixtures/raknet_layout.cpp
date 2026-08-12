@@ -548,6 +548,20 @@ struct FixtureR3_1Dialog {
     std::uint8_t pad[536];
 };
 
+struct FixtureR3_1Scoreboard {
+    std::int32_t is_enabled;
+    std::int32_t player_count;
+    float position[2];
+    float scalar;
+    float size[2];
+    float pad[5];
+    void* device;
+    void* dialog;
+    void* listbox;
+    std::int32_t current_offset;
+    std::int32_t is_sorted;
+};
+
 struct FixtureR5_1NetGame {
     void* rak_client;
     std::uint8_t pad_0[44];
@@ -796,6 +810,8 @@ static_assert(sizeof(FixtureR3_1Input::command_names[0]) == 33);
 static_assert(sizeof(FixtureR3_1Dialog) == 0x29D);
 static_assert(offsetof(FixtureR3_1Dialog, active) == 0x28);
 static_assert(offsetof(FixtureR3_1Dialog, caption) == 0x40);
+static_assert(sizeof(FixtureR3_1Scoreboard) == 0x44);
+static_assert(offsetof(FixtureR3_1Scoreboard, is_enabled) == 0x00);
 static_assert(sizeof(FixtureR5_1NetGame) == 0x3E2);
 static_assert(offsetof(FixtureR5_1NetGame, rak_client) == 0x00);
 static_assert(offsetof(FixtureR5_1NetGame, game_state) == 0x3CD);
@@ -1377,6 +1393,14 @@ std::size_t samp_client_sdk_fixture_r3_1_dialog_active_offset() {
 
 std::size_t samp_client_sdk_fixture_r3_1_dialog_caption_offset() {
     return offsetof(FixtureR3_1Dialog, caption);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_scoreboard_size() {
+    return sizeof(FixtureR3_1Scoreboard);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_scoreboard_enabled_offset() {
+    return offsetof(FixtureR3_1Scoreboard, is_enabled);
 }
 
 std::size_t samp_client_sdk_fixture_r5_1_netgame_size() {

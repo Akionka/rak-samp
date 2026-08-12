@@ -523,7 +523,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 | --- | --- | --- | --- | --- | --- |
 | `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
 | Network `AddressSet` selection | [x] | [x] R3 smoke | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; copied server/game/local-player/player-pool/chat-input/dialog-active caches | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; copied server/game/local-player/player-pool/chat-input/dialog-active/scoreboard-open caches | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
 | Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
 | Dialog-close hook target | [x] | [ ] profile RVA + ABI | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
 | RakClient vtable contract | [x] | [ ] verify slots/ABI | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
@@ -580,7 +580,7 @@ the matching call signature and object/layout proof to that profile.
 | `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [ ] `0x26E8C8` SAPI | [ ] `0x26EB80` SAPI | [ ] SF/disasm |
 | `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [ ] `0x67460` SAPI | [ ] `0x67BE0` SAPI | [ ] SF/disasm |
 | `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [ ] `0x60B40` SAPI | [ ] `0x612B0` SAPI | [ ] SF/disasm |
-| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [ ] `0x26E894` SAPI | [ ] `0x26EB4C` SAPI | [ ] SF/disasm |
+| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [x] `0x26E894`; `CScoreboard` fixture/live read-only open cache | [ ] `0x26EB4C` SAPI | [ ] SF/disasm |
 | `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [ ] `0x26E8D0` SAPI | [ ] `0x26EB88` SAPI | [ ] SF/disasm |
 | `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [ ] `0x69F40` SAPI | [ ] `0x6A6B0` SAPI | [ ] SF/disasm |
 | `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [ ] `0x26E8DC` SAPI | [ ] `0x26EB94` SAPI | [ ] SF/disasm |
@@ -642,7 +642,7 @@ build-specific fixture before its profile can be enabled.
 
 | Layout family / current R1 source | R1 | R3-1 | R5-1 | DL | Completion rule |
 | --- | --- | --- | --- | --- | --- |
-| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
+| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture; CNetGame/Input/Dialog/Scoreboard slices proven | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
 | `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] scalar slice fixture/live probe; pools deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
 | `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] active/name/text cache fixture/live; mutations deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
 | `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] active cache fixture/live; controls and calls deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
@@ -671,6 +671,7 @@ known.
 | Read-only player-pool count and largest ID | [x] | [x] `CPlayerPool`/`CPlayerInfo` fixture, `GetCount` ABI, and loopback `0/0/0` smoke | [ ] | [ ] | Copy only the scalar pair and largest ID; leave player directory and handles gated |
 | Read-only chat-input active flag, text, and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [ ] | [ ] | Copy only `enabled`, bounded text, and command names; leave mutations and commands gated |
 | Read-only dialog active flag | [x] | [x] `CDialog` fixture and server-dialog loopback smoke | [ ] | [ ] | Copy only `m_bIsActive`; leave dialog snapshots, controls, hooks, and mutations gated |
+| Read-only scoreboard-open flag | [x] | [x] `CScoreboard` fixture and interactive loopback open/close smoke | [ ] | [ ] | Copy only `m_bIsEnabled`; leave scoreboard writes and all other UI helpers gated |
 | UI, dialog, chat input, native command registry | [x] | [ ] | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [ ] | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |
 | Local-player commands and force sync | [x] | [ ] | [ ] | [ ] | Queue/receipt test and in-game packet verification |

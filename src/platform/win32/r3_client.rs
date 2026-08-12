@@ -1,7 +1,7 @@
 //! Private SA-MP 0.3.7 R3-1 profile for verified read-only caches.
 //!
 //! This deliberately covers only copied server/game, local-player, narrow
-//! chat-input, and dialog-active snapshots. Broader R3 UI, remote-player, pool,
+//! chat-input, dialog-active, and scoreboard-active snapshots. Broader R3 UI, remote-player, pool,
 //! raw-address, and mutation helpers remain unavailable until each family has
 //! an independent fixture and live validation.
 
@@ -57,6 +57,9 @@ const DXUT_EDIT_BOX_GET_TEXT_RVA: usize = 0x84F40;
 const DIALOG_SINGLETON_RVA: usize = 0x26_E8_98;
 const DIALOG_ACTIVE_OFFSET: usize = 0x28;
 const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::<i32>();
+const SCOREBOARD_SINGLETON_RVA: usize = 0x26_E8_94;
+const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
+const SCOREBOARD_READABLE_SIZE: usize = 0x44;
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -299,6 +302,16 @@ impl R3ClientProfile {
         }
     }
 
+    /// Copies the R3-1 scoreboard enabled flag without invoking UI methods.
+    pub(super) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
+        let scoreboard = self.scoreboard().ok_or(DirectClientError::NotReady)?;
+        match unsafe { read_unaligned::<i32>(scoreboard as usize + SCOREBOARD_ENABLED_OFFSET) } {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
     fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn =
@@ -327,6 +340,14 @@ impl R3ClientProfile {
             unsafe { read_pointer(self.module_base.checked_add(DIALOG_SINGLETON_RVA)?) }?.cast();
         (!dialog.is_null() && readable_range(dialog.cast(), DIALOG_ACTIVE_READABLE_SIZE))
             .then_some(dialog)
+    }
+
+    fn scoreboard(self) -> Option<*mut c_void> {
+        let scoreboard: *mut c_void =
+            unsafe { read_pointer(self.module_base.checked_add(SCOREBOARD_SINGLETON_RVA)?) }?
+                .cast();
+        (!scoreboard.is_null() && readable_range(scoreboard.cast(), SCOREBOARD_READABLE_SIZE))
+            .then_some(scoreboard)
     }
 
     fn net_game(self) -> Option<*mut c_void> {
@@ -477,6 +498,33 @@ mod tests {
         let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.dialog_is_active(), Ok(true));
+    }
+
+    #[test]
+    fn reads_verified_r3_scoreboard_enabled_flag() {
+        let mut module = vec![0_u8; SCOREBOARD_SINGLETON_RVA + std::mem::size_of::<usize>()];
+        let mut scoreboard = vec![0_u8; SCOREBOARD_READABLE_SIZE];
+        let module_base = module.as_mut_ptr() as usize;
+        let scoreboard_pointer = scoreboard.as_mut_ptr();
+        unsafe {
+            ptr::write_unaligned(
+                module
+                    .as_mut_ptr()
+                    .add(SCOREBOARD_SINGLETON_RVA)
+                    .cast::<usize>(),
+                scoreboard_pointer as usize,
+            );
+            ptr::write_unaligned(
+                scoreboard_pointer
+                    .add(SCOREBOARD_ENABLED_OFFSET)
+                    .cast::<i32>(),
+                1,
+            );
+        }
+
+        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+
+        assert_eq!(profile.scoreboard_is_open(), Ok(true));
     }
 
     unsafe extern "thiscall" fn fake_editbox_get_text(_editbox: *mut c_void) -> *const u8 {

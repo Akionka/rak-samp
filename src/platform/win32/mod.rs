@@ -595,7 +595,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             log::info!("direct R1 client helpers are enabled with fixed offsets");
         }
         Some(NativeProfile::R3Scalars(_)) => {
-            log::info!("R3-1 read-only server, game, and local-player caches are enabled");
+            log::info!("R3-1 read-only scalar, local-player, and UI caches are enabled");
         }
         None => {}
     }
@@ -930,6 +930,7 @@ impl BackendState {
             self.refresh_r3_local_player_snapshot(scalar_profile);
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);
+            self.refresh_local_scoreboard_open(scalar_profile);
             self.refresh_local_dialog_active(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
             self.refresh_local_chat_input_text(scalar_profile);
@@ -944,7 +945,7 @@ impl BackendState {
         self.refresh_raw_pool_addresses(profile);
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
-        self.refresh_local_scoreboard_open(profile);
+        self.refresh_local_scoreboard_open(scalar_profile);
         self.refresh_local_dialog_active(scalar_profile);
         self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(scalar_profile);

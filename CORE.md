@@ -80,7 +80,7 @@ live in dedicated child modules. A version-neutral native-profile selector
 separately gates the direct bridge: R1 exposes the full verified helper set,
 while R3-1 exposes copied CNetGame game-state/server-metadata, local-player,
 player-pool count/largest-ID, narrow chat-input active/text/command-name, and
-dialog-active cache reads. The R1 profile delegates singleton lookup, native aliases, textdraws,
+dialog-active/scoreboard-open cache reads. The R1 profile delegates singleton lookup, native aliases, textdraws,
 UI, player/pool reads, and handle lookups to focused child modules. The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.

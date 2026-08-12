@@ -35,6 +35,8 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_r3_1_dialog_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_dialog_active_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_dialog_caption_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_scoreboard_size() -> usize;
+    fn samp_client_sdk_fixture_r3_1_scoreboard_enabled_offset() -> usize;
 
     fn samp_client_sdk_fixture_r5_1_netgame_size() -> usize;
     fn samp_client_sdk_fixture_r5_1_netgame_rak_client_offset() -> usize;
@@ -189,6 +191,17 @@ fn r3_dialog_active_cache_layout_matches_the_independent_cpp_fixture() {
         )
     };
     assert_eq!(observed, (0x29D, 0x28, 0x40));
+}
+
+#[test]
+fn r3_scoreboard_cache_layout_matches_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        (
+            samp_client_sdk_fixture_r3_1_scoreboard_size(),
+            samp_client_sdk_fixture_r3_1_scoreboard_enabled_offset(),
+        )
+    };
+    assert_eq!(observed, (0x44, 0x00));
 }
 
 #[test]

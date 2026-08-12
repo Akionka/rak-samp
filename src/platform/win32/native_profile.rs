@@ -15,7 +15,7 @@ use crate::{
 ///
 /// More variants are added only with their own fixture-backed layout and live
 /// validation. The R3-1 variant is deliberately limited to copied CNetGame,
-/// local-player, chat-input, and dialog-active cache reads; all other R3
+/// local-player, chat-input, dialog-active, and scoreboard-active cache reads; all other R3
 /// direct helpers remain unavailable.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum NativeProfile {
@@ -119,6 +119,14 @@ impl NativeProfile {
         match self {
             Self::R1(profile) => profile.dialog_is_active(),
             Self::R3Scalars(profile) => profile.dialog_is_active(),
+        }
+    }
+
+    /// Reads the copied scoreboard enabled flag available on this profile.
+    pub(super) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
+        match self {
+            Self::R1(profile) => profile.scoreboard_is_open(),
+            Self::R3Scalars(profile) => profile.scoreboard_is_open(),
         }
     }
 }
