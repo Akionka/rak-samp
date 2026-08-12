@@ -22,6 +22,22 @@ hook restoration failure, or mismatched binary identity.
 Every checklist below is intentionally unchecked: its existence does not mean
 the live validation has run.
 
+## Initial isolated attach observations (2026-08-12)
+
+These are partial observations from the release host in the isolated
+`C:\Games\GTASA-SDK-LIVE-TEST` root against `127.0.0.1:7777`. The test root
+used the pinned DLL for each launch; the regular `C:\Games\GTASA` installation
+was not changed. They prove only that the selected inline-hook RVAs can be
+installed and, where noted, invoked. They do **not** complete any checklist
+below: no packet/RPC send, bitstream lock/unlock, codec round-trip, reconnect,
+or hook-restoration test ran.
+
+| Build | Observed result | Status |
+| --- | --- | --- |
+| R3-1 | Host attached; `CGame::Process`, RakClient constructor, and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`19` bytes, `152` bits). | Partial pass |
+| R5-1 | Host attached and installed the expected `CGame::Process` and RakClient-constructor hooks, but the constructor did not run within 45 seconds. The windowless isolated process would not exit normally and was force-terminated after user approval. | Incomplete — needs an R5-capable isolated endpoint or diagnosis |
+| DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
+
 ## SA-MP 0.3.7 R1
 
 Pinned artifact: installed `samp.dll`, SHA-256

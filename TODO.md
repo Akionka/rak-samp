@@ -487,6 +487,12 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Replace ambiguous compressor-pointer RVAs with verified
   `StringCompressor::Instance()` accessors for R1/R3-1/R5-1/DL; retain the
   slot fallback for unverified R2/R4-2 builds.
+- [x] Record isolated R3-1/R5-1/DL attach outcomes without promoting any
+  incomplete profile; see `docs/native-layout-smoke.md`.
+- [ ] **HUMAN** Provide or enable an isolated endpoint that admits the pinned
+  R5-1 client, or confirm the R5 client-side connection failure for
+  `127.0.0.1:7777`; its RakClient constructor did not run during the initial
+  45-second smoke attempt.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
