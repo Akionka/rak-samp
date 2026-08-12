@@ -478,8 +478,10 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   into this matrix; leave gaps explicitly assigned to disassembly.
 - [x] Capture a legal, version-pinned validation binary and SHA-256 for R1,
   R3-1, R5-1, and DL; record its source beside the corresponding fixture.
-- [ ] Add one independent native-layout fixture and live smoke checklist per
-  build before enabling a direct helper for that build.
+- [x] Add one independent native-layout fixture and live smoke checklist per
+  build before enabling a direct helper for that build. The initial non-R1
+  gates cover `CNetGame`, chat input, and dialog only; the wider layout-family
+  matrix remains incomplete until each helper's consumed fields are proven.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

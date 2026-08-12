@@ -1,4 +1,5 @@
 #include <cstddef>
+#include <cstdint>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -443,6 +444,171 @@ struct FixtureR1InputPrefix {
 };
 #pragma pack(pop)
 
+// Independently recorded minimal profile gates for the three non-R1 builds.
+// These deliberately retype only the CNetGame, command-input, and dialog
+// fields that a future profile would need before it can be activated. They do
+// not include, or depend on, SAMPFUNCS/SAMP-API headers.
+using FixtureCommandProc = void (*)(char*);
+
+#pragma pack(push, 1)
+struct FixtureR3_1NetGame {
+    std::uint8_t pad_0[44];
+    void* rak_client;
+    char host_address[257];
+    char hostname[257];
+    bool disable_collision;
+    bool update_camera_target;
+    bool nametag_status;
+    std::int32_t port;
+    std::int32_t lan_mode;
+    std::uint32_t map_icons[100];
+    std::int32_t game_state;
+    std::uint32_t last_connect_attempt;
+    void* settings;
+    std::uint8_t pad_2[5];
+    void* pools;
+};
+
+struct FixtureR3_1Input {
+    void* device;
+    void* game_ui;
+    void* editbox;
+    FixtureCommandProc command_procedures[144];
+    char command_names[144][33];
+    std::int32_t command_count;
+    std::int32_t enabled;
+    char input_buffer[129];
+    char recall_buffer[10][129];
+    char current_buffer[129];
+    std::int32_t current_recall;
+    std::int32_t total_recalls;
+    FixtureCommandProc default_command;
+};
+
+struct FixtureR3_1Dialog {
+    void* device;
+    std::uint32_t position[2];
+    std::uint32_t size[2];
+    std::uint32_t button_offset[2];
+    void* dialog;
+    void* listbox;
+    void* editbox;
+    std::int32_t active;
+    std::int32_t type;
+    std::uint32_t id;
+    char* text;
+    std::uint32_t text_size[2];
+    char caption[65];
+    std::int32_t server_side;
+    std::uint8_t pad[536];
+};
+
+struct FixtureR5_1NetGame {
+    void* rak_client;
+    std::uint8_t pad_0[44];
+    char host_address[257];
+    char hostname[257];
+    bool disable_collision;
+    bool update_camera_target;
+    bool nametag_status;
+    std::int32_t port;
+    std::int32_t lan_mode;
+    std::uint32_t map_icons[100];
+    std::int32_t game_state;
+    std::uint32_t last_connect_attempt;
+    void* settings;
+    std::uint8_t pad_2[5];
+    void* pools;
+};
+
+struct FixtureR5_1Input {
+    void* device;
+    void* game_ui;
+    void* editbox;
+    FixtureCommandProc command_procedures[144];
+    char command_names[144][33];
+    std::int32_t command_count;
+    std::int32_t enabled;
+    char input_buffer[129];
+    char recall_buffer[10][129];
+    char current_buffer[129];
+    std::int32_t current_recall;
+    std::int32_t total_recalls;
+    FixtureCommandProc default_command;
+};
+
+struct FixtureR5_1Dialog {
+    void* device;
+    std::uint32_t position[2];
+    std::uint32_t size[2];
+    std::uint32_t button_offset[2];
+    void* dialog;
+    void* listbox;
+    void* editbox;
+    std::int32_t active;
+    std::int32_t type;
+    std::uint32_t id;
+    char* text;
+    std::uint32_t text_size[2];
+    char caption[65];
+    std::int32_t server_side;
+    std::uint8_t pad[536];
+};
+
+struct FixtureDlNetGame {
+    std::uint8_t pad_0[44];
+    void* rak_client;
+    char host_address[257];
+    char hostname[257];
+    bool disable_collision;
+    bool update_camera_target;
+    bool nametag_status;
+    std::uint32_t port;
+    std::int32_t lan_mode;
+    std::uint32_t map_icons[100];
+    std::int32_t game_state;
+    std::uint32_t last_connect_attempt;
+    void* settings;
+    std::uint8_t control_locked;
+    std::int32_t unknown;
+    void* pools;
+};
+
+struct FixtureDlInput {
+    void* device;
+    void* game_ui;
+    void* editbox;
+    FixtureCommandProc command_procedures[144];
+    char command_names[144][33];
+    std::int32_t command_count;
+    std::int32_t enabled;
+    char input_buffer[129];
+    char recall_buffer[10][129];
+    char current_buffer[129];
+    std::int32_t current_recall;
+    std::int32_t total_recalls;
+    FixtureCommandProc default_command;
+};
+
+struct FixtureDlDialog {
+    void* vtable;
+    std::int32_t text_position[2];
+    std::int32_t text_size[2];
+    std::int32_t button_offset[2];
+    void* dialog;
+    void* listbox;
+    void* editbox;
+    std::int32_t active;
+    std::int32_t type;
+    std::uint32_t id;
+    char* text;
+    std::uint32_t font_size[2];
+    char caption[65];
+    std::int32_t server_side;
+    std::uint8_t pad[536];
+};
+#pragma pack(pop)
+
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
 static_assert(sizeof(FixturePlayerId) == 6);
 static_assert(alignof(FixturePlayerId) == 1);
@@ -552,6 +718,36 @@ static_assert(offsetof(FixtureR1DialogSnapshot, id) == 0x30);
 static_assert(offsetof(FixtureR1DialogSnapshot, caption) == 0x40);
 static_assert(offsetof(FixtureR1DialogSnapshot, server_side) == 0x81);
 static_assert(offsetof(FixtureR1InputPrefix, is_enabled) == 0x14E0);
+static_assert(sizeof(FixtureR3_1NetGame) == 0x3E2);
+static_assert(offsetof(FixtureR3_1NetGame, rak_client) == 0x2C);
+static_assert(offsetof(FixtureR3_1NetGame, game_state) == 0x3CD);
+static_assert(offsetof(FixtureR3_1NetGame, pools) == 0x3DE);
+static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
+static_assert(offsetof(FixtureR3_1Input, command_count) == 0x14DC);
+static_assert(offsetof(FixtureR3_1Input, enabled) == 0x14E0);
+static_assert(sizeof(FixtureR3_1Dialog) == 0x29D);
+static_assert(offsetof(FixtureR3_1Dialog, active) == 0x28);
+static_assert(offsetof(FixtureR3_1Dialog, caption) == 0x40);
+static_assert(sizeof(FixtureR5_1NetGame) == 0x3E2);
+static_assert(offsetof(FixtureR5_1NetGame, rak_client) == 0x00);
+static_assert(offsetof(FixtureR5_1NetGame, game_state) == 0x3CD);
+static_assert(offsetof(FixtureR5_1NetGame, pools) == 0x3DE);
+static_assert(sizeof(FixtureR5_1Input) == 0x1AFC);
+static_assert(offsetof(FixtureR5_1Input, command_count) == 0x14DC);
+static_assert(offsetof(FixtureR5_1Input, enabled) == 0x14E0);
+static_assert(sizeof(FixtureR5_1Dialog) == 0x29D);
+static_assert(offsetof(FixtureR5_1Dialog, active) == 0x28);
+static_assert(offsetof(FixtureR5_1Dialog, caption) == 0x40);
+static_assert(sizeof(FixtureDlNetGame) == 0x3E2);
+static_assert(offsetof(FixtureDlNetGame, rak_client) == 0x2C);
+static_assert(offsetof(FixtureDlNetGame, game_state) == 0x3CD);
+static_assert(offsetof(FixtureDlNetGame, pools) == 0x3DE);
+static_assert(sizeof(FixtureDlInput) == 0x1AFC);
+static_assert(offsetof(FixtureDlInput, command_count) == 0x14DC);
+static_assert(offsetof(FixtureDlInput, enabled) == 0x14E0);
+static_assert(sizeof(FixtureDlDialog) == 0x29D);
+static_assert(offsetof(FixtureDlDialog, active) == 0x28);
+static_assert(offsetof(FixtureDlDialog, caption) == 0x40);
 
 extern "C" {
 
@@ -1009,6 +1205,126 @@ std::size_t samp_client_sdk_fixture_dxut_combobox_item_size() {
 
 std::size_t samp_client_sdk_fixture_r1_input_enabled_offset() {
     return offsetof(FixtureR1InputPrefix, is_enabled);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_size() {
+    return sizeof(FixtureR3_1NetGame);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_rak_client_offset() {
+    return offsetof(FixtureR3_1NetGame, rak_client);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_game_state_offset() {
+    return offsetof(FixtureR3_1NetGame, game_state);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_pools_offset() {
+    return offsetof(FixtureR3_1NetGame, pools);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_size() {
+    return sizeof(FixtureR3_1Input);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_command_count_offset() {
+    return offsetof(FixtureR3_1Input, command_count);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_input_enabled_offset() {
+    return offsetof(FixtureR3_1Input, enabled);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_size() {
+    return sizeof(FixtureR3_1Dialog);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_active_offset() {
+    return offsetof(FixtureR3_1Dialog, active);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_caption_offset() {
+    return offsetof(FixtureR3_1Dialog, caption);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_netgame_size() {
+    return sizeof(FixtureR5_1NetGame);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_netgame_rak_client_offset() {
+    return offsetof(FixtureR5_1NetGame, rak_client);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_netgame_game_state_offset() {
+    return offsetof(FixtureR5_1NetGame, game_state);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_netgame_pools_offset() {
+    return offsetof(FixtureR5_1NetGame, pools);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_input_size() {
+    return sizeof(FixtureR5_1Input);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_input_command_count_offset() {
+    return offsetof(FixtureR5_1Input, command_count);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_input_enabled_offset() {
+    return offsetof(FixtureR5_1Input, enabled);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_dialog_size() {
+    return sizeof(FixtureR5_1Dialog);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_dialog_active_offset() {
+    return offsetof(FixtureR5_1Dialog, active);
+}
+
+std::size_t samp_client_sdk_fixture_r5_1_dialog_caption_offset() {
+    return offsetof(FixtureR5_1Dialog, caption);
+}
+
+std::size_t samp_client_sdk_fixture_dl_netgame_size() {
+    return sizeof(FixtureDlNetGame);
+}
+
+std::size_t samp_client_sdk_fixture_dl_netgame_rak_client_offset() {
+    return offsetof(FixtureDlNetGame, rak_client);
+}
+
+std::size_t samp_client_sdk_fixture_dl_netgame_game_state_offset() {
+    return offsetof(FixtureDlNetGame, game_state);
+}
+
+std::size_t samp_client_sdk_fixture_dl_netgame_pools_offset() {
+    return offsetof(FixtureDlNetGame, pools);
+}
+
+std::size_t samp_client_sdk_fixture_dl_input_size() {
+    return sizeof(FixtureDlInput);
+}
+
+std::size_t samp_client_sdk_fixture_dl_input_command_count_offset() {
+    return offsetof(FixtureDlInput, command_count);
+}
+
+std::size_t samp_client_sdk_fixture_dl_input_enabled_offset() {
+    return offsetof(FixtureDlInput, enabled);
+}
+
+std::size_t samp_client_sdk_fixture_dl_dialog_size() {
+    return sizeof(FixtureDlDialog);
+}
+
+std::size_t samp_client_sdk_fixture_dl_dialog_active_offset() {
+    return offsetof(FixtureDlDialog, active);
+}
+
+std::size_t samp_client_sdk_fixture_dl_dialog_caption_offset() {
+    return offsetof(FixtureDlDialog, caption);
 }
 
 }

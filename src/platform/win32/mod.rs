@@ -1546,6 +1546,9 @@ struct RawPacket {
 mod layout_tests;
 
 #[cfg(test)]
+mod profile_layout_tests;
+
+#[cfg(test)]
 mod vtable_tests;
 
 #[cfg(test)]
