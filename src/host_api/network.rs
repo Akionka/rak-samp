@@ -4,6 +4,15 @@ use super::{ListenerKind, clone_initialized, host};
 use crate::{BitStream, BitStreamError, PacketPriority, PacketReliability, SendError, SendOptions};
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult, SampClientSdkSendOptions};
 
+/// Reports whether the host has captured the native receiver required to emulate an incoming
+/// packet. This copies no native address across the ABI.
+pub(super) extern "system" fn incoming_emulation_ready() -> u8 {
+    u8::from(
+        clone_initialized(&host().runtime)
+            .is_some_and(|runtime| runtime.incoming_emulation_ready()),
+    )
+}
+
 pub(super) unsafe extern "system" fn send_packet(
     id: u8,
     data: *const u8,

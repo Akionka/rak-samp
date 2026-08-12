@@ -8,6 +8,13 @@ use crate::{
 };
 
 impl HostApi {
+    /// Returns whether incoming packet emulation can be submitted without waiting for the host
+    /// to capture its native receiver from a real incoming RPC.
+    #[must_use]
+    pub fn incoming_emulation_ready(self) -> bool {
+        (self.raw.incoming_emulation_ready)() != 0
+    }
+
     /// Sends a bounded server-bound RCON command packet (201).
     pub fn send_rcon_command(self, command: &[u8]) -> SampClientSdkResult {
         self.send_typed_packet(

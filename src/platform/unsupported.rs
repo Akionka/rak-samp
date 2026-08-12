@@ -22,6 +22,10 @@ impl Backend {
         ClientHookStatus::Failed
     }
 
+    pub(crate) fn incoming_emulation_ready(&self) -> bool {
+        false
+    }
+
     pub(crate) fn samp_version(&self) -> SampVersion {
         unreachable!("the unsupported platform backend cannot be constructed")
     }

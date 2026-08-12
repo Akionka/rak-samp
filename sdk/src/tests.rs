@@ -63,6 +63,7 @@ fn ready_fixture_host_reports_samp_available() {
     assert!(api.is_samp_loaded());
     assert!(api.is_samp_available());
     assert!(api.sampfuncs_loaded());
+    assert!(api.incoming_emulation_ready());
     assert_eq!(api.sampfuncs_log_console(b"host bridge test"), Ok(()));
     assert_eq!(
         api.sampfuncs_log_console(b"interior\0nul"),
@@ -371,7 +372,7 @@ fn newer_functions_are_appended_to_abi_v1() {
     );
     assert_eq!(
         mem::size_of::<SampClientSdkApiV1>(),
-        mem::offset_of!(SampClientSdkApiV1, sampfuncs_log_console) + function_size
+        mem::offset_of!(SampClientSdkApiV1, incoming_emulation_ready) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, sampfuncs_loaded),
@@ -380,6 +381,10 @@ fn newer_functions_are_appended_to_abi_v1() {
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, sampfuncs_log_console),
         mem::offset_of!(SampClientSdkApiV1, sampfuncs_loaded) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, incoming_emulation_ready),
+        mem::offset_of!(SampClientSdkApiV1, sampfuncs_log_console) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response),

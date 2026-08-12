@@ -148,6 +148,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     streamed_out_player_position: test_streamed_out_player_position,
     sampfuncs_loaded: test_sampfuncs_loaded,
     sampfuncs_log_console: test_sampfuncs_log_console,
+    incoming_emulation_ready: test_incoming_emulation_ready,
 };
 
 pub(crate) fn test_api() -> HostApi {

@@ -35,6 +35,7 @@ const TEST_PAYLOAD: [u8; 1] = [0b1010_0000];
 const TEST_BITS: usize = 3;
 const CODEC_VALUE: &[u8] = b"samp-client-sdk-network-smoke";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(30);
+const INCOMING_EMULATION_READY_TIMEOUT: Duration = Duration::from_secs(45);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(5);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
 const STATUS_FILE: &str = "samp-client-sdk-network-smoke.status";
@@ -245,12 +246,13 @@ fn run_smoke(samp: Samp) -> Result<(), SampClientSdkResult> {
     STATUS.fetch_or(STATUS_CODEC_ROUND_TRIP, Ordering::AcqRel);
     publish_status();
 
-    retry_network_readiness(|| emulate_packet(samp))?;
+    wait_for_incoming_emulation_ready(samp)?;
+    emulate_packet(samp)?;
     STATUS.fetch_or(STATUS_PACKET_QUEUED, Ordering::AcqRel);
     wait_for_status(STATUS_PACKET_EXACT_BITS, CALLBACK_TIMEOUT)?;
     publish_status();
 
-    retry_network_readiness(|| emulate_rpc(samp))?;
+    emulate_rpc(samp)?;
     STATUS.fetch_or(STATUS_RPC_QUEUED, Ordering::AcqRel);
     wait_for_status(STATUS_RPC_EXACT_BITS, CALLBACK_TIMEOUT)?;
     publish_status();
@@ -320,28 +322,19 @@ fn retry_codec_readiness(
     }
 }
 
-fn retry_network_readiness(
-    operation: impl Fn() -> Result<(), SampClientSdkResult>,
-) -> Result<(), SampClientSdkResult> {
-    let deadline = Instant::now() + INITIALIZATION_TIMEOUT;
+fn wait_for_incoming_emulation_ready(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + INCOMING_EMULATION_READY_TIMEOUT;
     loop {
         if is_shutting_down() {
             return Err(SampClientSdkResult::ShuttingDown);
         }
-        match operation() {
-            Ok(()) => return Ok(()),
-            // GameCommand currently maps a not-yet-captured RakPeer pointer to
-            // NativeCallFailed. It is safe to retry only this minimal blocked test
-            // packet while the initial inbound RPC capture is still pending.
-            Err(
-                SampClientSdkResult::NotReady
-                | SampClientSdkResult::Busy
-                | SampClientSdkResult::NativeCallFailed,
-            ) if !deadline.saturating_duration_since(Instant::now()).is_zero() => {
-                thread::sleep(RETRY_DELAY);
-            }
-            Err(error) => return Err(error),
+        if samp.net().incoming_emulation_ready() {
+            return Ok(());
         }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
     }
 }
 

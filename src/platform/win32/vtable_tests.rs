@@ -673,6 +673,18 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
 }
 
 #[test]
+fn incoming_emulation_readiness_requires_the_receiver_and_rpc_trampoline() {
+    let state = test_backend_state();
+    assert!(!state.incoming_emulation_ready());
+
+    state.rpc_receiver.store(1, Ordering::Release);
+    assert!(!state.incoming_emulation_ready());
+
+    state.incoming_rpc_trampoline.store(1, Ordering::Release);
+    assert!(state.incoming_emulation_ready());
+}
+
+#[test]
 fn command_wait_is_rejected_on_the_published_game_thread() {
     let state = Arc::new(test_backend_state());
     state

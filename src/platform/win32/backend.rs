@@ -6,6 +6,10 @@ impl Backend {
             .as_public()
     }
 
+    pub(crate) fn incoming_emulation_ready(&self) -> bool {
+        self.state.incoming_emulation_ready()
+    }
+
     pub(crate) fn samp_version(&self) -> SampVersion {
         self.state.version
     }

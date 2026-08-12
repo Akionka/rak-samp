@@ -87,6 +87,9 @@ SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned
 snapshots; plugins never dereference native client memory through the safe API.
+`samp.net().incoming_emulation_ready()` exposes only a copied readiness scalar
+for packet emulation; it becomes true after the host captures a real incoming
+RPC receiver.
 
 The [sample plugin](examples/sample_plugin) shows a minimal subscription. The
 [network smoke plugin](examples/network_smoke_plugin) is an opt-in isolated

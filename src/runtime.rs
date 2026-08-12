@@ -494,6 +494,10 @@ impl Runtime {
         self.backend.client_hook_status()
     }
 
+    pub(crate) fn incoming_emulation_ready(&self) -> bool {
+        self.backend.incoming_emulation_ready()
+    }
+
     pub(crate) fn raw_rakclient(&self) -> Option<*mut core::ffi::c_void> {
         self.backend.raw_rakclient()
     }

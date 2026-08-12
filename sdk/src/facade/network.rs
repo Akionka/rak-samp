@@ -15,6 +15,15 @@ impl Net {
         Self { api }
     }
 
+    /// Returns whether incoming packet emulation has the host-captured receiver it requires.
+    ///
+    /// The host updates this after its incoming-RPC detour sees real server traffic. The result
+    /// is a copied scalar; safe plugins never receive or dereference a native pointer.
+    #[must_use]
+    pub fn incoming_emulation_ready(self) -> bool {
+        self.api.incoming_emulation_ready()
+    }
+
     /// Queues the R1 send interval for one replication stream.
     pub fn set_send_rate(
         self,
@@ -629,6 +638,7 @@ mod tests {
     #[test]
     fn network_commands_return_owned_completion_receipts() {
         let samp = Samp::from_api(crate::events::test_support::test_api());
+        assert!(samp.net().incoming_emulation_ready());
         let mut chat = samp.net().send_chat(b"fixture").unwrap();
         assert_eq!(chat.id(), 4);
         assert_eq!(chat.try_take(), Ok(Some(())));

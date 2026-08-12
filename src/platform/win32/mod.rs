@@ -1322,6 +1322,11 @@ impl BackendState {
         }
     }
 
+    fn incoming_emulation_ready(&self) -> bool {
+        self.rpc_receiver.load(Ordering::Acquire) != 0
+            && self.incoming_rpc_trampoline.load(Ordering::Acquire) != 0
+    }
+
     fn cache_is_published(&self) -> bool {
         let generation = self.cache_generation.load(Ordering::Acquire);
         generation != 0 && generation.is_multiple_of(2)

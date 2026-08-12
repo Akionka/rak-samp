@@ -293,6 +293,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     streamed_out_player_position: players::streamed_out_player_position,
     sampfuncs_loaded: sampfuncs::sampfuncs_loaded,
     sampfuncs_log_console: sampfuncs::sampfuncs_log_console,
+    incoming_emulation_ready: network::incoming_emulation_ready,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

@@ -54,24 +54,28 @@ or hook-restoration test ran.
 | Build | Observed result | Status |
 | --- | --- | --- |
 | R3-1 | Host attached; `CGame::Process`, RakClient constructor, and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`19` bytes, `152` bits). | Partial pass |
-| R5-1 | Initial attempt installed the expected `CGame::Process` and RakClient-constructor hooks but did not progress. A retry after clearing a stale launcher reached constructor and `HandleRPCPacket` readiness; the first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
+| R5-1 | The corrected static `CGame::Process` hook entered, and the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`). | Partial pass: outbound/original-handler proof remains |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
 ## R5-1 network smoke observation (2026-08-12)
 
 The isolated R5-1 client was launched through the test-root `samp_debug.exe`
-against `127.0.0.1:7777`. The host installed the R5 game-process,
-RakClient-constructor, and incoming-RPC hooks; the smoke plugin registered its
-packet and RPC listeners, and its native string-codec round-trip completed.
-The sidecar status reached `0x00000007` (host, listeners, codec).
+against `127.0.0.1:7777`. The original game-process target (`0x53E4B0`) was
+mid-function code; the host now hooks the verified static GTA SA 1.0 US
+`CGame::Process` entry at `0x53BEE0` with its zero-argument ABI. The corrected
+detour entered before RakClient readiness and drained the game-command queue.
 
-The server delivered a valid incoming packet (`19` bytes, `152` bits) but no
-incoming RPC during the smoke's bounded readiness window. Packet emulation
-therefore remained unavailable: `BackendState` only captures the RakPeer queue
-receiver from a real inbound RPC. The final status was `0x80000007` with
-`failure=11` (`TimedOut`). This is a codec and hook partial pass only; it does
-not validate packet allocation/queue locking, exact-bit emulation, or outbound
-send behavior.
+The smoke plugin registered its self-blocking packet/RPC listeners and completed
+the native string-codec round trip. A real inbound RPC then captured the native
+receiver required for packet emulation. The plugin waited on the host's
+pointer-free readiness scalar, submitted exactly one packet-emulation command,
+and recorded `status=0x0000007F`, `failure=0`. This proves the selected R5
+codec, packet allocation/queue lock, incoming-packet hook, and exact-bit blocked
+packet/RPC callback paths together on the pinned client.
+
+The smoke deliberately does not send traffic to the server or invoke SA-MP's
+original incoming-RPC handler. Outbound send and original-handler delivery
+remain separate validation obligations.
 
 ## SA-MP 0.3.7 R1
 

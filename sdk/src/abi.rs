@@ -1247,6 +1247,9 @@ pub struct SampClientSdkApiV1 {
     pub sampfuncs_loaded: extern "system" fn() -> u8,
     /// Writes a bounded NUL-free byte string through SAMPFUNCS's console logger.
     pub sampfuncs_log_console: unsafe extern "system" fn(*const u8, usize) -> SampClientSdkResult,
+    /// Reports whether incoming packet emulation has its host-captured native receiver.
+    /// This is a copied readiness scalar, not a native address.
+    pub incoming_emulation_ready: extern "system" fn() -> u8,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

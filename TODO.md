@@ -503,6 +503,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Add payload-free, one-shot game-process/snapshot/completion diagnostics
   so a live network smoke can distinguish an unentered hook, an undrained
   command, and a native command failure.
+- [x] Add a pointer-free incoming-emulation readiness query so the smoke waits
+  for the host-captured RPC receiver before submitting its packet command.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

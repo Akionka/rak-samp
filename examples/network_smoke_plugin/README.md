@@ -34,6 +34,11 @@ failure=0
 contains the first `SampClientSdkResult` discriminant observed by the worker.
 The file intentionally has no packet, RPC, or codec payload content.
 
+Before submitting its packet-emulation command, the worker waits for the
+host's pointer-free incoming-emulation readiness scalar. That scalar becomes
+true only after the host has captured a real incoming RPC receiver, so the
+smoke does not repeatedly submit commands during initial connection setup.
+
 A test loader may instead query these exports:
 
 | Export | Meaning |

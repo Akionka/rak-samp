@@ -592,6 +592,10 @@ extern "system" fn test_sampfuncs_loaded() -> u8 {
     1
 }
 
+extern "system" fn test_incoming_emulation_ready() -> u8 {
+    1
+}
+
 unsafe extern "system" fn test_sampfuncs_log_console(
     text: *const u8,
     text_len: usize,
