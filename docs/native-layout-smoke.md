@@ -35,7 +35,7 @@ or hook-restoration test ran.
 | Build | Observed result | Status |
 | --- | --- | --- |
 | R3-1 | Host attached; `CGame::Process`, RakClient constructor, and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`19` bytes, `152` bits). | Partial pass |
-| R5-1 | Host attached and installed the expected `CGame::Process` and RakClient-constructor hooks, but the constructor did not run within 45 seconds. The windowless isolated process would not exit normally and was force-terminated after user approval. | Incomplete — needs an R5-capable isolated endpoint or diagnosis |
+| R5-1 | Initial attempt installed the expected `CGame::Process` and RakClient-constructor hooks but did not progress. A retry after clearing a stale launcher reached constructor and `HandleRPCPacket` readiness; the first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
 ## SA-MP 0.3.7 R1
