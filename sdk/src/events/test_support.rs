@@ -588,6 +588,29 @@ unsafe extern "system" fn test_streamed_out_player_position(
     SampClientSdkResult::Ok
 }
 
+extern "system" fn test_sampfuncs_loaded() -> u8 {
+    1
+}
+
+unsafe extern "system" fn test_sampfuncs_log_console(
+    text: *const u8,
+    text_len: usize,
+) -> SampClientSdkResult {
+    if text_len > crate::limits::MAX_SAMPFUNCS_LOG_BYTES || (text_len != 0 && text.is_null()) {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let text = if text_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(text, text_len) }
+    };
+    if text.contains(&0) {
+        SampClientSdkResult::InvalidArgument
+    } else {
+        SampClientSdkResult::Ok
+    }
+}
+
 unsafe extern "system" fn test_onfoot_sync(
     id: u16,
     output: *mut crate::SampClientSdkOnFootSyncV1,

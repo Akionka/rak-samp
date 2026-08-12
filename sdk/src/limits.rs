@@ -3,6 +3,8 @@
 /// The extra byte used by the host's native decoder is reserved for its NUL
 /// terminator and is not included in this limit.
 pub const MAX_RAKNET_DECODED_STRING_BYTES: usize = 4_095;
+/// Maximum byte length accepted by [`crate::Sampfuncs::log_console`].
+pub const MAX_SAMPFUNCS_LOG_BYTES: usize = 4_095;
 /// Number of addressable SA-MP player IDs in the R1 player pool.
 pub const MAX_SAMP_PLAYERS: u16 = 1_004;
 /// Number of addressable SA-MP vehicle IDs in the R1 vehicle pool.

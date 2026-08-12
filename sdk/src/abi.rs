@@ -1243,6 +1243,10 @@ pub struct SampClientSdkApiV1 {
         u16,
         *mut SampClientSdkStreamedOutPlayerPositionV1,
     ) -> SampClientSdkResult,
+    /// Reports whether `SAMPFUNCS.asi` is loaded in the process.
+    pub sampfuncs_loaded: extern "system" fn() -> u8,
+    /// Writes a bounded NUL-free byte string through SAMPFUNCS's console logger.
+    pub sampfuncs_log_console: unsafe extern "system" fn(*const u8, usize) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

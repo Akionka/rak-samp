@@ -17,9 +17,12 @@ pub(crate) mod r1_client;
 mod reads;
 mod refresh;
 mod requests;
+mod sampfuncs;
 mod text_labels;
 mod textdraws;
 mod vehicles;
+
+pub(crate) use sampfuncs::{SampfuncsLogError, sampfuncs_loaded, sampfuncs_log_console};
 
 use crate::{
     AddressSet, AttachError, BitStream, SampVersion, SendError, SendOptions,

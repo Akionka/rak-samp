@@ -443,3 +443,9 @@ remains permanently excluded.
 | [x] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
 | [x] | `onReceiveRpc` | Safe owned/read | `Net::on_rpc(Direction::Incoming, ...)` |
 | [x] | `onReceivePacket` | Safe owned/read | `Net::on_packet(Direction::Incoming, ...)` |
+
+## Optional SAMPFUNCS interop
+
+| Done | Capability | `samp-client-sdk` target |
+| --- | --- | --- |
+| [x] | Detect loaded SAMPFUNCS and write its console | `Probe::is_sampfuncs_loaded`, `Samp::sampfuncs().log_console` |

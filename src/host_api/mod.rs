@@ -18,6 +18,7 @@ mod player_commands;
 mod players;
 mod pools;
 mod raw;
+mod sampfuncs;
 mod snapshots;
 mod text_labels;
 mod textdraws;
@@ -290,6 +291,8 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     submit_force_passenger_sync,
     submit_force_weapons_sync,
     streamed_out_player_position: players::streamed_out_player_position,
+    sampfuncs_loaded: sampfuncs::sampfuncs_loaded,
+    sampfuncs_log_console: sampfuncs::sampfuncs_log_console,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

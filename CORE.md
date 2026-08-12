@@ -52,6 +52,8 @@
   `host_api/players.rs` owns local-player snapshots and player-pool reads.
   `host_api/player_commands.rs` owns local-player action, colour, and name
   command producers.
+  `host_api/sampfuncs.rs` owns optional loaded-SAMPFUNCS detection and direct
+  console logging through its exported implementation.
   `host_api/pools.rs` owns bounded pool-existence reads, and
   `host_api/snapshots.rs` owns pooled gangzone, text-label, textdraw, and chat
   entry snapshots; `host_api/text_labels.rs` owns text-label command producers,

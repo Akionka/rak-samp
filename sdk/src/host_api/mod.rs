@@ -15,6 +15,7 @@ mod player_commands;
 mod players;
 mod pools;
 mod raw;
+mod sampfuncs;
 mod status;
 mod text_labels;
 mod textdraws;

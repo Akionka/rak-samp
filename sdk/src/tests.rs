@@ -62,6 +62,12 @@ fn ready_fixture_host_reports_samp_available() {
     let api = test_support::test_api();
     assert!(api.is_samp_loaded());
     assert!(api.is_samp_available());
+    assert!(api.sampfuncs_loaded());
+    assert_eq!(api.sampfuncs_log_console(b"host bridge test"), Ok(()));
+    assert_eq!(
+        api.sampfuncs_log_console(b"interior\0nul"),
+        Err(SampClientSdkResult::InvalidArgument)
+    );
 }
 
 #[test]
@@ -365,7 +371,15 @@ fn newer_functions_are_appended_to_abi_v1() {
     );
     assert_eq!(
         mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, sampfuncs_log_console) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, sampfuncs_loaded),
         mem::offset_of!(SampClientSdkApiV1, streamed_out_player_position) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, sampfuncs_log_console),
+        mem::offset_of!(SampClientSdkApiV1, sampfuncs_loaded) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response),

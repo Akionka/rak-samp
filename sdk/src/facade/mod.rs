@@ -13,10 +13,12 @@ use std::time::Duration;
 mod local_player;
 mod network;
 mod pools;
+mod sampfuncs;
 mod ui;
 pub use local_player::{Anim, Animations, Local, Player, Players};
 pub use network::{Net, Server};
 pub use pools::{Gangzones, Labels, Objects, Pickups, Textdraws, Vehicles};
+pub use sampfuncs::Sampfuncs;
 pub use ui::{Chat, ChatInput, Cursor, DeathWindow, Dialogs, Scoreboard};
 
 macro_rules! bounded_id {
@@ -163,6 +165,12 @@ impl Samp {
         Net::from_api(self.api)
     }
 
+    /// Returns the optional SAMPFUNCS interop view.
+    #[must_use]
+    pub fn sampfuncs(self) -> Sampfuncs {
+        Sampfuncs::from_api(self.api)
+    }
+
     #[must_use]
     pub fn server(self) -> Server {
         Server::from_api(self.api)
@@ -267,6 +275,15 @@ impl Probe {
         self.api.samp_version().is_ok()
     }
 
+    /// Returns whether `SAMPFUNCS.asi` itself is loaded in this process.
+    ///
+    /// This is distinct from [`Self::is_sampfuncs_lua_loaded`], the historical
+    /// compatibility probe for the recognized SA-MP client build.
+    #[must_use]
+    pub fn is_sampfuncs_loaded(self) -> bool {
+        self.api.sampfuncs_loaded()
+    }
+
     /// Returns whether the recognized client and its RakClient hooks are ready.
     #[must_use]
     pub fn is_samp_available(self) -> bool {
@@ -337,9 +354,12 @@ mod tests {
         let samp = Samp::from_api(crate::events::test_support::test_api());
         assert!(samp.probe().is_samp_loaded());
         assert!(samp.probe().is_sampfuncs_lua_loaded());
+        assert!(samp.probe().is_sampfuncs_loaded());
         assert!(samp.probe().is_samp_available());
         assert_eq!(samp.version(), Ok(SampClientSdkClientVersion::R1));
         assert_eq!(samp.game_state(), Ok(14));
+        assert!(samp.sampfuncs().is_loaded());
+        assert_eq!(samp.sampfuncs().log_console(b"facade test"), Ok(()));
         assert_eq!(samp.server().info().map(|info| info.port), Ok(7777));
         assert_eq!(samp.local().player().map(|player| player.id()), Ok(42));
         assert_eq!(samp.players().count(true), Ok(3));

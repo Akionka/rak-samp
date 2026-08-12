@@ -78,6 +78,11 @@ snapshot and `.trailer_sync()` provides the owned trailer snapshot.
 radar-marker cache from accepted marker-sync packets for a connected streamed-out
 player when a marker is active; its integer-quantized coordinates may be stale.
 
+When SAMPFUNCS is already installed, `samp.probe().is_sampfuncs_loaded()` tests
+for its ASI module and `samp.sampfuncs().log_console(b"message")` writes through
+SAMPFUNCS's own console logger. This optional bridge never loads or initializes
+SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
+
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned
