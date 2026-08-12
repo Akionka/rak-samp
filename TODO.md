@@ -476,7 +476,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   committing the binaries themselves.
 - [x] Extract every R3-1/R5-1 candidate exposed by the pinned SAMP-API source
   into this matrix; leave gaps explicitly assigned to disassembly.
-- [ ] Capture a legal, version-pinned validation binary and SHA-256 for R1,
+- [x] Capture a legal, version-pinned validation binary and SHA-256 for R1,
   R3-1, R5-1, and DL; record its source beside the corresponding fixture.
 - [ ] Add one independent native-layout fixture and live smoke checklist per
   build before enabling a direct helper for that build.
@@ -485,7 +485,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 
 | Artifact evidence | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
-| Local `samp.dll` | [x] entry `0x31DF13`; SHA-256 `7E30F3C9CD99D5E2932410F486E8139AFFA2DAD19BD65AD9C328F6A4071943F7` | [ ] not supplied | [ ] not supplied | [ ] not supplied |
+| Local `samp.dll` | [x] installed R1; entry `0x31DF13`; SHA-256 `7E30F3C9CD99D5E2932410F486E8139AFFA2DAD19BD65AD9C328F6A4071943F7` | [x] extracted from supplied `sa-mp-0.3.7-R3-1-install.exe`; SHA-256 `9C9B2CC31A4CED6967420B1880C096B5C4E7630E227AA379BE4019C21B6FDDC1` | [x] extracted from supplied `sa-mp-0.3.7-R5-1-install.exe`; SHA-256 `B72B5DBE725F81864CA3F78BC7063BDA56CC05FC7188AF822FA7A754432553A2` | [x] extracted from supplied `sa-mp-0.3.DL-R1-install.exe`; SHA-256 `BCCDB297464BD382625635BE25585DF07A8FA6668BC0015650708E3EB4FFCD4B` |
 | SAMPFUNCS 5.7.1 disassembly input | [x] SHA-256 `3403C4100993F48A36F86F3F93AD3451A6D99CC4394E8F4516011AEB25886D19` | [x] `EAA0A0AF1E074983E4CFCE619AC611D37DFEA467265DBA10ED94131F968BEF0F` | [x] `642FC80F022EF41D9D6C11988DE03E3BF32AFB4A51B5806F1FECEBC4E73C9FB0` | [x] `81F0E5225FCC4A15F43DB1440AADE25276261878C50A93AFD7C8EE4302590EB3` |
 
 ### Build identity and profile gates
