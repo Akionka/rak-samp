@@ -474,6 +474,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Create the per-build address/layout/task matrix.
 - [x] Inventory the currently supplied client and SAMPFUNCS artifacts without
   committing the binaries themselves.
+- [x] Extract every R3-1/R5-1 candidate exposed by the pinned SAMP-API source
+  into this matrix; leave gaps explicitly assigned to disassembly.
 - [ ] Capture a legal, version-pinned validation binary and SHA-256 for R1,
   R3-1, R5-1, and DL; record its source beside the corresponding fixture.
 - [ ] Add one independent native-layout fixture and live smoke checklist per
@@ -526,72 +528,72 @@ the matching call signature and object/layout proof to that profile.
 
 | Native address / use | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
-| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [ ] SAPI | [ ] `0x26EB84` SAPI | [ ] SF/disasm |
-| `INPUT_OPEN_RVA` | [x] `0x657E0` | [ ] SAPI | [ ] `0x69480` SAPI | [ ] SF/disasm |
-| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [ ] SAPI | [ ] `0x699D0` SAPI | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [ ] SAPI | [ ] `0x26EB80` SAPI | [ ] SF/disasm |
-| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_COUNT_RVA` | [x] `0x10520` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `GAME_SINGLETON_RVA` | [x] `0x21A10C` | [ ] SAPI | [ ] `0x26EBAC` SAPI | [ ] SF/disasm |
-| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
+| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [ ] `0x26E898` SAPI | [ ] `0x26EB50` SAPI | [ ] SF/disasm |
+| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [ ] `0x6F8C0` SAPI | [ ] `0x6FFB0` SAPI | [ ] SF/disasm |
+| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [ ] `0x6FF40` SAPI | [ ] `0x70630` SAPI | [ ] SF/disasm |
+| `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [ ] `0x26E8CC` SAPI | [ ] `0x26EB84` SAPI | [ ] SF/disasm |
+| `INPUT_OPEN_RVA` | [x] `0x657E0` | [ ] `0x68D10` SAPI | [ ] `0x69480` SAPI | [ ] SF/disasm |
+| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [ ] `0x68E10` SAPI | [ ] `0x69580` SAPI | [ ] SF/disasm |
+| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [ ] `0x68FA0` SAPI | [ ] `0x69710` SAPI | [ ] SF/disasm |
+| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [ ] `0x69000` SAPI | [ ] `0x69770` SAPI | [ ] SF/disasm |
+| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [ ] `0x69260` SAPI | [ ] `0x699D0` SAPI | [ ] SF/disasm |
+| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [ ] SF/disasm | [ ] SF/disasm | [ ] SF/disasm |
+| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [ ] SF/disasm | [ ] SF/disasm | [ ] SF/disasm |
+| `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [ ] `0x26E8C8` SAPI | [ ] `0x26EB80` SAPI | [ ] SF/disasm |
+| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [ ] `0x67460` SAPI | [ ] `0x67BE0` SAPI | [ ] SF/disasm |
+| `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [ ] `0x60B40` SAPI | [ ] `0x612B0` SAPI | [ ] SF/disasm |
+| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [ ] `0x26E894` SAPI | [ ] `0x26EB4C` SAPI | [ ] SF/disasm |
+| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [ ] `0x26E8D0` SAPI | [ ] `0x26EB88` SAPI | [ ] SF/disasm |
+| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [ ] `0x69F40` SAPI | [ ] `0x6A6B0` SAPI | [ ] SF/disasm |
+| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [ ] `0x26E8DC` SAPI | [ ] `0x26EB94` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [ ] `0x2E10` SAPI | [ ] `0x2E30` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [ ] `0x1160` SAPI | [ ] `0x1170` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [ ] `0x1170` SAPI | [ ] `0x1180` SAPI | [ ] SF/disasm |
+| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [ ] `0xA1E0` SAPI | [ ] `0xA540` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [ ] `0x1A30` SAPI | [ ] `0x1A40` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [ ] `0x6E140` SAPI | [ ] `0x6E8B0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [ ] `0x6E150` SAPI | [ ] `0x6E8C0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [ ] `0x10B0` SAPI | [ ] `0x10B0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [ ] `0x10F0` SAPI | [ ] `0x10F0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [ ] SAPI layout | [ ] SAPI layout | [ ] SF/disasm |
+| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [ ] `0x16F00` SAPI | [ ] `0x175C0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [ ] `0x6E0E0` SAPI | [ ] `0x6E850` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [ ] `0x6E110` SAPI | [ ] `0x6E880` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_COUNT_RVA` | [x] `0x10520` | [ ] `0x13670` SAPI | [ ] `0x139F0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [ ] `0xB5C0` SAPI | [ ] `0xB8A0` SAPI | [ ] SF/disasm |
+| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [ ] `0x1140` SAPI | [ ] `0x1150` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [ ] `0x15C10` SAPI | [ ] `0x16180` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [ ] `0x15BE0` SAPI | [ ] `0x16150` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [ ] `0x1080` SAPI | [ ] `0x1080` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [ ] `0x15DB0` SAPI | [ ] `0x16330` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [ ] `0x2D50` SAPI | [ ] `0x2D70` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [ ] `0x3DA0` SAPI | [ ] `0x3F20` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [ ] `0x3D50` SAPI | [ ] `0x3ED0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [ ] `0x30C0` SAPI | [ ] `0x30F0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [ ] `0x3AD0` SAPI | [ ] `0x3C20` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [ ] `0x4B60` SAPI | [ ] `0x4D30` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [ ] `0x5040` SAPI | [ ] `0x5210` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [ ] `0x4D40` SAPI | [ ] `0x4F00` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [ ] `0x5B10` SAPI | [ ] `0x5D00` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [ ] `0x51F0` SAPI | [ ] `0x53D0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [ ] `0x53B0` SAPI | [ ] `0x5590` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [ ] `0x6E40` SAPI | [ ] `0x7080` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [ ] `0x6090` SAPI | [ ] `0x6290` SAPI | [ ] SF/disasm |
+| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [ ] `0xFE0A8` SAPI | [ ] `0xFE0A8` SAPI | [ ] SF/disasm |
+| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [ ] `0xFE0AC` SAPI | [ ] `0xFE0AC` SAPI | [ ] SF/disasm |
+| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [ ] `0xFE0B0` SAPI | [ ] `0xFE0B0` SAPI | [ ] SF/disasm |
+| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [ ] `0xAB4C0` SAPI | [ ] `0xABD50` SAPI | [ ] SF/disasm |
+| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [ ] `0xAB500` SAPI | [ ] `0xABD90` SAPI | [ ] SF/disasm |
+| `GAME_SINGLETON_RVA` | [x] `0x21A10C` | [ ] `0x26E8F4` SAPI | [ ] `0x26EBAC` SAPI | [ ] SF/disasm |
+| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [ ] `0x9FFE0` SAPI | [ ] `0xA06F0` SAPI | [ ] SF/disasm |
+| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [ ] `0x9FEC0` SAPI | [ ] `0xA05D0` SAPI | [ ] SF/disasm |
 | `ANIMATION_TABLE_RVA` | [x] `0xF15B0` | [ ] `0x1039D0` SF.lua | [ ] `0x1039E8` SF.lua | [ ] SF/disasm |
 | `CPOOLS_GET_PED_REF` (GTA) | [x] `0x54FF60` | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify |
 | `CPOOLS_GET_VEHICLE_REF` (GTA) | [x] `0x54FFC0` | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify |
-| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
-| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [ ] SAPI | [ ] SAPI | [ ] SF/disasm |
+| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [ ] `0x11C0` SAPI | [ ] `0x11D0` SAPI | [ ] SF/disasm |
+| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [ ] `0x12D0` SAPI | [ ] `0x12E0` SAPI | [ ] SF/disasm |
+| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [ ] `0x1E1C0` SAPI | [ ] `0x1E910` SAPI | [ ] SF/disasm |
+| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [ ] `0x1E0A0` SAPI | [ ] `0x1E7F0` SAPI | [ ] SF/disasm |
 
 ### Native layout and raw-address matrix
 
