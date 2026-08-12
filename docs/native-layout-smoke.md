@@ -54,7 +54,7 @@ or hook-restoration test ran.
 | Build | Observed result | Status |
 | --- | --- | --- |
 | R3-1 | Host attached; `CGame::Process`, RakClient constructor, and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`19` bytes, `152` bits). | Partial pass |
-| R5-1 | The corrected static `CGame::Process` hook entered, and the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`). | Partial pass: outbound/original-handler proof remains |
+| R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
 ## R5-1 network smoke observation (2026-08-12)
@@ -74,8 +74,24 @@ codec, packet allocation/queue lock, incoming-packet hook, and exact-bit blocked
 packet/RPC callback paths together on the pinned client.
 
 The smoke deliberately does not send traffic to the server or invoke SA-MP's
-original incoming-RPC handler. Outbound send and original-handler delivery
-remain separate validation obligations.
+original incoming-RPC handler. Those obligations are covered separately below.
+
+## R5-1 loopback delivery observation (2026-08-12)
+
+The opt-in [R5 network probe](../examples/r5_network_probe) ran against the
+disposable `C:\\Games\\SAMP-R5-LOOPBACK-PROBE` server at `127.0.0.1:7777`.
+After the host captured a real incoming-RPC receiver, the probe sent exactly
+one fixed chat RPC. The server filter logged
+`R5_OUTBOUND_OK playerid=0`, sent the fixed green response, and logged
+`R5_INCOMING_SENT playerid=0`.
+
+The plugin recorded `status=0x0000001F`, `failure=0`: host connected, typed
+RPC subscription installed, receiver captured, outgoing command receipt
+succeeded, and the matching typed incoming callback ran. The operator also
+visually confirmed `R5_SDK_INCOMING_20260812` in the normal in-game chat. This
+proves the selected R5 outbound RPC route and that the SDK's typed listener
+continued to SA-MP's original incoming-RPC handler for this message. It does
+not replace the remaining full network, layout, reconnect, or unload checks.
 
 ## SA-MP 0.3.7 R1
 

@@ -505,6 +505,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   command, and a native command failure.
 - [x] Add a pointer-free incoming-emulation readiness query so the smoke waits
   for the host-captured RPC receiver before submitting its packet command.
+- [x] Prove R5 loopback outbound delivery and non-blocking original incoming-RPC
+  delivery with the disposable server filter and human chat confirmation.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
