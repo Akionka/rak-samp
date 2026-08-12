@@ -487,6 +487,15 @@ mod tests {
         ));
         assert_eq!(samp.dialogs().list_item_count(), Ok(3));
         assert_eq!(
+            samp.dialogs().last_response(),
+            Ok(Some(crate::LocalDialogResponse {
+                dialog_id: 7,
+                button: 1,
+                list_item: 2,
+                input: b"fixture".to_vec(),
+            }))
+        );
+        assert_eq!(
             samp.chat().entry(7).map(|entry| (entry.text, entry.prefix)),
             Ok((b"fixture".to_vec(), b"prefix".to_vec()))
         );

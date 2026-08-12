@@ -2,7 +2,7 @@ use crate::limits::MAX_SAMP_CHAT_COMMAND_NAME_BYTES;
 use crate::{
     ChatCommandCallbackState, ChatCommandSubscription, ChatEntry, CommandReceipt, HostApi,
     LocalChatDisplayMode, LocalChatMessage, LocalCursorMode, LocalDeathMessage, LocalDialog,
-    LocalDialogState, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, SampClientSdkResult,
+    LocalDialogResponse, LocalDialogState, MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES, SampClientSdkResult,
 };
 
 #[derive(Clone, Copy)]
@@ -17,6 +17,12 @@ impl Dialogs {
 
     pub fn active(self) -> Result<Option<LocalDialogState>, SampClientSdkResult> {
         self.api.active_local_dialog()
+    }
+
+    /// Takes the newest response captured before an eligible client-side R1
+    /// dialog closes. A returned response is removed from the one-slot cache.
+    pub fn last_response(self) -> Result<Option<LocalDialogResponse>, SampClientSdkResult> {
+        self.api.take_local_dialog_response()
     }
 
     pub fn is_active(self) -> Result<bool, SampClientSdkResult> {

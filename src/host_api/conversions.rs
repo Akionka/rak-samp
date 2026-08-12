@@ -2,9 +2,9 @@
 
 use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot,
-    LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PassengerSyncSnapshot,
-    PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, TrailerSyncSnapshot,
+    LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
+    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
+    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot,
 };
 use sdk_abi::limits::{
     MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES, MAX_SAMP_CHAT_ENTRY_TEXT_BYTES,
@@ -12,11 +12,11 @@ use sdk_abi::limits::{
 };
 use sdk_abi::{
     SampClientSdkActiveDialogV1, SampClientSdkAimSyncV1, SampClientSdkAnimationV1,
-    SampClientSdkChatEntryV1, SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1,
-    SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1,
-    SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1,
-    SampClientSdkServerInfoV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
-    SampClientSdkTrailerSyncV1, Vector3,
+    SampClientSdkChatEntryV1, SampClientSdkDialogResponseV1, SampClientSdkDialogSnapshotV1,
+    SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1,
+    SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
+    SampClientSdkTextLabelV1, SampClientSdkTrailerSyncV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -119,6 +119,23 @@ pub(super) fn local_dialog_snapshot_to_abi(
         raw.bytes[..item.len()].copy_from_slice(&item);
     }
 
+    Ok(output)
+}
+
+pub(super) fn local_dialog_response_to_abi(
+    response: LocalDialogResponseSnapshot,
+) -> Result<SampClientSdkDialogResponseV1, ()> {
+    let input_len = u8::try_from(response.input.len()).map_err(|_| ())?;
+    let mut output = SampClientSdkDialogResponseV1::default();
+    if response.input.len() > output.input.len() || response.input.contains(&0) {
+        return Err(());
+    }
+    output.available = 1;
+    output.button = response.button;
+    output.input_len = input_len;
+    output.dialog_id = response.dialog_id;
+    output.list_item = response.list_item;
+    output.input[..response.input.len()].copy_from_slice(&response.input);
     Ok(output)
 }
 

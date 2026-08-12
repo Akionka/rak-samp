@@ -47,6 +47,7 @@ fn test_backend_state() -> BackendState {
         constructor_trampoline: AtomicUsize::new(0),
         incoming_rpc_trampoline: AtomicUsize::new(0),
         game_process_trampoline: AtomicUsize::new(0),
+        dialog_close_trampoline: AtomicUsize::new(0),
         game_thread_id: AtomicU32::new(0),
         outgoing_packet_original: AtomicUsize::new(0),
         incoming_packet_original: AtomicUsize::new(0),
@@ -132,6 +133,7 @@ fn test_backend_state() -> BackendState {
         local_dialog_active_ready: AtomicBool::new(false),
         local_dialog_snapshot: Mutex::new(None),
         local_dialog_snapshot_ready: AtomicBool::new(false),
+        local_dialog_response: Mutex::new(None),
         local_chat_input_active: AtomicBool::new(false),
         local_chat_input_active_ready: AtomicBool::new(false),
         local_chat_input_text: Mutex::new(None),
@@ -153,6 +155,33 @@ fn test_dialog(id: u16) -> LocalDialogRequest {
         button1: b"ok".to_vec(),
         button2: Vec::new(),
     }
+}
+
+#[test]
+fn dialog_response_take_is_one_shot() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(1, Ordering::Release);
+    *state
+        .local_dialog_response
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(LocalDialogResponseSnapshot {
+        dialog_id: 7,
+        button: 1,
+        list_item: 2,
+        input: b"fixture".to_vec(),
+    });
+
+    assert_eq!(
+        state.take_local_dialog_response(),
+        Ok(Some(LocalDialogResponseSnapshot {
+            dialog_id: 7,
+            button: 1,
+            list_item: 2,
+            input: b"fixture".to_vec(),
+        }))
+    );
+    assert_eq!(state.take_local_dialog_response(), Ok(None));
 }
 
 fn test_chat_message() -> LocalChatMessageRequest {

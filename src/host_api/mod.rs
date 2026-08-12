@@ -286,6 +286,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     passenger_sync: players::passenger_sync,
     trailer_sync: players::trailer_sync,
     aim_sync: players::aim_sync,
+    take_local_dialog_response: dialog::take_local_dialog_response,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {

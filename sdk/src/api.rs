@@ -396,6 +396,27 @@ pub(crate) fn local_dialog_state_from_abi(
     }
 }
 
+pub(crate) fn local_dialog_response_from_abi(
+    raw: SampClientSdkDialogResponseV1,
+) -> Result<Option<LocalDialogResponse>, SampClientSdkResult> {
+    match raw.available {
+        0 if raw == SampClientSdkDialogResponseV1::default() => Ok(None),
+        1 => {
+            let input_len = usize::from(raw.input_len);
+            if input_len > raw.input.len() {
+                return Err(SampClientSdkResult::NativeCallFailed);
+            }
+            Ok(Some(LocalDialogResponse {
+                dialog_id: raw.dialog_id,
+                button: raw.button,
+                list_item: raw.list_item,
+                input: raw.input[..input_len].to_vec(),
+            }))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn local_animation_from_abi(raw: SampClientSdkAnimationV1) -> Option<LocalAnimation> {
     let name_len = usize::from(raw.name_len);
     let file_len = usize::from(raw.file_len);

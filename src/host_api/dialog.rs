@@ -5,7 +5,10 @@ use super::{
     submit_direct_command,
 };
 use crate::runtime::{LocalDialogRequest, LocalDialogStyle};
-use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkDialogSnapshotV1, SampClientSdkResult};
+use sdk_abi::{
+    SampClientSdkCommandReceipt, SampClientSdkDialogResponseV1, SampClientSdkDialogSnapshotV1,
+    SampClientSdkResult,
+};
 
 pub(super) unsafe extern "system" fn submit_local_dialog(
     id: u16,
@@ -162,5 +165,26 @@ pub(super) unsafe extern "system" fn local_dialog_snapshot(
         Err(error) => return direct_client_result(error),
     };
     *output = snapshot;
+    SampClientSdkResult::Ok
+}
+
+pub(super) unsafe extern "system" fn take_local_dialog_response(
+    output: *mut SampClientSdkDialogResponseV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    let response = match runtime.take_local_dialog_response() {
+        Ok(Some(response)) => match conversions::local_dialog_response_to_abi(response) {
+            Ok(response) => response,
+            Err(()) => return SampClientSdkResult::NativeCallFailed,
+        },
+        Ok(None) => SampClientSdkDialogResponseV1::default(),
+        Err(error) => return direct_client_result(error),
+    };
+    *output = response;
     SampClientSdkResult::Ok
 }

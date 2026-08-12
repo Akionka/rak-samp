@@ -429,7 +429,7 @@ remains permanently excluded.
 
 | Done | Future global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
-| [ ] | `sampHasDialogRespond` | Safe owned/read | `Dialogs::last_response` |
+| [x] | `sampHasDialogRespond` | Safe owned/read | `Dialogs::last_response` |
 | [ ] | `sampForcePassengerSyncSeatId` | Queued mutation | `LocalPlayer::force_passenger_sync` |
 | [ ] | `sampForceWeaponsSync` | Queued mutation | `LocalPlayer::force_weapons_sync` |
 | [x] | `sampGetRakclientFuncAddressByIndex` | Unsafe raw | `raw::rakclient_function` |

@@ -33,6 +33,7 @@ fn assert_default_is_zeroed<T: Default>() {
 fn zero_only_abi_defaults_are_all_zero() {
     assert_default_is_zeroed::<SampClientSdkChatInputTextV1>();
     assert_default_is_zeroed::<SampClientSdkDialogListItemV1>();
+    assert_default_is_zeroed::<SampClientSdkDialogResponseV1>();
     assert_default_is_zeroed::<SampClientSdkDialogSnapshotV1>();
     assert_default_is_zeroed::<SampClientSdkActiveDialogV1>();
     assert_default_is_zeroed::<SampClientSdkLocalPlayerV1>();
@@ -359,6 +360,10 @@ fn newer_functions_are_appended_to_abi_v1() {
     );
     assert_eq!(
         mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response),
         mem::offset_of!(SampClientSdkApiV1, submit_set_textdraw_style) + function_size
     );
     assert_eq!(
@@ -880,6 +885,34 @@ fn dialog_snapshot_preserves_an_absent_editbox() {
 
     assert_eq!(dialog.style, LocalDialogStyle::MessageBox);
     assert_eq!(dialog.editbox_text(), None);
+}
+
+#[test]
+fn dialog_response_abi_is_owned_and_requires_a_bounded_input() {
+    let mut raw = SampClientSdkDialogResponseV1 {
+        available: 1,
+        dialog_id: 7,
+        button: 1,
+        list_item: 2,
+        input_len: 7,
+        ..Default::default()
+    };
+    raw.input[..7].copy_from_slice(b"fixture");
+    assert_eq!(
+        local_dialog_response_from_abi(raw),
+        Ok(Some(LocalDialogResponse {
+            dialog_id: 7,
+            button: 1,
+            list_item: 2,
+            input: b"fixture".to_vec(),
+        }))
+    );
+
+    raw.input_len = 129;
+    assert_eq!(
+        local_dialog_response_from_abi(raw),
+        Err(SampClientSdkResult::NativeCallFailed)
+    );
 }
 
 #[test]

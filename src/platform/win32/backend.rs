@@ -711,6 +711,12 @@ impl Backend {
         self.state.local_dialog_state()
     }
 
+    pub(crate) fn take_local_dialog_response(
+        &self,
+    ) -> Result<Option<LocalDialogResponseSnapshot>, DirectClientError> {
+        self.state.take_local_dialog_response()
+    }
+
     pub(crate) fn local_dialog_selected_item(&self) -> Result<i32, DirectClientError> {
         self.state
             .local_dialog_state()?

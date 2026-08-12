@@ -121,6 +121,17 @@ pub(crate) struct LocalDialogSnapshot {
     pub(crate) listbox_items: Vec<Vec<u8>>,
 }
 
+/// Host-owned data captured immediately before an eligible R1 dialog closes.
+/// It owns every byte so the native dialog and DXUT controls can be released as
+/// soon as the close call continues.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct LocalDialogResponseSnapshot {
+    pub(crate) dialog_id: u16,
+    pub(crate) button: u8,
+    pub(crate) list_item: i32,
+    pub(crate) input: Vec<u8>,
+}
+
 /// Host-owned directory data copied for either the local or one remote R1
 /// player. It deliberately omits every native and GTA pointer.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -1093,6 +1104,12 @@ impl Runtime {
         &self,
     ) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
         self.backend.local_dialog_state()
+    }
+
+    pub(crate) fn take_local_dialog_response(
+        &self,
+    ) -> Result<Option<LocalDialogResponseSnapshot>, DirectClientError> {
+        self.backend.take_local_dialog_response()
     }
 
     pub(crate) fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {

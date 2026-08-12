@@ -17,6 +17,7 @@ type IncomingPacketFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut RawPack
 type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacket);
 
 type RakClientConstructorFn = unsafe extern "C" fn() -> *mut c_void;
+type DialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 
 #[derive(Clone, Copy)]
 struct OutgoingRpcCall {
@@ -337,6 +338,35 @@ pub(super) unsafe extern "thiscall" fn game_process_detour(game: *mut c_void) {
     unsafe { state.run_game_process_tick(game, original) };
 }
 
+pub(super) unsafe extern "thiscall" fn dialog_close_detour(dialog: *mut c_void, button: u8) {
+    let Some(state) = active_state() else {
+        return;
+    };
+    let trampoline = state.dialog_close_trampoline.load(Ordering::Acquire);
+    if trampoline == 0 {
+        return;
+    }
+    state.capture_dialog_response(dialog, button);
+    let original: DialogCloseFn = unsafe { mem::transmute(trampoline) };
+    unsafe { original(dialog, button) };
+}
+
+impl BackendState {
+    fn capture_dialog_response(&self, dialog: *mut c_void, button: u8) {
+        let Some(profile) = self.r1_client else {
+            return;
+        };
+        let Ok(Some(response)) = profile.dialog_response_on_close(dialog, button) else {
+            return;
+        };
+        let mut cached = self
+            .local_dialog_response
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        *cached = Some(response);
+    }
+}
+
 pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     let Some(state) = active_state() else {
         return ptr::null_mut();
@@ -363,6 +393,7 @@ pub(super) struct HookStorage {
     pub(super) constructor: Option<InlineHook>,
     pub(super) incoming_rpc: Option<InlineHook>,
     pub(super) game_process: Option<InlineHook>,
+    pub(super) dialog_close: Option<InlineHook>,
     pub(super) vtable: Option<VtableHook>,
 }
 

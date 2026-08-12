@@ -50,6 +50,18 @@ pub struct LocalDialog<'a> {
     pub button2: &'a [u8],
 }
 
+/// One owned response captured immediately before an eligible R1 dialog
+/// closes. The host retains only the newest response; retrieving it consumes
+/// that slot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct LocalDialogResponse {
+    pub dialog_id: u16,
+    pub button: u8,
+    /// The selected list item, or zero when the closing dialog has no listbox.
+    pub list_item: i32,
+    pub input: Vec<u8>,
+}
+
 /// Owned, copied state of the active R1 dialog. All text is a game-thread
 /// snapshot; no native pointer crosses the plugin boundary.
 #[derive(Clone, Debug, Eq, PartialEq)]

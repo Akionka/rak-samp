@@ -28,10 +28,10 @@ use crate::{
     runtime::{
         AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError,
         DirectClientError, GangzoneSnapshot, InCarSyncSnapshot, LocalChatMessageRequest,
-        LocalDeathMessageRequest, LocalDialogRequest, LocalDialogSnapshot, LocalPlayerSnapshot,
-        OnFootSyncSnapshot, PacketPriority, PacketReliability, PassengerSyncSnapshot,
-        PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot,
-        TextdrawSnapshot, TrailerSyncSnapshot,
+        LocalDeathMessageRequest, LocalDialogRequest, LocalDialogResponseSnapshot,
+        LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PacketPriority,
+        PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot,
     },
 };
 use hooks::{HookStorage, InlineHook, VtableHook};
@@ -185,6 +185,7 @@ struct BackendState {
     constructor_trampoline: AtomicUsize,
     incoming_rpc_trampoline: AtomicUsize,
     game_process_trampoline: AtomicUsize,
+    dialog_close_trampoline: AtomicUsize,
     game_thread_id: AtomicU32,
     outgoing_packet_original: AtomicUsize,
     incoming_packet_original: AtomicUsize,
@@ -261,6 +262,7 @@ struct BackendState {
     local_dialog_active_ready: AtomicBool,
     local_dialog_snapshot: Mutex<Option<LocalDialogSnapshot>>,
     local_dialog_snapshot_ready: AtomicBool,
+    local_dialog_response: Mutex<Option<LocalDialogResponseSnapshot>>,
     local_chat_input_active: AtomicBool,
     local_chat_input_active_ready: AtomicBool,
     local_chat_input_text: Mutex<Option<Vec<u8>>>,
@@ -576,6 +578,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         constructor_trampoline: AtomicUsize::new(0),
         incoming_rpc_trampoline: AtomicUsize::new(0),
         game_process_trampoline: AtomicUsize::new(0),
+        dialog_close_trampoline: AtomicUsize::new(0),
         game_thread_id: AtomicU32::new(0),
         outgoing_packet_original: AtomicUsize::new(0),
         incoming_packet_original: AtomicUsize::new(0),
@@ -695,6 +698,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         local_dialog_active_ready: AtomicBool::new(false),
         local_dialog_snapshot: Mutex::new(None),
         local_dialog_snapshot_ready: AtomicBool::new(false),
+        local_dialog_response: Mutex::new(None),
         local_chat_input_active: AtomicBool::new(false),
         local_chat_input_active_ready: AtomicBool::new(false),
         local_chat_input_text: Mutex::new(None),
@@ -710,6 +714,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 
     if let Err(error) = state.install_game_process_hook() {
         clear_active_backend(&state);
+        return Err(error);
+    }
+    if let Err(error) = state.install_dialog_close_hook() {
+        state.shutdown();
         return Err(error);
     }
     if let Err(error) = state.install_constructor_hook() {
@@ -738,6 +746,30 @@ impl BackendState {
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .game_process = Some(detour);
+        Ok(())
+    }
+
+    fn install_dialog_close_hook(&self) -> Result<(), AttachError> {
+        let Some(profile) = self.r1_client else {
+            return Ok(());
+        };
+        let (mut detour, trampoline) = InlineHook::create(
+            profile.dialog_close_target(),
+            hooks::dialog_close_detour as *const () as usize,
+        )
+        .map_err(|_| AttachError::HookInstallFailed("CDialog::Close detour"))?;
+        self.dialog_close_trampoline
+            .store(trampoline, Ordering::Release);
+        if detour.enable().is_err() {
+            self.dialog_close_trampoline.store(0, Ordering::Release);
+            return Err(AttachError::HookInstallFailed(
+                "enabling CDialog::Close detour",
+            ));
+        }
+        self.hooks
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .dialog_close = Some(detour);
         Ok(())
     }
 
@@ -1245,6 +1277,9 @@ impl BackendState {
         if let Some(detour) = hooks.game_process.take() {
             detour.disable();
         }
+        if let Some(detour) = hooks.dialog_close.take() {
+            detour.disable();
+        }
         if let Some(detour) = hooks.incoming_rpc.take() {
             detour.disable();
         }
@@ -1258,6 +1293,7 @@ impl BackendState {
         // active_state and can still reach their original functions safely.
         clear_active_backend(self);
         self.game_thread_id.store(0, Ordering::Release);
+        self.dialog_close_trampoline.store(0, Ordering::Release);
         self.rak_client.store(0, Ordering::Release);
         self.raw_player_pool.store(0, Ordering::Release);
         self.raw_vehicle_pool.store(0, Ordering::Release);
@@ -1342,6 +1378,9 @@ impl BackendState {
             .store(false, Ordering::Release);
         if let Ok(mut snapshot) = self.local_dialog_snapshot.try_lock() {
             *snapshot = None;
+        }
+        if let Ok(mut response) = self.local_dialog_response.try_lock() {
+            *response = None;
         }
         self.local_dialog_snapshot_ready
             .store(false, Ordering::Release);

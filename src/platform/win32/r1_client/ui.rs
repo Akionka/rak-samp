@@ -38,6 +38,54 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Copies the response state observed by the R1 `CDialog::Close` hook
+    /// before the native close routine invalidates the controls.
+    pub(in super::super) fn dialog_response_on_close(
+        self,
+        dialog: *mut c_void,
+        button: u8,
+    ) -> Result<Option<LocalDialogResponseSnapshot>, DirectClientError> {
+        if dialog.is_null() || self.dialog() != Some(dialog) {
+            return Ok(None);
+        }
+        if !readable_range(
+            dialog.cast(),
+            DIALOG_SERVER_SIDE_OFFSET + mem::size_of::<i32>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !read_r1_bool(dialog as usize + DIALOG_ACTIVE_OFFSET)?
+            || read_r1_bool(dialog as usize + DIALOG_SERVER_SIDE_OFFSET)?
+        {
+            return Ok(None);
+        }
+        let Some(dialog_id) = unsafe { read_unaligned::<i32>(dialog as usize + DIALOG_ID_OFFSET) }
+            .and_then(|id| u16::try_from(id).ok())
+            .filter(|id| *id != 1)
+        else {
+            return Ok(None);
+        };
+        let listbox = unsafe { read_unaligned::<usize>(dialog as usize + DIALOG_LISTBOX_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        let list_item = if listbox == 0 {
+            0
+        } else {
+            let selected = (listbox + DXUT_LISTBOX_SELECTED_OFFSET) as *const i32;
+            if !readable_range(selected.cast(), mem::size_of::<i32>()) {
+                return Err(DirectClientError::NotReady);
+            }
+            unsafe { read_unaligned::<i32>(selected as usize) }
+                .ok_or(DirectClientError::NotReady)?
+        };
+        let input = self.dialog_editbox_text()?.unwrap_or_default();
+        Ok(Some(LocalDialogResponseSnapshot {
+            dialog_id,
+            button,
+            list_item,
+            input,
+        }))
+    }
+
     pub(in super::super) fn show_chat_message(
         self,
         request: LocalChatMessageRequest,

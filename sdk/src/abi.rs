@@ -115,6 +115,39 @@ pub struct SampClientSdkDialogSnapshotV1 {
     pub listbox_items: [SampClientSdkDialogListItemV1; MAX_SAMP_DIALOG_LISTBOX_ITEMS],
 }
 
+/// Fixed ABI storage for one owned R1 dialog-close response.
+///
+/// `available` is zero when no response is pending. When it is one,
+/// `input_len` selects the initialized prefix of `input`; the buffer has no
+/// required terminator.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct SampClientSdkDialogResponseV1 {
+    pub available: u8,
+    pub button: u8,
+    pub input_len: u8,
+    pub _reserved: u8,
+    pub dialog_id: u16,
+    pub _reserved2: u16,
+    pub list_item: i32,
+    pub input: [u8; MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES],
+}
+
+impl Default for SampClientSdkDialogResponseV1 {
+    fn default() -> Self {
+        Self {
+            available: 0,
+            button: 0,
+            input_len: 0,
+            _reserved: 0,
+            dialog_id: 0,
+            _reserved2: 0,
+            list_item: 0,
+            input: [0; MAX_SAMP_DIALOG_EDITBOX_TEXT_BYTES],
+        }
+    }
+}
+
 /// C-compatible storage for an owned [`PlayerInfo`] result.
 ///
 /// `exists` is zero for a cached disconnected ID and one for a copied entry.
@@ -1183,6 +1216,9 @@ pub struct SampClientSdkApiV1 {
         i32,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
+    /// Takes the newest owned R1 client-side dialog-close response, if one is pending.
+    pub take_local_dialog_response:
+        unsafe extern "system" fn(*mut SampClientSdkDialogResponseV1) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

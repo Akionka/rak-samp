@@ -1648,6 +1648,22 @@ unsafe extern "system" fn test_local_dialog_snapshot(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_take_local_dialog_response(
+    output: *mut crate::SampClientSdkDialogResponseV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = crate::SampClientSdkDialogResponseV1::default();
+    output.available = 1;
+    output.dialog_id = 7;
+    output.button = 1;
+    output.list_item = 2;
+    output.input_len = 7;
+    output.input[..7].copy_from_slice(b"fixture");
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_submit_local_dialog_editbox_text(
     text: *const u8,
     text_len: usize,

@@ -1,6 +1,7 @@
 use crate::{
-    CommandReceipt, HostApi, LocalDialog, LocalDialogState, SampClientSdkCommandReceipt,
-    SampClientSdkDialogSnapshotV1, SampClientSdkResult, local_dialog_state_from_abi,
+    CommandReceipt, HostApi, LocalDialog, LocalDialogResponse, LocalDialogState,
+    SampClientSdkCommandReceipt, SampClientSdkDialogResponseV1, SampClientSdkDialogSnapshotV1,
+    SampClientSdkResult, local_dialog_response_from_abi, local_dialog_state_from_abi,
     unit_command_result,
 };
 
@@ -138,5 +139,16 @@ impl HostApi {
             result => return Err(result),
         }
         local_dialog_state_from_abi(raw)
+    }
+
+    /// Takes the newest captured R1 client-side dialog response, if one is pending.
+    pub fn take_local_dialog_response(
+        self,
+    ) -> Result<Option<LocalDialogResponse>, SampClientSdkResult> {
+        let mut raw = SampClientSdkDialogResponseV1::default();
+        match unsafe { (self.raw.take_local_dialog_response)(&mut raw) } {
+            SampClientSdkResult::Ok => local_dialog_response_from_abi(raw),
+            result => Err(result),
+        }
     }
 }

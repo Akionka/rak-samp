@@ -2,7 +2,8 @@
 
 use super::{BackendState, cached_direct_client_value, try_lock_direct};
 use crate::runtime::{
-    AnimationSnapshot, DirectClientError, LocalDialogSnapshot, ServerInfoSnapshot,
+    AnimationSnapshot, DirectClientError, LocalDialogResponseSnapshot, LocalDialogSnapshot,
+    ServerInfoSnapshot,
 };
 use std::sync::atomic::Ordering;
 
@@ -87,6 +88,18 @@ impl BackendState {
             return Err(DirectClientError::NotReady);
         }
         Ok(try_lock_direct(&self.local_dialog_snapshot)?.clone())
+    }
+
+    pub(super) fn take_local_dialog_response(
+        &self,
+    ) -> Result<Option<LocalDialogResponseSnapshot>, DirectClientError> {
+        if self.r1_client.is_none() {
+            return Err(DirectClientError::UnsupportedVersion);
+        }
+        if self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(try_lock_direct(&self.local_dialog_response)?.take())
     }
 
     pub(super) fn local_chat_input_active(&self) -> Result<bool, DirectClientError> {

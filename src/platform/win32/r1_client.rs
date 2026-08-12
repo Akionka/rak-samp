@@ -17,9 +17,9 @@ mod ui;
 use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
-    LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot, OnFootSyncSnapshot,
-    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
-    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
+    OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;
@@ -42,6 +42,10 @@ impl R1ClientProfile {
         // and enum at the point of use instead of gating the whole surface on
         // global executable identity or instruction checks.
         (module_base != 0 && entry_point == SAMP_R1_ENTRY_POINT).then_some(Self { module_base })
+    }
+
+    pub(super) const fn dialog_close_target(self) -> usize {
+        self.module_base + DIALOG_CLOSE_RVA
     }
 
     /// Captures the validated R1 player-pool address on the game thread.

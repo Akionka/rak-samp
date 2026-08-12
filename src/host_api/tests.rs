@@ -1,14 +1,14 @@
 use super::*;
 use crate::SampVersion;
 use crate::runtime::{
-    ChatEntrySnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, ServerInfoSnapshot,
-    TextLabelSnapshot, TextdrawSnapshot,
+    ChatEntrySnapshot, LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalPlayerSnapshot,
+    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
 };
 use sdk_abi::{
     SampClientSdkActiveDialogV1, SampClientSdkAnimationV1, SampClientSdkCommandResultV1,
-    SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1, SampClientSdkLocalPlayerV1,
-    SampClientSdkPlayerInfoV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
-    SampClientSdkTextLabelV1,
+    SampClientSdkDialogResponseV1, SampClientSdkDialogSnapshotV1, SampClientSdkGangzoneV1,
+    SampClientSdkLocalPlayerV1, SampClientSdkPlayerInfoV1, SampClientSdkServerInfoV1,
+    SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
     limits::{MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS},
 };
 use std::sync::{Arc, OnceLock};
@@ -88,6 +88,34 @@ fn dialog_snapshot_conversion_rejects_a_256_byte_list_item() {
         })
         .is_err()
     );
+}
+
+#[test]
+fn dialog_response_conversion_owns_the_bounded_input() {
+    let raw = conversions::local_dialog_response_to_abi(LocalDialogResponseSnapshot {
+        dialog_id: 7,
+        button: 1,
+        list_item: 2,
+        input: b"fixture".to_vec(),
+    })
+    .expect("bounded response converts");
+
+    assert_eq!(raw.available, 1);
+    assert_eq!(raw.dialog_id, 7);
+    assert_eq!(raw.button, 1);
+    assert_eq!(raw.list_item, 2);
+    assert_eq!(raw.input_len, 7);
+    assert_eq!(&raw.input[..7], b"fixture");
+    assert!(
+        conversions::local_dialog_response_to_abi(LocalDialogResponseSnapshot {
+            dialog_id: 7,
+            button: 1,
+            list_item: 2,
+            input: vec![b'x'; 129],
+        })
+        .is_err()
+    );
+    assert_eq!(SampClientSdkDialogResponseV1::default().available, 0);
 }
 
 #[test]
