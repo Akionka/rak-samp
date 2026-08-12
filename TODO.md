@@ -482,6 +482,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   build before enabling a direct helper for that build. The initial non-R1
   gates cover `CNetGame`, chat input, and dialog only; the wider layout-family
   matrix remains incomplete until each helper's consumed fields are proven.
+- [x] Statically cross-check every R3-1/R5-1/DL `AddressSet` RVA against the
+  pinned client DLLs before treating the existing network path as verified.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
@@ -509,6 +511,15 @@ needs a matching binary/disassembly check before it is treated as supported;
 this table prevents the existing raw-network path from being confused with
 complete native-helper support.
 
+Static cross-check against the pinned DLLs is complete: the 21 code RVAs
+(constructor, incoming RPC, allocation, lock/unlock, encode, decode) disassemble
+as the matching function entries on R3-1, R5-1, and DL. The compressor slots
+are mapped in each image's zero-filled `.data` tail and are confirmed by their
+native `StringCompressor::Instance()` accessors: R3-1 `0x534F0` loads
+`0x121914`, R5-1 `0x53C30` loads `0x121A3C`, and DL `0x536F0` loads
+`0x15FA54`. This proves the selected image RVAs, not that packet/RPC behavior
+or the live object pointer is safe; those checks remain required below.
+
 | Address / use | R1 | R3-1 | R5-1 | DL | Evidence / validation |
 | --- | --- | --- | --- | --- | --- |
 | Incoming RPC handler | [x] `0x372F0` | [ ] `0x3A6A0` | [ ] `0x3ADE0` | [ ] `0x3A8A0` | `src/client.rs`; MinHook/trampoline RPC smoke |
@@ -518,7 +529,7 @@ complete native-helper support.
 | Bitstream write unlock | [x] `0x35B50` | [ ] `0x38F00` | [ ] `0x39640` | [ ] `0x39100` | `src/client.rs`; exact-bit send smoke |
 | String encode | [x] `0x506B0` | [ ] `0x53A60` | [ ] `0x541A0` | [ ] `0x53C60` | SF.lua for R1/R3/R5; codec round-trip |
 | String decode | [x] `0x507E0` | [ ] `0x53B90` | [ ] `0x542D0` | [ ] `0x53D90` | SF.lua for R1/R3/R5; codec round-trip |
-| String-compressor pointer | [x] `0x10D894` | [ ] `0x121914` | [ ] `0x121A3C` | [ ] `0x15FA54` | `AddressSet`; validate pointed object/range before codec call |
+| String-compressor pointer | [x] `0x10D894` | [ ] `0x121914` | [ ] `0x121A3C` | [ ] `0x15FA54` | Static `StringCompressor::Instance()` cross-check; validate the live object/range before codec call |
 
 ### Native singleton and method RVAs
 
