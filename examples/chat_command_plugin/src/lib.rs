@@ -159,6 +159,11 @@ fn run_example(samp: Samp) {
     );
     let dialog_result = show_local_dialog(samp, info.into_bytes());
     LAST_DIALOG_RESULT.store(dialog_result as u32, Ordering::Release);
+    if samp.probe().is_sampfuncs_loaded() {
+        samp.sampfuncs()
+            .log_console(b"Hello from chat-command example")
+            .unwrap();
+    }
 }
 
 fn send_chat(samp: Samp) -> SampClientSdkResult {
