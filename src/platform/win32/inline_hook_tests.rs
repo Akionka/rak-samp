@@ -32,7 +32,7 @@ fn publishes_trampoline_before_enabling_and_can_recreate_inline_hook() {
     let target = target as *const () as usize;
     let detour = detour as *const () as usize;
 
-    let (mut hook, trampoline) = InlineHook::create(target, detour).unwrap();
+    let (mut hook, trampoline) = InlineHook::create("test target", target, detour).unwrap();
 
     // Creation must leave the target disabled until the caller publishes
     // the trampoline used by the detour.
@@ -44,7 +44,8 @@ fn publishes_trampoline_before_enabling_and_can_recreate_inline_hook() {
     hook.disable();
     assert_eq!(unsafe { self::target(7) }, 8);
 
-    let (recreated, recreated_trampoline) = InlineHook::create(target, detour).unwrap();
+    let (recreated, recreated_trampoline) =
+        InlineHook::create("test target", target, detour).unwrap();
     assert_ne!(recreated_trampoline, 0);
     recreated.disable();
     TEST_TRAMPOLINE.store(0, Ordering::Release);

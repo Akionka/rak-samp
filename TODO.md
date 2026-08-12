@@ -449,3 +449,9 @@ remains permanently excluded.
 | Done | Capability | `samp-client-sdk` target |
 | --- | --- | --- |
 | [x] | Detect loaded SAMPFUNCS and write its console | `Probe::is_sampfuncs_loaded`, `Samp::sampfuncs().log_console` |
+
+## Hook diagnostics
+
+| Done | Capability | Location |
+| --- | --- | --- |
+| [x] | Log every successfully enabled MinHook target, detour, and trampoline | `InlineHook::enable` |

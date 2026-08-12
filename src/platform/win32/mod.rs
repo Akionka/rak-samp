@@ -757,6 +757,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 impl BackendState {
     fn install_game_process_hook(&self) -> Result<(), AttachError> {
         let (mut detour, trampoline) = InlineHook::create(
+            "CGame::Process",
             GTA_SA_10_US_CGAME_PROCESS,
             hooks::game_process_detour as *const () as usize,
         )
@@ -781,6 +782,7 @@ impl BackendState {
             return Ok(());
         };
         let (mut detour, trampoline) = InlineHook::create(
+            "CDialog::Close",
             profile.dialog_close_target(),
             hooks::dialog_close_detour as *const () as usize,
         )
@@ -803,6 +805,7 @@ impl BackendState {
     fn install_constructor_hook(self: &Arc<Self>) -> Result<(), AttachError> {
         let target = self.module_base + self.addresses.rak_client_constructor as usize;
         let (mut detour, trampoline) = InlineHook::create(
+            "RakClient constructor",
             target,
             hooks::rak_client_constructor_detour as *const () as usize,
         )
@@ -836,6 +839,7 @@ impl BackendState {
 
         let incoming_target = self.module_base + self.addresses.incoming_rpc_handler as usize;
         let (mut incoming_rpc, trampoline) = InlineHook::create(
+            "RakClient::HandleRPCPacket",
             incoming_target,
             hooks::incoming_rpc_detour as *const () as usize,
         )

@@ -426,18 +426,28 @@ struct VtableEntry {
 }
 
 pub(super) struct InlineHook {
+    name: &'static str,
     target: usize,
+    detour: usize,
+    trampoline: usize,
     enabled: bool,
 }
 
 impl InlineHook {
-    pub(super) fn create(target: usize, detour: usize) -> Result<(Self, usize), ()> {
+    pub(super) fn create(
+        name: &'static str,
+        target: usize,
+        detour: usize,
+    ) -> Result<(Self, usize), ()> {
         let trampoline = unsafe {
             MinHook::create_hook(target as *mut c_void, detour as *mut c_void).map_err(|_| ())?
         };
         Ok((
             Self {
+                name,
                 target,
+                detour,
+                trampoline: trampoline as usize,
                 enabled: false,
             },
             trampoline as usize,
@@ -447,6 +457,13 @@ impl InlineHook {
     pub(super) fn enable(&mut self) -> Result<(), ()> {
         unsafe { MinHook::enable_hook(self.target as *mut c_void) }.map_err(|_| ())?;
         self.enabled = true;
+        log::debug!(
+            "enabled MinHook inline hook {name}: target=0x{target:08X}, detour=0x{detour:08X}, trampoline=0x{trampoline:08X}",
+            name = self.name,
+            target = self.target,
+            detour = self.detour,
+            trampoline = self.trampoline,
+        );
         Ok(())
     }
 

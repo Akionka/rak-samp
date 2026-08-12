@@ -29,7 +29,8 @@
   synchronous listener dispatch. The game-process detour forwards into the
   root-owned tick executor, and the constructor detour forwards into
   root-owned client-hook setup. Hook installation and restoration remain
-  root-owned. Host ABI entry points and the ordered V1 table remain in
+  root-owned, and every enabled MinHook target logs its name, target, detour,
+  and trampoline. Host ABI entry points and the ordered V1 table remain in
   `host_api/mod.rs`; `host_api/conversions.rs` converts owned runtime snapshots
   into fixed C-compatible output storage, while `host_api/raw.rs` owns the
   opaque native-address entry points and `host_api/events.rs` owns event
