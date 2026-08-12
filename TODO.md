@@ -427,7 +427,7 @@ These names are comments in the pinned source rather than part of the 207
 declared-function baseline. They are still in scope under the rule that nothing
 remains permanently excluded.
 
-| Done | Future global | Tier | `samp-client-sdk` target |
+| Status | Future global | Tier | `samp-client-sdk` target |
 | --- | --- | --- | --- |
 | [x] | `sampHasDialogRespond` | Safe owned/read | `Dialogs::last_response` |
 | [x] | `sampForcePassengerSyncSeatId` | Queued mutation | `LocalPlayer::force_passenger_sync` |
@@ -437,7 +437,7 @@ remains permanently excluded.
 | [x] | `sampGetRpcNodeByRpcId` | Unsafe raw | `raw::rpc_node` |
 | [x] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
 | [x] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
-| [ ] | `sampSetClientCommandDescription` | Queued mutation | `ChatInput::set_command_description` |
+| N/A | `sampSetClientCommandDescription` | SAMPFUNCS-only | Deferred by product decision: SA-MP has no command-description API or storage. |
 | [ ] | `sampGetStreamedOutPlayerPos` | Safe owned/read | `Player::streamed_out_position` |
 | [x] | `onSendRpc` | Safe owned/read | `Net::on_rpc(Direction::Outgoing, ...)` |
 | [x] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
