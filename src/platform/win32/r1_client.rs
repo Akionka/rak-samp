@@ -397,6 +397,15 @@ impl R1ClientProfile {
         Ok(())
     }
 
+    /// Invokes R1 `SCLocalPlayer::UpdateWeapons` on the game thread.
+    pub(super) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
+        let local_player = self.local_player_address()?;
+        let update: LocalPlayerUpdateWeaponsFn =
+            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_UPDATE_WEAPONS_RVA) };
+        unsafe { update(local_player) };
+        Ok(())
+    }
+
     /// Updates R1 local in-car data and invokes `SCLocalPlayer::SendIncarData`
     /// for one checked vehicle ID on the game thread.
     pub(super) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {

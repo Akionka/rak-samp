@@ -1001,6 +1001,13 @@ impl BackendState {
         self.queue_game_command(GameCommand::ForcePassengerSync { vehicle, seat })
     }
 
+    pub(super) fn submit_force_weapons_sync(&self) -> Result<CommandId, DirectClientError> {
+        if self.r1_client.is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+            return Err(DirectClientError::NotReady);
+        }
+        self.queue_game_command(GameCommand::ForceWeaponsSync)
+    }
+
     pub(super) fn submit_send_rate(
         &self,
         kind: u8,
@@ -1560,6 +1567,14 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .force_passenger_sync(vehicle, seat)
+                            .map_err(|_| CommandError::NativeFailure)
+                    }),
+                GameCommand::ForceWeaponsSync => self
+                    .r1_client
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .force_weapons_sync()
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self

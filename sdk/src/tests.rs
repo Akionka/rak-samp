@@ -360,7 +360,7 @@ fn newer_functions_are_appended_to_abi_v1() {
     );
     assert_eq!(
         mem::size_of::<SampClientSdkApiV1>(),
-        mem::offset_of!(SampClientSdkApiV1, submit_force_passenger_sync) + function_size
+        mem::offset_of!(SampClientSdkApiV1, submit_force_weapons_sync) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response),
@@ -369,6 +369,10 @@ fn newer_functions_are_appended_to_abi_v1() {
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, submit_force_passenger_sync),
         mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response) + function_size
+    );
+    assert_eq!(
+        mem::offset_of!(SampClientSdkApiV1, submit_force_weapons_sync),
+        mem::offset_of!(SampClientSdkApiV1, submit_force_passenger_sync) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, raw_rakclient),

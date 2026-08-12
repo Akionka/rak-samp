@@ -634,5 +634,8 @@ mod tests {
             .unwrap();
         assert_eq!(passenger.id(), 28);
         assert_eq!(passenger.try_take(), Ok(Some(())));
+        let mut weapons = samp.local().force_weapons_sync().unwrap();
+        assert_eq!(weapons.id(), 29);
+        assert_eq!(weapons.try_take(), Ok(Some(())));
     }
 }

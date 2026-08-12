@@ -927,6 +927,10 @@ impl Runtime {
         self.backend.submit_force_passenger_sync(vehicle, seat)
     }
 
+    pub(crate) fn submit_force_weapons_sync(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_force_weapons_sync()
+    }
+
     pub(crate) fn submit_send_rate(
         &self,
         kind: u8,

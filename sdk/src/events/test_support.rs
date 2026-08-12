@@ -1335,6 +1335,12 @@ unsafe extern "system" fn test_submit_force_passenger_sync(
     unsafe { test_submit_command(receipt, 28) }
 }
 
+unsafe extern "system" fn test_submit_force_weapons_sync(
+    receipt: *mut crate::SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    unsafe { test_submit_command(receipt, 29) }
+}
+
 unsafe extern "system" fn test_submit_connect_to_server(
     address: *const u8,
     address_len: usize,

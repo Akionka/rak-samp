@@ -514,6 +514,7 @@ enum GameCommand {
         vehicle: u16,
         seat: u8,
     },
+    ForceWeaponsSync,
     ForceVehicleSync {
         vehicle: u16,
     },

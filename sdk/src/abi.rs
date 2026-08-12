@@ -1222,6 +1222,9 @@ pub struct SampClientSdkApiV1 {
     /// Queues one documented R1 passenger synchronization send.
     pub submit_force_passenger_sync:
         unsafe extern "system" fn(u16, u8, *mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
+    /// Queues one documented R1 weapons synchronization send.
+    pub submit_force_weapons_sync:
+        unsafe extern "system" fn(*mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

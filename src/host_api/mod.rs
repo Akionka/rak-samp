@@ -288,6 +288,7 @@ static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     aim_sync: players::aim_sync,
     take_local_dialog_response: dialog::take_local_dialog_response,
     submit_force_passenger_sync,
+    submit_force_weapons_sync,
 };
 
 extern "system" fn host_status() -> SampClientSdkHostStatus {
@@ -493,6 +494,15 @@ unsafe extern "system" fn submit_force_passenger_sync(
             runtime.submit_force_passenger_sync(vehicle, seat)
         })
     }
+}
+
+unsafe extern "system" fn submit_force_weapons_sync(
+    receipt: *mut SampClientSdkCommandReceipt,
+) -> SampClientSdkResult {
+    if receipt.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    unsafe { submit_direct_command(receipt, |runtime| runtime.submit_force_weapons_sync()) }
 }
 
 unsafe extern "system" fn submit_send_rate(

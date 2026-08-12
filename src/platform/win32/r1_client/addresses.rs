@@ -52,6 +52,7 @@ pub(super) const LOCAL_PLAYER_SEND_STATS_RVA: usize = 0x5AF0;
 pub(super) const LOCAL_PLAYER_SEND_TRAILER_DATA_RVA: usize = 0x51B0;
 pub(super) const LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA: usize = 0x5380;
 pub(super) const LOCAL_PLAYER_SEND_INCAR_DATA_RVA: usize = 0x6E30;
+pub(super) const LOCAL_PLAYER_UPDATE_WEAPONS_RVA: usize = 0x6080;
 pub(super) const ONFOOT_SEND_RATE_RVA: usize = 0xEC0A8;
 pub(super) const INCAR_SEND_RATE_RVA: usize = 0xEC0AC;
 pub(super) const AIM_SEND_RATE_RVA: usize = 0xEC0B0;

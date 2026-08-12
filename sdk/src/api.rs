@@ -324,6 +324,13 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
+    /// Queues one documented R1 weapons synchronization send.
+    pub fn submit_force_weapons_sync(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        let mut receipt = SampClientSdkCommandReceipt::default();
+        let result = unsafe { (self.raw.submit_force_weapons_sync)(&mut receipt) };
+        self.command_receipt(result, receipt)
+    }
+
     /// Queues one bounded R1 chat-history entry replacement.
     pub fn submit_local_chat_entry(
         self,
