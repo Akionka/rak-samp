@@ -484,6 +484,9 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   matrix remains incomplete until each helper's consumed fields are proven.
 - [x] Statically cross-check every R3-1/R5-1/DL `AddressSet` RVA against the
   pinned client DLLs before treating the existing network path as verified.
+- [x] Replace ambiguous compressor-pointer RVAs with verified
+  `StringCompressor::Instance()` accessors for R1/R3-1/R5-1/DL; retain the
+  slot fallback for unverified R2/R4-2 builds.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

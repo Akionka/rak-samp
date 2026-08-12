@@ -1,6 +1,8 @@
 use super::{BackendState, StringReadDecoderFn, StringWriteEncoderFn};
-use crate::{BitStream, SendError, runtime::CodecError};
+use crate::{BitStream, SendError, client::StringCompressorLocator, runtime::CodecError};
 use std::{ffi::c_void, mem, ptr, slice};
+
+type StringCompressorInstanceFn = unsafe extern "C" fn() -> *mut c_void;
 
 pub(super) struct RawBitStream {
     number_of_bits_used: i32,
@@ -220,8 +222,17 @@ impl BackendState {
     }
 
     pub(super) fn ready_string_compressor(&self) -> Result<*mut c_void, CodecError> {
-        let pointer = self.module_base + self.addresses.compressor_ptr as usize;
-        let compressor = unsafe { ptr::read_unaligned(pointer as *const *mut c_void) };
+        let compressor = match self.addresses.string_compressor {
+            StringCompressorLocator::InstanceFunction(rva) => {
+                let instance: StringCompressorInstanceFn =
+                    unsafe { mem::transmute(self.module_base + rva as usize) };
+                unsafe { instance() }
+            }
+            StringCompressorLocator::GlobalSlot(rva) => {
+                let pointer = self.module_base + rva as usize;
+                unsafe { ptr::read_unaligned(pointer as *const *mut c_void) }
+            }
+        };
         if compressor.is_null() {
             Err(CodecError::ClientNotReady)
         } else {

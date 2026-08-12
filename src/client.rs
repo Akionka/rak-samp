@@ -43,6 +43,27 @@ impl SampVersion {
 /// These are RVAs, not absolute pointers. The backend adds the loaded
 /// `samp.dll` image base only after it has positively identified the build.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum StringCompressorLocator {
+    /// RVA of `StringCompressor::Instance()`, returning the live native object.
+    InstanceFunction(u32),
+    /// RVA of a global `StringCompressor*` slot.
+    ///
+    /// This fallback remains only for builds whose accessor has not yet been
+    /// independently identified.
+    GlobalSlot(u32),
+}
+
+impl StringCompressorLocator {
+    /// Returns the locator's module-relative address.
+    #[must_use]
+    pub const fn rva(self) -> u32 {
+        match self {
+            Self::InstanceFunction(rva) | Self::GlobalSlot(rva) => rva,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AddressSet {
     pub incoming_rpc_handler: u32,
     pub rak_client_constructor: u32,
@@ -51,7 +72,7 @@ pub struct AddressSet {
     pub write_unlock: u32,
     pub string_write_encoder: u32,
     pub string_read_decoder: u32,
-    pub compressor_ptr: u32,
+    pub string_compressor: StringCompressorLocator,
 }
 
 impl AddressSet {
@@ -67,7 +88,7 @@ impl AddressSet {
                 write_unlock: 0x35B50,
                 string_write_encoder: 0x506B0,
                 string_read_decoder: 0x507E0,
-                compressor_ptr: 0x10D894,
+                string_compressor: StringCompressorLocator::InstanceFunction(0x50140),
             },
             SampVersion::R2 => Self {
                 incoming_rpc_handler: 0x373D0,
@@ -77,7 +98,7 @@ impl AddressSet {
                 write_unlock: 0x35C30,
                 string_write_encoder: 0x50790,
                 string_read_decoder: 0x508C0,
-                compressor_ptr: 0x10D894,
+                string_compressor: StringCompressorLocator::GlobalSlot(0x10D894),
             },
             SampVersion::R3_1 => Self {
                 incoming_rpc_handler: 0x3A6A0,
@@ -87,7 +108,7 @@ impl AddressSet {
                 write_unlock: 0x38F00,
                 string_write_encoder: 0x53A60,
                 string_read_decoder: 0x53B90,
-                compressor_ptr: 0x121914,
+                string_compressor: StringCompressorLocator::InstanceFunction(0x534F0),
             },
             SampVersion::R4_2 => Self {
                 incoming_rpc_handler: 0x3ADE0,
@@ -97,7 +118,7 @@ impl AddressSet {
                 write_unlock: 0x39640,
                 string_write_encoder: 0x541A0,
                 string_read_decoder: 0x542D0,
-                compressor_ptr: 0x121A3C,
+                string_compressor: StringCompressorLocator::GlobalSlot(0x121A3C),
             },
             SampVersion::R5_1 => Self {
                 incoming_rpc_handler: 0x3ADE0,
@@ -107,7 +128,7 @@ impl AddressSet {
                 write_unlock: 0x39640,
                 string_write_encoder: 0x541A0,
                 string_read_decoder: 0x542D0,
-                compressor_ptr: 0x121A3C,
+                string_compressor: StringCompressorLocator::InstanceFunction(0x53C30),
             },
             SampVersion::Dl => Self {
                 incoming_rpc_handler: 0x3A8A0,
@@ -117,7 +138,7 @@ impl AddressSet {
                 write_unlock: 0x39100,
                 string_write_encoder: 0x53C60,
                 string_read_decoder: 0x53D90,
-                compressor_ptr: 0x15FA54,
+                string_compressor: StringCompressorLocator::InstanceFunction(0x536F0),
             },
         }
     }
@@ -149,7 +170,27 @@ mod tests {
             assert_ne!(addresses.write_unlock, 0);
             assert_ne!(addresses.string_write_encoder, 0);
             assert_ne!(addresses.string_read_decoder, 0);
-            assert_ne!(addresses.compressor_ptr, 0);
+            assert_ne!(addresses.string_compressor.rva(), 0);
         }
+    }
+
+    #[test]
+    fn uses_verified_string_compressor_accessors_when_available() {
+        assert_eq!(
+            AddressSet::for_version(SampVersion::R1).string_compressor,
+            StringCompressorLocator::InstanceFunction(0x50140)
+        );
+        assert_eq!(
+            AddressSet::for_version(SampVersion::R3_1).string_compressor,
+            StringCompressorLocator::InstanceFunction(0x534F0)
+        );
+        assert_eq!(
+            AddressSet::for_version(SampVersion::R5_1).string_compressor,
+            StringCompressorLocator::InstanceFunction(0x53C30)
+        );
+        assert_eq!(
+            AddressSet::for_version(SampVersion::Dl).string_compressor,
+            StringCompressorLocator::InstanceFunction(0x536F0)
+        );
     }
 }
