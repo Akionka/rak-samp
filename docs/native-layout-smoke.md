@@ -51,7 +51,7 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player/chat-input caches passed fixture and interactive loopback checks (`0x000001FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed; copied game/server/local-player/chat-input/dialog-active caches passed fixture and interactive loopback checks (`0x000007FF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
@@ -108,8 +108,8 @@ incoming callback; the operator visually confirmed the green
 This validates the R3 CNetGame singleton slot plus every field consumed by the
 new read-only scalar slice. The native host field is deliberately not claimed
 to be the server-config display hostname. Except for the narrow read-only
-chat-input cache below, R3 UI, remote-player, pool, handle, raw, and mutation
-helpers remain unsupported.
+chat-input and dialog-active caches below, broader R3 UI, remote-player, pool,
+handle, raw, and mutation helpers remain unsupported.
 
 ## R3-1 local-player cache observation (2026-08-12)
 
@@ -143,6 +143,20 @@ table offset `0x24C`, 33-byte name capacity, command-count offset `0x14DC`,
 and enabled-flag offset `0x14E0`. This enables only copied active and
 command-name reads. Chat-input text, dialog, chat rendering, command
 registration, and every UI mutation remain R1-only.
+
+## R3-1 dialog-active cache observation (2026-08-12)
+
+The same probe first completed the chat-input check, then submitted its bounded
+`R3_SDK_DIALOG_REQUEST_20260812` loopback marker. The disposable server logged
+`R3_DIALOG_SENT playerid=0` and displayed a normal SA-MP message-box dialog.
+With that dialog left open, the probe recorded `status=0x000007FF`,
+`failure=0` after `Samp::dialogs().is_active()` observed true from the
+game-thread cache.
+
+The fixture pins the R3 `CDialog` size `0x29D`, active-flag offset `0x28`, and
+caption offset `0x40`; the live read consumes only the guarded active flag. It
+does not read dialog controls or strings, hook close, capture responses, or
+perform mutations. Those helpers remain R1-only.
 
 ## R5-1 network smoke observation (2026-08-12)
 
@@ -218,6 +232,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   `CPlayerPool`/`CLocalPlayer`/`CPed` fixture gates and spawned loopback smoke.
 - [x] Publish and read the R3 chat-input active flag and exact command lookup
   on the game thread, with a `CInput` fixture gate and interactive loopback smoke.
+- [x] Publish and read the R3 dialog active flag on the game thread, with a
+  `CDialog` fixture gate and server-dialog loopback smoke.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
 - [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.

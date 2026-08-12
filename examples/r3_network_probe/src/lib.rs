@@ -34,9 +34,11 @@ use windows_sys::core::BOOL;
 
 const OUTBOUND_MARKER: &[u8] = b"R3_SDK_OUTBOUND_20260812";
 const INCOMING_MARKER: &[u8] = b"R3_SDK_INCOMING_20260812";
+const DIALOG_REQUEST_MARKER: &[u8] = b"R3_SDK_DIALOG_REQUEST_20260812";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(45);
 const SCALAR_CACHE_TIMEOUT: Duration = Duration::from_secs(45);
 const CHAT_INPUT_CACHE_TIMEOUT: Duration = Duration::from_secs(60);
+const DIALOG_ACTIVE_CACHE_TIMEOUT: Duration = Duration::from_secs(15);
 const INCOMING_READY_TIMEOUT: Duration = Duration::from_secs(60);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
@@ -55,6 +57,10 @@ pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
 pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
 /// The R3 cached chat-input active flag and command names passed the live check.
 pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
+/// The R3 cached dialog active flag observed the disposable server dialog.
+pub const STATUS_DIALOG_ACTIVE_CACHE: u32 = 1 << 9;
+/// The loopback dialog-request command completed on the game thread.
+pub const STATUS_DIALOG_REQUEST_RECEIPT: u32 = 1 << 10;
 /// The non-blocking RPC 93 listener was registered.
 pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
 /// A real inbound RPC supplied the native receiver required for a connected client.
@@ -216,6 +222,13 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
         .and_then(|()| verify_cached_chat_input(samp))?;
     STATUS.fetch_or(STATUS_CHAT_INPUT_CACHE, Ordering::AcqRel);
     publish_status();
+    let dialog_receipt = samp.net().send_chat(DIALOG_REQUEST_MARKER)?;
+    wait_for_receipt(dialog_receipt)?;
+    STATUS.fetch_or(STATUS_DIALOG_REQUEST_RECEIPT, Ordering::AcqRel);
+    publish_status();
+    verify_cached_dialog_active(samp)?;
+    STATUS.fetch_or(STATUS_DIALOG_ACTIVE_CACHE, Ordering::AcqRel);
+    publish_status();
     Ok(())
 }
 
@@ -333,6 +346,24 @@ fn verify_cached_chat_input(samp: Samp) -> Result<(), SampClientSdkResult> {
             | (_, _, Err(SampClientSdkResult::NotReady)) => {}
             (Err(error), _, _) | (_, Err(error), _) | (_, _, Err(error)) => return Err(error),
             _ => return Err(SampClientSdkResult::NativeCallFailed),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn verify_cached_dialog_active(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + DIALOG_ACTIVE_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match samp.dialogs().is_active() {
+            Ok(true) => return Ok(()),
+            Ok(false) | Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
         }
         if deadline.saturating_duration_since(Instant::now()).is_zero() {
             return Err(SampClientSdkResult::TimedOut);
@@ -544,7 +575,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success after chat-input confirmation is `0x1FF`.
+/// Returns the probe stage bitset; success after dialog confirmation is `0x7FF`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)

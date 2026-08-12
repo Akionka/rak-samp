@@ -523,7 +523,7 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 | --- | --- | --- | --- | --- | --- |
 | `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
 | Network `AddressSet` selection | [x] | [x] R3 smoke | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; copied server/game/local-player/chat-input caches | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; copied server/game/local-player/chat-input/dialog-active caches | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
 | Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
 | Dialog-close hook target | [x] | [ ] profile RVA + ABI | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
 | RakClient vtable contract | [x] | [ ] verify slots/ABI | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
@@ -566,7 +566,7 @@ the matching call signature and object/layout proof to that profile.
 
 | Native address / use | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
-| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [ ] `0x26E898` SAPI | [ ] `0x26EB50` SAPI | [ ] SF/disasm |
+| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [x] `0x26E898`; fixture/live read-only active cache | [ ] `0x26EB50` SAPI | [ ] SF/disasm |
 | `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [ ] `0x6F8C0` SAPI | [ ] `0x6FFB0` SAPI | [ ] SF/disasm |
 | `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [ ] `0x6FF40` SAPI | [ ] `0x70630` SAPI | [ ] SF/disasm |
 | `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [x] `0x26E8CC`; fixture/live read-only cache | [ ] `0x26EB84` SAPI | [ ] SF/disasm |
@@ -645,7 +645,7 @@ build-specific fixture before its profile can be enabled.
 | Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
 | `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] scalar slice fixture/live probe; pools deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
 | `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] active/name cache fixture/live; editbox/native calls deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
-| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
+| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] active cache fixture/live; controls and calls deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
 | Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
 | Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify pool sizes, not-empty arrays, and pointer indirection |
 | Local/remote player records and all sync structures (`players.rs`) | [x] | [x] local snapshot slice fixture/live smoke; remote/sync deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Fixture must cover on-foot, in-car, passenger, trailer, aim, stats |
@@ -669,6 +669,7 @@ known.
 | Cached game/server scalars | [x] | [x] R3 fixture, game-thread cache, and loopback probe | [ ] | [ ] | Profile fixture and game-thread publication test |
 | Local-player scalars | [x] | [x] `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and spawned loopback smoke | [ ] | [ ] | Separate `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and in-game spawn smoke |
 | Read-only chat-input active flag and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [ ] | [ ] | Copy only `enabled` and bounded command names; leave text and commands gated |
+| Read-only dialog active flag | [x] | [x] `CDialog` fixture and server-dialog loopback smoke | [ ] | [ ] | Copy only `m_bIsActive`; leave dialog snapshots, controls, hooks, and mutations gated |
 | UI, dialog, chat input, native command registry | [x] | [ ] | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [ ] | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |
 | Local-player commands and force sync | [x] | [ ] | [ ] | [ ] | Queue/receipt test and in-game packet verification |

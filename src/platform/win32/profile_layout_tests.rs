@@ -161,6 +161,18 @@ fn r3_chat_input_cache_layout_matches_the_independent_cpp_fixture() {
 }
 
 #[test]
+fn r3_dialog_active_cache_layout_matches_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        (
+            samp_client_sdk_fixture_r3_1_dialog_size(),
+            samp_client_sdk_fixture_r3_1_dialog_active_offset(),
+            samp_client_sdk_fixture_r3_1_dialog_caption_offset(),
+        )
+    };
+    assert_eq!(observed, (0x29D, 0x28, 0x40));
+}
+
+#[test]
 fn non_r1_profile_layout_gates_match_the_independent_cpp_fixture() {
     let fixtures = [
         (

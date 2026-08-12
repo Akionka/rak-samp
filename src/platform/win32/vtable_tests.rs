@@ -570,12 +570,16 @@ fn cached_ui_flags_require_game_thread_publication() {
 }
 
 #[test]
-fn r3_cached_chat_input_reads_use_exact_published_values() {
+fn r3_cached_dialog_and_chat_input_reads_use_exact_published_values() {
     let mut state = test_backend_state();
     state.context.native_profile = r3_scalar_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
+    assert_eq!(
+        state.local_dialog_active(),
+        Err(DirectClientError::NotReady)
+    );
     assert_eq!(
         state.local_chat_input_active(),
         Err(DirectClientError::NotReady)
@@ -588,11 +592,16 @@ fn r3_cached_chat_input_reads_use_exact_published_values() {
     state
         .local_chat_input_active_ready
         .store(true, Ordering::Release);
+    state.local_dialog_active.store(true, Ordering::Release);
+    state
+        .local_dialog_active_ready
+        .store(true, Ordering::Release);
     *state.local_chat_input_commands.lock().unwrap() = Some(vec![b"sdk".to_vec()]);
     state
         .local_chat_input_commands_ready
         .store(true, Ordering::Release);
 
+    assert_eq!(state.local_dialog_active(), Ok(true));
     assert_eq!(state.local_chat_input_active(), Ok(true));
     assert_eq!(state.local_chat_command_defined(b"sdk"), Ok(true));
     assert_eq!(state.local_chat_command_defined(b"SDK"), Ok(false));

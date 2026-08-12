@@ -460,7 +460,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_dialog_active(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_dialog_active(&self, profile: NativeProfile) {
         match profile.dialog_is_active() {
             Ok(active) => {
                 self.local_dialog_active.store(active, Ordering::Release);

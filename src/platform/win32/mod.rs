@@ -928,6 +928,7 @@ impl BackendState {
         self.refresh_server_info_snapshot(scalar_profile);
         if matches!(scalar_profile, NativeProfile::R3Scalars(_)) {
             self.refresh_r3_local_player_snapshot(scalar_profile);
+            self.refresh_local_dialog_active(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
             self.refresh_local_chat_input_commands(scalar_profile);
             self.cache_generation.fetch_add(1, Ordering::Release);
@@ -941,7 +942,7 @@ impl BackendState {
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
         self.refresh_local_scoreboard_open(profile);
-        self.refresh_local_dialog_active(profile);
+        self.refresh_local_dialog_active(scalar_profile);
         self.refresh_local_dialog_state(profile);
         self.refresh_local_chat_input_active(scalar_profile);
         self.refresh_local_chat_input_text(profile);

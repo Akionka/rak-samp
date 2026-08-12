@@ -45,7 +45,7 @@ impl HostApi {
         self.cached_boolean(self.raw.local_scoreboard_open)
     }
 
-    /// Returns whether the cached R1 local dialog is active.
+    /// Returns whether the cached local dialog is active.
     pub fn is_local_dialog_active(self) -> Result<bool, SampClientSdkResult> {
         self.cached_boolean(self.raw.local_dialog_active)
     }

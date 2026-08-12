@@ -25,6 +25,10 @@ impl Dialogs {
         self.api.take_local_dialog_response()
     }
 
+    /// Reports whether a dialog is active.
+    ///
+    /// R3-1 supports this flag only; detailed dialog reads and mutations remain
+    /// R1-only.
     pub fn is_active(self) -> Result<bool, SampClientSdkResult> {
         self.api.is_local_dialog_active()
     }

@@ -1,8 +1,9 @@
 //! Private SA-MP 0.3.7 R3-1 profile for verified read-only caches.
 //!
-//! This deliberately covers only copied server/game, local-player, and narrow
-//! chat-input snapshots. R3 UI, remote-player, pool, raw-address, and mutation helpers remain
-//! unavailable until each family has an independent fixture and live validation.
+//! This deliberately covers only copied server/game, local-player, narrow
+//! chat-input, and dialog-active snapshots. Broader R3 UI, remote-player, pool,
+//! raw-address, and mutation helpers remain unavailable until each family has
+//! an independent fixture and live validation.
 
 use super::r1_client::memory::{
     bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
@@ -48,6 +49,9 @@ const INPUT_COMMAND_COUNT_OFFSET: usize = 0x14DC;
 const INPUT_ENABLED_OFFSET: usize = 0x14E0;
 const INPUT_CACHE_READABLE_SIZE: usize = INPUT_ENABLED_OFFSET + mem::size_of::<i32>();
 const MAX_CHAT_COMMANDS: usize = 144;
+const DIALOG_SINGLETON_RVA: usize = 0x26_E8_98;
+const DIALOG_ACTIVE_OFFSET: usize = 0x28;
+const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::<i32>();
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -253,6 +257,16 @@ impl R3ClientProfile {
         Ok(commands)
     }
 
+    /// Copies the R3-1 dialog active flag without reading dialog controls.
+    pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        match unsafe { read_unaligned::<i32>(dialog as usize + DIALOG_ACTIVE_OFFSET) } {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
     fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn =
@@ -274,6 +288,13 @@ impl R3ClientProfile {
             unsafe { read_pointer(self.module_base.checked_add(INPUT_SINGLETON_RVA)?) }?.cast();
         (!input.is_null() && readable_range(input.cast(), INPUT_CACHE_READABLE_SIZE))
             .then_some(input)
+    }
+
+    fn dialog(self) -> Option<*mut c_void> {
+        let dialog: *mut c_void =
+            unsafe { read_pointer(self.module_base.checked_add(DIALOG_SINGLETON_RVA)?) }?.cast();
+        (!dialog.is_null() && readable_range(dialog.cast(), DIALOG_ACTIVE_READABLE_SIZE))
+            .then_some(dialog)
     }
 
     fn net_game(self) -> Option<*mut c_void> {
@@ -367,5 +388,27 @@ mod tests {
             profile.chat_input_commands(),
             Ok(vec![b"quit".to_vec(), b"help".to_vec()])
         );
+    }
+
+    #[test]
+    fn reads_verified_r3_dialog_active_flag() {
+        let mut module = vec![0_u8; DIALOG_SINGLETON_RVA + std::mem::size_of::<usize>()];
+        let mut dialog = vec![0_u8; DIALOG_ACTIVE_READABLE_SIZE];
+        let module_base = module.as_mut_ptr() as usize;
+        let dialog_pointer = dialog.as_mut_ptr();
+        unsafe {
+            ptr::write_unaligned(
+                module
+                    .as_mut_ptr()
+                    .add(DIALOG_SINGLETON_RVA)
+                    .cast::<usize>(),
+                dialog_pointer as usize,
+            );
+            ptr::write_unaligned(dialog_pointer.add(DIALOG_ACTIVE_OFFSET).cast::<i32>(), 1);
+        }
+
+        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+
+        assert_eq!(profile.dialog_is_active(), Ok(true));
     }
 }
