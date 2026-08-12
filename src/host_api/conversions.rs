@@ -15,8 +15,9 @@ use sdk_abi::{
     SampClientSdkChatEntryV1, SampClientSdkDialogResponseV1, SampClientSdkDialogSnapshotV1,
     SampClientSdkGangzoneV1, SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1,
     SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1, SampClientSdkTextDrawV1,
-    SampClientSdkTextLabelV1, SampClientSdkTrailerSyncV1, Vector3,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkServerInfoV1,
+    SampClientSdkStreamedOutPlayerPositionV1, SampClientSdkTextDrawV1, SampClientSdkTextLabelV1,
+    SampClientSdkTrailerSyncV1, Vector3,
 };
 
 pub(super) fn local_player_to_abi(
@@ -180,6 +181,23 @@ pub(super) fn remote_player_state_to_abi(
         animation_id: snapshot.animation_id,
         health: snapshot.health,
         armour: snapshot.armour,
+    })
+}
+
+pub(super) fn streamed_out_player_position_to_abi(
+    position: crate::runtime::Vector3,
+) -> Result<SampClientSdkStreamedOutPlayerPositionV1, ()> {
+    if !position.x.is_finite() || !position.y.is_finite() || !position.z.is_finite() {
+        return Err(());
+    }
+    Ok(SampClientSdkStreamedOutPlayerPositionV1 {
+        exists: 1,
+        _reserved: [0; 3],
+        position: Vector3 {
+            x: position.x,
+            y: position.y,
+            z: position.z,
+        },
     })
 }
 

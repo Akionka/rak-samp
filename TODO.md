@@ -438,7 +438,7 @@ remains permanently excluded.
 | [x] | `raknetEmulRpcReceiveBitStream` | Queued mutation | `Net::emulate_incoming_rpc` |
 | [x] | `raknetEmulPacketReceiveBitStream` | Queued mutation | `Net::emulate_incoming_packet` |
 | N/A | `sampSetClientCommandDescription` | SAMPFUNCS-only | Deferred by product decision: SA-MP has no command-description API or storage. |
-| [ ] | `sampGetStreamedOutPlayerPos` | Safe owned/read | `Player::streamed_out_position` |
+| [x] | `sampGetStreamedOutPlayerPos` | Safe owned/read | `Player::streamed_out_position` |
 | [x] | `onSendRpc` | Safe owned/read | `Net::on_rpc(Direction::Outgoing, ...)` |
 | [x] | `onSendPacket` | Safe owned/read | `Net::on_packet(Direction::Outgoing, ...)` |
 | [x] | `onReceiveRpc` | Safe owned/read | `Net::on_rpc(Direction::Incoming, ...)` |

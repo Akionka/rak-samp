@@ -74,6 +74,9 @@ R1 on-foot synchronization snapshot for local or defined remote players.
 in-car snapshot, while `.passenger_sync()` provides the owned passenger
 snapshot and `.trailer_sync()` provides the owned trailer snapshot.
 `samp.players().player(id).aim_sync()` provides the owned aim snapshot.
+`samp.players().player(id).streamed_out_position()` provides the host-owned R1
+radar-marker cache from accepted marker-sync packets for a connected streamed-out
+player when a marker is active; its integer-quantized coordinates may be stale.
 
 `samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and

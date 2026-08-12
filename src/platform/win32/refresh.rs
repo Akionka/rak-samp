@@ -48,6 +48,29 @@ impl BackendState {
         }
     }
 
+    pub(super) fn refresh_streamed_out_player_position(&self, profile: R1ClientProfile) {
+        for id in self.take_streamed_out_player_position_requests() {
+            let Ok(streamed_out) = profile.remote_player_is_streamed_out(id) else {
+                continue;
+            };
+            let position = match streamed_out {
+                Some(true) => self
+                    .marker_sync_positions
+                    .try_lock()
+                    .ok()
+                    .and_then(|positions| positions.get(usize::from(id)).copied().flatten())
+                    .filter(|position| position.x != 0.0 && position.y != 0.0),
+                Some(false) | None => None,
+            };
+            let Ok(mut cache) = self.streamed_out_player_position_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = StreamedOutPlayerPositionCacheEntry::Known(position);
+            }
+        }
+    }
+
     pub(super) fn refresh_onfoot_sync(&self, profile: R1ClientProfile) {
         for id in self.take_onfoot_sync_requests() {
             let Ok(snapshot) = profile.onfoot_sync(id) else {

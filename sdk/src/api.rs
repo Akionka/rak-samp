@@ -506,6 +506,22 @@ pub(crate) fn remote_player_state_from_abi(
     }
 }
 
+pub(crate) fn streamed_out_player_position_from_abi(
+    raw: SampClientSdkStreamedOutPlayerPositionV1,
+) -> Result<Option<Vector3>, SampClientSdkResult> {
+    match raw.exists {
+        0 if raw == SampClientSdkStreamedOutPlayerPositionV1::default() => Ok(None),
+        1 if raw._reserved == [0; 3]
+            && raw.position.x.is_finite()
+            && raw.position.y.is_finite()
+            && raw.position.z.is_finite() =>
+        {
+            Ok(Some(raw.position))
+        }
+        _ => Err(SampClientSdkResult::NativeCallFailed),
+    }
+}
+
 pub(crate) fn onfoot_sync_from_abi(
     raw: SampClientSdkOnFootSyncV1,
 ) -> Result<Option<OnFootSync>, SampClientSdkResult> {

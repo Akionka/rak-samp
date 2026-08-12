@@ -145,6 +145,7 @@ static TEST_API: crate::SampClientSdkApiV1 = crate::SampClientSdkApiV1 {
     take_local_dialog_response: test_take_local_dialog_response,
     submit_force_passenger_sync: test_submit_force_passenger_sync,
     submit_force_weapons_sync: test_submit_force_weapons_sync,
+    streamed_out_player_position: test_streamed_out_player_position,
 };
 
 pub(crate) fn test_api() -> HostApi {

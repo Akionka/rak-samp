@@ -1,5 +1,6 @@
 //! Native packet and RPC listener dispatch helpers.
 
+use super::players::MARKERS_SYNC_PACKET_ID;
 use super::{
     BackendState, ClientHookInstallState, DEALLOCATE_PACKET_SLOT, GameProcessFn,
     INCOMING_PACKET_SLOT, IncomingRpcFn, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT, OutgoingPacketFn,
@@ -83,9 +84,6 @@ pub(super) unsafe fn dispatch_raw_packet(
     state: &BackendState,
     packet: *mut RawPacket,
 ) -> HookAction {
-    if !state.registry.has_packet_listener(Direction::Incoming) {
-        return HookAction::Continue;
-    }
     if packet.is_null() {
         return HookAction::Continue;
     }
@@ -115,6 +113,10 @@ pub(super) unsafe fn dispatch_raw_packet(
     if data.is_null() {
         return HookAction::Continue;
     }
+    let has_listener = state.registry.has_packet_listener(Direction::Incoming);
+    if !has_listener && unsafe { data.read() } != MARKERS_SYNC_PACKET_ID {
+        return HookAction::Continue;
+    }
     let bytes = unsafe { slice::from_raw_parts(data, byte_len) }.to_vec();
     let Ok(mut stream) = BitStream::from_bytes_with_capacity(bytes, bit_size, bit_size) else {
         return HookAction::Continue;
@@ -128,9 +130,15 @@ pub(super) unsafe fn dispatch_raw_packet(
         remaining_bits,
         bit_size.saturating_sub(u8::BITS as usize),
     );
+    if !has_listener {
+        state.capture_marker_sync(id, &payload);
+        return HookAction::Continue;
+    }
+    let original_marker_payload = (id == MARKERS_SYNC_PACKET_ID).then(|| payload.clone());
     let action = state
         .registry
         .dispatch_packet(Direction::Incoming, id, &mut payload);
+    let mut replacement_applied = false;
     if action == HookAction::Continue
         && let Ok(combined) = packet_stream(id, &payload)
         && combined.len_bits() <= bit_size
@@ -142,6 +150,14 @@ pub(super) unsafe fn dispatch_raw_packet(
             ptr::addr_of_mut!((*packet).bit_size).write_unaligned(combined.len_bits() as u32)
         };
         unsafe { ptr::addr_of_mut!((*packet).length).write_unaligned(combined.len_bytes() as u32) };
+        replacement_applied = true;
+    }
+    if action == HookAction::Continue && id == MARKERS_SYNC_PACKET_ID {
+        if replacement_applied {
+            state.capture_marker_sync(id, &payload);
+        } else if let Some(original_payload) = original_marker_payload.as_ref() {
+            state.capture_marker_sync(id, original_payload);
+        }
     }
     action
 }

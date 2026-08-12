@@ -181,6 +181,19 @@ pub struct SampClientSdkRemotePlayerStateV1 {
     pub armour: f32,
 }
 
+/// C-compatible storage for an owned R1 streamed-out player marker position.
+///
+/// `exists` is zero when the latest completed query found no connected player
+/// with an active marker. When it is one, `position` is the client marker
+/// cache, so it is integer-quantized and may be stale.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct SampClientSdkStreamedOutPlayerPositionV1 {
+    pub exists: u8,
+    pub _reserved: [u8; 3],
+    pub position: Vector3,
+}
+
 /// C-compatible storage for an owned R1 on-foot synchronization snapshot.
 ///
 /// `exists` is zero when the latest completed query found no defined player.
@@ -1225,6 +1238,11 @@ pub struct SampClientSdkApiV1 {
     /// Queues one documented R1 weapons synchronization send.
     pub submit_force_weapons_sync:
         unsafe extern "system" fn(*mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
+    /// Copies a cached owned R1 streamed-out player marker position into `output`.
+    pub streamed_out_player_position: unsafe extern "system" fn(
+        u16,
+        *mut SampClientSdkStreamedOutPlayerPositionV1,
+    ) -> SampClientSdkResult,
 }
 
 pub type SampClientSdkGetApiV1 = unsafe extern "system" fn(u32) -> *const SampClientSdkApiV1;

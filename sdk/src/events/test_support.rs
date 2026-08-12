@@ -565,6 +565,29 @@ unsafe extern "system" fn test_remote_player_state(
     SampClientSdkResult::Ok
 }
 
+unsafe extern "system" fn test_streamed_out_player_position(
+    id: u16,
+    output: *mut crate::SampClientSdkStreamedOutPlayerPositionV1,
+) -> SampClientSdkResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return SampClientSdkResult::InvalidArgument;
+    };
+    *output = if id == 7 {
+        crate::SampClientSdkStreamedOutPlayerPositionV1 {
+            exists: 1,
+            _reserved: [0; 3],
+            position: crate::Vector3 {
+                x: 100.0,
+                y: -200.0,
+                z: 15.0,
+            },
+        }
+    } else {
+        crate::SampClientSdkStreamedOutPlayerPositionV1::default()
+    };
+    SampClientSdkResult::Ok
+}
+
 unsafe extern "system" fn test_onfoot_sync(
     id: u16,
     output: *mut crate::SampClientSdkOnFootSyncV1,

@@ -5,7 +5,8 @@ use sdk_abi::limits::MAX_SAMP_PLAYERS;
 use sdk_abi::{
     SampClientSdkAimSyncV1, SampClientSdkInCarSyncV1, SampClientSdkLocalPlayerV1,
     SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1, SampClientSdkPlayerInfoV1,
-    SampClientSdkRemotePlayerStateV1, SampClientSdkResult, SampClientSdkTrailerSyncV1,
+    SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
+    SampClientSdkStreamedOutPlayerPositionV1, SampClientSdkTrailerSyncV1,
 };
 
 pub(super) unsafe extern "system" fn local_player(
@@ -77,6 +78,32 @@ pub(super) unsafe extern "system" fn remote_player_state(
         },
         Ok(None) => {
             unsafe { *output = SampClientSdkRemotePlayerStateV1::default() };
+            SampClientSdkResult::Ok
+        }
+        Err(error) => direct_client_result(error),
+    }
+}
+
+pub(super) unsafe extern "system" fn streamed_out_player_position(
+    id: u16,
+    output: *mut SampClientSdkStreamedOutPlayerPositionV1,
+) -> SampClientSdkResult {
+    if id >= MAX_SAMP_PLAYERS || output.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return SampClientSdkResult::NotReady;
+    };
+    match runtime.streamed_out_player_position(id) {
+        Ok(Some(position)) => match conversions::streamed_out_player_position_to_abi(position) {
+            Ok(position) => {
+                unsafe { *output = position };
+                SampClientSdkResult::Ok
+            }
+            Err(()) => SampClientSdkResult::NativeCallFailed,
+        },
+        Ok(None) => {
+            unsafe { *output = SampClientSdkStreamedOutPlayerPositionV1::default() };
             SampClientSdkResult::Ok
         }
         Err(error) => direct_client_result(error),

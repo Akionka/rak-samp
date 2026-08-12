@@ -137,6 +137,51 @@ impl R1ClientProfile {
         }))
     }
 
+    /// Determines whether a connected remote player currently lacks a GTA ped.
+    /// The host-owned marker packet cache supplies its last streamed-out
+    /// coordinates separately.
+    pub(in super::super) fn remote_player_is_streamed_out(
+        self,
+        id: u16,
+    ) -> Result<Option<bool>, DirectClientError> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(DirectClientError::NotReady);
+        }
+        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
+        let get_player_pool: NetGameGetPlayerPoolFn =
+            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let pool = unsafe { get_player_pool(net_game) };
+        if pool.is_null() || !readable_range(pool.cast(), 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let is_connected: PlayerPoolPlayerBooleanFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
+        match unsafe { is_connected(pool, id) } {
+            0 => return Ok(None),
+            1 => {}
+            _ => return Err(DirectClientError::NotReady),
+        }
+        let get_player: PlayerPoolGetRemotePlayerFn =
+            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+        let remote = unsafe { get_player(pool, id) };
+        if remote.is_null() || !readable_range(remote.cast(), mem::size_of::<usize>()) {
+            return Err(DirectClientError::NotReady);
+        }
+        let ped = unsafe { read_pointer(remote as usize) }.ok_or(DirectClientError::NotReady)?;
+        if ped.is_null() {
+            return Ok(Some(true));
+        }
+        if !readable_range(
+            ped.cast(),
+            SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
+        ) {
+            return Err(DirectClientError::NotReady);
+        }
+        let game_ped = unsafe { read_pointer(ped as usize + SAMP_PED_GAME_PED_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(game_ped.is_null()))
+    }
+
     /// Copies one fixed R1 `SOnfootData` record on the game thread. The local
     /// player uses its local record; other IDs use a defined remote record.
     pub(in super::super) fn onfoot_sync(

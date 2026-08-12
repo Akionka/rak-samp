@@ -1,5 +1,6 @@
+use super::players::MARKERS_SYNC_PACKET_ID;
 use super::*;
-use crate::{Direction, command::GAME_COMMAND_QUEUE_CAPACITY, event::HookAction};
+use crate::{BitStream, Direction, command::GAME_COMMAND_QUEUE_CAPACITY, event::HookAction};
 use std::sync::atomic::{AtomicBool, AtomicU32};
 
 const FAKE_VTABLE_SLOTS: usize = 55;
@@ -67,6 +68,12 @@ fn test_backend_state() -> BackendState {
             MAX_SAMP_PLAYERS
         ]),
         remote_player_state_requests: Mutex::new(VecDeque::new()),
+        marker_sync_positions: Mutex::new(vec![None; MAX_SAMP_PLAYERS]),
+        streamed_out_player_position_cache: Mutex::new(vec![
+            StreamedOutPlayerPositionCacheEntry::Unknown;
+            MAX_SAMP_PLAYERS
+        ]),
+        streamed_out_player_position_requests: Mutex::new(VecDeque::new()),
         onfoot_sync_cache: Mutex::new(vec![OnFootSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         onfoot_sync_requests: Mutex::new(VecDeque::new()),
         incar_sync_cache: Mutex::new(vec![InCarSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
@@ -665,6 +672,17 @@ fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
             special_action: 0,
             animation_id: 0,
         }));
+    state.streamed_out_player_position_cache.lock().unwrap()[7] =
+        StreamedOutPlayerPositionCacheEntry::Known(Some(Vector3 {
+            x: 100.0,
+            y: -200.0,
+            z: 15.0,
+        }));
+    state.marker_sync_positions.lock().unwrap()[7] = Some(Vector3 {
+        x: 100.0,
+        y: -200.0,
+        z: 15.0,
+    });
     state.vehicle_exists_cache.lock().unwrap()[7] = VehicleExistsCacheEntry::Known(true);
     state.text_label_exists_cache.lock().unwrap()[7] = TextLabelExistsCacheEntry::Known(true);
     state.text_label_cache.lock().unwrap()[7] = TextLabelCacheEntry::Known(None);
@@ -675,6 +693,11 @@ fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
     state.player_info_requests.lock().unwrap().push_back(7);
     state
         .remote_player_state_requests
+        .lock()
+        .unwrap()
+        .push_back(7);
+    state
+        .streamed_out_player_position_requests
         .lock()
         .unwrap()
         .push_back(7);
@@ -703,6 +726,11 @@ fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
         state.remote_player_state_cache.lock().unwrap()[7],
         RemotePlayerStateCacheEntry::Unknown
     ));
+    assert!(matches!(
+        state.streamed_out_player_position_cache.lock().unwrap()[7],
+        StreamedOutPlayerPositionCacheEntry::Unknown
+    ));
+    assert_eq!(state.marker_sync_positions.lock().unwrap()[7], None);
     assert!(matches!(
         state.vehicle_exists_cache.lock().unwrap()[7],
         VehicleExistsCacheEntry::Unknown
@@ -735,6 +763,13 @@ fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
     assert!(
         state
             .remote_player_state_requests
+            .lock()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(
+        state
+            .streamed_out_player_position_requests
             .lock()
             .unwrap()
             .is_empty()
@@ -789,6 +824,148 @@ fn remote_player_state_requests_are_bounded_deduplicated_and_pump_limited() {
     assert_eq!(
         state.remote_player_state_requests.lock().unwrap().len(),
         REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY - REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP
+    );
+}
+
+#[test]
+fn streamed_out_player_position_reads_owned_cache_and_queues_a_refresh() {
+    let mut state = test_backend_state();
+    state.context.r1_client = R1ClientProfile::verify(0x10000, 0x31DF13);
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+
+    assert_eq!(
+        state.streamed_out_player_position(7),
+        Err(DirectClientError::NotReady)
+    );
+    assert_eq!(
+        state
+            .streamed_out_player_position_requests
+            .lock()
+            .unwrap()
+            .as_slices()
+            .0,
+        &[7]
+    );
+
+    let position = Vector3 {
+        x: 100.0,
+        y: -200.0,
+        z: 15.0,
+    };
+    state.streamed_out_player_position_cache.lock().unwrap()[7] =
+        StreamedOutPlayerPositionCacheEntry::Known(Some(position));
+
+    assert_eq!(state.streamed_out_player_position(7), Ok(Some(position)));
+}
+
+#[test]
+fn marker_sync_capture_preserves_active_positions_and_ignores_inactive_records() {
+    let state = test_backend_state();
+    let mut payload = BitStream::new();
+    payload.write_i32(2).unwrap();
+    payload.write_u16(7).unwrap();
+    payload.write_bool(true).unwrap();
+    payload.write_i16(100).unwrap();
+    payload.write_i16(-200).unwrap();
+    payload.write_i16(15).unwrap();
+    payload.write_u16(8).unwrap();
+    payload.write_bool(false).unwrap();
+
+    state.capture_marker_sync(MARKERS_SYNC_PACKET_ID, &payload);
+
+    assert_eq!(
+        state.marker_sync_positions.lock().unwrap()[7],
+        Some(Vector3 {
+            x: 100.0,
+            y: -200.0,
+            z: 15.0,
+        })
+    );
+    assert_eq!(state.marker_sync_positions.lock().unwrap()[8], None);
+
+    let mut inactive = BitStream::new();
+    inactive.write_i32(1).unwrap();
+    inactive.write_u16(7).unwrap();
+    inactive.write_bool(false).unwrap();
+    state.capture_marker_sync(MARKERS_SYNC_PACKET_ID, &inactive);
+
+    assert_eq!(
+        state.marker_sync_positions.lock().unwrap()[7],
+        Some(Vector3 {
+            x: 100.0,
+            y: -200.0,
+            z: 15.0,
+        })
+    );
+}
+
+#[test]
+fn marker_sync_is_captured_without_packet_listeners() {
+    let state = test_backend_state();
+    let mut payload = BitStream::new();
+    payload.write_i32(1).unwrap();
+    payload.write_u16(7).unwrap();
+    payload.write_bool(true).unwrap();
+    payload.write_i16(100).unwrap();
+    payload.write_i16(-200).unwrap();
+    payload.write_i16(15).unwrap();
+    let stream = packet_stream(MARKERS_SYNC_PACKET_ID, &payload).unwrap();
+    let mut bytes = stream.as_bytes().to_vec();
+    let mut packet = RawPacket {
+        player_index: 0,
+        player_id: PacketPlayerId {
+            binary_address: 0,
+            port: 0,
+        },
+        length: bytes.len() as u32,
+        bit_size: stream.len_bits() as u32,
+        data: bytes.as_mut_ptr(),
+        delete_data: false,
+    };
+
+    assert_eq!(
+        unsafe { hooks::dispatch_raw_packet(&state, &mut packet) },
+        HookAction::Continue
+    );
+    assert_eq!(
+        state.marker_sync_positions.lock().unwrap()[7],
+        Some(Vector3 {
+            x: 100.0,
+            y: -200.0,
+            z: 15.0,
+        })
+    );
+}
+
+#[test]
+fn streamed_out_player_position_requests_are_bounded_deduplicated_and_pump_limited() {
+    let state = test_backend_state();
+    state.queue_streamed_out_player_position_request(7).unwrap();
+    state.queue_streamed_out_player_position_request(7).unwrap();
+    for id in 8..(7 + STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY as u16) {
+        state
+            .queue_streamed_out_player_position_request(id)
+            .unwrap();
+    }
+    assert_eq!(
+        state.queue_streamed_out_player_position_request(99),
+        Err(DirectClientError::QueueFull)
+    );
+    let drained = state.take_streamed_out_player_position_requests();
+    assert_eq!(
+        drained.len(),
+        STREAMED_OUT_PLAYER_POSITION_REQUESTS_PER_PUMP
+    );
+    assert_eq!(drained[0], 7);
+    assert_eq!(
+        state
+            .streamed_out_player_position_requests
+            .lock()
+            .unwrap()
+            .len(),
+        STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY
+            - STREAMED_OUT_PLAYER_POSITION_REQUESTS_PER_PUMP
     );
 }
 

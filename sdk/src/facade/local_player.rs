@@ -2,6 +2,7 @@ use super::{Net, PedHandle, PlayerId, Samp, VehicleId};
 use crate::{
     AimSync, CommandReceipt, HostApi, InCarSync, LocalAnimation, LocalPlayer, OnFootSync,
     PassengerSync, PlayerInfo, RemotePlayerState, SampClientSdkResult, SpecialAction, TrailerSync,
+    Vector3,
 };
 
 #[derive(Clone, Copy)]
@@ -217,6 +218,13 @@ impl Player {
 
     pub fn animation_id(self) -> Result<Option<u16>, SampClientSdkResult> {
         self.api.player_animation_id(self.id.get())
+    }
+
+    /// Returns the latest owned R1 radar-marker position for this connected
+    /// player when they are streamed out. Marker coordinates are integer
+    /// quantized and may remain stale until SA-MP resets the marker.
+    pub fn streamed_out_position(self) -> Result<Option<Vector3>, SampClientSdkResult> {
+        self.api.streamed_out_player_position(self.id.get())
     }
 
     /// Returns an owned on-foot synchronization snapshot for this local or

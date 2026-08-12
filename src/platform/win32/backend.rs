@@ -605,6 +605,13 @@ impl Backend {
         self.state.remote_player_state(id)
     }
 
+    pub(crate) fn streamed_out_player_position(
+        &self,
+        id: u16,
+    ) -> Result<Option<crate::runtime::Vector3>, DirectClientError> {
+        self.state.streamed_out_player_position(id)
+    }
+
     pub(crate) fn onfoot_sync(
         &self,
         id: u16,

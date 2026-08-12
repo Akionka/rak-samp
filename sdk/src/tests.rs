@@ -38,6 +38,7 @@ fn zero_only_abi_defaults_are_all_zero() {
     assert_default_is_zeroed::<SampClientSdkActiveDialogV1>();
     assert_default_is_zeroed::<SampClientSdkLocalPlayerV1>();
     assert_default_is_zeroed::<SampClientSdkPlayerInfoV1>();
+    assert_default_is_zeroed::<SampClientSdkStreamedOutPlayerPositionV1>();
     assert_default_is_zeroed::<SampClientSdkChatEntryV1>();
     assert_default_is_zeroed::<SampClientSdkTextDrawV1>();
     assert_default_is_zeroed::<SampClientSdkTextLabelV1>();
@@ -359,8 +360,12 @@ fn newer_functions_are_appended_to_abi_v1() {
         mem::offset_of!(SampClientSdkApiV1, submit_create_textdraw) + function_size
     );
     assert_eq!(
-        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, streamed_out_player_position),
         mem::offset_of!(SampClientSdkApiV1, submit_force_weapons_sync) + function_size
+    );
+    assert_eq!(
+        mem::size_of::<SampClientSdkApiV1>(),
+        mem::offset_of!(SampClientSdkApiV1, streamed_out_player_position) + function_size
     );
     assert_eq!(
         mem::offset_of!(SampClientSdkApiV1, take_local_dialog_response),
@@ -737,7 +742,16 @@ fn player_directory_entry_is_owned_and_handles_a_cached_disconnect() {
     assert_eq!(api.player_armour(7), Ok(Some(25.0)));
     assert_eq!(api.player_special_action(7), Ok(Some(3)));
     assert_eq!(api.player_animation_id(7), Ok(Some(123)));
+    assert_eq!(
+        api.streamed_out_player_position(7),
+        Ok(Some(Vector3 {
+            x: 100.0,
+            y: -200.0,
+            z: 15.0,
+        }))
+    );
     assert_eq!(api.remote_player_state(8), Ok(None));
+    assert_eq!(api.streamed_out_player_position(8), Ok(None));
     assert_eq!(api.player_info(8), Ok(None));
     assert_eq!(api.is_player_connected(8), Ok(false));
     assert_eq!(api.is_player_defined(8), Ok(false));

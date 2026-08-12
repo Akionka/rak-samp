@@ -350,6 +350,22 @@ mod tests {
         assert_eq!(
             samp.players()
                 .player(PlayerId::new(7).unwrap())
+                .streamed_out_position(),
+            Ok(Some(crate::Vector3 {
+                x: 100.0,
+                y: -200.0,
+                z: 15.0,
+            }))
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(8).unwrap())
+                .streamed_out_position(),
+            Ok(None)
+        );
+        assert_eq!(
+            samp.players()
+                .player(PlayerId::new(7).unwrap())
                 .onfoot_sync()
                 .map(|sync| sync.map(|sync| (sync.position, sync.animation))),
             Ok(Some((

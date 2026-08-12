@@ -12,7 +12,8 @@ use super::{
     PICKUP_HANDLE_REVERSE_REQUESTS_PER_PUMP, PLAYER_HANDLE_REQUESTS_PER_PUMP,
     PLAYER_HANDLE_REVERSE_REQUESTS_PER_PUMP, PLAYER_INFO_REQUEST_QUEUE_CAPACITY,
     PLAYER_INFO_REQUESTS_PER_PUMP, REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
-    REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP, TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY,
+    REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP, STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY,
+    STREAMED_OUT_PLAYER_POSITION_REQUESTS_PER_PUMP, TEXT_LABEL_EXISTS_REQUEST_QUEUE_CAPACITY,
     TEXT_LABEL_EXISTS_REQUESTS_PER_PUMP, TEXT_LABEL_REQUEST_QUEUE_CAPACITY,
     TEXT_LABEL_REQUESTS_PER_PUMP, TEXTDRAW_EXISTS_REQUEST_QUEUE_CAPACITY,
     TEXTDRAW_EXISTS_REQUESTS_PER_PUMP, TEXTDRAW_REQUEST_QUEUE_CAPACITY, TEXTDRAW_REQUESTS_PER_PUMP,
@@ -65,6 +66,17 @@ impl BackendState {
         queue_unique_request(
             &self.remote_player_state_requests,
             REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
+            id,
+        )
+    }
+
+    pub(super) fn queue_streamed_out_player_position_request(
+        &self,
+        id: u16,
+    ) -> Result<(), DirectClientError> {
+        queue_unique_request(
+            &self.streamed_out_player_position_requests,
+            STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY,
             id,
         )
     }
@@ -193,6 +205,13 @@ impl BackendState {
         take_requests(
             &self.remote_player_state_requests,
             REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP,
+        )
+    }
+
+    pub(super) fn take_streamed_out_player_position_requests(&self) -> Vec<u16> {
+        take_requests(
+            &self.streamed_out_player_position_requests,
+            STREAMED_OUT_PLAYER_POSITION_REQUESTS_PER_PUMP,
         )
     }
 

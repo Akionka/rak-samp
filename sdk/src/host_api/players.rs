@@ -3,9 +3,10 @@ use crate::{
     PlayerInfo, RemotePlayerState, SampClientSdkAimSyncV1, SampClientSdkInCarSyncV1,
     SampClientSdkLocalPlayerV1, SampClientSdkOnFootSyncV1, SampClientSdkPassengerSyncV1,
     SampClientSdkPlayerInfoV1, SampClientSdkRemotePlayerStateV1, SampClientSdkResult,
-    SampClientSdkTrailerSyncV1, TrailerSync, aim_sync_from_abi, onfoot_sync_from_abi,
-    passenger_sync_from_abi, player_info_from_abi, remote_player_state_from_abi,
-    trailer_sync_from_abi, vehicle_sync_from_abi,
+    SampClientSdkStreamedOutPlayerPositionV1, SampClientSdkTrailerSyncV1, TrailerSync, Vector3,
+    aim_sync_from_abi, onfoot_sync_from_abi, passenger_sync_from_abi, player_info_from_abi,
+    remote_player_state_from_abi, streamed_out_player_position_from_abi, trailer_sync_from_abi,
+    vehicle_sync_from_abi,
 };
 
 impl HostApi {
@@ -86,6 +87,21 @@ impl HostApi {
         let mut raw = SampClientSdkRemotePlayerStateV1::default();
         match unsafe { (self.raw.remote_player_state)(id, &mut raw) } {
             SampClientSdkResult::Ok => remote_player_state_from_abi(raw),
+            result => Err(result),
+        }
+    }
+    /// Returns the last R1 radar-marker position copied for a connected player
+    /// while they are streamed out. The integer marker cache may be stale.
+    pub fn streamed_out_player_position(
+        self,
+        id: u16,
+    ) -> Result<Option<Vector3>, SampClientSdkResult> {
+        if id >= MAX_SAMP_PLAYERS {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let mut raw = SampClientSdkStreamedOutPlayerPositionV1::default();
+        match unsafe { (self.raw.streamed_out_player_position)(id, &mut raw) } {
+            SampClientSdkResult::Ok => streamed_out_player_position_from_abi(raw),
             result => Err(result),
         }
     }

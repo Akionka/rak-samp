@@ -31,7 +31,7 @@ use crate::{
         LocalDeathMessageRequest, LocalDialogRequest, LocalDialogResponseSnapshot,
         LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PacketPriority,
         PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot,
+        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
     },
 };
 use hooks::{HookStorage, InlineHook, VtableHook};
@@ -61,6 +61,8 @@ const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUESTS_PER_PUMP: usize = 4;
+const STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY: usize = 32;
+const STREAMED_OUT_PLAYER_POSITION_REQUESTS_PER_PUMP: usize = 4;
 const ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
 const ONFOOT_SYNC_REQUESTS_PER_PUMP: usize = 4;
 const INCAR_SYNC_REQUEST_QUEUE_CAPACITY: usize = 32;
@@ -202,6 +204,9 @@ struct BackendState {
     player_info_requests: Mutex<VecDeque<u16>>,
     remote_player_state_cache: Mutex<Vec<RemotePlayerStateCacheEntry>>,
     remote_player_state_requests: Mutex<VecDeque<u16>>,
+    marker_sync_positions: Mutex<Vec<Option<Vector3>>>,
+    streamed_out_player_position_cache: Mutex<Vec<StreamedOutPlayerPositionCacheEntry>>,
+    streamed_out_player_position_requests: Mutex<VecDeque<u16>>,
     onfoot_sync_cache: Mutex<Vec<OnFootSyncCacheEntry>>,
     onfoot_sync_requests: Mutex<VecDeque<u16>>,
     incar_sync_cache: Mutex<Vec<InCarSyncCacheEntry>>,
@@ -292,6 +297,12 @@ enum PlayerInfoCacheEntry {
 enum RemotePlayerStateCacheEntry {
     Unknown,
     Known(Option<RemotePlayerStateSnapshot>),
+}
+
+#[derive(Clone, Copy)]
+enum StreamedOutPlayerPositionCacheEntry {
+    Unknown,
+    Known(Option<Vector3>),
 }
 
 #[derive(Clone, Copy)]
@@ -607,6 +618,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         remote_player_state_requests: Mutex::new(VecDeque::with_capacity(
             REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY,
         )),
+        marker_sync_positions: Mutex::new(vec![None; MAX_SAMP_PLAYERS]),
+        streamed_out_player_position_cache: Mutex::new(vec![
+            StreamedOutPlayerPositionCacheEntry::Unknown;
+            MAX_SAMP_PLAYERS
+        ]),
+        streamed_out_player_position_requests: Mutex::new(VecDeque::with_capacity(
+            STREAMED_OUT_PLAYER_POSITION_REQUEST_QUEUE_CAPACITY,
+        )),
         onfoot_sync_cache: Mutex::new(vec![OnFootSyncCacheEntry::Unknown; MAX_SAMP_PLAYERS]),
         onfoot_sync_requests: Mutex::new(VecDeque::with_capacity(
             ONFOOT_SYNC_REQUEST_QUEUE_CAPACITY,
@@ -883,6 +902,7 @@ impl BackendState {
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
         self.refresh_remote_player_state(profile);
+        self.refresh_streamed_out_player_position(profile);
         self.refresh_onfoot_sync(profile);
         self.refresh_incar_sync(profile);
         self.refresh_passenger_sync(profile);
@@ -952,6 +972,18 @@ impl BackendState {
     fn clear_remote_player_state_cache(&self) {
         if let Ok(mut cache) = self.remote_player_state_cache.try_lock() {
             cache.fill(RemotePlayerStateCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_streamed_out_player_position_cache(&self) {
+        if let Ok(mut cache) = self.streamed_out_player_position_cache.try_lock() {
+            cache.fill(StreamedOutPlayerPositionCacheEntry::Unknown);
+        }
+    }
+
+    fn clear_marker_sync_positions(&self) {
+        if let Ok(mut positions) = self.marker_sync_positions.try_lock() {
+            positions.fill(None);
         }
     }
 
@@ -1068,6 +1100,18 @@ impl BackendState {
             .unwrap_or_else(|error| error.into_inner())
             .fill(RemotePlayerStateCacheEntry::Unknown);
         self.remote_player_state_requests
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .clear();
+        self.streamed_out_player_position_cache
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(StreamedOutPlayerPositionCacheEntry::Unknown);
+        self.marker_sync_positions
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .fill(None);
+        self.streamed_out_player_position_requests
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .clear();
@@ -1316,6 +1360,11 @@ impl BackendState {
         }
         self.clear_remote_player_state_cache();
         if let Ok(mut requests) = self.remote_player_state_requests.try_lock() {
+            requests.clear();
+        }
+        self.clear_streamed_out_player_position_cache();
+        self.clear_marker_sync_positions();
+        if let Ok(mut requests) = self.streamed_out_player_position_requests.try_lock() {
             requests.clear();
         }
         self.clear_onfoot_sync_cache();

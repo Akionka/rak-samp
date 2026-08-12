@@ -3,15 +3,77 @@
 use super::{
     AimSyncCacheEntry, BackendState, InCarSyncCacheEntry, MAX_SAMP_PLAYERS, OnFootSyncCacheEntry,
     PassengerSyncCacheEntry, PlayerInfoCacheEntry, RemotePlayerStateCacheEntry,
-    TrailerSyncCacheEntry, player_info_from_local, try_lock_direct,
+    StreamedOutPlayerPositionCacheEntry, TrailerSyncCacheEntry, player_info_from_local,
+    try_lock_direct,
 };
-use crate::runtime::{
-    AimSyncSnapshot, DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
-    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, TrailerSyncSnapshot,
+use crate::{
+    BitStream,
+    runtime::{
+        AimSyncSnapshot, DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot,
+        OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+        TrailerSyncSnapshot, Vector3,
+    },
 };
 use std::sync::atomic::Ordering;
 
+pub(super) const MARKERS_SYNC_PACKET_ID: u8 = 208;
+
 impl BackendState {
+    /// Captures active R1 marker coordinates from an accepted markers-sync packet.
+    /// Inactive records intentionally preserve the last active coordinate, matching
+    /// SAMPFUNCS' private cache behavior.
+    pub(super) fn capture_marker_sync(&self, packet_id: u8, payload: &BitStream) {
+        if packet_id != MARKERS_SYNC_PACKET_ID {
+            return;
+        }
+        let mut stream = payload.clone();
+        let Ok(count) = stream.read_i32() else {
+            return;
+        };
+        let Ok(count) = usize::try_from(count) else {
+            return;
+        };
+        if count == 0 || count >= MAX_SAMP_PLAYERS {
+            return;
+        }
+
+        let mut updates = Vec::with_capacity(count);
+        for _ in 0..count {
+            let (Ok(id), Ok(active)) = (stream.read_u16(), stream.read_bool()) else {
+                return;
+            };
+            let position = if active {
+                let (Ok(x), Ok(y), Ok(z)) =
+                    (stream.read_i16(), stream.read_i16(), stream.read_i16())
+                else {
+                    return;
+                };
+                Some(Vector3 {
+                    x: f32::from(x),
+                    y: f32::from(y),
+                    z: f32::from(z),
+                })
+            } else {
+                None
+            };
+            updates.push((id, position));
+        }
+        if stream.remaining_bits() >= u8::BITS as usize {
+            return;
+        }
+
+        let Ok(mut positions) = self.marker_sync_positions.try_lock() else {
+            return;
+        };
+        for (id, position) in updates {
+            if let Some(position) = position
+                && let Some(slot) = positions.get_mut(usize::from(id))
+            {
+                *slot = Some(position);
+            }
+        }
+    }
+
     pub(super) fn local_player(&self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         if self.r1_client.is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -94,6 +156,33 @@ impl BackendState {
             }
             RemotePlayerStateCacheEntry::Unknown => {
                 self.queue_remote_player_state_request(id)?;
+                Err(DirectClientError::NotReady)
+            }
+        }
+    }
+
+    pub(super) fn streamed_out_player_position(
+        &self,
+        id: u16,
+    ) -> Result<Option<Vector3>, DirectClientError> {
+        if self.r1_client.is_none()
+            || self.rak_client.load(Ordering::Acquire) == 0
+            || !self.cache_is_published()
+            || usize::from(id) >= MAX_SAMP_PLAYERS
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let cached = try_lock_direct(&self.streamed_out_player_position_cache)?
+            .get(usize::from(id))
+            .copied()
+            .ok_or(DirectClientError::NotReady)?;
+        match cached {
+            StreamedOutPlayerPositionCacheEntry::Known(position) => {
+                let _ = self.queue_streamed_out_player_position_request(id);
+                Ok(position)
+            }
+            StreamedOutPlayerPositionCacheEntry::Unknown => {
+                self.queue_streamed_out_player_position_request(id)?;
                 Err(DirectClientError::NotReady)
             }
         }
