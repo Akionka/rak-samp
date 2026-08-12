@@ -32,6 +32,11 @@ dispatches and blocks a fixed three-bit RPC. A complete `0x7F` status therefore
 proves the codec, packet allocation/queue lock, incoming-packet hook, and
 exact-bit callback handling worked together for that run.
 
+When SAMPFUNCS is absent, inspect the worker-written
+`samp-client-sdk-network-smoke.status` in the LIVE game root. `status=0x0000007F`
+and `failure=0` is the required passing result; the high status bit marks a
+failure and the `failure` line records the first SDK result code.
+
 It deliberately does **not** send traffic to the server or enter SA-MP through
 the original RPC handler. Those are separate checklist obligations and must not
 be inferred from a passing smoke status.

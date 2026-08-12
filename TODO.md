@@ -495,6 +495,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Add an opt-in isolated network smoke plugin for the native codec and
   blocked exact-bit packet/RPC emulation paths; retain separate live proof for
   outbound sends and original-handler delivery.
+- [x] Persist the isolated network smoke stage result without relying on
+  SAMPFUNCS, so R5/DL validation is observable from the test root.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 

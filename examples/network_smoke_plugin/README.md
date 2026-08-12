@@ -20,7 +20,21 @@ Copy-Item target/i686-pc-windows-msvc/release/samp_client_sdk_network_smoke_plug
 ```
 
 When SAMPFUNCS is present, success or failure appears in its console. A test
-loader may instead query these exports:
+loader may instead query these exports. The plugin also writes
+`samp-client-sdk-network-smoke.status` in the game process's working directory
+after each worker-side stage, so it remains observable when SAMPFUNCS is not
+available (as with the R5 validation client):
+
+```text
+status=0x0000007F
+failure=0
+```
+
+`0x7F` is a complete success. `0x80000000` marks a failure; `failure` then
+contains the first `SampClientSdkResult` discriminant observed by the worker.
+The file intentionally has no packet, RPC, or codec payload content.
+
+A test loader may instead query these exports:
 
 | Export | Meaning |
 | --- | --- |
@@ -28,5 +42,5 @@ loader may instead query these exports:
 | `SampClientSdkNetworkSmoke_Failure` | First `SampClientSdkResult` on failure. |
 | `SampClientSdkNetworkSmoke_Shutdown` | Synchronously removes its callbacks before unload. |
 
-`0x80000000` in the status means a stage failed. The component bits are
-documented beside the exported status constants in `src/lib.rs`.
+The component bits are documented beside the exported status constants in
+`src/lib.rs`.

@@ -13,6 +13,7 @@ use samp_client_sdk::{
 };
 use std::{
     ffi::c_void,
+    fs,
     sync::{
         Condvar, Mutex,
         atomic::{AtomicU32, Ordering},
@@ -36,6 +37,7 @@ const CODEC_VALUE: &[u8] = b"samp-client-sdk-network-smoke";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(30);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(5);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
+const STATUS_FILE: &str = "samp-client-sdk-network-smoke.status";
 
 /// The host ABI was resolved and the smoke worker started.
 pub const STATUS_HOST_CONNECTED: u32 = 1 << 0;
@@ -123,10 +125,13 @@ unsafe extern "system" fn DllMain(
 
 fn initialize() {
     let _initialization = InitializationGuard;
+    publish_status();
     let Some(samp) = connect_host() else {
+        publish_status();
         return;
     };
     STATUS.fetch_or(STATUS_HOST_CONNECTED, Ordering::AcqRel);
+    publish_status();
 
     let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
     if state.shutting_down {
@@ -138,6 +143,7 @@ fn initialize() {
             state.subscriptions = (!subscriptions.is_empty()).then_some(subscriptions);
             drop(state);
             record_failure(error);
+            publish_status();
             announce(
                 samp,
                 b"[samp-client-sdk] network smoke failed during listener setup",
@@ -147,15 +153,18 @@ fn initialize() {
     }
     drop(state);
     STATUS.fetch_or(STATUS_LISTENERS_REGISTERED, Ordering::AcqRel);
+    publish_status();
 
     let result = run_smoke(samp);
     if let Err(error) = result {
         record_failure(error);
+        publish_status();
         announce(
             samp,
             b"[samp-client-sdk] network smoke failed; inspect its exported status",
         );
     } else {
+        publish_status();
         announce(
             samp,
             b"[samp-client-sdk] network smoke passed (codec and blocked exact-bit emulation)",
@@ -234,14 +243,18 @@ fn exact_payload(event: &mut samp_client_sdk::events::Event<'_>) -> bool {
 fn run_smoke(samp: Samp) -> Result<(), SampClientSdkResult> {
     retry_codec_readiness(|| native_codec_round_trip(samp))?;
     STATUS.fetch_or(STATUS_CODEC_ROUND_TRIP, Ordering::AcqRel);
+    publish_status();
 
     retry_network_readiness(|| emulate_packet(samp))?;
     STATUS.fetch_or(STATUS_PACKET_QUEUED, Ordering::AcqRel);
     wait_for_status(STATUS_PACKET_EXACT_BITS, CALLBACK_TIMEOUT)?;
+    publish_status();
 
     retry_network_readiness(|| emulate_rpc(samp))?;
     STATUS.fetch_or(STATUS_RPC_QUEUED, Ordering::AcqRel);
-    wait_for_status(STATUS_RPC_EXACT_BITS, CALLBACK_TIMEOUT)
+    wait_for_status(STATUS_RPC_EXACT_BITS, CALLBACK_TIMEOUT)?;
+    publish_status();
+    Ok(())
 }
 
 fn native_codec_round_trip(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -387,6 +400,20 @@ fn stored_failure() -> SampClientSdkResult {
     }
 }
 
+fn publish_status() {
+    let _ = fs::write(
+        STATUS_FILE,
+        status_record(
+            STATUS.load(Ordering::Acquire),
+            FAILURE.load(Ordering::Acquire),
+        ),
+    );
+}
+
+fn status_record(status: u32, failure: u32) -> String {
+    format!("status=0x{status:08X}\nfailure={failure}\n")
+}
+
 fn announce(samp: Samp, message: &[u8]) {
     if samp.probe().is_sampfuncs_loaded() {
         let _ = samp.sampfuncs().log_console(message);
@@ -434,4 +461,17 @@ pub extern "system" fn SampClientSdkNetworkSmoke_Status() -> u32 {
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkNetworkSmoke_Failure() -> u32 {
     FAILURE.load(Ordering::Acquire)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn status_record_is_bounded_and_machine_readable() {
+        assert_eq!(
+            status_record(STATUS_HOST_CONNECTED | STATUS_CODEC_ROUND_TRIP, 7),
+            "status=0x00000005\nfailure=7\n"
+        );
+    }
 }
