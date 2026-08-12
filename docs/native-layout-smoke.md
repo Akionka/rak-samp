@@ -154,8 +154,9 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   packet allocation, bitstream lock/unlock, and string codec round-trip.
 - [x] Prove loopback outbound RPC delivery and non-blocking original incoming-RPC
   handler continuation with a disposable server filter and human chat check.
-- [ ] Prove the profile's `CNetGame`, `CInput`, and `CDialog` values against
-  the fixture before enabling any helper that consumes them.
+- [x] Prove the minimum `CNetGame`, `CInput`, and `CDialog` values against the
+  independent fixture. This is only an activation prerequisite; it does not
+  enable any direct helper.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
 - [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.

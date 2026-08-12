@@ -663,6 +663,7 @@ known.
 | Task | R1 | R3-1 | R5-1 | DL | Required proof |
 | --- | --- | --- | --- | --- | --- |
 | Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] remains gated | [x] remains gated | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no non-R1 direct helper enabled |
+| Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture; remains gated | [x] independent fixture; remains gated | [x] independent fixture; remains gated | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
 | Network observe/send, codec, packet/RPC emulation | [x] | [ ] | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
 | Lifecycle/version/status and raw module base | [x] | [ ] | [ ] | [ ] | Attachment/version identity test |
 | Cached game/server/local-player scalars | [x] | [ ] | [ ] | [ ] | Profile fixture and game-thread publication test |
