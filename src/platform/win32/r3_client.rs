@@ -62,6 +62,9 @@ const DIALOG_ACTIVE_READABLE_SIZE: usize = DIALOG_ACTIVE_OFFSET + mem::size_of::
 const SCOREBOARD_SINGLETON_RVA: usize = 0x26_E8_94;
 const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
 const SCOREBOARD_READABLE_SIZE: usize = 0x44;
+const GAME_SINGLETON_RVA: usize = 0x26_E8_F4;
+const GAME_CURSOR_MODE_OFFSET: usize = 0x61;
+const GAME_CURSOR_MODE_READABLE_SIZE: usize = GAME_CURSOR_MODE_OFFSET + mem::size_of::<i32>();
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -323,6 +326,16 @@ impl R3ClientProfile {
         }
     }
 
+    /// Copies the R3-1 cursor mode from the guarded `CGame` scalar.
+    pub(super) fn cursor_mode(self) -> Result<i32, DirectClientError> {
+        let game = self.game().ok_or(DirectClientError::NotReady)?;
+        let mode = unsafe { read_unaligned::<i32>(game as usize + GAME_CURSOR_MODE_OFFSET) }
+            .ok_or(DirectClientError::NotReady)?;
+        matches!(mode, 0..=4)
+            .then_some(mode)
+            .ok_or(DirectClientError::NotReady)
+    }
+
     fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn =
@@ -365,6 +378,13 @@ impl R3ClientProfile {
         let chat: *mut c_void =
             unsafe { read_pointer(self.module_base.checked_add(CHAT_SINGLETON_RVA)?) }?.cast();
         (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
+    }
+
+    fn game(self) -> Option<*mut c_void> {
+        let game: *mut c_void =
+            unsafe { read_pointer(self.module_base.checked_add(GAME_SINGLETON_RVA)?) }?.cast();
+        (!game.is_null() && readable_range(game.cast(), GAME_CURSOR_MODE_READABLE_SIZE))
+            .then_some(game)
     }
 
     fn net_game(self) -> Option<*mut c_void> {
@@ -555,6 +575,29 @@ mod tests {
         let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.scoreboard_is_open(), Ok(true));
+    }
+
+    #[test]
+    fn reads_verified_r3_cursor_mode() {
+        let mut module = vec![0_u8; GAME_SINGLETON_RVA + std::mem::size_of::<usize>()];
+        let mut game = vec![0_u8; GAME_CURSOR_MODE_READABLE_SIZE];
+        let module_base = module.as_mut_ptr() as usize;
+        let game_pointer = game.as_mut_ptr();
+        unsafe {
+            ptr::write_unaligned(
+                module.as_mut_ptr().add(GAME_SINGLETON_RVA).cast::<usize>(),
+                game_pointer as usize,
+            );
+            ptr::write_unaligned(game_pointer.add(GAME_CURSOR_MODE_OFFSET).cast::<i32>(), 3);
+        }
+
+        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+
+        assert_eq!(profile.cursor_mode(), Ok(3));
+        unsafe {
+            ptr::write_unaligned(game_pointer.add(GAME_CURSOR_MODE_OFFSET).cast::<i32>(), 5);
+        }
+        assert_eq!(profile.cursor_mode(), Err(DirectClientError::NotReady));
     }
 
     unsafe extern "thiscall" fn fake_editbox_get_text(_editbox: *mut c_void) -> *const u8 {

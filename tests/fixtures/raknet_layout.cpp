@@ -562,6 +562,35 @@ struct FixtureR3_1Scoreboard {
     std::int32_t is_sorted;
 };
 
+struct FixtureR3_1Game {
+    void* audio;
+    void* camera;
+    void* player_ped;
+    struct {
+        FixtureVector3 current_position;
+        FixtureVector3 next_position;
+        float size;
+        char type;
+        std::int32_t enabled;
+        std::int32_t marker;
+        std::int32_t handle;
+    } racing_checkpoint;
+    struct {
+        FixtureVector3 position;
+        FixtureVector3 size;
+        std::int32_t enabled;
+        std::int32_t handle;
+    } checkpoint;
+    std::int32_t field_55;
+    std::int32_t head_move;
+    std::int32_t frame_limiter;
+    std::int32_t cursor_mode;
+    std::uint32_t input_enable_wait_frames;
+    std::int32_t clock_enabled;
+    char field_6d;
+    bool keep_loaded_vehicle_models[212];
+};
+
 struct FixtureR5_1NetGame {
     void* rak_client;
     std::uint8_t pad_0[44];
@@ -812,6 +841,8 @@ static_assert(offsetof(FixtureR3_1Dialog, active) == 0x28);
 static_assert(offsetof(FixtureR3_1Dialog, caption) == 0x40);
 static_assert(sizeof(FixtureR3_1Scoreboard) == 0x44);
 static_assert(offsetof(FixtureR3_1Scoreboard, is_enabled) == 0x00);
+static_assert(sizeof(FixtureR3_1Game) == 0x142);
+static_assert(offsetof(FixtureR3_1Game, cursor_mode) == 0x61);
 static_assert(sizeof(FixtureR5_1NetGame) == 0x3E2);
 static_assert(offsetof(FixtureR5_1NetGame, rak_client) == 0x00);
 static_assert(offsetof(FixtureR5_1NetGame, game_state) == 0x3CD);
@@ -1401,6 +1432,14 @@ std::size_t samp_client_sdk_fixture_r3_1_scoreboard_size() {
 
 std::size_t samp_client_sdk_fixture_r3_1_scoreboard_enabled_offset() {
     return offsetof(FixtureR3_1Scoreboard, is_enabled);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_game_size() {
+    return sizeof(FixtureR3_1Game);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_game_cursor_mode_offset() {
+    return offsetof(FixtureR3_1Game, cursor_mode);
 }
 
 std::size_t samp_client_sdk_fixture_r5_1_netgame_size() {

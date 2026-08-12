@@ -789,7 +789,7 @@ pub struct SampClientSdkApiV1 {
     ) -> SampClientSdkResult,
     /// Copies the latest game-thread-cached R1/R3-1 chat display mode into `output`.
     pub local_chat_display_mode: unsafe extern "system" fn(*mut i32) -> SampClientSdkResult,
-    /// Copies the latest game-thread-cached R1 cursor mode into `output`.
+    /// Copies the latest game-thread-cached R1/R3-1 cursor mode into `output`.
     pub local_cursor_mode: unsafe extern "system" fn(*mut i32) -> SampClientSdkResult,
     /// Copies the latest game-thread-cached R1 scoreboard-open flag into `output`.
     pub local_scoreboard_open: unsafe extern "system" fn(*mut u8) -> SampClientSdkResult,

@@ -63,6 +63,8 @@ pub const STATUS_PLAYER_POOL_SCALARS: u32 = 1 << 12;
 pub const STATUS_SCOREBOARD_CACHE: u32 = 1 << 13;
 /// The R3 cached chat display mode returned a documented native value.
 pub const STATUS_CHAT_DISPLAY_MODE: u32 = 1 << 14;
+/// The R3 cached cursor mode returned a documented native value.
+pub const STATUS_CURSOR_MODE: u32 = 1 << 15;
 /// The R3 cached chat-input active flag and command names passed the live check.
 pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 /// The R3 cached dialog active flag observed the disposable server dialog.
@@ -239,6 +241,9 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     verify_cached_chat_display_mode(samp)?;
     STATUS.fetch_or(STATUS_CHAT_DISPLAY_MODE, Ordering::AcqRel);
     publish_status();
+    verify_cached_cursor_mode(samp)?;
+    STATUS.fetch_or(STATUS_CURSOR_MODE, Ordering::AcqRel);
+    publish_status();
 
     let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
     wait_for_receipt(receipt)?;
@@ -404,6 +409,24 @@ fn verify_cached_chat_display_mode(samp: Samp) -> Result<(), SampClientSdkResult
             return Err(SampClientSdkResult::ShuttingDown);
         }
         match samp.chat().display_mode() {
+            Ok(_) => return Ok(()),
+            Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn verify_cached_cursor_mode(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match samp.cursor().mode() {
             Ok(_) => return Ok(()),
             Err(SampClientSdkResult::NotReady) => {}
             Err(error) => return Err(error),

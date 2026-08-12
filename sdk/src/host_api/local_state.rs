@@ -23,7 +23,7 @@ impl HostApi {
             .map(|mode| mode != LocalChatDisplayMode::Off)
     }
 
-    /// Returns the cached R1 local cursor mode.
+    /// Returns the cached R1/R3-1 local cursor mode.
     pub fn local_cursor_mode(self) -> Result<LocalCursorMode, SampClientSdkResult> {
         let mut raw = 0;
         match unsafe { (self.raw.local_cursor_mode)(&mut raw) } {

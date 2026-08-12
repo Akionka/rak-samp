@@ -931,6 +931,7 @@ impl BackendState {
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);
             self.refresh_local_chat_display_mode(scalar_profile);
+            self.refresh_local_cursor_mode(scalar_profile);
             self.refresh_local_scoreboard_open(scalar_profile);
             self.refresh_local_dialog_active(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
@@ -945,7 +946,7 @@ impl BackendState {
         };
         self.refresh_raw_pool_addresses(profile);
         self.refresh_local_chat_display_mode(scalar_profile);
-        self.refresh_local_cursor_mode(profile);
+        self.refresh_local_cursor_mode(scalar_profile);
         self.refresh_local_scoreboard_open(scalar_profile);
         self.refresh_local_dialog_active(scalar_profile);
         self.refresh_local_dialog_state(profile);

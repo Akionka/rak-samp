@@ -546,6 +546,7 @@ fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
         state.local_chat_display_mode(),
         Err(DirectClientError::NotReady)
     );
+    assert_eq!(state.local_cursor_mode(), Err(DirectClientError::NotReady));
 }
 
 #[test]
@@ -613,6 +614,7 @@ fn r3_cached_ui_reads_use_exact_published_values() {
         state.local_chat_display_mode(),
         Err(DirectClientError::NotReady)
     );
+    assert_eq!(state.local_cursor_mode(), Err(DirectClientError::NotReady));
     assert_eq!(
         state.local_chat_input_active(),
         Err(DirectClientError::NotReady)
@@ -645,6 +647,8 @@ fn r3_cached_ui_reads_use_exact_published_values() {
     state
         .local_chat_display_mode_ready
         .store(true, Ordering::Release);
+    state.local_cursor_mode.store(3, Ordering::Release);
+    state.local_cursor_mode_ready.store(true, Ordering::Release);
     *state.local_chat_input_commands.lock().unwrap() = Some(vec![b"sdk".to_vec()]);
     state
         .local_chat_input_commands_ready
@@ -653,6 +657,7 @@ fn r3_cached_ui_reads_use_exact_published_values() {
     assert_eq!(state.local_dialog_active(), Ok(true));
     assert_eq!(state.local_scoreboard_open(), Ok(true));
     assert_eq!(state.local_chat_display_mode(), Ok(2));
+    assert_eq!(state.local_cursor_mode(), Ok(3));
     assert_eq!(state.local_chat_input_active(), Ok(true));
     assert_eq!(state.local_chat_input_text(), Ok(b"/r3".to_vec()));
     assert_eq!(state.local_chat_command_defined(b"sdk"), Ok(true));

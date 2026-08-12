@@ -434,7 +434,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_cursor_mode(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_cursor_mode(&self, profile: NativeProfile) {
         match profile.cursor_mode() {
             Ok(mode) => {
                 self.local_cursor_mode.store(mode, Ordering::Release);
