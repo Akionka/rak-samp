@@ -273,11 +273,11 @@ impl From<Vector3> for NativeVector3 {
     }
 }
 
-pub(super) unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
+pub(crate) unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
     unsafe { read_unaligned::<usize>(address) }.map(|value| value as *mut u8)
 }
 
-pub(super) unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
+pub(crate) unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
     readable_range(address as *const u8, mem::size_of::<T>())
         .then(|| unsafe { (address as *const T).read_unaligned() })
 }
@@ -325,7 +325,7 @@ pub(super) unsafe fn bounded_dxut_listbox_item_text(pointer: *const u8) -> Optio
     unsafe { bounded_c_string(pointer, DXUT_LISTBOX_ITEM_TEXT_CAPACITY) }
 }
 
-pub(super) fn readable_range(address: *const u8, length: usize) -> bool {
+pub(crate) fn readable_range(address: *const u8, length: usize) -> bool {
     if address.is_null() || length == 0 {
         return length == 0;
     }

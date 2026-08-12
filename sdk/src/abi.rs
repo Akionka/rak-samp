@@ -764,7 +764,7 @@ pub struct SampClientSdkApiV1 {
         *mut usize,
         *mut usize,
     ) -> SampClientSdkResult,
-    /// Copies the latest host-owned R1 current-server snapshot into `output`.
+    /// Copies the latest host-owned current-server snapshot into `output`.
     pub server_info:
         unsafe extern "system" fn(*mut SampClientSdkServerInfoV1) -> SampClientSdkResult,
     /// Copies and queues a local R1 chat entry for the verified game-thread pump.

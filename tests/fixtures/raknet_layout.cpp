@@ -720,6 +720,9 @@ static_assert(offsetof(FixtureR1DialogSnapshot, server_side) == 0x81);
 static_assert(offsetof(FixtureR1InputPrefix, is_enabled) == 0x14E0);
 static_assert(sizeof(FixtureR3_1NetGame) == 0x3E2);
 static_assert(offsetof(FixtureR3_1NetGame, rak_client) == 0x2C);
+static_assert(offsetof(FixtureR3_1NetGame, host_address) == 0x30);
+static_assert(offsetof(FixtureR3_1NetGame, hostname) == 0x131);
+static_assert(offsetof(FixtureR3_1NetGame, port) == 0x235);
 static_assert(offsetof(FixtureR3_1NetGame, game_state) == 0x3CD);
 static_assert(offsetof(FixtureR3_1NetGame, pools) == 0x3DE);
 static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
@@ -1213,6 +1216,18 @@ std::size_t samp_client_sdk_fixture_r3_1_netgame_size() {
 
 std::size_t samp_client_sdk_fixture_r3_1_netgame_rak_client_offset() {
     return offsetof(FixtureR3_1NetGame, rak_client);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_host_address_offset() {
+    return offsetof(FixtureR3_1NetGame, host_address);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_hostname_offset() {
+    return offsetof(FixtureR3_1NetGame, hostname);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_netgame_port_offset() {
+    return offsetof(FixtureR3_1NetGame, port);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_netgame_game_state_offset() {

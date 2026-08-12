@@ -386,14 +386,14 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_server_info_snapshot(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_server_info_snapshot(&self, profile: NativeProfile) {
         let Ok(mut cached) = self.server_info_snapshot.try_lock() else {
             return;
         };
         *cached = profile.server_info().ok();
     }
 
-    pub(super) fn refresh_samp_game_state(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_samp_game_state(&self, profile: NativeProfile) {
         match profile.game_state() {
             Ok(game_state) => {
                 let previous = self.samp_game_state.swap(game_state, Ordering::AcqRel);

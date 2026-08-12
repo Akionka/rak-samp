@@ -15,6 +15,7 @@ mod objects;
 mod packets;
 mod players;
 pub(crate) mod r1_client;
+mod r3_client;
 mod reads;
 mod refresh;
 mod requests;
@@ -186,6 +187,12 @@ impl BackendContext {
     /// until the corresponding build-specific implementation exists.
     fn r1_client(&self) -> Option<R1ClientProfile> {
         self.native_profile.and_then(NativeProfile::as_r1)
+    }
+
+    /// Returns the narrow fixed-layout profile permitted to publish cached
+    /// CNetGame scalars on this build.
+    fn scalar_profile(&self) -> Option<NativeProfile> {
+        self.native_profile
     }
 }
 
@@ -583,8 +590,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
     let native_profile = NativeProfile::select(module_base, version, entry_point);
-    if native_profile.is_some() {
-        log::info!("direct R1 client helpers are enabled with fixed offsets");
+    match native_profile {
+        Some(NativeProfile::R1(_)) => {
+            log::info!("direct R1 client helpers are enabled with fixed offsets");
+        }
+        Some(NativeProfile::R3Scalars(_)) => {
+            log::info!("R3-1 CNetGame scalar cache reads are enabled with fixed offsets");
+        }
+        None => {}
     }
 
     let active = ACTIVE_BACKEND.get_or_init(|| Mutex::new(None));
@@ -905,14 +918,19 @@ impl BackendState {
     /// is running remain owned by the following tick.
     fn pump_game_tick(&self, commands: Vec<QueuedCommand<GameCommand>>) {
         self.execute_game_commands(commands);
-        let Some(profile) = self.r1_client() else {
+        let Some(scalar_profile) = self.scalar_profile() else {
             return;
         };
         // Odd generations are in-flight. Readers only observe the next even
         // generation after every cache path below has had one tick to refresh.
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
+        self.refresh_samp_game_state(scalar_profile);
+        self.refresh_server_info_snapshot(scalar_profile);
+        let Some(profile) = self.r1_client() else {
+            self.cache_generation.fetch_add(1, Ordering::Release);
+            return;
+        };
         self.refresh_raw_pool_addresses(profile);
-        self.refresh_samp_game_state(profile);
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
         self.refresh_local_scoreboard_open(profile);
@@ -922,7 +940,6 @@ impl BackendState {
         self.refresh_local_chat_input_text(profile);
         self.refresh_local_chat_input_commands(profile);
         self.refresh_animation_catalog(profile);
-        self.refresh_server_info_snapshot(profile);
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
         self.refresh_remote_player_state(profile);

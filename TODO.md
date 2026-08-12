@@ -643,7 +643,7 @@ build-specific fixture before its profile can be enabled.
 | Layout family / current R1 source | R1 | R3-1 | R5-1 | DL | Completion rule |
 | --- | --- | --- | --- | --- | --- |
 | Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
-| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
+| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] scalar slice fixture/live probe; pools deferred | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
 | `CInput`, command table, chat editbox (`ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
 | `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
 | Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
@@ -666,10 +666,11 @@ known.
 | Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture; remains gated | [x] independent fixture; remains gated | [x] independent fixture; remains gated | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
 | Network observe/send, codec, packet/RPC emulation | [x] | [x] R3 smoke and loopback | [ ] | [ ] | Hook, vtable, and exact-bit smoke tests |
 | Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [ ] | [ ] | Attachment/version identity test |
-| Cached game/server/local-player scalars | [x] | [ ] | [ ] | [ ] | Profile fixture and game-thread publication test |
+| Cached game/server scalars | [x] | [x] R3 fixture, game-thread cache, and loopback probe | [ ] | [ ] | Profile fixture and game-thread publication test |
+| Local-player scalars | [x] | [ ] | [ ] | [ ] | Separate `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and in-game spawn smoke |
 | UI, dialog, chat input, native command registry | [x] | [ ] | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [ ] | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |
 | Local-player commands and force sync | [x] | [ ] | [ ] | [ ] | Queue/receipt test and in-game packet verification |
 | Textdraw/text-label/gangzone commands | [x] | [ ] | [ ] | [ ] | Layout fixture, queue/receipt test, in-game smoke |
 | Unsafe raw singleton/function/RakPeer helpers | [x] | [ ] | [ ] | [ ] | Per-build opaque-address fixture; no exposed references |
-| Documentation compatibility claim | [x] R1-only direct bridge | [ ] | [ ] | [ ] | Update only after all rows used by the claim are complete |
+| Documentation compatibility claim | [x] R1 full direct bridge | [x] scalar-only bridge | [ ] | [ ] | Update only after all rows used by the claim are complete |

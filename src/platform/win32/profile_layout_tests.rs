@@ -1,8 +1,8 @@
 //! Independent minimal layout gates for unenabled native client profiles.
 //!
-//! The runtime deliberately keeps direct helpers R1-only. These tests record
-//! the first three structures any future R3-1, R5-1, or DL profile must prove
-//! before that gate is relaxed.
+//! The runtime keeps direct helpers R1-only apart from the narrow, read-only
+//! R3 CNetGame scalar cache. These tests record the first three structures any
+//! future R3-1, R5-1, or DL profile must prove before a broader gate is relaxed.
 
 use crate::client::SampVersion;
 
@@ -11,6 +11,9 @@ type FixtureFn = unsafe extern "C" fn() -> usize;
 unsafe extern "C" {
     fn samp_client_sdk_fixture_r3_1_netgame_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_rak_client_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_netgame_host_address_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_netgame_hostname_offset() -> usize;
+    fn samp_client_sdk_fixture_r3_1_netgame_port_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_game_state_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_pools_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_input_size() -> usize;
@@ -108,6 +111,18 @@ const R5_1_LAYOUT: ProfileLayout = ProfileLayout {
 };
 
 const DL_LAYOUT: ProfileLayout = R3_1_LAYOUT;
+
+#[test]
+fn r3_scalar_layout_matches_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        (
+            samp_client_sdk_fixture_r3_1_netgame_host_address_offset(),
+            samp_client_sdk_fixture_r3_1_netgame_hostname_offset(),
+            samp_client_sdk_fixture_r3_1_netgame_port_offset(),
+        )
+    };
+    assert_eq!(observed, (0x30, 0x131, 0x235));
+}
 
 #[test]
 fn non_r1_profile_layout_gates_match_the_independent_cpp_fixture() {

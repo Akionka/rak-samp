@@ -147,7 +147,7 @@ impl Samp {
         self.api.samp_version()
     }
 
-    /// Returns the cached native R1 game-state scalar.
+    /// Returns the cached native game-state scalar for a verified client profile.
     pub fn game_state(self) -> Result<i32, SampClientSdkResult> {
         self.api.samp_game_state()
     }

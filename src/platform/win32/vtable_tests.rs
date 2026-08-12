@@ -33,6 +33,10 @@ fn r1_native_profile() -> Option<NativeProfile> {
     R1ClientProfile::verify(0x10000, SampVersion::R1.entry_point()).map(NativeProfile::R1)
 }
 
+fn r3_scalar_profile() -> Option<NativeProfile> {
+    NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
+}
+
 fn test_backend_state() -> BackendState {
     BackendState {
         context: BackendContext {
@@ -490,6 +494,38 @@ fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
     assert_eq!(
         cached_direct_client_value(true, true, false, Some(14)),
         Err(DirectClientError::NotReady)
+    );
+}
+
+#[test]
+fn r3_scalar_cache_reads_do_not_enable_r1_helpers() {
+    let mut state = test_backend_state();
+    state.context.version = SampVersion::R3_1;
+    state.context.native_profile = r3_scalar_profile();
+    state.rak_client.store(1, Ordering::Release);
+    state.samp_game_state.store(6, Ordering::Release);
+    state.samp_game_state_ready.store(true, Ordering::Release);
+    *state
+        .server_info_snapshot
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(ServerInfoSnapshot {
+        address: b"127.0.0.1".to_vec(),
+        hostname: b"R3 probe".to_vec(),
+        port: 7777,
+    });
+
+    assert_eq!(state.samp_game_state(), Ok(6));
+    assert_eq!(
+        state.server_info(),
+        Ok(ServerInfoSnapshot {
+            address: b"127.0.0.1".to_vec(),
+            hostname: b"R3 probe".to_vec(),
+            port: 7777,
+        })
+    );
+    assert_eq!(
+        state.local_chat_display_mode(),
+        Err(DirectClientError::UnsupportedVersion)
     );
 }
 

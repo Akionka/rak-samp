@@ -94,6 +94,22 @@ that the SDK's typed listener continued to SA-MP's original incoming-RPC handler
 for this message. It does not replace the remaining full network, layout,
 reconnect, or unload checks.
 
+## R3-1 CNetGame scalar-cache observation (2026-08-12)
+
+The same isolated R3-1 client and disposable loopback filter produced
+`status=0x0000007F`, `failure=0` after the profile published the copied
+`Samp::game_state()` and `Samp::server().info()` cache on the game thread. The
+probe recorded the live R3 values `game_state=6` (`AwaitingJoin`),
+`address=127.0.0.1`, `port=7777`, and the native `CNetGame` host field
+`SA-MP`. It then completed the outbound receipt and observed the matching
+incoming callback; the operator visually confirmed the green
+`R3_SDK_INCOMING_20260812` message.
+
+This validates the R3 CNetGame singleton slot plus every field consumed by the
+new read-only scalar slice. The native host field is deliberately not claimed
+to be the server-config display hostname. R3 UI, player, pool, handle, raw,
+and mutation helpers remain unsupported.
+
 ## R5-1 network smoke observation (2026-08-12)
 
 The isolated R5-1 client was launched through the test-root `samp_debug.exe`
@@ -162,6 +178,8 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
 - [x] Prove the minimum `CNetGame`, `CInput`, and `CDialog` values against the
   independent fixture. This is only an activation prerequisite; it does not
   enable any direct helper.
+- [x] Publish and read the R3 CNetGame game-state/server scalar cache on the
+  game thread, with a fixture gate and loopback observation.
 - [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
 - [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.

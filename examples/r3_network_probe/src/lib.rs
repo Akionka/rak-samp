@@ -35,17 +35,21 @@ use windows_sys::core::BOOL;
 const OUTBOUND_MARKER: &[u8] = b"R3_SDK_OUTBOUND_20260812";
 const INCOMING_MARKER: &[u8] = b"R3_SDK_INCOMING_20260812";
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(45);
+const SCALAR_CACHE_TIMEOUT: Duration = Duration::from_secs(45);
 const INCOMING_READY_TIMEOUT: Duration = Duration::from_secs(60);
 const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
 const STATUS_FILE: &str = "samp-client-sdk-r3-network-probe.status";
 const R3_1_ENTRY_POINT_RVA: u32 = 0x0CC4D0;
+const R3_WAIT_JOIN_STATE: i32 = 6;
 const MAX_PE_HEADER_OFFSET: usize = 0x1000;
 
 /// The SDK host API resolved for this probe.
 pub const STATUS_HOST_CONNECTED: u32 = 1 << 0;
 /// Public host status, version, and the opaque module base identify the pinned R3-1 image.
 pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
+/// The R3 CNetGame scalar cache reported the expected connected server values.
+pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
 /// The non-blocking RPC 93 listener was registered.
 pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
 /// A real inbound RPC supplied the native receiver required for a connected client.
@@ -61,11 +65,20 @@ static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
 static INITIALIZATION_FINISHED: Condvar = Condvar::new();
 static STATUS: AtomicU32 = AtomicU32::new(0);
 static FAILURE: AtomicU32 = AtomicU32::new(SampClientSdkResult::Ok as u32);
+static SCALAR_OBSERVATION: Mutex<Option<ScalarObservation>> = Mutex::new(None);
 
 struct PluginState {
     subscription: Option<Subscription>,
     initializing: bool,
     shutting_down: bool,
+}
+
+/// A bounded copied snapshot emitted only by this opt-in local validation probe.
+struct ScalarObservation {
+    game_state: i32,
+    address: Vec<u8>,
+    hostname: Vec<u8>,
+    port: u16,
 }
 
 impl PluginState {
@@ -101,6 +114,9 @@ unsafe extern "system" fn DllMain(
             unsafe { DisableThreadLibraryCalls(instance) };
             STATUS.store(0, Ordering::Release);
             FAILURE.store(SampClientSdkResult::Ok as u32, Ordering::Release);
+            *SCALAR_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = None;
             STATE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
@@ -140,7 +156,6 @@ fn initialize() {
     }
     STATUS.fetch_or(STATUS_RUNTIME_IDENTITY, Ordering::AcqRel);
     publish_status();
-
     let subscription = match samp.net().on_typed_rpc(
         SampClientSdkDirection::Incoming,
         incoming::SERVER_MESSAGE,
@@ -180,6 +195,9 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     wait_for_incoming_ready(samp)?;
     STATUS.fetch_or(STATUS_INCOMING_READY, Ordering::AcqRel);
     publish_status();
+    verify_cached_cnetgame_scalars(samp)?;
+    STATUS.fetch_or(STATUS_CNETGAME_SCALARS, Ordering::AcqRel);
+    publish_status();
 
     let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
     wait_for_receipt(receipt)?;
@@ -203,6 +221,45 @@ fn verify_runtime_identity(samp: Samp) -> Result<(), SampClientSdkResult> {
         return Err(SampClientSdkResult::NativeCallFailed);
     }
     Ok(())
+}
+
+fn verify_cached_cnetgame_scalars(samp: Samp) -> Result<(), SampClientSdkResult> {
+    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match (samp.game_state(), samp.server().info()) {
+            (Ok(game_state), Ok(info)) => {
+                record_scalar_observation(game_state, &info);
+                if game_state == R3_WAIT_JOIN_STATE
+                    && info.address == b"127.0.0.1"
+                    && info.hostname == b"SA-MP"
+                    && info.port == 7777
+                {
+                    return Ok(());
+                }
+                return Err(SampClientSdkResult::NativeCallFailed);
+            }
+            (Err(SampClientSdkResult::NotReady), _) | (_, Err(SampClientSdkResult::NotReady)) => {}
+            (Err(error), _) | (_, Err(error)) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn record_scalar_observation(game_state: i32, info: &samp_client_sdk::ServerInfo) {
+    *SCALAR_OBSERVATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(ScalarObservation {
+        game_state,
+        address: info.address.clone(),
+        hostname: info.hostname.clone(),
+        port: info.port,
+    });
 }
 
 /// Reads only the bounded DOS/PE headers from an already-loaded module.
@@ -352,12 +409,29 @@ fn publish_status() {
         status_record(
             STATUS.load(Ordering::Acquire),
             FAILURE.load(Ordering::Acquire),
+            SCALAR_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .as_ref(),
         ),
     );
 }
 
-fn status_record(status: u32, failure: u32) -> String {
-    format!("status=0x{status:08X}\nfailure={failure}\n")
+fn status_record(status: u32, failure: u32, scalar: Option<&ScalarObservation>) -> String {
+    let mut record = format!("status=0x{status:08X}\nfailure={failure}\n");
+    if let Some(scalar) = scalar {
+        use std::fmt::Write;
+
+        let _ = writeln!(record, "game_state={}", scalar.game_state);
+        let _ = writeln!(record, "address_hex={}", hex(&scalar.address));
+        let _ = writeln!(record, "hostname_hex={}", hex(&scalar.hostname));
+        let _ = writeln!(record, "port={}", scalar.port);
+    }
+    record
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|byte| format!("{byte:02X}")).collect()
 }
 
 /// Stops the callback before an unload manager calls `FreeLibrary`.
@@ -391,7 +465,7 @@ pub extern "system" fn SampClientSdkR3NetworkProbe_Shutdown() -> BOOL {
     }
 }
 
-/// Returns the probe stage bitset; success before visual confirmation is `0x3F`.
+/// Returns the probe stage bitset; success before visual confirmation is `0x7F`.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkR3NetworkProbe_Status() -> u32 {
     STATUS.load(Ordering::Acquire)
@@ -410,7 +484,7 @@ mod tests {
     #[test]
     fn status_record_is_bounded_and_machine_readable() {
         assert_eq!(
-            status_record(STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT, 0),
+            status_record(STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT, 0, None),
             "status=0x00000011\nfailure=0\n"
         );
     }

@@ -10,7 +10,7 @@ use std::sync::atomic::Ordering;
 impl BackendState {
     pub(super) fn samp_game_state(&self) -> Result<i32, DirectClientError> {
         cached_direct_client_value(
-            self.r1_client().is_some(),
+            self.scalar_profile().is_some(),
             self.rak_client.load(Ordering::Acquire) != 0,
             self.cache_is_published(),
             self.samp_game_state_ready
@@ -64,7 +64,7 @@ impl BackendState {
     }
 
     pub(super) fn server_info(&self) -> Result<ServerInfoSnapshot, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
