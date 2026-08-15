@@ -512,6 +512,13 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Complete the consolidated R3 live profile probe with two clients; verify
   status `0x0007FFFF`, entity ID/handle round trips, force-sync receipts,
   remote-player state, cached UI transitions, and the server dialog.
+- [x] Prepare the full R3 live validation suite: UI/dialog/command mutations,
+  animation, label/textdraw lifecycles, local/remote sync snapshots, outgoing
+  force-sync packet observation, controlled vehicle states, and opt-in
+  disconnect/reconnect in one two-client run.
+- [ ] Execute the full R3 live validation suite; record connected status
+  `0x0FFFFFFF`, final reconnect status `0x3FFFFFFF`, server/host logs, and
+  unload-hook restoration evidence before checking the remaining R3 rows.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
