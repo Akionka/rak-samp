@@ -1,7 +1,7 @@
-//! Private SA-MP 0.3.7 R3-1 profile for fixture-backed direct helpers.
+//! Private SA-MP 0.3.7 R3-1/R5-1 profile for fixture-backed direct helpers.
 //!
 //! The profile exposes only copied snapshots and native calls whose object
-//! prefixes, method ABI, and fixed RVAs have all been pinned for R3-1. Raw
+//! prefixes, method ABI, and fixed RVAs have all been pinned for each build. Raw
 //! singleton access and every unverified pool family remain unavailable.
 
 use super::r1_client::memory::{
@@ -17,6 +17,7 @@ use crate::runtime::{
 use std::{ffi::c_void, mem, ptr};
 
 const SAMP_R3_1_ENTRY_POINT: u32 = 0x0C_C4_D0;
+const SAMP_R5_1_ENTRY_POINT: u32 = 0x0C_BC_90;
 const NET_GAME_SINGLETON_RVA: usize = 0x26_E8_DC;
 const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x30;
 const NET_GAME_HOSTNAME_OFFSET: usize = 0x131;
@@ -59,6 +60,7 @@ const REMOTE_PLAYER_PED_OFFSET: usize = 0x00;
 const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1AC;
 const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1B0;
 const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
+#[cfg(test)]
 const REMOTE_PLAYER_STATE_READABLE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
 const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC5;
 const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x19;
@@ -335,20 +337,152 @@ impl From<Vector3> for NativeVector3 {
     }
 }
 
-/// The narrowly verified R3-1 read-only cache profile.
-#[derive(Clone, Copy, Debug)]
-pub(super) struct R3ClientProfile {
-    module_base: usize,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ClassicVersion {
+    R3,
+    R5,
 }
 
-impl R3ClientProfile {
-    /// Selects this partial profile only for the pinned R3-1 executable.
+#[derive(Clone, Copy)]
+struct RemotePlayerLayout {
+    readable_size: usize,
+    special_action_offset: usize,
+    animation_offset: usize,
+}
+
+/// The verified R3-1/R5-1 direct-helper profile.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct ClassicClientProfile {
+    module_base: usize,
+    version: ClassicVersion,
+}
+
+impl ClassicClientProfile {
+    /// Selects the profile only for the pinned R3-1 executable.
     pub(super) fn verify(module_base: usize, entry_point: u32) -> Option<Self> {
-        (module_base != 0 && entry_point == SAMP_R3_1_ENTRY_POINT).then_some(Self { module_base })
+        (module_base != 0 && entry_point == SAMP_R3_1_ENTRY_POINT).then_some(Self {
+            module_base,
+            version: ClassicVersion::R3,
+        })
+    }
+
+    /// Selects the profile only for the pinned R5-1 executable.
+    pub(super) fn verify_r5(module_base: usize, entry_point: u32) -> Option<Self> {
+        (module_base != 0 && entry_point == SAMP_R5_1_ENTRY_POINT).then_some(Self {
+            module_base,
+            version: ClassicVersion::R5,
+        })
+    }
+
+    const fn build_value(self, r3: usize, r5: usize) -> usize {
+        match self.version {
+            ClassicVersion::R3 => r3,
+            ClassicVersion::R5 => r5,
+        }
+    }
+
+    const fn player_pool_local_id_offset(self) -> usize {
+        self.build_value(PLAYER_POOL_LOCAL_ID_OFFSET, 0x04)
+    }
+
+    const fn player_pool_largest_id_offset(self) -> usize {
+        self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A)
+    }
+
+    const fn player_pool_objects_offset(self) -> usize {
+        self.build_value(PLAYER_POOL_OBJECTS_OFFSET, 0x1F8A)
+    }
+
+    const fn player_info_npc_offset(self) -> usize {
+        self.build_value(PLAYER_INFO_IS_NPC_OFFSET, 0x08)
+    }
+
+    const fn player_info_readable_size(self) -> usize {
+        self.build_value(PLAYER_INFO_READABLE_SIZE, 0x30)
+    }
+
+    const fn local_player_incar_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_INCAR_OFFSET, 0x00)
+    }
+
+    const fn local_player_aim_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_AIM_OFFSET, 0x3F)
+    }
+
+    const fn local_player_trailer_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_TRAILER_OFFSET, 0x5E)
+    }
+
+    const fn local_player_onfoot_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_ONFOOT_OFFSET, 0x94)
+    }
+
+    const fn local_player_passenger_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_PASSENGER_OFFSET, 0xD8)
+    }
+
+    const fn local_player_active_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_ACTIVE_OFFSET, 0xF0)
+    }
+
+    const fn local_player_current_vehicle_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, 0xF8)
+    }
+
+    const fn local_player_ped_offset(self) -> usize {
+        self.build_value(0x00, 0x104)
+    }
+
+    const fn local_player_readable_size(self) -> usize {
+        self.build_value(LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE, 0x108)
+    }
+
+    const fn remote_player_special_action_offset(self) -> usize {
+        self.build_value(REMOTE_PLAYER_SPECIAL_ACTION_OFFSET, 0x0C)
+    }
+
+    const fn remote_player_animation_offset(self) -> usize {
+        self.build_value(REMOTE_PLAYER_ANIMATION_OFFSET, 0x1B4)
+    }
+
+    const fn remote_player_ped_offset(self) -> usize {
+        self.build_value(REMOTE_PLAYER_PED_OFFSET, 0x1DD)
+    }
+
+    const fn remote_player_state_readable_size(self) -> usize {
+        self.remote_player_animation_offset() + mem::size_of::<u32>()
+    }
+
+    const fn remote_player_layout(self) -> RemotePlayerLayout {
+        RemotePlayerLayout {
+            readable_size: self.remote_player_state_readable_size(),
+            special_action_offset: self.remote_player_special_action_offset(),
+            animation_offset: self.remote_player_animation_offset(),
+        }
+    }
+
+    const fn pools_pickup_offset(self) -> usize {
+        self.build_value(NET_GAME_POOLS_PICKUP_POOL_OFFSET, 0x08)
+    }
+
+    const fn pools_object_offset(self) -> usize {
+        self.build_value(NET_GAME_POOLS_OBJECT_POOL_OFFSET, 0x0C)
+    }
+
+    const fn pools_gangzone_offset(self) -> usize {
+        self.build_value(NET_GAME_POOLS_GANGZONE_POOL_OFFSET, 0x14)
+    }
+
+    const fn pools_label_offset(self) -> usize {
+        self.build_value(NET_GAME_POOLS_LABEL_POOL_OFFSET, 0x18)
+    }
+
+    const fn pools_textdraw_offset(self) -> usize {
+        self.build_value(NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, 0x1C)
     }
 
     pub(super) const fn dialog_close_target(self) -> usize {
-        self.module_base + DIALOG_CLOSE_RVA
+        self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630)
     }
 
     /// Returns the R3 RakPeer base proved by the R3 RakClient constructor.
@@ -451,14 +585,17 @@ impl R3ClientProfile {
         let disconnect: RakClientDisconnectFn = unsafe { mem::transmute(address) };
         unsafe { disconnect(rak_client, block_duration, 0) };
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let shutdown: NetGameNoArgFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_SHUTDOWN_FOR_RESTART_RVA) };
+        let shutdown: NetGameNoArgFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(NET_GAME_SHUTDOWN_FOR_RESTART_RVA, 0xA540),
+            )
+        };
         unsafe { shutdown(net_game) };
         Ok(())
     }
 
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        let table = self.module_base + ANIMATION_TABLE_RVA;
+        let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8);
         (0..ANIMATION_TABLE_ENTRY_COUNT)
             .map(|index| {
                 let entry = table
@@ -513,16 +650,20 @@ impl R3ClientProfile {
     /// Copies the verified R3-1 local-player cache surface on the game thread.
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let pool = self.player_pool()?;
-        let id = unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
-            .filter(|id| *id < MAX_SAMP_PLAYERS)
-            .ok_or(DirectClientError::NotReady)?;
-        let get_local: PlayerPoolGetLocalPlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+        let id =
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
+                .filter(|id| *id < MAX_SAMP_PLAYERS)
+                .ok_or(DirectClientError::NotReady)?;
+        let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+            )
+        };
         let local = unsafe { get_local(pool) };
-        if local.is_null() || !readable_range(local.cast(), LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE) {
+        if local.is_null() || !readable_range(local.cast(), self.local_player_readable_size()) {
             return Err(DirectClientError::NotReady);
         }
-        let ped = unsafe { read_pointer(local as usize) }
+        let ped = unsafe { read_pointer(local as usize + self.local_player_ped_offset()) }
             .filter(|ped| !ped.is_null())
             .ok_or(DirectClientError::NotReady)?;
         if !readable_range(
@@ -538,44 +679,63 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
 
-        let get_name: PlayerPoolGetNameFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_NAME_RVA) };
-        let get_score: PlayerPoolGetLocalStatFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_SCORE_RVA) };
-        let get_ping: PlayerPoolGetLocalStatFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PING_RVA) };
-        let get_colour: LocalPlayerGetColourArgbFn =
-            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_GET_COLOUR_ARGB_RVA) };
-        let get_health: PedGetStatFn =
-            unsafe { mem::transmute(self.module_base + PED_GET_HEALTH_RVA) };
-        let get_armour: PedGetStatFn =
-            unsafe { mem::transmute(self.module_base + PED_GET_ARMOUR_RVA) };
+        let get_name: PlayerPoolGetNameFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0))
+        };
+        let get_score: PlayerPoolGetLocalStatFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_SCORE_RVA, 0x6E8B0),
+            )
+        };
+        let get_ping: PlayerPoolGetLocalStatFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PING_RVA, 0x6E8C0),
+            )
+        };
+        let get_colour: LocalPlayerGetColourArgbFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(LOCAL_PLAYER_GET_COLOUR_ARGB_RVA, 0x3F20),
+            )
+        };
+        let get_health: PedGetStatFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PED_GET_HEALTH_RVA, 0xABD50))
+        };
+        let get_armour: PedGetStatFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PED_GET_ARMOUR_RVA, 0xABD90))
+        };
 
         let nickname = unsafe { bounded_c_string(get_name(pool, id), 256) }
             .filter(|name| !name.is_empty())
             .ok_or(DirectClientError::NotReady)?;
-        let current_vehicle =
-            unsafe { read_unaligned::<u16>(local as usize + LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET) }
-                .ok_or(DirectClientError::NotReady)?;
+        let current_vehicle = unsafe {
+            read_unaligned::<u16>(local as usize + self.local_player_current_vehicle_offset())
+        }
+        .ok_or(DirectClientError::NotReady)?;
         let vehicle_id = (current_vehicle != INVALID_ID).then_some(current_vehicle);
         let (position, velocity) = if vehicle_id.is_some() {
             (
                 unsafe {
-                    read_vector3(local as usize + LOCAL_PLAYER_INCAR_OFFSET + INCAR_POSITION_OFFSET)
+                    read_vector3(
+                        local as usize + self.local_player_incar_offset() + INCAR_POSITION_OFFSET,
+                    )
                 },
                 unsafe {
-                    read_vector3(local as usize + LOCAL_PLAYER_INCAR_OFFSET + INCAR_SPEED_OFFSET)
+                    read_vector3(
+                        local as usize + self.local_player_incar_offset() + INCAR_SPEED_OFFSET,
+                    )
                 },
             )
         } else {
             (
                 unsafe {
                     read_vector3(
-                        local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_POSITION_OFFSET,
+                        local as usize + self.local_player_onfoot_offset() + ONFOOT_POSITION_OFFSET,
                     )
                 },
                 unsafe {
-                    read_vector3(local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_SPEED_OFFSET)
+                    read_vector3(
+                        local as usize + self.local_player_onfoot_offset() + ONFOOT_SPEED_OFFSET,
+                    )
                 },
             )
         };
@@ -584,8 +744,10 @@ impl R3ClientProfile {
             id,
             nickname,
             colour: unsafe { get_colour(local) },
-            spawned: unsafe { read_unaligned::<u32>(local as usize + LOCAL_PLAYER_ACTIVE_OFFSET) }
-                .ok_or(DirectClientError::NotReady)?
+            spawned: unsafe {
+                read_unaligned::<u32>(local as usize + self.local_player_active_offset())
+            }
+            .ok_or(DirectClientError::NotReady)?
                 != 0,
             health: unsafe { get_health(ped.cast()) },
             armour: unsafe { get_armour(ped.cast()) },
@@ -593,13 +755,15 @@ impl R3ClientProfile {
             velocity: velocity.ok_or(DirectClientError::NotReady)?,
             special_action: unsafe {
                 read_unaligned::<u8>(
-                    local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_SPECIAL_ACTION_OFFSET,
+                    local as usize
+                        + self.local_player_onfoot_offset()
+                        + ONFOOT_SPECIAL_ACTION_OFFSET,
                 )
             }
             .ok_or(DirectClientError::NotReady)?,
             animation_id: unsafe {
                 read_unaligned::<u32>(
-                    local as usize + LOCAL_PLAYER_ONFOOT_OFFSET + ONFOOT_ANIMATION_OFFSET,
+                    local as usize + self.local_player_onfoot_offset() + ONFOOT_ANIMATION_OFFSET,
                 )
             }
             .ok_or(DirectClientError::NotReady)? as u16,
@@ -612,15 +776,16 @@ impl R3ClientProfile {
     /// Copies both R3-1 `CPlayerPool::GetCount` modes on the game thread.
     pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
         let pool = self.player_pool()?;
-        let get_count: PlayerPoolGetCountFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_COUNT_RVA) };
+        let get_count: PlayerPoolGetCountFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0))
+        };
         copy_player_counts(pool, get_count)
     }
 
     /// Copies the R3-1 player-pool largest ID from its verified prefix.
     pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
         let pool = self.player_pool()?;
-        copy_player_max_id(pool)
+        copy_player_max_id(pool, self.player_pool_largest_id_offset())
     }
 
     /// Copies one R3-1 remote-player record on the game thread.
@@ -635,16 +800,25 @@ impl R3ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        let get_name: PlayerPoolGetNameFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_NAME_RVA) };
-        let get_score: PlayerPoolGetPlayerStatFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_SCORE_RVA) };
-        let get_ping: PlayerPoolGetPlayerStatFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_PING_RVA) };
-        let get_colour: RemotePlayerGetColourArgbFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_GET_COLOUR_ARGB_RVA) };
-        let get_status: RemotePlayerGetStatusFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_GET_STATUS_RVA) };
+        let get_name: PlayerPoolGetNameFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0))
+        };
+        let get_score: PlayerPoolGetPlayerStatFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_SCORE_RVA, 0x6E850))
+        };
+        let get_ping: PlayerPoolGetPlayerStatFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_PING_RVA, 0x6E880))
+        };
+        let get_colour: RemotePlayerGetColourArgbFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(REMOTE_PLAYER_GET_COLOUR_ARGB_RVA, 0x16180),
+            )
+        };
+        let get_status: RemotePlayerGetStatusFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(REMOTE_PLAYER_GET_STATUS_RVA, 0x16330),
+            )
+        };
         copy_player_info(
             pool,
             id,
@@ -656,6 +830,9 @@ impl R3ClientProfile {
             get_ping,
             get_colour,
             get_status,
+            self.player_pool_objects_offset(),
+            self.player_info_readable_size(),
+            self.player_info_npc_offset(),
         )
     }
 
@@ -671,7 +848,14 @@ impl R3ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_player_state(pool, id, is_connected, get_player, does_exist)
+        copy_remote_player_state(
+            pool,
+            id,
+            is_connected,
+            get_player,
+            does_exist,
+            self.remote_player_layout(),
+        )
     }
 
     /// Determines whether the R3-1 remote player currently lacks a GTA ped.
@@ -686,7 +870,14 @@ impl R3ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_player_is_streamed_out(pool, id, is_connected, get_player, does_exist)
+        copy_remote_player_is_streamed_out(
+            pool,
+            id,
+            is_connected,
+            get_player,
+            does_exist,
+            self.remote_player_ped_offset(),
+        )
     }
 
     /// Copies one R3-1 on-foot synchronization record on the game thread.
@@ -699,14 +890,17 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|local_id| *local_id < MAX_SAMP_PLAYERS);
         if local_id == Some(id) {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
             return (!local.is_null())
-                .then(|| copy_onfoot_sync(id, local as usize + LOCAL_PLAYER_ONFOOT_OFFSET))
+                .then(|| copy_onfoot_sync(id, local as usize + self.local_player_onfoot_offset()))
                 .transpose();
         }
         let is_connected: PlayerPoolPlayerBooleanFn =
@@ -715,7 +909,14 @@ impl R3ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_onfoot_sync(pool, id, is_connected, get_player, does_exist)
+        copy_remote_onfoot_sync(
+            pool,
+            id,
+            is_connected,
+            get_player,
+            does_exist,
+            REMOTE_PLAYER_ONFOOT_OFFSET,
+        )
     }
 
     /// Copies one R3-1 in-car synchronization record on the game thread.
@@ -728,14 +929,17 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|local_id| *local_id < MAX_SAMP_PLAYERS);
         if local_id == Some(id) {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
             return (!local.is_null())
-                .then(|| copy_incar_sync(id, local as usize + LOCAL_PLAYER_INCAR_OFFSET))
+                .then(|| copy_incar_sync(id, local as usize + self.local_player_incar_offset()))
                 .transpose();
         }
         let is_connected: PlayerPoolPlayerBooleanFn =
@@ -744,7 +948,14 @@ impl R3ClientProfile {
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_incar_sync(pool, id, is_connected, get_player, does_exist)
+        copy_remote_incar_sync(
+            pool,
+            id,
+            is_connected,
+            get_player,
+            does_exist,
+            REMOTE_PLAYER_INCAR_OFFSET,
+        )
     }
 
     /// Copies one R3-1 passenger synchronization record on the game thread.
@@ -757,14 +968,19 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|local_id| *local_id < MAX_SAMP_PLAYERS);
         if local_id == Some(id) {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
             return (!local.is_null())
-                .then(|| copy_passenger_sync(id, local as usize + LOCAL_PLAYER_PASSENGER_OFFSET))
+                .then(|| {
+                    copy_passenger_sync(id, local as usize + self.local_player_passenger_offset())
+                })
                 .transpose();
         }
         let is_connected: PlayerPoolPlayerBooleanFn =
@@ -806,14 +1022,17 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|local_id| *local_id < MAX_SAMP_PLAYERS);
         if local_id == Some(id) {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
             return (!local.is_null())
-                .then(|| copy_trailer_sync(id, local as usize + LOCAL_PLAYER_TRAILER_OFFSET))
+                .then(|| copy_trailer_sync(id, local as usize + self.local_player_trailer_offset()))
                 .transpose();
         }
         let is_connected: PlayerPoolPlayerBooleanFn =
@@ -850,14 +1069,17 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|local_id| *local_id < MAX_SAMP_PLAYERS);
         if local_id == Some(id) {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
             return (!local.is_null())
-                .then(|| copy_aim_sync(id, local as usize + LOCAL_PLAYER_AIM_OFFSET))
+                .then(|| copy_aim_sync(id, local as usize + self.local_player_aim_offset()))
                 .transpose();
         }
         let is_connected: PlayerPoolPlayerBooleanFn =
@@ -886,22 +1108,22 @@ impl R3ClientProfile {
 
     /// Invokes R3-1 `SCLocalPlayer::SendAimData` on the game thread.
     pub(super) fn force_aim_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(0x5040, true)
+        self.force_no_arg_sync(self.build_value(0x5040, 0x5210), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendOnfootData` on the game thread.
     pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(0x4D40, true)
+        self.force_no_arg_sync(self.build_value(0x4D40, 0x4F00), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendStats` on the game thread.
     pub(super) fn force_stats_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(0x5B10, true)
+        self.force_no_arg_sync(self.build_value(0x5B10, 0x5D00), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::UpdateWeapons` on the game thread.
     pub(super) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(0x6090, false)
+        self.force_no_arg_sync(self.build_value(0x6090, 0x6290), false)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendTrailerData` on the game thread.
@@ -911,7 +1133,8 @@ impl R3ClientProfile {
         }
         let local = self.local_player_address()?;
         self.reset_last_any_update(local)?;
-        let send: LocalPlayerTrailerFn = unsafe { mem::transmute(self.module_base + 0x51F0) };
+        let send: LocalPlayerTrailerFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x51F0, 0x53D0)) };
         unsafe { send(local, trailer) };
         Ok(())
     }
@@ -922,13 +1145,14 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let local = self.local_player_address()?;
-        let target = (local as usize + LOCAL_PLAYER_INCAR_OFFSET) as *mut u16;
+        let target = (local as usize + self.local_player_incar_offset()) as *mut u16;
         if !writable_range(target.cast(), mem::size_of::<u16>()) {
             return Err(DirectClientError::NotReady);
         }
         unsafe { std::ptr::write_unaligned(target, vehicle) };
         self.reset_last_any_update(local)?;
-        let send: LocalPlayerNoArgFn = unsafe { mem::transmute(self.module_base + 0x6E40) };
+        let send: LocalPlayerNoArgFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x6E40, 0x7080)) };
         unsafe { send(local) };
         Ok(())
     }
@@ -943,9 +1167,10 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let local = self.local_player_address()?;
-        let vehicle_field = (local as usize + LOCAL_PLAYER_PASSENGER_OFFSET) as *mut u16;
-        let seat_field =
-            (local as usize + LOCAL_PLAYER_PASSENGER_OFFSET + PASSENGER_SEAT_ID_OFFSET) as *mut u8;
+        let vehicle_field = (local as usize + self.local_player_passenger_offset()) as *mut u16;
+        let seat_field = (local as usize
+            + self.local_player_passenger_offset()
+            + PASSENGER_SEAT_ID_OFFSET) as *mut u8;
         if !writable_range(vehicle_field.cast(), mem::size_of::<u16>())
             || !writable_range(seat_field.cast(), mem::size_of::<u8>())
         {
@@ -956,7 +1181,8 @@ impl R3ClientProfile {
             std::ptr::write_unaligned(seat_field, seat);
         }
         self.reset_last_any_update(local)?;
-        let send: LocalPlayerNoArgFn = unsafe { mem::transmute(self.module_base + 0x53B0) };
+        let send: LocalPlayerNoArgFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x53B0, 0x5590)) };
         unsafe { send(local) };
         Ok(())
     }
@@ -971,7 +1197,8 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let local = self.local_player_address()?;
-        let send: LocalPlayerUnoccupiedFn = unsafe { mem::transmute(self.module_base + 0x4B60) };
+        let send: LocalPlayerUnoccupiedFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x4B60, 0x4D30)) };
         unsafe { send(local, vehicle, seat) };
         Ok(())
     }
@@ -998,7 +1225,8 @@ impl R3ClientProfile {
 
     pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
         let local = self.local_player_address()?;
-        let spawn: LocalPlayerSpawnFn = unsafe { mem::transmute(self.module_base + 0x3AD0) };
+        let spawn: LocalPlayerSpawnFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x3AD0, 0x3C20)) };
         (unsafe { spawn(local) } != 0)
             .then_some(())
             .ok_or(DirectClientError::NotReady)
@@ -1012,7 +1240,7 @@ impl R3ClientProfile {
         let mut name = name.to_vec();
         name.push(0);
         let set_name: PlayerPoolSetLocalPlayerNameFn =
-            unsafe { mem::transmute(self.module_base + 0xB5C0) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0xB5C0, 0xB8A0)) };
         unsafe { set_name(pool, name.as_ptr().cast()) };
         Ok(())
     }
@@ -1023,10 +1251,11 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) };
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) };
         if local_id == Some(id) {
             let local = self.local_player_address()?;
-            let set: LocalPlayerSetColourFn = unsafe { mem::transmute(self.module_base + 0x3D50) };
+            let set: LocalPlayerSetColourFn =
+                unsafe { mem::transmute(self.module_base + self.build_value(0x3D50, 0x3ED0)) };
             unsafe { set(local, colour) };
             return Ok(());
         }
@@ -1041,7 +1270,8 @@ impl R3ClientProfile {
         if remote.is_null() || !readable_range(remote.cast(), 1) {
             return Err(DirectClientError::NotReady);
         }
-        let set: RemotePlayerSetColourFn = unsafe { mem::transmute(self.module_base + 0x15BE0) };
+        let set: RemotePlayerSetColourFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x15BE0, 0x16150)) };
         unsafe { set(remote, colour) };
         Ok(())
     }
@@ -1055,7 +1285,7 @@ impl R3ClientProfile {
         }
         let local = self.local_player_address()?;
         let set: LocalPlayerSetSpecialActionFn =
-            unsafe { mem::transmute(self.module_base + 0x30C0) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x30C0, 0x30F0)) };
         unsafe { set(local, action) };
         Ok(())
     }
@@ -1072,7 +1302,8 @@ impl R3ClientProfile {
         let mut prefix = request.prefix;
         text.push(0);
         prefix.push(0);
-        let add: ChatAddEntryFn = unsafe { mem::transmute(self.module_base + 0x67460) };
+        let add: ChatAddEntryFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x67460, 0x67BE0)) };
         unsafe {
             add(
                 chat,
@@ -1102,7 +1333,8 @@ impl R3ClientProfile {
         let mut victim = request.victim;
         killer.push(0);
         victim.push(0);
-        let add: DeathWindowAddMessageFn = unsafe { mem::transmute(self.module_base + 0x69F40) };
+        let add: DeathWindowAddMessageFn =
+            unsafe { mem::transmute(self.module_base + self.build_value(0x69F40, 0x6A6B0)) };
         unsafe {
             add(
                 window,
@@ -1137,9 +1369,9 @@ impl R3ClientProfile {
             mem::transmute(
                 self.module_base
                     + if enabled {
-                        INPUT_OPEN_RVA
+                        self.build_value(INPUT_OPEN_RVA, 0x69480)
                     } else {
-                        INPUT_CLOSE_RVA
+                        self.build_value(INPUT_CLOSE_RVA, 0x69580)
                     },
             )
         };
@@ -1162,13 +1394,17 @@ impl R3ClientProfile {
         let _ = count;
         let mut name = name.to_vec();
         name.push(0);
-        let get_handler: InputGetCommandHandlerFn =
-            unsafe { mem::transmute(self.module_base + INPUT_GET_COMMAND_HANDLER_RVA) };
+        let get_handler: InputGetCommandHandlerFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(INPUT_GET_COMMAND_HANDLER_RVA, 0x69710),
+            )
+        };
         if !unsafe { get_handler(input, name.as_ptr().cast()) }.is_null() {
             return Err(DirectClientError::NotReady);
         }
-        let add_command: InputAddCommandFn =
-            unsafe { mem::transmute(self.module_base + INPUT_ADD_COMMAND_RVA) };
+        let add_command: InputAddCommandFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(INPUT_ADD_COMMAND_RVA, 0x69770))
+        };
         unsafe { add_command(input, name.as_ptr().cast(), callback) };
         Ok(())
     }
@@ -1249,8 +1485,9 @@ impl R3ClientProfile {
         }
         let mut text = text.to_vec();
         text.push(0);
-        let set_text: DxutEditBoxSetTextFn =
-            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_SET_TEXT_RVA) };
+        let set_text: DxutEditBoxSetTextFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580))
+        };
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
     }
@@ -1259,7 +1496,9 @@ impl R3ClientProfile {
     pub(super) fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
         self.set_chat_input_text(text)?;
         let input = self.input().ok_or(DirectClientError::NotReady)?;
-        let process: InputNoArgFn = unsafe { mem::transmute(self.module_base + INPUT_PROCESS_RVA) };
+        let process: InputNoArgFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(INPUT_PROCESS_RVA, 0x699D0))
+        };
         unsafe { process(input) };
         Ok(())
     }
@@ -1302,16 +1541,18 @@ impl R3ClientProfile {
         let editbox = unsafe { read_pointer(input as usize + INPUT_EDIT_BOX_OFFSET) }
             .filter(|editbox| !editbox.is_null())
             .ok_or(DirectClientError::NotReady)?;
-        let get_text: DxutEditBoxGetTextFn =
-            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_GET_TEXT_RVA) };
+        let get_text: DxutEditBoxGetTextFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650))
+        };
         copy_chat_input_text(editbox.cast(), get_text)
     }
 
     /// Copies the R3-1 chat display mode through the native accessor.
     pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
         let chat = self.chat().ok_or(DirectClientError::NotReady)?;
-        let get_mode: ChatGetModeFn =
-            unsafe { mem::transmute(self.module_base + CHAT_GET_MODE_RVA) };
+        let get_mode: ChatGetModeFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(CHAT_GET_MODE_RVA, 0x612B0))
+        };
         copy_chat_display_mode(chat, get_mode)
     }
 
@@ -1475,8 +1716,9 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let game = self.game().ok_or(DirectClientError::NotReady)?;
-        let set_cursor_mode: GameSetCursorModeFn =
-            unsafe { mem::transmute(self.module_base + GAME_SET_CURSOR_MODE_RVA) };
+        let set_cursor_mode: GameSetCursorModeFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(GAME_SET_CURSOR_MODE_RVA, 0xA06F0))
+        };
         unsafe { set_cursor_mode(game, mode, i32::from(mode != 0)) };
         Ok(())
     }
@@ -1487,8 +1729,11 @@ impl R3ClientProfile {
         self.set_cursor_mode(if show { 3 } else { 0 })?;
         if !show {
             let game = self.game().ok_or(DirectClientError::NotReady)?;
-            let process_input_enabling: GameProcessInputEnablingFn =
-                unsafe { mem::transmute(self.module_base + GAME_PROCESS_INPUT_ENABLING_RVA) };
+            let process_input_enabling: GameProcessInputEnablingFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(GAME_PROCESS_INPUT_ENABLING_RVA, 0xA05D0),
+                )
+            };
             unsafe { process_input_enabling(game) };
         }
         Ok(())
@@ -1496,13 +1741,16 @@ impl R3ClientProfile {
 
     pub(super) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
+        let get_pool: NetGameGetPlayerPoolFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(NET_GAME_GET_PLAYER_POOL_RVA, 0x1170),
+            )
+        };
         let pool = unsafe { get_pool(net_game) };
         if pool.is_null()
             || !readable_range(
                 pool.cast(),
-                PLAYER_POOL_LOCAL_ID_OFFSET + mem::size_of::<u16>(),
+                self.player_pool_local_id_offset() + mem::size_of::<u16>(),
             )
         {
             return Err(DirectClientError::NotReady);
@@ -1512,8 +1760,11 @@ impl R3ClientProfile {
 
     pub(super) fn vehicle_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_VEHICLE_POOL_RVA) };
+        let get_pool: NetGameGetPlayerPoolFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180),
+            )
+        };
         let pool = unsafe { get_pool(net_game) };
         (!pool.is_null() && readable_range(pool.cast(), 1))
             .then_some(pool)
@@ -1522,8 +1773,11 @@ impl R3ClientProfile {
 
     fn local_player_address(self) -> Result<*mut c_void, DirectClientError> {
         let pool = self.player_pool()?;
-        let get_local: PlayerPoolGetLocalPlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+        let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+            )
+        };
         let local = unsafe { get_local(pool) };
         (!local.is_null() && readable_range(local.cast(), LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET + 4))
             .then_some(local)
@@ -1577,15 +1831,19 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_VEHICLE_POOL_RVA) };
+        let get_pool: NetGameGetPlayerPoolFn = unsafe {
+            mem::transmute(
+                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180),
+            )
+        };
         let pool = unsafe { get_pool(net_game) };
         let required = VEHICLE_POOL_NOT_EMPTY_OFFSET + (usize::from(id) + 1) * 4;
         if pool.is_null() || !readable_range(pool.cast(), required) {
             return Err(DirectClientError::NotReady);
         }
-        let exists: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + VEHICLE_POOL_DOES_EXIST_RVA) };
+        let exists: PlayerPoolPlayerBooleanFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(VEHICLE_POOL_DOES_EXIST_RVA, 0x1150))
+        };
         match unsafe { exists(pool, id) } {
             0 => Ok(false),
             1 => Ok(true),
@@ -1601,10 +1859,10 @@ impl R3ClientProfile {
         let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
             .filter(|p| *p != 0)
             .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(pools as *const u8, NET_GAME_POOLS_OBJECT_POOL_OFFSET + 4) {
+        if !readable_range(pools as *const u8, self.pools_object_offset() + 4) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_OBJECT_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_object_offset()) }
             .filter(|p| *p != 0)
             .ok_or(DirectClientError::NotReady)?;
         let offset = OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * 4;
@@ -1627,11 +1885,11 @@ impl R3ClientProfile {
         let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
             .filter(|pools| *pools != 0)
             .ok_or(DirectClientError::NotReady)?;
-        let required_pool_size = NET_GAME_POOLS_OBJECT_POOL_OFFSET + mem::size_of::<usize>();
+        let required_pool_size = self.pools_object_offset() + mem::size_of::<usize>();
         if !readable_range(pools as *const u8, required_pool_size) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_OBJECT_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_object_offset()) }
             .filter(|pool| *pool != 0)
             .ok_or(DirectClientError::NotReady)?;
         let flag = OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>();
@@ -1681,11 +1939,11 @@ impl R3ClientProfile {
             .ok_or(DirectClientError::NotReady)?;
         if !readable_range(
             pools as *const u8,
-            NET_GAME_POOLS_PICKUP_POOL_OFFSET + mem::size_of::<usize>(),
+            self.pools_pickup_offset() + mem::size_of::<usize>(),
         ) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_PICKUP_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_pickup_offset()) }
             .filter(|pool| *pool != 0)
             .ok_or(DirectClientError::NotReady)?;
         let field = PICKUP_POOL_HANDLES_OFFSET + usize::from(id) * mem::size_of::<i32>();
@@ -1744,19 +2002,28 @@ impl R3ClientProfile {
         }
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|id| *id < MAX_SAMP_PLAYERS)
                 .ok_or(DirectClientError::NotReady)?;
         let game_ped = if id == local_id {
-            let get_local: PlayerPoolGetLocalPlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_LOCAL_PLAYER_RVA) };
+            let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
+                mem::transmute(
+                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                )
+            };
             let local = unsafe { get_local(pool) };
-            if local.is_null() || !readable_range(local.cast(), mem::size_of::<usize>()) {
+            if local.is_null()
+                || !readable_range(
+                    local.cast(),
+                    self.local_player_ped_offset() + mem::size_of::<usize>(),
+                )
+            {
                 return Err(DirectClientError::NotReady);
             }
-            let ped = unsafe { read_unaligned::<usize>(local as usize) }
-                .filter(|ped| *ped != 0)
-                .ok_or(DirectClientError::NotReady)?;
+            let ped =
+                unsafe { read_unaligned::<usize>(local as usize + self.local_player_ped_offset()) }
+                    .filter(|ped| *ped != 0)
+                    .ok_or(DirectClientError::NotReady)?;
             if !readable_range(
                 ped as *const u8,
                 SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
@@ -1773,12 +2040,19 @@ impl R3ClientProfile {
             let get_remote: PlayerPoolGetRemotePlayerFn =
                 unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
             let remote = unsafe { get_remote(pool, id) };
-            if remote.is_null() || !readable_range(remote.cast(), mem::size_of::<usize>()) {
+            if remote.is_null()
+                || !readable_range(
+                    remote.cast(),
+                    self.remote_player_ped_offset() + mem::size_of::<usize>(),
+                )
+            {
                 return Err(DirectClientError::NotReady);
             }
-            let ped = unsafe { read_unaligned::<usize>(remote as usize) }
-                .filter(|ped| *ped != 0)
-                .ok_or(DirectClientError::NotReady)?;
+            let ped = unsafe {
+                read_unaligned::<usize>(remote as usize + self.remote_player_ped_offset())
+            }
+            .filter(|ped| *ped != 0)
+            .ok_or(DirectClientError::NotReady)?;
             if !readable_range(
                 ped as *const u8,
                 SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
@@ -1803,7 +2077,7 @@ impl R3ClientProfile {
     ) -> Result<Option<u16>, DirectClientError> {
         let pool = self.player_pool()?;
         let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
+            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
                 .filter(|id| *id < MAX_SAMP_PLAYERS)
                 .ok_or(DirectClientError::NotReady)?;
         if self.player_ped_handle(local_id)? == Some(handle) {
@@ -1827,11 +2101,11 @@ impl R3ClientProfile {
             .ok_or(DirectClientError::NotReady)?;
         if !readable_range(
             pools as *const u8,
-            NET_GAME_POOLS_GANGZONE_POOL_OFFSET + mem::size_of::<usize>(),
+            self.pools_gangzone_offset() + mem::size_of::<usize>(),
         ) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_GANGZONE_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_gangzone_offset()) }
             .filter(|p| *p != 0)
             .ok_or(DirectClientError::NotReady)?;
         let occupied_offset = GANGZONE_POOL_NOT_EMPTY_OFFSET + usize::from(id) * 4;
@@ -1923,8 +2197,9 @@ impl R3ClientProfile {
         let pool = self.label_pool()? as *mut c_void;
         let mut text = text.to_vec();
         text.push(0);
-        let create: LabelPoolCreateFn =
-            unsafe { mem::transmute(self.module_base + LABEL_POOL_CREATE_RVA) };
+        let create: LabelPoolCreateFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(LABEL_POOL_CREATE_RVA, 0x11D0))
+        };
         unsafe {
             create(
                 pool,
@@ -1946,8 +2221,9 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let pool = self.label_pool()? as *mut c_void;
-        let delete: LabelPoolDeleteFn =
-            unsafe { mem::transmute(self.module_base + LABEL_POOL_DELETE_RVA) };
+        let delete: LabelPoolDeleteFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(LABEL_POOL_DELETE_RVA, 0x12E0))
+        };
         (unsafe { delete(pool, id) } != 0)
             .then_some(())
             .ok_or(DirectClientError::NotReady)
@@ -2009,11 +2285,11 @@ impl R3ClientProfile {
             .ok_or(DirectClientError::NotReady)?;
         if !readable_range(
             pools as *const u8,
-            NET_GAME_POOLS_LABEL_POOL_OFFSET + mem::size_of::<usize>(),
+            self.pools_label_offset() + mem::size_of::<usize>(),
         ) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_LABEL_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_label_offset()) }
             .filter(|value| *value != 0)
             .ok_or(DirectClientError::NotReady)?;
         readable_range(pool as *const u8, 1)
@@ -2032,8 +2308,9 @@ impl R3ClientProfile {
 
     pub(super) fn delete_textdraw(self, id: u16) -> Result<(), DirectClientError> {
         let (pool, _) = self.textdraw_pool_slot(id)?;
-        let delete: TextdrawPoolDeleteFn =
-            unsafe { mem::transmute(self.module_base + TEXTDRAW_DELETE_RVA) };
+        let delete: TextdrawPoolDeleteFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(TEXTDRAW_DELETE_RVA, 0x1E7F0))
+        };
         unsafe { delete((pool as *mut u8).cast(), id) };
         Ok(())
     }
@@ -2067,8 +2344,9 @@ impl R3ClientProfile {
             .copy_from_slice(&y.to_le_bytes());
         let mut text = text.to_vec();
         text.push(0);
-        let create: TextdrawPoolCreateFn =
-            unsafe { mem::transmute(self.module_base + TEXTDRAW_CREATE_RVA) };
+        let create: TextdrawPoolCreateFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(TEXTDRAW_CREATE_RVA, 0x1E910))
+        };
         (!unsafe {
             create(
                 (pool as *mut u8).cast(),
@@ -2280,8 +2558,9 @@ impl R3ClientProfile {
         let object = self.textdraw_object(id)? as *mut c_void;
         let mut text = text.to_vec();
         text.push(0);
-        let set_text: TextdrawSetTextFn =
-            unsafe { mem::transmute(self.module_base + TEXTDRAW_SET_TEXT_RVA) };
+        let set_text: TextdrawSetTextFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60))
+        };
         unsafe { set_text(object, text.as_ptr()) };
         Ok(())
     }
@@ -2363,10 +2642,10 @@ impl R3ClientProfile {
         let pools = unsafe { read_unaligned::<usize>(net_game as usize + NET_GAME_POOLS_OFFSET) }
             .filter(|p| *p != 0)
             .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(pools as *const u8, NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET + 4) {
+        if !readable_range(pools as *const u8, self.pools_textdraw_offset() + 4) {
             return Err(DirectClientError::NotReady);
         }
-        let pool = unsafe { read_unaligned::<usize>(pools + NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET) }
+        let pool = unsafe { read_unaligned::<usize>(pools + self.pools_textdraw_offset()) }
             .filter(|p| *p != 0)
             .ok_or(DirectClientError::NotReady)?;
         let slot = pool + TEXTDRAW_POOL_OBJECTS_OFFSET + usize::from(id) * mem::size_of::<usize>();
@@ -2397,50 +2676,83 @@ impl R3ClientProfile {
     }
 
     fn input(self) -> Option<*mut c_void> {
-        let input: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(INPUT_SINGLETON_RVA)?) }?.cast();
+        let input: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(INPUT_SINGLETON_RVA, 0x26_EB_84))?,
+            )
+        }?
+        .cast();
         (!input.is_null() && readable_range(input.cast(), INPUT_CACHE_READABLE_SIZE))
             .then_some(input)
     }
 
     fn dialog(self) -> Option<*mut c_void> {
-        let dialog: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(DIALOG_SINGLETON_RVA)?) }?.cast();
+        let dialog: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(DIALOG_SINGLETON_RVA, 0x26_EB_50))?,
+            )
+        }?
+        .cast();
         (!dialog.is_null() && readable_range(dialog.cast(), DIALOG_ACTIVE_READABLE_SIZE))
             .then_some(dialog)
     }
 
     fn scoreboard(self) -> Option<*mut c_void> {
-        let scoreboard: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(SCOREBOARD_SINGLETON_RVA)?) }?
-                .cast();
+        let scoreboard: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(SCOREBOARD_SINGLETON_RVA, 0x26_EB_4C))?,
+            )
+        }?
+        .cast();
         (!scoreboard.is_null() && readable_range(scoreboard.cast(), SCOREBOARD_READABLE_SIZE))
             .then_some(scoreboard)
     }
 
     fn chat(self) -> Option<*mut c_void> {
-        let chat: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(CHAT_SINGLETON_RVA)?) }?.cast();
+        let chat: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(CHAT_SINGLETON_RVA, 0x26_EB_80))?,
+            )
+        }?
+        .cast();
         (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
     }
 
     fn death_window(self) -> Option<*mut c_void> {
-        let window: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(DEATH_WINDOW_SINGLETON_RVA)?) }?
-                .cast();
+        let window: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(DEATH_WINDOW_SINGLETON_RVA, 0x26_EB_88))?,
+            )
+        }?
+        .cast();
         (!window.is_null() && readable_range(window.cast(), 1)).then_some(window)
     }
 
     fn game(self) -> Option<*mut c_void> {
-        let game: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(GAME_SINGLETON_RVA)?) }?.cast();
+        let game: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(GAME_SINGLETON_RVA, 0x26_EB_AC))?,
+            )
+        }?
+        .cast();
         (!game.is_null() && readable_range(game.cast(), GAME_CURSOR_MODE_READABLE_SIZE))
             .then_some(game)
     }
 
     fn net_game(self) -> Option<*mut c_void> {
-        let net_game: *mut c_void =
-            unsafe { read_pointer(self.module_base.checked_add(NET_GAME_SINGLETON_RVA)?) }?.cast();
+        let net_game: *mut c_void = unsafe {
+            read_pointer(
+                self.module_base
+                    .checked_add(self.build_value(NET_GAME_SINGLETON_RVA, 0x26_EB_94))?,
+            )
+        }?
+        .cast();
         (!net_game.is_null() && readable_range(net_game.cast(), NET_GAME_SCALAR_READABLE_SIZE))
             .then_some(net_game)
     }
@@ -2463,7 +2775,9 @@ impl R3ClientProfile {
         text.push(0);
         button1.push(0);
         button2.push(0);
-        let show: DialogShowFn = unsafe { mem::transmute(self.module_base + DIALOG_SHOW_RVA) };
+        let show: DialogShowFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DIALOG_SHOW_RVA, 0x6FFB0))
+        };
         unsafe {
             show(
                 dialog,
@@ -2485,7 +2799,9 @@ impl R3ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
-        let close: DialogCloseFn = unsafe { mem::transmute(self.module_base + DIALOG_CLOSE_RVA) };
+        let close: DialogCloseFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630))
+        };
         unsafe { close(dialog, button) };
         Ok(())
     }
@@ -2641,8 +2957,9 @@ impl R3ClientProfile {
         if !readable_range(editbox.cast(), 1) {
             return Err(DirectClientError::NotReady);
         }
-        let get_text: DxutEditBoxGetTextFn =
-            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_GET_TEXT_RVA) };
+        let get_text: DxutEditBoxGetTextFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650))
+        };
         unsafe { bounded_c_string(get_text(editbox), MAX_DIALOG_EDITBOX_TEXT_BYTES + 1) }
             .map(Some)
             .ok_or(DirectClientError::NotReady)
@@ -2693,8 +3010,9 @@ impl R3ClientProfile {
         }
         let mut text = text.to_vec();
         text.push(0);
-        let set_text: DxutEditBoxSetTextFn =
-            unsafe { mem::transmute(self.module_base + DXUT_EDIT_BOX_SET_TEXT_RVA) };
+        let set_text: DxutEditBoxSetTextFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580))
+        };
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
     }
@@ -2767,8 +3085,11 @@ fn copy_player_counts(
     Ok((including_npcs, excluding_npcs))
 }
 
-fn copy_player_max_id(pool: *mut c_void) -> Result<u16, DirectClientError> {
-    unsafe { read_unaligned::<i32>(pool as usize + PLAYER_POOL_LARGEST_ID_OFFSET) }
+fn copy_player_max_id(
+    pool: *mut c_void,
+    largest_id_offset: usize,
+) -> Result<u16, DirectClientError> {
+    unsafe { read_unaligned::<i32>(pool as usize + largest_id_offset) }
         .and_then(|id| u16::try_from(id).ok())
         .filter(|id| *id < MAX_SAMP_PLAYERS)
         .ok_or(DirectClientError::NotReady)
@@ -2788,6 +3109,9 @@ fn copy_player_info(
     get_ping: PlayerPoolGetPlayerStatFn,
     get_colour: RemotePlayerGetColourArgbFn,
     get_status: RemotePlayerGetStatusFn,
+    player_objects_offset: usize,
+    player_info_readable_size: usize,
+    player_info_npc_offset: usize,
 ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
     if pool.is_null() || id >= MAX_SAMP_PLAYERS {
         return Err(DirectClientError::NotReady);
@@ -2805,14 +3129,14 @@ fn copy_player_info(
                 _ => return Err(DirectClientError::NotReady),
             };
             let object_slot = (pool as usize)
-                .checked_add(PLAYER_POOL_OBJECTS_OFFSET + usize::from(id) * mem::size_of::<usize>())
+                .checked_add(player_objects_offset + usize::from(id) * mem::size_of::<usize>())
                 .ok_or(DirectClientError::NotReady)?;
             let info = unsafe { read_pointer(object_slot) }.ok_or(DirectClientError::NotReady)?;
-            if info.is_null() || !readable_range(info.cast(), PLAYER_INFO_READABLE_SIZE) {
+            if info.is_null() || !readable_range(info.cast(), player_info_readable_size) {
                 return Err(DirectClientError::NotReady);
             }
             let is_npc =
-                match unsafe { read_unaligned::<i32>(info as usize + PLAYER_INFO_IS_NPC_OFFSET) } {
+                match unsafe { read_unaligned::<i32>(info as usize + player_info_npc_offset) } {
                     Some(0) => false,
                     Some(1) => true,
                     _ => return Err(DirectClientError::NotReady),
@@ -2842,6 +3166,7 @@ fn copy_remote_player_state(
     is_connected: PlayerPoolPlayerBooleanFn,
     get_player: PlayerPoolGetRemotePlayerFn,
     does_exist: RemotePlayerDoesExistFn,
+    layout: RemotePlayerLayout,
 ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
     if pool.is_null() || id >= MAX_SAMP_PLAYERS {
         return Err(DirectClientError::NotReady);
@@ -2852,7 +3177,7 @@ fn copy_remote_player_state(
         _ => return Err(DirectClientError::NotReady),
     }
     let remote = unsafe { get_player(pool, id) };
-    if remote.is_null() || !readable_range(remote.cast(), REMOTE_PLAYER_STATE_READABLE_SIZE) {
+    if remote.is_null() || !readable_range(remote.cast(), layout.readable_size) {
         return Err(DirectClientError::NotReady);
     }
     match unsafe { does_exist(remote) } {
@@ -2869,11 +3194,10 @@ fn copy_remote_player_state(
             .filter(|value| value.is_finite())
             .ok_or(DirectClientError::NotReady)?;
     let special_action =
-        unsafe { read_unaligned::<u8>(remote as usize + REMOTE_PLAYER_SPECIAL_ACTION_OFFSET) }
+        unsafe { read_unaligned::<u8>(remote as usize + layout.special_action_offset) }
             .ok_or(DirectClientError::NotReady)?;
-    let animation =
-        unsafe { read_unaligned::<u32>(remote as usize + REMOTE_PLAYER_ANIMATION_OFFSET) }
-            .ok_or(DirectClientError::NotReady)?;
+    let animation = unsafe { read_unaligned::<u32>(remote as usize + layout.animation_offset) }
+        .ok_or(DirectClientError::NotReady)?;
     Ok(Some(RemotePlayerStateSnapshot {
         id,
         health,
@@ -2889,6 +3213,7 @@ fn copy_remote_player_is_streamed_out(
     is_connected: PlayerPoolPlayerBooleanFn,
     get_player: PlayerPoolGetRemotePlayerFn,
     does_exist: RemotePlayerDoesExistFn,
+    ped_offset: usize,
 ) -> Result<Option<bool>, DirectClientError> {
     if pool.is_null() || id >= MAX_SAMP_PLAYERS {
         return Err(DirectClientError::NotReady);
@@ -2907,8 +3232,8 @@ fn copy_remote_player_is_streamed_out(
         1 => {}
         _ => return Err(DirectClientError::NotReady),
     }
-    let ped = unsafe { read_pointer(remote as usize + REMOTE_PLAYER_PED_OFFSET) }
-        .ok_or(DirectClientError::NotReady)?;
+    let ped =
+        unsafe { read_pointer(remote as usize + ped_offset) }.ok_or(DirectClientError::NotReady)?;
     if ped.is_null() {
         return Ok(Some(true));
     }
@@ -2929,6 +3254,7 @@ fn copy_remote_onfoot_sync(
     is_connected: PlayerPoolPlayerBooleanFn,
     get_player: PlayerPoolGetRemotePlayerFn,
     does_exist: RemotePlayerDoesExistFn,
+    onfoot_offset: usize,
 ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
     if pool.is_null() || id >= MAX_SAMP_PLAYERS {
         return Err(DirectClientError::NotReady);
@@ -2939,17 +3265,12 @@ fn copy_remote_onfoot_sync(
         _ => return Err(DirectClientError::NotReady),
     }
     let remote = unsafe { get_player(pool, id) };
-    if remote.is_null()
-        || !readable_range(
-            remote.cast(),
-            REMOTE_PLAYER_ONFOOT_OFFSET + ONFOOT_SYNC_SIZE,
-        )
-    {
+    if remote.is_null() || !readable_range(remote.cast(), onfoot_offset + ONFOOT_SYNC_SIZE) {
         return Err(DirectClientError::NotReady);
     }
     match unsafe { does_exist(remote) } {
         0 => Ok(None),
-        1 => copy_onfoot_sync(id, remote as usize + REMOTE_PLAYER_ONFOOT_OFFSET).map(Some),
+        1 => copy_onfoot_sync(id, remote as usize + onfoot_offset).map(Some),
         _ => Err(DirectClientError::NotReady),
     }
 }
@@ -3019,6 +3340,7 @@ fn copy_remote_incar_sync(
     is_connected: PlayerPoolPlayerBooleanFn,
     get_player: PlayerPoolGetRemotePlayerFn,
     does_exist: RemotePlayerDoesExistFn,
+    incar_offset: usize,
 ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
     if pool.is_null() || id >= MAX_SAMP_PLAYERS {
         return Err(DirectClientError::NotReady);
@@ -3029,14 +3351,12 @@ fn copy_remote_incar_sync(
         _ => return Err(DirectClientError::NotReady),
     }
     let remote = unsafe { get_player(pool, id) };
-    if remote.is_null()
-        || !readable_range(remote.cast(), REMOTE_PLAYER_INCAR_OFFSET + INCAR_SYNC_SIZE)
-    {
+    if remote.is_null() || !readable_range(remote.cast(), incar_offset + INCAR_SYNC_SIZE) {
         return Err(DirectClientError::NotReady);
     }
     match unsafe { does_exist(remote) } {
         0 => Ok(None),
-        1 => copy_incar_sync(id, remote as usize + REMOTE_PLAYER_INCAR_OFFSET).map(Some),
+        1 => copy_incar_sync(id, remote as usize + incar_offset).map(Some),
         _ => Err(DirectClientError::NotReady),
     }
 }
@@ -3237,7 +3557,7 @@ mod tests {
         net_game[NET_GAME_HOSTNAME_OFFSET..NET_GAME_HOSTNAME_OFFSET + 8]
             .copy_from_slice(b"R3 probe");
 
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.game_state(), Ok(6));
         assert_eq!(
@@ -3265,7 +3585,7 @@ mod tests {
                 net_game_pointer as usize,
             );
         }
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         for (public, native) in [(0, 0), (9, 1), (13, 2), (14, 5), (15, 6), (18, 11)] {
             profile.set_game_state(public).unwrap();
@@ -3276,8 +3596,28 @@ mod tests {
 
     #[test]
     fn rejects_other_entry_points() {
-        assert!(R3ClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT).is_some());
-        assert!(R3ClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT - 1).is_none());
+        assert!(ClassicClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT).is_some());
+        assert!(ClassicClientProfile::verify(0x10000, SAMP_R3_1_ENTRY_POINT - 1).is_none());
+    }
+
+    #[test]
+    fn selects_r5_and_uses_its_distinct_layout() {
+        let profile = ClassicClientProfile::verify_r5(0x10000, SAMP_R5_1_ENTRY_POINT).unwrap();
+        assert!(ClassicClientProfile::verify_r5(0x10000, SAMP_R5_1_ENTRY_POINT - 1).is_none());
+        assert_eq!(profile.player_pool_local_id_offset(), 0x04);
+        assert_eq!(profile.player_pool_largest_id_offset(), 0x2F3A);
+        assert_eq!(profile.player_pool_objects_offset(), 0x1F8A);
+        assert_eq!(profile.player_info_npc_offset(), 0x08);
+        assert_eq!(profile.local_player_ped_offset(), 0x104);
+        assert_eq!(profile.local_player_onfoot_offset(), 0x94);
+        assert_eq!(profile.remote_player_ped_offset(), 0x1DD);
+        assert_eq!(profile.remote_player_special_action_offset(), 0x0C);
+        assert_eq!(profile.pools_pickup_offset(), 0x08);
+        assert_eq!(profile.pools_object_offset(), 0x0C);
+        assert_eq!(profile.pools_gangzone_offset(), 0x14);
+        assert_eq!(profile.pools_label_offset(), 0x18);
+        assert_eq!(profile.pools_textdraw_offset(), 0x1C);
+        assert_eq!(profile.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60), 0xB2F60);
     }
 
     #[test]
@@ -3302,7 +3642,7 @@ mod tests {
             ..INPUT_COMMAND_NAME_OFFSET + INPUT_COMMAND_NAME_CAPACITY + 5]
             .copy_from_slice(b"help\0");
 
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.chat_input_is_active(), Ok(true));
         assert_eq!(
@@ -3328,7 +3668,7 @@ mod tests {
             ptr::write_unaligned(dialog_pointer.add(DIALOG_ACTIVE_OFFSET).cast::<i32>(), 1);
         }
 
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.dialog_is_active(), Ok(true));
     }
@@ -3355,7 +3695,7 @@ mod tests {
             );
         }
 
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.scoreboard_is_open(), Ok(true));
     }
@@ -3448,6 +3788,9 @@ mod tests {
                 fake_player_pool_get_ping,
                 fake_remote_player_get_colour,
                 fake_remote_player_get_status,
+                PLAYER_POOL_OBJECTS_OFFSET,
+                PLAYER_INFO_READABLE_SIZE,
+                PLAYER_INFO_IS_NPC_OFFSET,
             ),
             Ok(None)
         );
@@ -3462,6 +3805,9 @@ mod tests {
             fake_player_pool_get_ping,
             fake_remote_player_get_colour,
             fake_remote_player_get_status,
+            PLAYER_POOL_OBJECTS_OFFSET,
+            PLAYER_INFO_READABLE_SIZE,
+            PLAYER_INFO_IS_NPC_OFFSET,
         )
         .unwrap()
         .unwrap();
@@ -3485,6 +3831,9 @@ mod tests {
                 fake_player_pool_get_ping,
                 fake_remote_player_get_colour,
                 fake_remote_player_get_status,
+                PLAYER_POOL_OBJECTS_OFFSET,
+                PLAYER_INFO_READABLE_SIZE,
+                PLAYER_INFO_IS_NPC_OFFSET,
             ),
             Err(DirectClientError::NotReady)
         );
@@ -3524,6 +3873,11 @@ mod tests {
                 fake_pool_is_connected,
                 fake_pool_get_remote_as_pool,
                 fake_remote_player_does_exist,
+                RemotePlayerLayout {
+                    readable_size: REMOTE_PLAYER_STATE_READABLE_SIZE,
+                    special_action_offset: REMOTE_PLAYER_SPECIAL_ACTION_OFFSET,
+                    animation_offset: REMOTE_PLAYER_ANIMATION_OFFSET,
+                },
             ),
             Ok(Some(RemotePlayerStateSnapshot {
                 id: 7,
@@ -3558,6 +3912,7 @@ mod tests {
                 fake_pool_is_connected,
                 fake_pool_get_remote_as_pool,
                 fake_remote_player_does_exist,
+                REMOTE_PLAYER_PED_OFFSET,
             ),
             Ok(Some(true))
         );
@@ -3768,7 +4123,7 @@ mod tests {
             ptr::write_unaligned(game_pointer.add(GAME_CURSOR_MODE_OFFSET).cast::<i32>(), 3);
         }
 
-        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
 
         assert_eq!(profile.cursor_mode(), Ok(3));
         unsafe {
@@ -3831,7 +4186,10 @@ mod tests {
             copy_player_counts(pool.as_mut_ptr().cast(), fake_player_pool_get_count),
             Ok((3, 2))
         );
-        assert_eq!(copy_player_max_id(pool.as_mut_ptr().cast()), Ok(42));
+        assert_eq!(
+            copy_player_max_id(pool.as_mut_ptr().cast(), PLAYER_POOL_LARGEST_ID_OFFSET),
+            Ok(42)
+        );
     }
 
     #[test]
@@ -3851,7 +4209,7 @@ mod tests {
             Err(DirectClientError::NotReady)
         );
         assert_eq!(
-            copy_player_max_id(pool.as_mut_ptr().cast()),
+            copy_player_max_id(pool.as_mut_ptr().cast(), PLAYER_POOL_LARGEST_ID_OFFSET),
             Err(DirectClientError::NotReady)
         );
     }

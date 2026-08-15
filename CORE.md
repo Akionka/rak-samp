@@ -77,10 +77,9 @@ and subscription ownership from dedicated modules. The Win32 root retains only
 shared state and tick ordering; backend forwarding, command execution, queue
 draining, refresh publication, native bitstream/string work, and hook patching
 live in dedicated child modules. A version-neutral native-profile selector
-separately gates the direct bridge: R1 exposes the full verified helper set,
-while R3-1 exposes copied CNetGame game-state/server-metadata, local-player,
-player-pool count/largest-ID, narrow chat-input active/text/command-name, chat-display,
-dialog-active/scoreboard-open/cursor-mode cache reads. The R1 profile delegates singleton lookup, native aliases, textdraws,
+separately gates the direct bridge: R1 exposes the original verified helper set,
+while R3-1 and R5-1 share the full classic-client implementation with explicit
+version-specific RVAs and player/pool layouts. The R1 profile delegates singleton lookup, native aliases, textdraws,
 UI, player/pool reads, and handle lookups to focused child modules. The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.

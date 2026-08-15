@@ -594,8 +594,11 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         Some(NativeProfile::R1(_)) => {
             log::info!("direct R1 client helpers are enabled with fixed offsets");
         }
-        Some(NativeProfile::R3Scalars(_)) => {
-            log::info!("R3-1 read-only scalar, local-player, and UI caches are enabled");
+        Some(NativeProfile::R3(_)) => {
+            log::info!("R3-1 direct client helpers are enabled");
+        }
+        Some(NativeProfile::R5(_)) => {
+            log::info!("R5-1 direct client helpers are enabled");
         }
         None => {}
     }
@@ -926,7 +929,7 @@ impl BackendState {
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
         self.refresh_samp_game_state(scalar_profile);
         self.refresh_server_info_snapshot(scalar_profile);
-        if matches!(scalar_profile, NativeProfile::R3Scalars(_)) {
+        if matches!(scalar_profile, NativeProfile::R3(_) | NativeProfile::R5(_)) {
             self.refresh_r3_local_player_snapshot(scalar_profile);
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);

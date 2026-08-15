@@ -7,14 +7,14 @@ plugins. The public SDK lives in [`sdk/`](sdk/); the host package,
 ## Compatibility
 
 - GTA: San Andreas 1.0 US with an ASI loader.
-- SA-MP 0.3.7 R1 is the supported client bridge for state and local mutation.
-- SA-MP 0.3.7 R3-1 supports a deliberately narrow read-only cache bridge for
-  game/server state, local-player and player-pool scalars, chat input,
-  dialog-active, and scoreboard-open state; mutations remain R1-only.
+- SA-MP 0.3.7 R1, R3-1, and R5-1 support the direct client bridge for state,
+  native UI and pool operations, local mutations, sync, and network traffic.
+- R3-1 and R5-1 use independently verified classic-client layouts and
+  version-specific native RVAs; both passed their complete loopback profiles.
 - Other recognized SA-MP builds retain their networking offset tables for raw
   packet and RPC observation.
 
-The R1 bridge uses approved fixed offsets. Every native access still validates
+Each direct bridge uses verified fixed offsets. Every native access still validates
 its pointer, readable range, capacity, and enum values before use.
 
 ## Install

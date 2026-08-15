@@ -5,7 +5,7 @@
 //! separately verified profile, so this boundary deliberately selects no
 //! profile for a recognized build until its layout gates are complete.
 
-use super::{r1_client::R1ClientProfile, r3_client::R3ClientProfile};
+use super::{r1_client::R1ClientProfile, r3_client::ClassicClientProfile};
 use crate::{
     SampVersion,
     runtime::{DirectClientError, LocalPlayerSnapshot, ServerInfoSnapshot},
@@ -14,12 +14,12 @@ use crate::{
 /// A verified direct-native profile selected for the loaded SA-MP build.
 ///
 /// More variants are added only with their own fixture-backed layout and live
-/// validation. R3-1 contains only the verified direct helper slices; every
-/// remaining pool, raw-address, and unproven UI operation stays unavailable.
+/// validation.
 #[derive(Clone, Copy, Debug)]
 pub(super) enum NativeProfile {
     R1(R1ClientProfile),
-    R3Scalars(R3ClientProfile),
+    R3(ClassicClientProfile),
+    R5(ClassicClientProfile),
 }
 
 impl NativeProfile {
@@ -33,9 +33,12 @@ impl NativeProfile {
         match version {
             SampVersion::R1 => R1ClientProfile::verify(module_base, entry_point).map(Self::R1),
             SampVersion::R3_1 => {
-                R3ClientProfile::verify(module_base, entry_point).map(Self::R3Scalars)
+                ClassicClientProfile::verify(module_base, entry_point).map(Self::R3)
             }
-            SampVersion::R2 | SampVersion::R4_2 | SampVersion::R5_1 | SampVersion::Dl => None,
+            SampVersion::R5_1 => {
+                ClassicClientProfile::verify_r5(module_base, entry_point).map(Self::R5)
+            }
+            SampVersion::R2 | SampVersion::R4_2 | SampVersion::Dl => None,
         }
     }
 
@@ -45,14 +48,14 @@ impl NativeProfile {
     pub(super) const fn as_r1(self) -> Option<R1ClientProfile> {
         match self {
             Self::R1(profile) => Some(profile),
-            Self::R3Scalars(_) => None,
+            Self::R3(_) | Self::R5(_) => None,
         }
     }
 
     pub(super) const fn dialog_close_target(self) -> usize {
         match self {
             Self::R1(profile) => profile.dialog_close_target(),
-            Self::R3Scalars(profile) => profile.dialog_close_target(),
+            Self::R3(profile) | Self::R5(profile) => profile.dialog_close_target(),
         }
     }
 
@@ -62,7 +65,7 @@ impl NativeProfile {
     ) -> Result<*mut std::ffi::c_void, DirectClientError> {
         match self {
             Self::R1(profile) => profile.rakpeer_address(rakclient),
-            Self::R3Scalars(profile) => profile.rakpeer_address(rakclient),
+            Self::R3(profile) | Self::R5(profile) => profile.rakpeer_address(rakclient),
         }
     }
 
@@ -73,21 +76,23 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.disconnect_with_reason(rak_client, block_duration),
-            Self::R3Scalars(profile) => profile.disconnect_with_reason(rak_client, block_duration),
+            Self::R3(profile) | Self::R5(profile) => {
+                profile.disconnect_with_reason(rak_client, block_duration)
+            }
         }
     }
 
     pub(super) fn player_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_pool(),
-            Self::R3Scalars(profile) => profile.player_pool(),
+            Self::R3(profile) | Self::R5(profile) => profile.player_pool(),
         }
     }
 
     pub(super) fn vehicle_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
         match self {
             Self::R1(profile) => profile.vehicle_pool(),
-            Self::R3Scalars(profile) => profile.vehicle_pool(),
+            Self::R3(profile) | Self::R5(profile) => profile.vehicle_pool(),
         }
     }
 
@@ -95,14 +100,14 @@ impl NativeProfile {
     pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
         match self {
             Self::R1(profile) => profile.game_state(),
-            Self::R3Scalars(profile) => profile.game_state(),
+            Self::R3(profile) | Self::R5(profile) => profile.game_state(),
         }
     }
 
     pub(super) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_game_state(state),
-            Self::R3Scalars(profile) => profile.set_game_state(state),
+            Self::R3(profile) | Self::R5(profile) => profile.set_game_state(state),
         }
     }
 
@@ -113,7 +118,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.connect_to_server(address, port),
-            Self::R3Scalars(profile) => profile.connect_to_server(address, port),
+            Self::R3(profile) | Self::R5(profile) => profile.connect_to_server(address, port),
         }
     }
 
@@ -122,7 +127,7 @@ impl NativeProfile {
     ) -> Result<Vec<crate::runtime::AnimationSnapshot>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.animation_catalog(),
-            Self::R3Scalars(profile) => profile.animation_catalog(),
+            Self::R3(profile) | Self::R5(profile) => profile.animation_catalog(),
         }
     }
 
@@ -130,7 +135,7 @@ impl NativeProfile {
     pub(super) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
         match self {
             Self::R1(profile) => profile.server_info(),
-            Self::R3Scalars(profile) => profile.server_info(),
+            Self::R3(profile) | Self::R5(profile) => profile.server_info(),
         }
     }
 
@@ -138,7 +143,7 @@ impl NativeProfile {
     pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         match self {
             Self::R1(profile) => profile.local_player(),
-            Self::R3Scalars(profile) => profile.local_player(),
+            Self::R3(profile) | Self::R5(profile) => profile.local_player(),
         }
     }
 
@@ -146,7 +151,7 @@ impl NativeProfile {
     pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_counts(),
-            Self::R3Scalars(profile) => profile.player_counts(),
+            Self::R3(profile) | Self::R5(profile) => profile.player_counts(),
         }
     }
 
@@ -154,7 +159,7 @@ impl NativeProfile {
     pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_max_id(),
-            Self::R3Scalars(profile) => profile.player_max_id(),
+            Self::R3(profile) | Self::R5(profile) => profile.player_max_id(),
         }
     }
 
@@ -166,7 +171,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::PlayerInfoSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.player_info(id),
+            Self::R3(profile) | Self::R5(profile) => profile.player_info(id),
         }
     }
 
@@ -178,7 +183,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::RemotePlayerStateSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.remote_player_state(id),
+            Self::R3(profile) | Self::R5(profile) => profile.remote_player_state(id),
         }
     }
 
@@ -190,42 +195,42 @@ impl NativeProfile {
     ) -> Result<Option<bool>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.remote_player_is_streamed_out(id),
+            Self::R3(profile) | Self::R5(profile) => profile.remote_player_is_streamed_out(id),
         }
     }
 
     pub(super) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.object_handle(id),
-            Self::R3Scalars(profile) => profile.object_handle(id),
+            Self::R3(profile) | Self::R5(profile) => profile.object_handle(id),
         }
     }
 
     pub(super) fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.object_id_by_handle(handle),
-            Self::R3Scalars(profile) => profile.object_id_by_handle(handle),
+            Self::R3(profile) | Self::R5(profile) => profile.object_id_by_handle(handle),
         }
     }
 
     pub(super) fn pickup_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.pickup_handle(id),
-            Self::R3Scalars(profile) => profile.pickup_handle(id),
+            Self::R3(profile) | Self::R5(profile) => profile.pickup_handle(id),
         }
     }
 
     pub(super) fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.pickup_id_by_handle(handle),
-            Self::R3Scalars(profile) => profile.pickup_id_by_handle(handle),
+            Self::R3(profile) | Self::R5(profile) => profile.pickup_id_by_handle(handle),
         }
     }
 
     pub(super) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.vehicle_handle(id),
-            Self::R3Scalars(profile) => profile.vehicle_handle(id),
+            Self::R3(profile) | Self::R5(profile) => profile.vehicle_handle(id),
         }
     }
 
@@ -235,14 +240,14 @@ impl NativeProfile {
     ) -> Result<Option<u16>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.vehicle_id_by_handle(handle),
-            Self::R3Scalars(profile) => profile.vehicle_id_by_handle(handle),
+            Self::R3(profile) | Self::R5(profile) => profile.vehicle_id_by_handle(handle),
         }
     }
 
     pub(super) fn player_ped_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_ped_handle(id),
-            Self::R3Scalars(profile) => profile.player_ped_handle(id),
+            Self::R3(profile) | Self::R5(profile) => profile.player_ped_handle(id),
         }
     }
 
@@ -252,7 +257,7 @@ impl NativeProfile {
     ) -> Result<Option<u16>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_id_by_ped_handle(handle),
-            Self::R3Scalars(profile) => profile.player_id_by_ped_handle(handle),
+            Self::R3(profile) | Self::R5(profile) => profile.player_id_by_ped_handle(handle),
         }
     }
 
@@ -264,7 +269,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::OnFootSyncSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.onfoot_sync(id),
+            Self::R3(profile) | Self::R5(profile) => profile.onfoot_sync(id),
         }
     }
 
@@ -276,7 +281,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::InCarSyncSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.incar_sync(id),
+            Self::R3(profile) | Self::R5(profile) => profile.incar_sync(id),
         }
     }
 
@@ -286,7 +291,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::PassengerSyncSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.passenger_sync(id),
+            Self::R3(profile) | Self::R5(profile) => profile.passenger_sync(id),
         }
     }
 
@@ -296,7 +301,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::TrailerSyncSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.trailer_sync(id),
+            Self::R3(profile) | Self::R5(profile) => profile.trailer_sync(id),
         }
     }
 
@@ -306,44 +311,44 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::AimSyncSnapshot>, DirectClientError> {
         match self {
             Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
-            Self::R3Scalars(profile) => profile.aim_sync(id),
+            Self::R3(profile) | Self::R5(profile) => profile.aim_sync(id),
         }
     }
 
     pub(super) fn force_aim_sync(self) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_aim_sync(),
-            Self::R3Scalars(profile) => profile.force_aim_sync(),
+            Self::R3(profile) | Self::R5(profile) => profile.force_aim_sync(),
         }
     }
     pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_onfoot_sync(),
-            Self::R3Scalars(profile) => profile.force_onfoot_sync(),
+            Self::R3(profile) | Self::R5(profile) => profile.force_onfoot_sync(),
         }
     }
     pub(super) fn force_stats_sync(self) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_stats_sync(),
-            Self::R3Scalars(profile) => profile.force_stats_sync(),
+            Self::R3(profile) | Self::R5(profile) => profile.force_stats_sync(),
         }
     }
     pub(super) fn force_trailer_sync(self, trailer: u16) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_trailer_sync(trailer),
-            Self::R3Scalars(profile) => profile.force_trailer_sync(trailer),
+            Self::R3(profile) | Self::R5(profile) => profile.force_trailer_sync(trailer),
         }
     }
     pub(super) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_vehicle_sync(vehicle),
-            Self::R3Scalars(profile) => profile.force_vehicle_sync(vehicle),
+            Self::R3(profile) | Self::R5(profile) => profile.force_vehicle_sync(vehicle),
         }
     }
     pub(super) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_weapons_sync(),
-            Self::R3Scalars(profile) => profile.force_weapons_sync(),
+            Self::R3(profile) | Self::R5(profile) => profile.force_weapons_sync(),
         }
     }
     pub(super) fn force_passenger_sync(
@@ -353,7 +358,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_passenger_sync(vehicle, seat),
-            Self::R3Scalars(profile) => profile.force_passenger_sync(vehicle, seat),
+            Self::R3(profile) | Self::R5(profile) => profile.force_passenger_sync(vehicle, seat),
         }
     }
     pub(super) fn force_unoccupied_sync(
@@ -363,7 +368,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.force_unoccupied_sync(vehicle, seat),
-            Self::R3Scalars(profile) => profile.force_unoccupied_sync(vehicle, seat),
+            Self::R3(profile) | Self::R5(profile) => profile.force_unoccupied_sync(vehicle, seat),
         }
     }
     pub(super) fn set_send_rate(
@@ -373,25 +378,25 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_send_rate(kind, milliseconds),
-            Self::R3Scalars(profile) => profile.set_send_rate(kind, milliseconds),
+            Self::R3(profile) | Self::R5(profile) => profile.set_send_rate(kind, milliseconds),
         }
     }
     pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.spawn_local_player(),
-            Self::R3Scalars(profile) => profile.spawn_local_player(),
+            Self::R3(profile) | Self::R5(profile) => profile.spawn_local_player(),
         }
     }
     pub(super) fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_local_player_name(name),
-            Self::R3Scalars(profile) => profile.set_local_player_name(name),
+            Self::R3(profile) | Self::R5(profile) => profile.set_local_player_name(name),
         }
     }
     pub(super) fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_player_colour(id, colour),
-            Self::R3Scalars(profile) => profile.set_player_colour(id, colour),
+            Self::R3(profile) | Self::R5(profile) => profile.set_player_colour(id, colour),
         }
     }
     pub(super) fn set_local_player_special_action(
@@ -400,7 +405,9 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_local_player_special_action(action),
-            Self::R3Scalars(profile) => profile.set_local_player_special_action(action),
+            Self::R3(profile) | Self::R5(profile) => {
+                profile.set_local_player_special_action(action)
+            }
         }
     }
     pub(super) fn show_chat_message(
@@ -409,13 +416,13 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.show_chat_message(request),
-            Self::R3Scalars(profile) => profile.show_chat_message(request),
+            Self::R3(profile) | Self::R5(profile) => profile.show_chat_message(request),
         }
     }
     pub(super) fn chat_is_ready(self) -> bool {
         match self {
             Self::R1(profile) => profile.chat_is_ready(),
-            Self::R3Scalars(profile) => profile.chat_is_ready(),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_is_ready(),
         }
     }
     pub(super) fn show_death_message(
@@ -424,13 +431,13 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.show_death_message(request),
-            Self::R3Scalars(profile) => profile.show_death_message(request),
+            Self::R3(profile) | Self::R5(profile) => profile.show_death_message(request),
         }
     }
     pub(super) fn death_window_is_ready(self) -> bool {
         match self {
             Self::R1(profile) => profile.death_window_is_ready(),
-            Self::R3Scalars(profile) => profile.death_window_is_ready(),
+            Self::R3(profile) | Self::R5(profile) => profile.death_window_is_ready(),
         }
     }
 
@@ -440,14 +447,14 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.show_dialog(request),
-            Self::R3Scalars(profile) => profile.show_dialog(request),
+            Self::R3(profile) | Self::R5(profile) => profile.show_dialog(request),
         }
     }
 
     pub(super) fn close_dialog(self, button: u8) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.close_dialog(button),
-            Self::R3Scalars(profile) => profile.close_dialog(button),
+            Self::R3(profile) | Self::R5(profile) => profile.close_dialog(button),
         }
     }
 
@@ -458,14 +465,16 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::LocalDialogResponseSnapshot>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.dialog_response_on_close(dialog, button),
-            Self::R3Scalars(profile) => profile.dialog_response_on_close(dialog, button),
+            Self::R3(profile) | Self::R5(profile) => {
+                profile.dialog_response_on_close(dialog, button)
+            }
         }
     }
 
     pub(super) fn dialog_is_ready(self) -> bool {
         match self {
             Self::R1(profile) => profile.dialog_is_ready(),
-            Self::R3Scalars(profile) => profile.dialog_is_ready(),
+            Self::R3(profile) | Self::R5(profile) => profile.dialog_is_ready(),
         }
     }
 
@@ -474,77 +483,77 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::LocalDialogSnapshot>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.dialog_state(),
-            Self::R3Scalars(profile) => profile.dialog_state(),
+            Self::R3(profile) | Self::R5(profile) => profile.dialog_state(),
         }
     }
 
     pub(super) fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_dialog_selected_item(selected),
-            Self::R3Scalars(profile) => profile.set_dialog_selected_item(selected),
+            Self::R3(profile) | Self::R5(profile) => profile.set_dialog_selected_item(selected),
         }
     }
 
     pub(super) fn set_dialog_client_side(self, client_side: bool) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_dialog_client_side(client_side),
-            Self::R3Scalars(profile) => profile.set_dialog_client_side(client_side),
+            Self::R3(profile) | Self::R5(profile) => profile.set_dialog_client_side(client_side),
         }
     }
 
     pub(super) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_dialog_editbox_text(text),
-            Self::R3Scalars(profile) => profile.set_dialog_editbox_text(text),
+            Self::R3(profile) | Self::R5(profile) => profile.set_dialog_editbox_text(text),
         }
     }
 
     pub(super) fn set_cursor_mode(self, mode: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_cursor_mode(mode),
-            Self::R3Scalars(profile) => profile.set_cursor_mode(mode),
+            Self::R3(profile) | Self::R5(profile) => profile.set_cursor_mode(mode),
         }
     }
 
     pub(super) fn toggle_cursor(self, show: bool) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.toggle_cursor(show),
-            Self::R3Scalars(profile) => profile.toggle_cursor(show),
+            Self::R3(profile) | Self::R5(profile) => profile.toggle_cursor(show),
         }
     }
 
     pub(super) fn set_scoreboard_open(self, open: bool) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_scoreboard_open(open),
-            Self::R3Scalars(profile) => profile.set_scoreboard_open(open),
+            Self::R3(profile) | Self::R5(profile) => profile.set_scoreboard_open(open),
         }
     }
 
     pub(super) fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_chat_input_enabled(enabled),
-            Self::R3Scalars(profile) => profile.set_chat_input_enabled(enabled),
+            Self::R3(profile) | Self::R5(profile) => profile.set_chat_input_enabled(enabled),
         }
     }
 
     pub(super) fn set_chat_input_text(self, text: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_chat_input_text(text),
-            Self::R3Scalars(profile) => profile.set_chat_input_text(text),
+            Self::R3(profile) | Self::R5(profile) => profile.set_chat_input_text(text),
         }
     }
 
     pub(super) fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.process_chat_input(text),
-            Self::R3Scalars(profile) => profile.process_chat_input(text),
+            Self::R3(profile) | Self::R5(profile) => profile.process_chat_input(text),
         }
     }
 
     pub(super) fn set_chat_display_mode(self, mode: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_chat_display_mode(mode),
-            Self::R3Scalars(profile) => profile.set_chat_display_mode(mode),
+            Self::R3(profile) | Self::R5(profile) => profile.set_chat_display_mode(mode),
         }
     }
 
@@ -560,7 +569,7 @@ impl NativeProfile {
             Self::R1(profile) => {
                 profile.set_chat_entry(id, text, prefix, text_colour, prefix_colour)
             }
-            Self::R3Scalars(profile) => {
+            Self::R3(profile) | Self::R5(profile) => {
                 profile.set_chat_entry(id, text, prefix, text_colour, prefix_colour)
             }
         }
@@ -572,7 +581,7 @@ impl NativeProfile {
     ) -> Result<crate::runtime::ChatEntrySnapshot, DirectClientError> {
         match self {
             Self::R1(profile) => profile.chat_entry(id),
-            Self::R3Scalars(profile) => profile.chat_entry(id),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_entry(id),
         }
     }
 
@@ -583,27 +592,27 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.register_chat_command(name, callback),
-            Self::R3Scalars(profile) => profile.register_chat_command(name, callback),
+            Self::R3(profile) | Self::R5(profile) => profile.register_chat_command(name, callback),
         }
     }
 
     pub(super) fn unregister_chat_command(self, name: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.unregister_chat_command(name),
-            Self::R3Scalars(profile) => profile.unregister_chat_command(name),
+            Self::R3(profile) | Self::R5(profile) => profile.unregister_chat_command(name),
         }
     }
 
     pub(super) fn text_label_exists(self, id: u16) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(profile) => profile.text_label_exists(id),
-            Self::R3Scalars(profile) => profile.text_label_exists(id),
+            Self::R3(profile) | Self::R5(profile) => profile.text_label_exists(id),
         }
     }
     pub(super) fn first_free_text_label_id(self) -> Result<u16, DirectClientError> {
         match self {
             Self::R1(profile) => profile.first_free_text_label_id(),
-            Self::R3Scalars(profile) => profile.first_free_text_label_id(),
+            Self::R3(profile) | Self::R5(profile) => profile.first_free_text_label_id(),
         }
     }
     #[allow(clippy::too_many_arguments)]
@@ -629,7 +638,7 @@ impl NativeProfile {
                 attached_player_id,
                 attached_vehicle_id,
             ),
-            Self::R3Scalars(profile) => profile.create_text_label(
+            Self::R3(profile) | Self::R5(profile) => profile.create_text_label(
                 id,
                 text,
                 colour,
@@ -644,7 +653,7 @@ impl NativeProfile {
     pub(super) fn delete_text_label(self, id: u16) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.delete_text_label(id),
-            Self::R3Scalars(profile) => profile.delete_text_label(id),
+            Self::R3(profile) | Self::R5(profile) => profile.delete_text_label(id),
         }
     }
     pub(super) fn text_label(
@@ -653,26 +662,26 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::TextLabelSnapshot>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.text_label(id),
-            Self::R3Scalars(profile) => profile.text_label(id),
+            Self::R3(profile) | Self::R5(profile) => profile.text_label(id),
         }
     }
 
     pub(super) fn textdraw_exists(self, id: u16) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(p) => p.textdraw_exists(id),
-            Self::R3Scalars(p) => p.textdraw_exists(id),
+            Self::R3(p) | Self::R5(p) => p.textdraw_exists(id),
         }
     }
     pub(super) fn vehicle_exists(self, id: u16) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(p) => p.vehicle_exists(id),
-            Self::R3Scalars(p) => p.vehicle_exists(id),
+            Self::R3(p) | Self::R5(p) => p.vehicle_exists(id),
         }
     }
     pub(super) fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(p) => p.object_exists(id),
-            Self::R3Scalars(p) => p.object_exists(id),
+            Self::R3(p) | Self::R5(p) => p.object_exists(id),
         }
     }
     pub(super) fn gangzone(
@@ -681,7 +690,7 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::GangzoneSnapshot>, DirectClientError> {
         match self {
             Self::R1(p) => p.gangzone(id),
-            Self::R3Scalars(p) => p.gangzone(id),
+            Self::R3(p) | Self::R5(p) => p.gangzone(id),
         }
     }
     pub(super) fn textdraw(
@@ -690,13 +699,13 @@ impl NativeProfile {
     ) -> Result<Option<crate::runtime::TextdrawSnapshot>, DirectClientError> {
         match self {
             Self::R1(p) => p.textdraw(id),
-            Self::R3Scalars(p) => p.textdraw(id),
+            Self::R3(p) | Self::R5(p) => p.textdraw(id),
         }
     }
     pub(super) fn delete_textdraw(self, id: u16) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.delete_textdraw(id),
-            Self::R3Scalars(p) => p.delete_textdraw(id),
+            Self::R3(p) | Self::R5(p) => p.delete_textdraw(id),
         }
     }
     pub(super) fn create_textdraw(
@@ -708,7 +717,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.create_textdraw(id, text, x, y),
-            Self::R3Scalars(p) => p.create_textdraw(id, text, x, y),
+            Self::R3(p) | Self::R5(p) => p.create_textdraw(id, text, x, y),
         }
     }
     pub(super) fn set_textdraw_position(
@@ -719,13 +728,13 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_position(id, x, y),
-            Self::R3Scalars(p) => p.set_textdraw_position(id, x, y),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_position(id, x, y),
         }
     }
     pub(super) fn set_textdraw_style(self, id: u16, style: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_style(id, style),
-            Self::R3Scalars(p) => p.set_textdraw_style(id, style),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_style(id, style),
         }
     }
     pub(super) fn set_textdraw_letter_style(
@@ -737,7 +746,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_letter_style(id, width, height, colour),
-            Self::R3Scalars(p) => p.set_textdraw_letter_style(id, width, height, colour),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_letter_style(id, width, height, colour),
         }
     }
     pub(super) fn set_textdraw_proportional(
@@ -747,7 +756,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_proportional(id, value),
-            Self::R3Scalars(p) => p.set_textdraw_proportional(id, value),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_proportional(id, value),
         }
     }
     pub(super) fn set_textdraw_shadow(
@@ -758,7 +767,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_shadow(id, shadow, colour),
-            Self::R3Scalars(p) => p.set_textdraw_shadow(id, shadow, colour),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_shadow(id, shadow, colour),
         }
     }
     pub(super) fn set_textdraw_outline(
@@ -769,13 +778,13 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_outline(id, outline, colour),
-            Self::R3Scalars(p) => p.set_textdraw_outline(id, outline, colour),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_outline(id, outline, colour),
         }
     }
     pub(super) fn set_textdraw_string(self, id: u16, text: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_string(id, text),
-            Self::R3Scalars(p) => p.set_textdraw_string(id, text),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_string(id, text),
         }
     }
     pub(super) fn set_textdraw_box(
@@ -788,7 +797,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_box(id, enabled, colour, width, height),
-            Self::R3Scalars(p) => p.set_textdraw_box(id, enabled, colour, width, height),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_box(id, enabled, colour, width, height),
         }
     }
     pub(super) fn set_textdraw_alignment(
@@ -798,7 +807,7 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_alignment(id, alignment),
-            Self::R3Scalars(p) => p.set_textdraw_alignment(id, alignment),
+            Self::R3(p) | Self::R5(p) => p.set_textdraw_alignment(id, alignment),
         }
     }
     pub(super) fn set_textdraw_model_style(
@@ -811,7 +820,9 @@ impl NativeProfile {
     ) -> Result<(), DirectClientError> {
         match self {
             Self::R1(p) => p.set_textdraw_model_style(id, rotation, zoom, colour1, colour2),
-            Self::R3Scalars(p) => p.set_textdraw_model_style(id, rotation, zoom, colour1, colour2),
+            Self::R3(p) | Self::R5(p) => {
+                p.set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
+            }
         }
     }
 
@@ -819,7 +830,7 @@ impl NativeProfile {
     pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(profile) => profile.chat_input_is_active(),
-            Self::R3Scalars(profile) => profile.chat_input_is_active(),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_input_is_active(),
         }
     }
 
@@ -827,7 +838,7 @@ impl NativeProfile {
     pub(super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.chat_input_commands(),
-            Self::R3Scalars(profile) => profile.chat_input_commands(),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_input_commands(),
         }
     }
 
@@ -835,7 +846,7 @@ impl NativeProfile {
     pub(super) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.chat_input_text(),
-            Self::R3Scalars(profile) => profile.chat_input_text(),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_input_text(),
         }
     }
 
@@ -843,7 +854,7 @@ impl NativeProfile {
     pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
         match self {
             Self::R1(profile) => profile.chat_display_mode(),
-            Self::R3Scalars(profile) => profile.chat_display_mode(),
+            Self::R3(profile) | Self::R5(profile) => profile.chat_display_mode(),
         }
     }
 
@@ -851,7 +862,7 @@ impl NativeProfile {
     pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(profile) => profile.dialog_is_active(),
-            Self::R3Scalars(profile) => profile.dialog_is_active(),
+            Self::R3(profile) | Self::R5(profile) => profile.dialog_is_active(),
         }
     }
 
@@ -859,7 +870,7 @@ impl NativeProfile {
     pub(super) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(profile) => profile.scoreboard_is_open(),
-            Self::R3Scalars(profile) => profile.scoreboard_is_open(),
+            Self::R3(profile) | Self::R5(profile) => profile.scoreboard_is_open(),
         }
     }
 
@@ -867,7 +878,7 @@ impl NativeProfile {
     pub(super) fn cursor_mode(self) -> Result<i32, DirectClientError> {
         match self {
             Self::R1(profile) => profile.cursor_mode(),
-            Self::R3Scalars(profile) => profile.cursor_mode(),
+            Self::R3(profile) | Self::R5(profile) => profile.cursor_mode(),
         }
     }
 }
@@ -877,18 +888,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn selector_limits_r3_to_the_verified_scalar_profile() {
+    fn selector_enables_only_verified_direct_profiles() {
         assert!(NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13).is_some());
         assert!(matches!(
             NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point()),
-            Some(NativeProfile::R3Scalars(_))
+            Some(NativeProfile::R3(_))
         ));
-        for version in [
-            SampVersion::R2,
-            SampVersion::R4_2,
-            SampVersion::R5_1,
-            SampVersion::Dl,
-        ] {
+        assert!(matches!(
+            NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point()),
+            Some(NativeProfile::R5(_))
+        ));
+        for version in [SampVersion::R2, SampVersion::R4_2, SampVersion::Dl] {
             assert!(NativeProfile::select(0x10000, version, version.entry_point()).is_none());
         }
     }

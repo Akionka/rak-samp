@@ -19,8 +19,8 @@ Keep the current direct-native profile disabled while running a checklist for a
 new build. Stop immediately on a failed pointer/range check, access violation,
 hook restoration failure, or mismatched binary identity.
 
-Every checklist below is intentionally unchecked: its existence does not mean
-the live validation has run.
+An unchecked item below is still outstanding. A checked item records fixture,
+static, or live evidence for the pinned build.
 
 ## Network smoke plugin
 
@@ -52,7 +52,7 @@ reconnect, or hook-restoration checklists.
 | Build | Observed result | Status |
 | --- | --- | --- |
 | R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); copied game/server/local-player/player-pool/chat-input/chat-display/dialog-active/scoreboard-open/cursor-mode caches passed fixture and interactive loopback checks (`0x0000FFFF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
-| R5-1 | The corrected static `CGame::Process` hook entered; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R5-1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent R5 layouts, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
 | DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
 
 ## R3-1 network smoke observation (2026-08-12)
@@ -260,6 +260,30 @@ proves the selected R5 outbound RPC route and that the SDK's typed listener
 continued to SA-MP's original incoming-RPC handler for this message. It does
 not replace the remaining full network, layout, reconnect, or unload checks.
 
+## R5-1 complete direct-profile observation (2026-08-15)
+
+The isolated R5-1 client, disposable loopback server, and server-managed
+`R5ProbeBot` completed the unified probe with `status=0x3FFFFFFF` and
+`failure=0`. The status file recorded `textdraw_phase=complete`,
+`vehicle_phase=complete`, ready server/local/incoming caches after reconnect,
+and a spawned local player. The server recorded the reconnect cookie at
+`13:45:03`, join at `13:45:05`, and the post-reconnect incoming reply at
+`13:45:07`.
+
+The run covered runtime identity, all selected network and codec paths,
+game/server/player/UI caches, native mutations, command registration, animation
+lookup, entity and GTA handle round trips, every supported local force-sync
+packet, text-label and textdraw create/mutate/delete, controlled
+driver/passenger/trailer states, disconnect invalidation, and reconnect cache
+restoration. Independent C++ fixtures pin the R5 pool, player-info, local-player,
+remote-player, and sync layouts used by the profile.
+
+An initial textdraw update raised `0xC0000005` because the SAMP-API R5 source
+listed constructor RVA `0xB36E0` as `CTextDraw::SetText`. Client disassembly
+showed the setter at `0xB2F60`; the corrected address completed the lifecycle
+in the same full probe. Process-exit cleanup is covered by owned hook-lifecycle
+tests because the active ASI loader does not unload plugins before GTA exits.
+
 ## SA-MP 0.3.7 R1
 
 Pinned artifact: installed `samp.dll`, SHA-256
@@ -309,15 +333,16 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
 Pinned artifact: `sa-mp-0.3.7-R5-1-install.exe` → `samp.dll`, SHA-256
 `B72B5DBE725F81864CA3F78BC7063BDA56CC05FC7188AF822FA7A754432553A2`.
 
-- [ ] Confirm the PE entry-point RVA is `0x0CBC90` and the logged fingerprint
+- [x] Confirm the PE entry-point RVA is `0x0CBC90` and the logged fingerprint
   matches the pinned hash.
-- [ ] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
+- [x] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
   packet allocation, bitstream lock/unlock, and string codec round-trip.
-- [ ] Prove the profile's `CNetGame`, `CInput`, and `CDialog` values against
+- [x] Prove the profile's `CNetGame`, `CInput`, and `CDialog` values against
   the fixture before enabling any helper that consumes them.
-- [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
+- [x] For each newly enabled UI, cache, pool, player, or sync helper, validate
   its complete layout family and run the corresponding in-game interaction.
-- [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.
+- [x] Disconnect and reconnect in game; cover hook restoration and owned-slot
+  teardown with the host lifecycle tests because the ASI loader exits with GTA.
 
 ## SA-MP 0.3.DL R1
 
