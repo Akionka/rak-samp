@@ -352,7 +352,7 @@ pub(crate) fn readable_range(address: *const u8, length: usize) -> bool {
         && end <= region_end
 }
 
-pub(super) fn writable_range(address: *const u8, length: usize) -> bool {
+pub(crate) fn writable_range(address: *const u8, length: usize) -> bool {
     if !readable_range(address, length) {
         return false;
     }

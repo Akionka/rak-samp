@@ -39,6 +39,127 @@ impl BackendState {
         }
     }
 
+    pub(super) fn refresh_r3_player_info(&self, profile: NativeProfile) {
+        for id in self.take_player_info_requests() {
+            let Ok(snapshot) = profile.player_info(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.player_info_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = PlayerInfoCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_remote_player_state(&self, profile: NativeProfile) {
+        for id in self.take_remote_player_state_requests() {
+            let Ok(snapshot) = profile.remote_player_state(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.remote_player_state_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = RemotePlayerStateCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_streamed_out_player_position(&self, profile: NativeProfile) {
+        for id in self.take_streamed_out_player_position_requests() {
+            let Ok(streamed_out) = profile.remote_player_is_streamed_out(id) else {
+                continue;
+            };
+            let position = match streamed_out {
+                Some(true) => self
+                    .marker_sync_positions
+                    .try_lock()
+                    .ok()
+                    .and_then(|positions| positions.get(usize::from(id)).copied().flatten())
+                    .filter(|position| position.x != 0.0 && position.y != 0.0),
+                Some(false) | None => None,
+            };
+            let Ok(mut cache) = self.streamed_out_player_position_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = StreamedOutPlayerPositionCacheEntry::Known(position);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_onfoot_sync(&self, profile: NativeProfile) {
+        for id in self.take_onfoot_sync_requests() {
+            let Ok(snapshot) = profile.onfoot_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.onfoot_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = OnFootSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_incar_sync(&self, profile: NativeProfile) {
+        for id in self.take_incar_sync_requests() {
+            let Ok(snapshot) = profile.incar_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.incar_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = InCarSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_passenger_sync(&self, profile: NativeProfile) {
+        for id in self.take_passenger_sync_requests() {
+            let Ok(snapshot) = profile.passenger_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.passenger_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = PassengerSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_trailer_sync(&self, profile: NativeProfile) {
+        for id in self.take_trailer_sync_requests() {
+            let Ok(snapshot) = profile.trailer_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.trailer_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = TrailerSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
+    pub(super) fn refresh_r3_aim_sync(&self, profile: NativeProfile) {
+        for id in self.take_aim_sync_requests() {
+            let Ok(snapshot) = profile.aim_sync(id) else {
+                continue;
+            };
+            let Ok(mut cache) = self.aim_sync_cache.try_lock() else {
+                continue;
+            };
+            if let Some(entry) = cache.get_mut(usize::from(id)) {
+                *entry = AimSyncCacheEntry::Known(snapshot);
+            }
+        }
+    }
+
     pub(super) fn refresh_remote_player_state(&self, profile: R1ClientProfile) {
         for id in self.take_remote_player_state_requests() {
             let Ok(snapshot) = profile.remote_player_state(id) else {
@@ -168,14 +289,14 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_raw_pool_addresses(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_raw_pool_addresses(&self, profile: NativeProfile) {
         let player_pool = profile.player_pool().map_or(0, |pool| pool as usize);
         let vehicle_pool = profile.vehicle_pool().map_or(0, |pool| pool as usize);
         self.raw_player_pool.store(player_pool, Ordering::Release);
         self.raw_vehicle_pool.store(vehicle_pool, Ordering::Release);
     }
 
-    pub(super) fn refresh_vehicle_exists(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_vehicle_exists(&self, profile: NativeProfile) {
         for id in self.take_vehicle_exists_requests() {
             let Ok(exists) = profile.vehicle_exists(id) else {
                 continue;
@@ -189,7 +310,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_text_label_exists(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_text_label_exists(&self, profile: NativeProfile) {
         for id in self.take_text_label_exists_requests() {
             let Ok(exists) = profile.text_label_exists(id) else {
                 continue;
@@ -203,7 +324,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_text_labels(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_text_labels(&self, profile: NativeProfile) {
         for id in self.take_text_label_requests() {
             let Ok(snapshot) = profile.text_label(id) else {
                 continue;
@@ -217,7 +338,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_textdraw_exists(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_textdraw_exists(&self, profile: NativeProfile) {
         for pool_index in self.take_textdraw_exists_requests() {
             let Ok(exists) = profile.textdraw_exists(pool_index) else {
                 continue;
@@ -231,7 +352,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_textdraws(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_textdraws(&self, profile: NativeProfile) {
         for pool_index in self.take_textdraw_requests() {
             let Ok(snapshot) = profile.textdraw(pool_index) else {
                 continue;
@@ -245,7 +366,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_chat_entries(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_chat_entries(&self, profile: NativeProfile) {
         for id in self.take_chat_entry_requests() {
             let Ok(snapshot) = profile.chat_entry(id) else {
                 continue;
@@ -259,7 +380,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_exists(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_object_exists(&self, profile: NativeProfile) {
         for id in self.take_object_exists_requests() {
             let Ok(exists) = profile.object_exists(id) else {
                 continue;
@@ -273,7 +394,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_gangzones(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_gangzones(&self, profile: NativeProfile) {
         for id in self.take_gangzone_requests() {
             let Ok(snapshot) = profile.gangzone(id) else {
                 continue;
@@ -287,7 +408,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_handles(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_object_handles(&self, profile: NativeProfile) {
         for id in self.take_object_handle_requests() {
             let Ok(handle) = profile.object_handle(id) else {
                 continue;
@@ -301,7 +422,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_pickup_handles(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_pickup_handles(&self, profile: NativeProfile) {
         for id in self.take_pickup_handle_requests() {
             let Ok(handle) = profile.pickup_handle(id) else {
                 continue;
@@ -315,7 +436,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_vehicle_handles(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_vehicle_handles(&self, profile: NativeProfile) {
         for id in self.take_vehicle_handle_requests() {
             let Ok(handle) = profile.vehicle_handle(id) else {
                 continue;
@@ -329,7 +450,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_handles(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_player_handles(&self, profile: NativeProfile) {
         for id in self.take_player_handle_requests() {
             let Ok(handle) = profile.player_ped_handle(id) else {
                 continue;
@@ -343,7 +464,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_handle_ids(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_object_handle_ids(&self, profile: NativeProfile) {
         for handle in self.take_object_handle_id_requests() {
             let Ok(id) = profile.object_id_by_handle(handle) else {
                 continue;
@@ -355,7 +476,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_pickup_handle_ids(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_pickup_handle_ids(&self, profile: NativeProfile) {
         for handle in self.take_pickup_handle_id_requests() {
             let Ok(id) = profile.pickup_id_by_handle(handle) else {
                 continue;
@@ -367,7 +488,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_vehicle_handle_ids(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_vehicle_handle_ids(&self, profile: NativeProfile) {
         for handle in self.take_vehicle_handle_id_requests() {
             let Ok(id) = profile.vehicle_id_by_handle(handle) else {
                 continue;
@@ -379,7 +500,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_handle_ids(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_player_handle_ids(&self, profile: NativeProfile) {
         for handle in self.take_player_handle_id_requests() {
             let Ok(id) = profile.player_id_by_ped_handle(handle) else {
                 continue;
@@ -474,7 +595,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_dialog_state(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_local_dialog_state(&self, profile: NativeProfile) {
         match profile.dialog_state() {
             Ok(snapshot) => {
                 let Ok(mut cached) = self.local_dialog_snapshot.try_lock() else {
@@ -546,7 +667,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_animation_catalog(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_animation_catalog(&self, profile: NativeProfile) {
         let Ok(mut catalog) = self.animation_catalog.try_lock() else {
             return;
         };

@@ -78,7 +78,7 @@ impl BackendState {
     pub(super) fn local_dialog_state(
         &self,
     ) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -93,7 +93,7 @@ impl BackendState {
     pub(super) fn take_local_dialog_response(
         &self,
     ) -> Result<Option<LocalDialogResponseSnapshot>, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -170,7 +170,7 @@ impl BackendState {
     }
 
     pub(super) fn animation_catalog(&self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {

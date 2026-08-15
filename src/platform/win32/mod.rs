@@ -808,7 +808,7 @@ impl BackendState {
     }
 
     fn install_dialog_close_hook(&self) -> Result<(), AttachError> {
-        let Some(profile) = self.r1_client() else {
+        let Some(profile) = self.scalar_profile() else {
             return Ok(());
         };
         let (mut detour, trampoline) = InlineHook::create(
@@ -930,13 +930,40 @@ impl BackendState {
             self.refresh_r3_local_player_snapshot(scalar_profile);
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);
+            self.refresh_r3_player_info(scalar_profile);
+            self.refresh_r3_remote_player_state(scalar_profile);
+            self.refresh_r3_streamed_out_player_position(scalar_profile);
+            self.refresh_r3_onfoot_sync(scalar_profile);
+            self.refresh_r3_incar_sync(scalar_profile);
+            self.refresh_r3_passenger_sync(scalar_profile);
+            self.refresh_r3_trailer_sync(scalar_profile);
+            self.refresh_r3_aim_sync(scalar_profile);
             self.refresh_local_chat_display_mode(scalar_profile);
             self.refresh_local_cursor_mode(scalar_profile);
             self.refresh_local_scoreboard_open(scalar_profile);
             self.refresh_local_dialog_active(scalar_profile);
+            self.refresh_local_dialog_state(scalar_profile);
             self.refresh_local_chat_input_active(scalar_profile);
             self.refresh_local_chat_input_text(scalar_profile);
             self.refresh_local_chat_input_commands(scalar_profile);
+            self.refresh_animation_catalog(scalar_profile);
+            self.refresh_raw_pool_addresses(scalar_profile);
+            self.refresh_chat_entries(scalar_profile);
+            self.refresh_text_label_exists(scalar_profile);
+            self.refresh_text_labels(scalar_profile);
+            self.refresh_textdraw_exists(scalar_profile);
+            self.refresh_textdraws(scalar_profile);
+            self.refresh_vehicle_exists(scalar_profile);
+            self.refresh_object_exists(scalar_profile);
+            self.refresh_gangzones(scalar_profile);
+            self.refresh_object_handles(scalar_profile);
+            self.refresh_pickup_handles(scalar_profile);
+            self.refresh_vehicle_handles(scalar_profile);
+            self.refresh_player_handles(scalar_profile);
+            self.refresh_object_handle_ids(scalar_profile);
+            self.refresh_pickup_handle_ids(scalar_profile);
+            self.refresh_vehicle_handle_ids(scalar_profile);
+            self.refresh_player_handle_ids(scalar_profile);
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;
         }
@@ -944,16 +971,16 @@ impl BackendState {
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;
         };
-        self.refresh_raw_pool_addresses(profile);
+        self.refresh_raw_pool_addresses(scalar_profile);
         self.refresh_local_chat_display_mode(scalar_profile);
         self.refresh_local_cursor_mode(scalar_profile);
         self.refresh_local_scoreboard_open(scalar_profile);
         self.refresh_local_dialog_active(scalar_profile);
-        self.refresh_local_dialog_state(profile);
+        self.refresh_local_dialog_state(scalar_profile);
         self.refresh_local_chat_input_active(scalar_profile);
         self.refresh_local_chat_input_text(scalar_profile);
         self.refresh_local_chat_input_commands(scalar_profile);
-        self.refresh_animation_catalog(profile);
+        self.refresh_animation_catalog(scalar_profile);
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_info(profile);
         self.refresh_remote_player_state(profile);
@@ -965,22 +992,22 @@ impl BackendState {
         self.refresh_aim_sync(profile);
         self.refresh_player_count(scalar_profile);
         self.refresh_player_max_id(scalar_profile);
-        self.refresh_vehicle_exists(profile);
-        self.refresh_text_label_exists(profile);
-        self.refresh_text_labels(profile);
-        self.refresh_textdraw_exists(profile);
-        self.refresh_textdraws(profile);
-        self.refresh_chat_entries(profile);
-        self.refresh_object_exists(profile);
-        self.refresh_gangzones(profile);
-        self.refresh_object_handles(profile);
-        self.refresh_pickup_handles(profile);
-        self.refresh_vehicle_handles(profile);
-        self.refresh_player_handles(profile);
-        self.refresh_object_handle_ids(profile);
-        self.refresh_pickup_handle_ids(profile);
-        self.refresh_vehicle_handle_ids(profile);
-        self.refresh_player_handle_ids(profile);
+        self.refresh_vehicle_exists(scalar_profile);
+        self.refresh_text_label_exists(scalar_profile);
+        self.refresh_text_labels(scalar_profile);
+        self.refresh_textdraw_exists(scalar_profile);
+        self.refresh_textdraws(scalar_profile);
+        self.refresh_chat_entries(scalar_profile);
+        self.refresh_object_exists(scalar_profile);
+        self.refresh_gangzones(scalar_profile);
+        self.refresh_object_handles(scalar_profile);
+        self.refresh_pickup_handles(scalar_profile);
+        self.refresh_vehicle_handles(scalar_profile);
+        self.refresh_player_handles(scalar_profile);
+        self.refresh_object_handle_ids(scalar_profile);
+        self.refresh_pickup_handle_ids(scalar_profile);
+        self.refresh_vehicle_handle_ids(scalar_profile);
+        self.refresh_player_handle_ids(scalar_profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
     }
 

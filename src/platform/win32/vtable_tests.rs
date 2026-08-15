@@ -202,6 +202,34 @@ fn dialog_response_take_is_one_shot() {
     assert_eq!(state.take_local_dialog_response(), Ok(None));
 }
 
+#[test]
+fn r3_dialog_response_take_is_one_shot() {
+    let mut state = test_backend_state();
+    state.context.version = SampVersion::R3_1;
+    state.context.native_profile = r3_scalar_profile();
+    state.rak_client.store(1, Ordering::Release);
+    *state
+        .local_dialog_response
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(LocalDialogResponseSnapshot {
+        dialog_id: 8,
+        button: 0,
+        list_item: 0,
+        input: b"r3 fixture".to_vec(),
+    });
+
+    assert_eq!(
+        state.take_local_dialog_response(),
+        Ok(Some(LocalDialogResponseSnapshot {
+            dialog_id: 8,
+            button: 0,
+            list_item: 0,
+            input: b"r3 fixture".to_vec(),
+        }))
+    );
+    assert_eq!(state.take_local_dialog_response(), Ok(None));
+}
+
 fn test_chat_message() -> LocalChatMessageRequest {
     LocalChatMessageRequest {
         style: crate::runtime::LocalChatMessageStyle::Debug,
@@ -572,6 +600,41 @@ fn r3_player_pool_scalars_use_exact_published_values() {
     assert_eq!(state.player_count(true), Ok(3));
     assert_eq!(state.player_count(false), Ok(2));
     assert_eq!(state.player_max_id(), Ok(42));
+}
+
+#[test]
+fn r3_player_directory_uses_local_and_published_remote_states() {
+    let mut state = test_backend_state();
+    state.context.native_profile = r3_scalar_profile();
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
+    state.cache_local_player_snapshot(Some(test_snapshot(42)));
+    state.cache_local_player_snapshot(Some(test_snapshot(42)));
+
+    assert_eq!(state.player_defined(42), Ok(true));
+    assert_eq!(state.player_defined(7), Err(DirectClientError::NotReady));
+    assert_eq!(
+        state.player_info_requests.lock().unwrap().as_slices().0,
+        [7]
+    );
+
+    state.player_info_cache.lock().unwrap()[7] = PlayerInfoCacheEntry::Known(None);
+    state.player_info_cache.lock().unwrap()[8] =
+        PlayerInfoCacheEntry::Known(Some(PlayerInfoSnapshot {
+            id: 8,
+            defined: true,
+            paused: false,
+            nickname: b"remote".to_vec(),
+            is_local: false,
+            is_npc: false,
+            colour: 0,
+            score: 0,
+            ping: 0,
+        }));
+
+    assert_eq!(state.player_defined(7), Ok(false));
+    assert_eq!(state.player_defined(8), Ok(true));
+    assert_eq!(state.player_info(7), Ok(None));
 }
 
 #[test]

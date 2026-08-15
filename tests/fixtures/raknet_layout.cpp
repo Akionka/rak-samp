@@ -469,6 +469,124 @@ struct FixtureR3_1NetGame {
     void* pools;
 };
 
+struct FixtureR3_1Pools {
+    void* menu;
+    void* actor;
+    void* player;
+    void* vehicle;
+    void* pickup;
+    void* object;
+    void* gang_zone;
+    void* label;
+    void* textdraw;
+};
+
+struct FixtureR3_1TextLabel {
+    char* text;
+    std::uint32_t colour;
+    float position[3];
+    float draw_distance;
+    std::uint8_t behind_walls;
+    std::uint16_t attached_player;
+    std::uint16_t attached_vehicle;
+};
+
+struct FixtureR3_1LabelPool {
+    FixtureR3_1TextLabel labels[2048];
+    std::int32_t not_empty[2048];
+};
+
+struct FixtureR3_1VehiclePoolPrefix {
+    std::uint8_t pad[0x3074];
+    std::int32_t not_empty[2000];
+    void* game_objects[2000];
+};
+
+struct FixtureR3_1ObjectPoolPrefix {
+    std::int32_t largest_id;
+    std::int32_t not_empty[1000];
+    void* objects[1000];
+};
+
+struct FixtureR3_1PickupPoolPrefix {
+    std::int32_t count;
+    std::int32_t handles[4096];
+};
+
+struct FixtureR3_1EntityPrefix {
+    void* vtable;
+    std::uint8_t pad[60];
+    void* game_entity;
+    std::int32_t handle;
+};
+
+struct FixtureR3_1Gangzone {
+    float left;
+    float bottom;
+    float right;
+    float top;
+    std::uint32_t colour;
+    std::uint32_t alternate_colour;
+};
+
+struct FixtureR3_1GangzonePool {
+    FixtureR3_1Gangzone* gangzones[1024];
+    std::int32_t not_empty[1024];
+};
+
+struct FixtureR3_1TextdrawData {
+    float letter_width;
+    float letter_height;
+    std::uint32_t letter_colour;
+    std::uint8_t unknown;
+    std::uint8_t align_center;
+    std::uint8_t box_enabled;
+    float box_width;
+    float box_height;
+    std::uint32_t box_colour;
+    std::uint8_t proportional;
+    std::uint32_t background_colour;
+    std::uint8_t shadow;
+    std::uint8_t outline;
+    std::uint8_t align_left;
+    std::uint8_t align_right;
+    std::int32_t style;
+    float x;
+    float y;
+    std::uint8_t pad[8];
+    std::uint32_t unknown_38;
+    std::uint32_t unknown_3c;
+    std::uint32_t unknown_40;
+    std::uint8_t unknown_44;
+    std::uint16_t model_id;
+    float rotation[3];
+    float zoom;
+    std::uint16_t model_colour1;
+    std::uint16_t model_colour2;
+    std::uint8_t unknown_5b[3];
+    std::uint32_t unknown_5e;
+    std::uint32_t unknown_62;
+    std::uint32_t unknown_66;
+    std::uint32_t unknown_6a;
+    std::uint8_t unknown_6e;
+    std::uint32_t unknown_6f;
+};
+
+struct FixtureR3_1Textdraw {
+    char text[801];
+    char string[1602];
+    FixtureR3_1TextdrawData data;
+};
+
+struct FixtureR3_1TextdrawPool {
+    std::int32_t not_empty[2304];
+    FixtureR3_1Textdraw* objects[2304];
+};
+
+struct FixtureR3_1AnimationEntry {
+    char name_and_file[36];
+};
+
 struct FixtureR3_1String {
     std::uint8_t storage[0x18];
 };
@@ -507,7 +625,63 @@ struct FixtureR3_1LocalPlayerPrefix {
     std::int32_t active;
     std::int32_t wasted;
     std::uint16_t current_vehicle;
+    std::uint16_t last_vehicle;
+    std::uint32_t animation;
+    std::int32_t field_1;
+    std::int32_t does_spectating;
+    std::uint8_t team;
+    std::uint16_t field_10d;
+    std::uint32_t last_update;
+    std::uint32_t last_spec_update;
+    std::uint32_t last_aim_update;
+    std::uint32_t last_stats_update;
+    std::uint8_t camera_target[8];
+    std::uint32_t last_camera_target_update;
+    std::uint8_t head[20];
+    std::uint32_t last_any_update;
 };
+
+#pragma pack(push, 1)
+struct FixtureR3_1RemotePlayerPrefix {
+    void* ped;
+    void* vehicle;
+    std::uint16_t id;
+    std::uint16_t vehicle_id;
+    std::int32_t field_1;
+    std::int32_t draw_labels;
+    std::int32_t has_jetpack;
+    std::uint8_t special_action;
+    FixtureR1IncarData incar;
+    FixtureR1TrailerData trailer;
+    FixtureR1AimData aim;
+    FixtureR1PassengerData passenger;
+    FixtureR1OnfootData onfoot;
+    std::uint8_t team;
+    std::uint8_t state;
+    std::uint8_t seat;
+    std::int32_t field_3;
+    std::int32_t passenger_drive_by;
+    FixtureVector3 onfoot_target_position;
+    FixtureVector3 onfoot_target_speed;
+    FixtureVector3 incar_target_position;
+    FixtureVector3 incar_target_speed;
+    std::uint8_t pad_1[76];
+    FixtureVector3 position_difference;
+    struct {
+        float real;
+        FixtureVector3 imag;
+    } incar_target_rotation;
+    float reported_armour;
+    float reported_health;
+    std::uint8_t pad_2[12];
+    std::uint32_t animation;
+    std::uint8_t update_type;
+    std::uint32_t last_update;
+    std::uint32_t last_timestamp;
+    std::int32_t performing_custom_animation;
+    std::int32_t status;
+};
+#pragma pack(pop)
 
 struct FixtureR3_1PedPrefix {
     std::uint8_t pad[0x2A4];
@@ -546,6 +720,18 @@ struct FixtureR3_1Dialog {
     char caption[65];
     std::int32_t server_side;
     std::uint8_t pad[536];
+};
+
+struct FixtureR3_1ListboxPrefix {
+    std::uint8_t pad_0[0x143];
+    std::int32_t selected;
+    std::uint8_t pad_1[5];
+    void* items;
+    std::int32_t item_count;
+};
+
+struct FixtureR3_1ListboxItemPrefix {
+    char text[256];
 };
 
 struct FixtureR3_1Scoreboard {
@@ -813,6 +999,47 @@ static_assert(offsetof(FixtureR3_1NetGame, hostname) == 0x131);
 static_assert(offsetof(FixtureR3_1NetGame, port) == 0x235);
 static_assert(offsetof(FixtureR3_1NetGame, game_state) == 0x3CD);
 static_assert(offsetof(FixtureR3_1NetGame, pools) == 0x3DE);
+static_assert(sizeof(FixtureR3_1Pools) == 0x24);
+static_assert(offsetof(FixtureR3_1Pools, label) == 0x1C);
+static_assert(offsetof(FixtureR3_1Pools, object) == 0x14);
+static_assert(offsetof(FixtureR3_1Pools, gang_zone) == 0x18);
+static_assert(offsetof(FixtureR3_1Pools, pickup) == 0x10);
+static_assert(sizeof(FixtureR3_1TextLabel) == 0x1D);
+static_assert(offsetof(FixtureR3_1LabelPool, not_empty) == 0xE800);
+static_assert(offsetof(FixtureR3_1VehiclePoolPrefix, not_empty) == 0x3074);
+static_assert(offsetof(FixtureR3_1VehiclePoolPrefix, game_objects) == 0x4FB4);
+static_assert(offsetof(FixtureR3_1ObjectPoolPrefix, not_empty) == 0x04);
+static_assert(offsetof(FixtureR3_1ObjectPoolPrefix, objects) == 0xFA4);
+static_assert(offsetof(FixtureR3_1PickupPoolPrefix, handles) == 0x04);
+static_assert(offsetof(FixtureR3_1EntityPrefix, handle) == 0x44);
+static_assert(sizeof(FixtureR3_1Gangzone) == 0x18);
+static_assert(offsetof(FixtureR3_1GangzonePool, not_empty) == 0x1000);
+static_assert(sizeof(FixtureR3_1GangzonePool) == 0x2000);
+static_assert(sizeof(FixtureR3_1TextdrawData) == 0x73);
+static_assert(offsetof(FixtureR3_1TextdrawData, letter_width) == 0x00);
+static_assert(offsetof(FixtureR3_1TextdrawData, proportional) == 0x1B);
+static_assert(offsetof(FixtureR3_1TextdrawData, background_colour) == 0x1C);
+static_assert(offsetof(FixtureR3_1TextdrawData, shadow) == 0x20);
+static_assert(offsetof(FixtureR3_1TextdrawData, outline) == 0x21);
+static_assert(offsetof(FixtureR3_1TextdrawData, align_left) == 0x22);
+static_assert(offsetof(FixtureR3_1TextdrawData, align_right) == 0x23);
+static_assert(offsetof(FixtureR3_1TextdrawData, style) == 0x24);
+static_assert(offsetof(FixtureR3_1TextdrawData, x) == 0x28);
+static_assert(offsetof(FixtureR3_1TextdrawData, box_enabled) == 0x0E);
+static_assert(offsetof(FixtureR3_1TextdrawData, box_width) == 0x0F);
+static_assert(offsetof(FixtureR3_1TextdrawData, box_height) == 0x13);
+static_assert(offsetof(FixtureR3_1TextdrawData, box_colour) == 0x17);
+static_assert(offsetof(FixtureR3_1TextdrawData, model_id) == 0x45);
+static_assert(offsetof(FixtureR3_1TextdrawData, rotation) == 0x47);
+static_assert(offsetof(FixtureR3_1TextdrawData, zoom) == 0x53);
+static_assert(offsetof(FixtureR3_1TextdrawData, model_colour1) == 0x57);
+static_assert(offsetof(FixtureR3_1TextdrawData, model_colour2) == 0x59);
+static_assert(sizeof(FixtureR3_1Textdraw) == 0x9D6);
+static_assert(offsetof(FixtureR3_1Textdraw, string) == 0x321);
+static_assert(offsetof(FixtureR3_1Textdraw, data) == 0x963);
+static_assert(offsetof(FixtureR3_1TextdrawPool, objects) == 0x2400);
+static_assert(sizeof(FixtureR3_1TextdrawPool) == 0x4800);
+static_assert(sizeof(FixtureR3_1AnimationEntry) == 0x24);
 static_assert(sizeof(FixtureR3_1String) == 0x18);
 static_assert(sizeof(FixtureR3_1PlayerInfo) == 0x2C);
 static_assert(offsetof(FixtureR3_1PlayerInfo, is_npc) == 0x28);
@@ -824,11 +1051,21 @@ static_assert(offsetof(FixtureR3_1PlayerPool, previous_collision) == 0x1F64);
 static_assert(offsetof(FixtureR3_1PlayerPool, local_info.ping) == 0x2F14);
 static_assert(offsetof(FixtureR3_1PlayerPool, local_info.score) == 0x2F18);
 static_assert(offsetof(FixtureR3_1PlayerPool, local_info.id) == 0x2F1C);
-static_assert(sizeof(FixtureR3_1LocalPlayerPrefix) == 0xFE);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, special_action) == 0x18);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, incar) == 0x19);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, trailer) == 0x58);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, aim) == 0x8E);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, passenger) == 0xAD);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, onfoot) == 0xC5);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, reported_armour) == 0x1AC);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, reported_health) == 0x1B0);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, animation) == 0x1C0);
+static_assert(offsetof(FixtureR3_1RemotePlayerPrefix, status) == 0x1D1);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, incar) == 0x04);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, onfoot) == 0x98);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, active) == 0xF4);
 static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, current_vehicle) == 0xFC);
+static_assert(offsetof(FixtureR3_1LocalPlayerPrefix, last_any_update) == 0x13F);
 static_assert(offsetof(FixtureR3_1PedPrefix, game_ped) == 0x2A4);
 static_assert(sizeof(FixtureR3_1Input) == 0x1AFC);
 static_assert(offsetof(FixtureR3_1Input, editbox) == 0x08);
@@ -838,7 +1075,17 @@ static_assert(offsetof(FixtureR3_1Input, command_names) == 0x24C);
 static_assert(sizeof(FixtureR3_1Input::command_names[0]) == 33);
 static_assert(sizeof(FixtureR3_1Dialog) == 0x29D);
 static_assert(offsetof(FixtureR3_1Dialog, active) == 0x28);
+static_assert(offsetof(FixtureR3_1Dialog, listbox) == 0x20);
+static_assert(offsetof(FixtureR3_1Dialog, editbox) == 0x24);
+static_assert(offsetof(FixtureR3_1Dialog, type) == 0x2C);
+static_assert(offsetof(FixtureR3_1Dialog, id) == 0x30);
+static_assert(offsetof(FixtureR3_1Dialog, text) == 0x34);
 static_assert(offsetof(FixtureR3_1Dialog, caption) == 0x40);
+static_assert(offsetof(FixtureR3_1Dialog, server_side) == 0x81);
+static_assert(offsetof(FixtureR3_1ListboxPrefix, selected) == 0x143);
+static_assert(offsetof(FixtureR3_1ListboxPrefix, items) == 0x14C);
+static_assert(offsetof(FixtureR3_1ListboxPrefix, item_count) == 0x150);
+static_assert(sizeof(FixtureR3_1ListboxItemPrefix::text) == 256);
 static_assert(sizeof(FixtureR3_1Scoreboard) == 0x44);
 static_assert(offsetof(FixtureR3_1Scoreboard, is_enabled) == 0x00);
 static_assert(sizeof(FixtureR3_1Game) == 0x142);
@@ -1350,6 +1597,78 @@ std::size_t samp_client_sdk_fixture_r3_1_netgame_pools_offset() {
     return offsetof(FixtureR3_1NetGame, pools);
 }
 
+std::size_t samp_client_sdk_fixture_r3_1_pools_label_offset() {
+    return offsetof(FixtureR3_1Pools, label);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_text_label_size() {
+    return sizeof(FixtureR3_1TextLabel);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_label_pool_not_empty_offset() {
+    return offsetof(FixtureR3_1LabelPool, not_empty);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_vehicle_pool_not_empty_offset() {
+    return offsetof(FixtureR3_1VehiclePoolPrefix, not_empty);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_vehicle_pool_game_objects_offset() {
+    return offsetof(FixtureR3_1VehiclePoolPrefix, game_objects);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_pools_object_offset() {
+    return offsetof(FixtureR3_1Pools, object);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_object_pool_not_empty_offset() {
+    return offsetof(FixtureR3_1ObjectPoolPrefix, not_empty);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_object_pool_objects_offset() {
+    return offsetof(FixtureR3_1ObjectPoolPrefix, objects);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_pools_pickup_offset() {
+    return offsetof(FixtureR3_1Pools, pickup);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_pickup_pool_handles_offset() {
+    return offsetof(FixtureR3_1PickupPoolPrefix, handles);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_entity_handle_offset() {
+    return offsetof(FixtureR3_1EntityPrefix, handle);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_pools_gangzone_offset() {
+    return offsetof(FixtureR3_1Pools, gang_zone);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_gangzone_size() {
+    return sizeof(FixtureR3_1Gangzone);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_gangzone_pool_not_empty_offset() {
+    return offsetof(FixtureR3_1GangzonePool, not_empty);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_pools_textdraw_offset() {
+    return offsetof(FixtureR3_1Pools, textdraw);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_textdraw_size() {
+    return sizeof(FixtureR3_1Textdraw);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_textdraw_pool_objects_offset() {
+    return offsetof(FixtureR3_1TextdrawPool, objects);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_animation_entry_size() {
+    return sizeof(FixtureR3_1AnimationEntry);
+}
+
 std::size_t samp_client_sdk_fixture_r3_1_player_pool_local_id_offset() {
     return offsetof(FixtureR3_1PlayerPool, local_info.id);
 }
@@ -1362,12 +1681,32 @@ std::size_t samp_client_sdk_fixture_r3_1_player_pool_largest_id_offset() {
     return offsetof(FixtureR3_1PlayerPool, largest_id);
 }
 
+std::size_t samp_client_sdk_fixture_r3_1_player_pool_objects_offset() {
+    return offsetof(FixtureR3_1PlayerPool, objects);
+}
+
 std::size_t samp_client_sdk_fixture_r3_1_player_info_size() {
     return sizeof(FixtureR3_1PlayerInfo);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_player_info_is_npc_offset() {
     return offsetof(FixtureR3_1PlayerInfo, is_npc);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_remote_player_special_action_offset() {
+    return offsetof(FixtureR3_1RemotePlayerPrefix, special_action);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_remote_player_reported_armour_offset() {
+    return offsetof(FixtureR3_1RemotePlayerPrefix, reported_armour);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_remote_player_reported_health_offset() {
+    return offsetof(FixtureR3_1RemotePlayerPrefix, reported_health);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_remote_player_animation_offset() {
+    return offsetof(FixtureR3_1RemotePlayerPrefix, animation);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_local_player_incar_offset() {
@@ -1384,6 +1723,10 @@ std::size_t samp_client_sdk_fixture_r3_1_local_player_active_offset() {
 
 std::size_t samp_client_sdk_fixture_r3_1_local_player_current_vehicle_offset() {
     return offsetof(FixtureR3_1LocalPlayerPrefix, current_vehicle);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_local_player_last_any_update_offset() {
+    return offsetof(FixtureR3_1LocalPlayerPrefix, last_any_update);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_ped_game_ped_offset() {
@@ -1424,6 +1767,42 @@ std::size_t samp_client_sdk_fixture_r3_1_dialog_active_offset() {
 
 std::size_t samp_client_sdk_fixture_r3_1_dialog_caption_offset() {
     return offsetof(FixtureR3_1Dialog, caption);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_listbox_offset() {
+    return offsetof(FixtureR3_1Dialog, listbox);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_editbox_offset() {
+    return offsetof(FixtureR3_1Dialog, editbox);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_type_offset() {
+    return offsetof(FixtureR3_1Dialog, type);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_id_offset() {
+    return offsetof(FixtureR3_1Dialog, id);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_text_offset() {
+    return offsetof(FixtureR3_1Dialog, text);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_dialog_server_side_offset() {
+    return offsetof(FixtureR3_1Dialog, server_side);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_listbox_selected_offset() {
+    return offsetof(FixtureR3_1ListboxPrefix, selected);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_listbox_items_offset() {
+    return offsetof(FixtureR3_1ListboxPrefix, items);
+}
+
+std::size_t samp_client_sdk_fixture_r3_1_listbox_item_count_offset() {
+    return offsetof(FixtureR3_1ListboxPrefix, item_count);
 }
 
 std::size_t samp_client_sdk_fixture_r3_1_scoreboard_size() {

@@ -20,7 +20,7 @@ impl Backend {
     }
 
     pub(crate) fn raw_rakpeer(&self) -> Option<*mut c_void> {
-        let profile = self.state.r1_client()?;
+        let profile = self.state.scalar_profile()?;
         let client = self.raw_rakclient()?;
         profile.rakpeer_address(client).ok()
     }

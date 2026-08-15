@@ -190,7 +190,7 @@ impl BackendState {
         &self,
         request: LocalDialogRequest,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -203,7 +203,7 @@ impl BackendState {
         &self,
         request: LocalChatMessageRequest,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -216,7 +216,7 @@ impl BackendState {
         &self,
         request: LocalDeathMessageRequest,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -229,7 +229,7 @@ impl BackendState {
         &self,
         mode: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(mode, 0..=4) {
@@ -242,7 +242,7 @@ impl BackendState {
         &self,
         mode: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(mode, 0..=2) {
@@ -259,7 +259,7 @@ impl BackendState {
         text_colour: u32,
         prefix_colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -284,7 +284,7 @@ impl BackendState {
         &self,
         button: u8,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || button > 1 {
@@ -297,7 +297,7 @@ impl BackendState {
         &self,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
@@ -310,7 +310,7 @@ impl BackendState {
         &self,
         enabled: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -323,7 +323,7 @@ impl BackendState {
         &self,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
@@ -338,7 +338,7 @@ impl BackendState {
         slot: u8,
         name: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -362,7 +362,7 @@ impl BackendState {
         subscription: u64,
         name: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -380,7 +380,7 @@ impl BackendState {
         &self,
         show: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -393,7 +393,7 @@ impl BackendState {
         &self,
         open: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -406,7 +406,7 @@ impl BackendState {
         &self,
         client_side: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -419,7 +419,7 @@ impl BackendState {
         &self,
         selected: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -432,7 +432,7 @@ impl BackendState {
         &self,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || text.len() > 128 || text.contains(&0) {
@@ -445,7 +445,7 @@ impl BackendState {
         &self,
         state: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -461,7 +461,7 @@ impl BackendState {
         address: Vec<u8>,
         port: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -479,7 +479,7 @@ impl BackendState {
         &self,
         block_duration: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -489,7 +489,7 @@ impl BackendState {
     }
 
     pub(super) fn submit_delete_textdraw(&self, id: u16) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -505,7 +505,7 @@ impl BackendState {
         x: f32,
         y: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -521,7 +521,7 @@ impl BackendState {
     }
 
     pub(super) fn submit_delete_text_label(&self, id: u16) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXT_LABELS {
@@ -542,7 +542,7 @@ impl BackendState {
         attached_player_id: u16,
         attached_vehicle_id: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none()
+        if self.scalar_profile().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || usize::from(id) >= MAX_SAMP_TEXT_LABELS
             || text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
@@ -577,7 +577,7 @@ impl BackendState {
         attached_player_id: u16,
         attached_vehicle_id: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none()
+        if self.scalar_profile().is_none()
             || self.rak_client.load(Ordering::Acquire) == 0
             || text.len() > MAX_SAMP_TEXT_LABEL_TEXT_BYTES
             || text.contains(&0)
@@ -610,7 +610,7 @@ impl BackendState {
         id: u16,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -693,7 +693,7 @@ impl BackendState {
         x: f32,
         y: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -711,7 +711,7 @@ impl BackendState {
         id: u16,
         style: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -730,7 +730,7 @@ impl BackendState {
         height: f32,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -753,7 +753,7 @@ impl BackendState {
         id: u16,
         proportional: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -768,7 +768,7 @@ impl BackendState {
         shadow: u8,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -783,7 +783,7 @@ impl BackendState {
         outline: u8,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -804,7 +804,7 @@ impl BackendState {
         width: f32,
         height: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -828,7 +828,7 @@ impl BackendState {
         id: u16,
         alignment: u8,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -845,7 +845,7 @@ impl BackendState {
         id: u16,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -866,7 +866,7 @@ impl BackendState {
         colour1: u16,
         colour2: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -888,7 +888,7 @@ impl BackendState {
     }
 
     pub(super) fn submit_local_player_spawn(&self) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 {
@@ -901,7 +901,7 @@ impl BackendState {
         &self,
         action: u8,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !matches!(action, 0..=12 | 20..=25 | 68)
@@ -915,7 +915,7 @@ impl BackendState {
         &self,
         name: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || name.len() > 255 || name.contains(&0) {
@@ -929,7 +929,7 @@ impl BackendState {
         vehicle: u16,
         seat: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(vehicle) >= MAX_SAMP_VEHICLES
@@ -940,19 +940,19 @@ impl BackendState {
     }
 
     pub(super) fn submit_force_aim_sync(&self) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::ForceAimSync)
     }
     pub(super) fn submit_force_onfoot_sync(&self) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::ForceOnfootSync)
     }
     pub(super) fn submit_force_stats_sync(&self) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::ForceStatsSync)
@@ -962,7 +962,7 @@ impl BackendState {
         &self,
         trailer: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(trailer) >= MAX_SAMP_VEHICLES
@@ -976,7 +976,7 @@ impl BackendState {
         &self,
         vehicle: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(vehicle) >= MAX_SAMP_VEHICLES
@@ -991,7 +991,7 @@ impl BackendState {
         vehicle: u16,
         seat: u8,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(vehicle) >= MAX_SAMP_VEHICLES
@@ -1002,7 +1002,7 @@ impl BackendState {
     }
 
     pub(super) fn submit_force_weapons_sync(&self) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
+        if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
         self.queue_game_command(GameCommand::ForceWeaponsSync)
@@ -1013,7 +1013,7 @@ impl BackendState {
         kind: u8,
         milliseconds: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -1030,7 +1030,7 @@ impl BackendState {
         id: u16,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.r1_client().is_none() {
+        if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_PLAYERS {
@@ -1043,7 +1043,7 @@ impl BackendState {
         for queued in commands {
             let result = match queued.command {
                 GameCommand::ShowDialog(request) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1057,7 +1057,7 @@ impl BackendState {
                             })
                     }),
                 GameCommand::CloseDialog(button) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1065,7 +1065,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetChatInputText(text) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1073,7 +1073,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetChatInputEnabled(enabled) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1081,7 +1081,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ProcessChatInput(text) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1094,7 +1094,7 @@ impl BackendState {
                     name,
                 } => {
                     let result = self
-                        .r1_client()
+                        .scalar_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             let result = profile
@@ -1104,7 +1104,7 @@ impl BackendState {
                                 )
                                 .map_err(|_| CommandError::NativeFailure);
                             if result.is_ok() {
-                                self.refresh_local_chat_input_commands(NativeProfile::R1(profile));
+                                self.refresh_local_chat_input_commands(profile);
                             }
                             result
                         });
@@ -1116,14 +1116,14 @@ impl BackendState {
                 }
                 GameCommand::UnregisterChatCommand { subscription, name } => {
                     let result = self
-                        .r1_client()
+                        .scalar_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             let result = profile
                                 .unregister_chat_command(&name)
                                 .map_err(|_| CommandError::NativeFailure);
                             if result.is_ok() {
-                                self.refresh_local_chat_input_commands(NativeProfile::R1(profile));
+                                self.refresh_local_chat_input_commands(profile);
                             }
                             result
                         });
@@ -1134,7 +1134,7 @@ impl BackendState {
                     result
                 }
                 GameCommand::SetChatDisplayMode(mode) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1148,7 +1148,7 @@ impl BackendState {
                     text_colour,
                     prefix_colour,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1156,7 +1156,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::AddChatMessage(request) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1170,7 +1170,7 @@ impl BackendState {
                             })
                     }),
                 GameCommand::AddDeathMessage(request) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1184,7 +1184,7 @@ impl BackendState {
                             })
                     }),
                 GameCommand::SetCursorMode(mode) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1192,7 +1192,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ToggleCursor(show) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1200,7 +1200,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetScoreboardOpen(open) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1208,7 +1208,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetDialogClientSide(client_side) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1216,7 +1216,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetDialogSelectedItem(selected) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1224,7 +1224,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetDialogEditboxText(text) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1232,7 +1232,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetGameState(state) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1241,7 +1241,7 @@ impl BackendState {
                     }),
                 GameCommand::ConnectToServer { address, port } => {
                     let result = self
-                        .r1_client()
+                        .scalar_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile
@@ -1256,7 +1256,7 @@ impl BackendState {
                 GameCommand::DisconnectWithReason(block_duration) => {
                     let rak_client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
                     let result = self
-                        .r1_client()
+                        .scalar_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile
@@ -1273,7 +1273,7 @@ impl BackendState {
                     result
                 }
                 GameCommand::DeleteTextdraw(id) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1281,7 +1281,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::CreateTextdraw { id, text, x, y } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1291,7 +1291,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::DeleteTextLabel(id) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1308,7 +1308,7 @@ impl BackendState {
                     attached_player_id,
                     attached_vehicle_id,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1333,7 +1333,7 @@ impl BackendState {
                     attached_player_id,
                     attached_vehicle_id,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         let id = profile
@@ -1360,7 +1360,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextLabelText { id, text } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         let label = profile
@@ -1387,7 +1387,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawPosition { id, x, y } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1395,7 +1395,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetTextdrawStyle { id, style } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1410,7 +1410,7 @@ impl BackendState {
                     height,
                     colour,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1418,7 +1418,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetTextdrawProportional { id, proportional } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1426,7 +1426,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetTextdrawShadow { id, shadow, colour } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1438,7 +1438,7 @@ impl BackendState {
                     outline,
                     colour,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1452,7 +1452,7 @@ impl BackendState {
                     width,
                     height,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1460,7 +1460,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetTextdrawAlignment { id, alignment } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1468,7 +1468,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetTextdrawString { id, text } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1482,7 +1482,7 @@ impl BackendState {
                     colour1,
                     colour2,
                 } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1490,7 +1490,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SpawnLocalPlayer => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1498,7 +1498,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetLocalPlayerSpecialAction(action) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1506,7 +1506,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetLocalPlayerName(name) => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1514,7 +1514,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceUnoccupiedSync { vehicle, seat } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1522,7 +1522,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceAimSync => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1530,7 +1530,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceOnfootSync => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1538,7 +1538,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceStatsSync => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1546,7 +1546,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceTrailerSync { trailer } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1554,7 +1554,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceVehicleSync { vehicle } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1562,7 +1562,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForcePassengerSync { vehicle, seat } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1570,7 +1570,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceWeaponsSync => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1578,7 +1578,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1586,7 +1586,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetSendRate { kind, milliseconds } => self
-                    .r1_client()
+                    .scalar_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
