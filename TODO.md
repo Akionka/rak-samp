@@ -515,7 +515,11 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 - [x] Prepare the full R3 live validation suite: UI/dialog/command mutations,
   animation, label/textdraw lifecycles, local/remote sync snapshots, outgoing
   force-sync packet observation, controlled vehicle states, and opt-in
-  disconnect/reconnect in one two-client run.
+  disconnect/reconnect in one client run with the server-managed NPC.
+- [x] Replace the timing-sensitive R3 scoreboard/chat-input steps and manual
+  second client with automatic SDK transitions and `R3ProbeBot`; keep remote
+  aim/passenger/trailer outside the stock-NPC claim because `samp-npc.exe`
+  cannot emit those packet types.
 - [ ] Execute the full R3 live validation suite; record connected status
   `0x0FFFFFFF`, final reconnect status `0x3FFFFFFF`, server/host logs, and
   unload-hook restoration evidence before checking the remaining R3 rows.

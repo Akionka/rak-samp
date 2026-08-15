@@ -9,20 +9,14 @@
 #define R3_PROBE_LOCAL_DRIVER_REQUEST "R3_SDK_LOCAL_DRIVER_REQUEST"
 #define R3_PROBE_LOCAL_PASSENGER_REQUEST "R3_SDK_LOCAL_PASSENGER_REQUEST"
 #define R3_PROBE_LOCAL_TRAILER_REQUEST "R3_SDK_LOCAL_TRAILER_REQUEST"
-#define R3_PROBE_REMOTE_DRIVER_REQUEST "R3_SDK_REMOTE_DRIVER_REQUEST"
-#define R3_PROBE_REMOTE_PASSENGER_REQUEST "R3_SDK_REMOTE_PASSENGER_REQUEST"
-#define R3_PROBE_REMOTE_TRAILER_REQUEST "R3_SDK_REMOTE_TRAILER_REQUEST"
 #define R3_PROBE_VEHICLE_CLEANUP "R3_SDK_VEHICLE_CLEANUP"
 #define R3_PROBE_COLOUR 0x6FCF97FF
 #define R3_PROBE_DIALOG_ID 25000
+#define R3_PROBE_NPC_NAME "R3ProbeBot"
 
 new gProbeVehicle[MAX_PLAYERS];
 new gProbeTruck[MAX_PLAYERS];
 new gProbeTrailer[MAX_PLAYERS];
-new gRemoteVehicle[MAX_PLAYERS];
-new gRemoteTruck[MAX_PLAYERS];
-new gRemoteTrailer[MAX_PLAYERS];
-new gRemotePlayer[MAX_PLAYERS];
 
 public OnFilterScriptInit()
 {
@@ -31,6 +25,19 @@ public OnFilterScriptInit()
         ResetProbeVehicles(playerid);
     }
     print("[r3_network_probe] ready");
+    return 1;
+}
+
+public OnPlayerRequestClass(playerid, classid)
+{
+    if (!IsProbeNpc(playerid)) return 1;
+    SetSpawnInfo(playerid, 0, 61, 1958.3783, 1343.1572, 15.3746, 90.0, -1, -1, -1, -1, -1, -1);
+    return 0;
+}
+
+public OnPlayerSpawn(playerid)
+{
+    if (IsProbeNpc(playerid)) SetPlayerColor(playerid, R3_PROBE_COLOUR);
     return 1;
 }
 
@@ -150,42 +157,6 @@ public OnPlayerText(playerid, text[])
         SendClientMessage(playerid, R3_PROBE_COLOUR, message);
         return 0;
     }
-    if (!strcmp(text, R3_PROBE_REMOTE_DRIVER_REQUEST, false))
-    {
-        new Float:x, Float:y, Float:z;
-        new message[64];
-        gRemotePlayer[playerid] = FindOtherPlayer(playerid);
-        if (gRemotePlayer[playerid] == INVALID_PLAYER_ID) return 0;
-        GetPlayerPos(playerid, x, y, z);
-        gRemoteVehicle[playerid] = CreateVehicle(560, x + 8.0, y, z, 0.0, 1, 1, -1);
-        PutPlayerInVehicle(gRemotePlayer[playerid], gRemoteVehicle[playerid], 0);
-        format(message, sizeof message, "R3_SDK_REMOTE_DRIVER_READY_%d,%d", gRemotePlayer[playerid], gRemoteVehicle[playerid]);
-        SendClientMessage(playerid, R3_PROBE_COLOUR, message);
-        return 0;
-    }
-    if (!strcmp(text, R3_PROBE_REMOTE_PASSENGER_REQUEST, false))
-    {
-        new message[64];
-        if (gRemotePlayer[playerid] == INVALID_PLAYER_ID || !ProbeVehicleIsValid(gRemoteVehicle[playerid])) return 0;
-        PutPlayerInVehicle(gRemotePlayer[playerid], gRemoteVehicle[playerid], 1);
-        format(message, sizeof message, "R3_SDK_REMOTE_PASSENGER_READY_%d,%d", gRemotePlayer[playerid], gRemoteVehicle[playerid]);
-        SendClientMessage(playerid, R3_PROBE_COLOUR, message);
-        return 0;
-    }
-    if (!strcmp(text, R3_PROBE_REMOTE_TRAILER_REQUEST, false))
-    {
-        new Float:x, Float:y, Float:z;
-        new message[80];
-        if (gRemotePlayer[playerid] == INVALID_PLAYER_ID) return 0;
-        GetPlayerPos(playerid, x, y, z);
-        gRemoteTruck[playerid] = CreateVehicle(515, x + 10.0, y, z, 0.0, 1, 1, -1);
-        gRemoteTrailer[playerid] = CreateVehicle(435, x + 14.0, y, z, 0.0, 1, 1, -1);
-        AttachTrailerToVehicle(gRemoteTrailer[playerid], gRemoteTruck[playerid]);
-        PutPlayerInVehicle(gRemotePlayer[playerid], gRemoteTruck[playerid], 0);
-        format(message, sizeof message, "R3_SDK_REMOTE_TRAILER_READY_%d,%d,%d", gRemotePlayer[playerid], gRemoteTruck[playerid], gRemoteTrailer[playerid]);
-        SendClientMessage(playerid, R3_PROBE_COLOUR, message);
-        return 0;
-    }
     if (!strcmp(text, R3_PROBE_VEHICLE_CLEANUP, false))
     {
         CleanupProbeVehicles(playerid);
@@ -195,28 +166,12 @@ public OnPlayerText(playerid, text[])
     return 1;
 }
 
-stock FindOtherPlayer(playerid)
-{
-    for (new otherid = 0; otherid < MAX_PLAYERS; otherid++)
-    {
-        if (otherid != playerid && IsPlayerConnected(otherid)) return otherid;
-    }
-    return INVALID_PLAYER_ID;
-}
-
 stock CleanupProbeVehicles(playerid)
 {
     RemovePlayerFromVehicle(playerid);
-    if (gRemotePlayer[playerid] != INVALID_PLAYER_ID && IsPlayerConnected(gRemotePlayer[playerid]))
-    {
-        RemovePlayerFromVehicle(gRemotePlayer[playerid]);
-    }
     if (ProbeVehicleIsValid(gProbeVehicle[playerid])) DestroyVehicle(gProbeVehicle[playerid]);
     if (ProbeVehicleIsValid(gProbeTruck[playerid])) DestroyVehicle(gProbeTruck[playerid]);
     if (ProbeVehicleIsValid(gProbeTrailer[playerid])) DestroyVehicle(gProbeTrailer[playerid]);
-    if (ProbeVehicleIsValid(gRemoteVehicle[playerid])) DestroyVehicle(gRemoteVehicle[playerid]);
-    if (ProbeVehicleIsValid(gRemoteTruck[playerid])) DestroyVehicle(gRemoteTruck[playerid]);
-    if (ProbeVehicleIsValid(gRemoteTrailer[playerid])) DestroyVehicle(gRemoteTrailer[playerid]);
     ResetProbeVehicles(playerid);
 }
 
@@ -225,10 +180,14 @@ stock ResetProbeVehicles(playerid)
     gProbeVehicle[playerid] = INVALID_VEHICLE_ID;
     gProbeTruck[playerid] = INVALID_VEHICLE_ID;
     gProbeTrailer[playerid] = INVALID_VEHICLE_ID;
-    gRemoteVehicle[playerid] = INVALID_VEHICLE_ID;
-    gRemoteTruck[playerid] = INVALID_VEHICLE_ID;
-    gRemoteTrailer[playerid] = INVALID_VEHICLE_ID;
-    gRemotePlayer[playerid] = INVALID_PLAYER_ID;
+}
+
+stock IsProbeNpc(playerid)
+{
+    if (!IsPlayerNPC(playerid)) return 0;
+    new name[MAX_PLAYER_NAME];
+    GetPlayerName(playerid, name, sizeof name);
+    return !strcmp(name, R3_PROBE_NPC_NAME, true);
 }
 
 stock ProbeVehicleIsValid(vehicleid)

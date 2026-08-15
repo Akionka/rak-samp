@@ -52,9 +52,6 @@ const LOCAL_TEXTDRAW_UPDATED_TEXT: &[u8] = b"R3 textdraw updated";
 const LOCAL_DRIVER_REQUEST: &[u8] = b"R3_SDK_LOCAL_DRIVER_REQUEST";
 const LOCAL_PASSENGER_REQUEST: &[u8] = b"R3_SDK_LOCAL_PASSENGER_REQUEST";
 const LOCAL_TRAILER_REQUEST: &[u8] = b"R3_SDK_LOCAL_TRAILER_REQUEST";
-const REMOTE_DRIVER_REQUEST: &[u8] = b"R3_SDK_REMOTE_DRIVER_REQUEST";
-const REMOTE_PASSENGER_REQUEST: &[u8] = b"R3_SDK_REMOTE_PASSENGER_REQUEST";
-const REMOTE_TRAILER_REQUEST: &[u8] = b"R3_SDK_REMOTE_TRAILER_REQUEST";
 const VEHICLE_CLEANUP_REQUEST: &[u8] = b"R3_SDK_VEHICLE_CLEANUP";
 const RECONNECT_COMMAND_NAME: &[u8] = b"r3sdkreconnect";
 const HOST_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
@@ -107,9 +104,9 @@ pub const STATUS_LOCAL_MUTATIONS: u32 = 1 << 23;
 pub const STATUS_TEXT_LABEL_LIFECYCLE: u32 = 1 << 24;
 /// A free R3 textdraw slot completed create/read/write/delete.
 pub const STATUS_TEXTDRAW_LIFECYCLE: u32 = 1 << 25;
-/// Local and remote R3 on-foot and aim snapshots passed bounded checks.
+/// Local on-foot/aim and remote NPC on-foot snapshots passed bounded checks.
 pub const STATUS_SYNC_SNAPSHOTS: u32 = 1 << 26;
-/// Controlled local/remote vehicle states and all vehicle force-sync packets passed.
+/// Controlled local vehicle states and all vehicle force-sync packets passed.
 pub const STATUS_VEHICLE_SYNC: u32 = 1 << 27;
 /// Disconnect invalidated the R3 connection-bound caches.
 pub const STATUS_DISCONNECT_INVALIDATION: u32 = 1 << 28;
@@ -206,20 +203,10 @@ struct VehiclePair {
     trailer: u16,
 }
 
-#[derive(Clone, Copy)]
-struct RemoteVehiclePhase {
-    player: u16,
-    vehicle: u16,
-    trailer: Option<u16>,
-}
-
 struct VehiclePhases {
     local_driver: Option<u16>,
     local_passenger: Option<u16>,
     local_trailer: Option<VehiclePair>,
-    remote_driver: Option<RemoteVehiclePhase>,
-    remote_passenger: Option<RemoteVehiclePhase>,
-    remote_trailer: Option<RemoteVehiclePhase>,
     cleanup: bool,
 }
 
@@ -229,9 +216,6 @@ impl VehiclePhases {
             local_driver: None,
             local_passenger: None,
             local_trailer: None,
-            remote_driver: None,
-            remote_passenger: None,
-            remote_trailer: None,
             cleanup: false,
         }
     }
@@ -470,12 +454,15 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
         .and_then(|()| verify_cached_scoreboard_transition(samp))?;
     STATUS.fetch_or(STATUS_SCOREBOARD_CACHE, Ordering::AcqRel);
     publish_status();
+    wait_for_receipt(samp.chat_input().set_enabled(true)?)?;
+    wait_for_receipt(samp.chat_input().set_text(CHAT_INPUT_TEXT_MARKER)?)?;
     verify_cached_chat_input(samp)?;
     STATUS.fetch_or(STATUS_CHAT_INPUT_CACHE, Ordering::AcqRel);
     publish_status();
     verify_cached_chat_input_text(samp)?;
     STATUS.fetch_or(STATUS_CHAT_INPUT_TEXT_CACHE, Ordering::AcqRel);
     publish_status();
+    wait_for_receipt(samp.chat_input().set_enabled(false)?)?;
     let dialog_receipt = samp.net().send_chat(DIALOG_REQUEST_MARKER)?;
     wait_for_receipt(dialog_receipt)?;
     STATUS.fetch_or(STATUS_DIALOG_REQUEST_RECEIPT, Ordering::AcqRel);
@@ -540,24 +527,6 @@ fn record_vehicle_phase(message: &[u8]) {
         phases.local_trailer = (values.len() == 2).then(|| VehiclePair {
             vehicle: values[0],
             trailer: values[1],
-        });
-    } else if let Some(values) = parse_u16_fields(message, b"R3_SDK_REMOTE_DRIVER_READY_") {
-        phases.remote_driver = (values.len() == 2).then(|| RemoteVehiclePhase {
-            player: values[0],
-            vehicle: values[1],
-            trailer: None,
-        });
-    } else if let Some(values) = parse_u16_fields(message, b"R3_SDK_REMOTE_PASSENGER_READY_") {
-        phases.remote_passenger = (values.len() == 2).then(|| RemoteVehiclePhase {
-            player: values[0],
-            vehicle: values[1],
-            trailer: None,
-        });
-    } else if let Some(values) = parse_u16_fields(message, b"R3_SDK_REMOTE_TRAILER_READY_") {
-        phases.remote_trailer = (values.len() == 3).then(|| RemoteVehiclePhase {
-            player: values[0],
-            vehicle: values[1],
-            trailer: Some(values[2]),
         });
     } else if message == b"R3_SDK_VEHICLE_CLEANUP_READY" {
         phases.cleanup = true;
@@ -825,7 +794,7 @@ fn verify_cached_player_pool_scalars(samp: Samp) -> Result<(), SampClientSdkResu
                     excluding_npcs,
                     max_id,
                 });
-                if including_npcs >= excluding_npcs && max_id.is_some() {
+                if including_npcs == excluding_npcs.saturating_add(1) && max_id.is_some() {
                     return Ok(());
                 }
                 return Err(SampClientSdkResult::NativeCallFailed);
@@ -891,7 +860,10 @@ fn verify_cached_remote_player_directory(samp: Samp) -> Result<(), SampClientSdk
                 samp.players().get(id),
             ) {
                 (Ok(true), Ok(Some(player)))
-                    if player.id == id.get() && !player.is_local && !player.nickname.is_empty() =>
+                    if player.id == id.get()
+                        && !player.is_local
+                        && player.is_npc
+                        && !player.nickname.is_empty() =>
                 {
                     match samp.players().remote_state(id) {
                         Ok(Some(state))
@@ -1003,23 +975,13 @@ fn verify_cached_chat_input_text(samp: Samp) -> Result<(), SampClientSdkResult> 
 }
 
 fn verify_cached_scoreboard_transition(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let deadline = Instant::now() + SCOREBOARD_CACHE_TIMEOUT;
-    let mut observed_open = false;
-    loop {
-        if is_shutting_down() {
-            return Err(SampClientSdkResult::ShuttingDown);
-        }
-        match samp.scoreboard().is_open() {
-            Ok(true) => observed_open = true,
-            Ok(false) if observed_open => return Ok(()),
-            Ok(false) | Err(SampClientSdkResult::NotReady) => {}
-            Err(error) => return Err(error),
-        }
-        if deadline.saturating_duration_since(Instant::now()).is_zero() {
-            return Err(SampClientSdkResult::TimedOut);
-        }
-        thread::sleep(RETRY_DELAY);
-    }
+    let scoreboard = samp.scoreboard();
+    wait_for_receipt(scoreboard.toggle(true)?)?;
+    wait_for_condition(SCOREBOARD_CACHE_TIMEOUT, || scoreboard.is_open())?;
+    wait_for_receipt(scoreboard.toggle(false)?)?;
+    wait_for_condition(SCOREBOARD_CACHE_TIMEOUT, || {
+        scoreboard.is_open().map(|open| !open)
+    })
 }
 
 fn verify_cached_dialog_active(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -1379,7 +1341,6 @@ fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
 fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
     let local_id =
         PlayerId::new(samp.local().player()?.id).ok_or(SampClientSdkResult::NativeCallFailed)?;
-    let expected_remote = find_remote_player(samp, SCALAR_CACHE_TIMEOUT)?;
 
     wait_for_receipt(samp.net().send_chat(LOCAL_DRIVER_REQUEST)?)?;
     let local_vehicle = wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_driver)?;
@@ -1445,68 +1406,6 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
         samp.local().force_unoccupied_sync(local_vehicle_id, 0)
     })?;
 
-    wait_for_receipt(samp.net().send_chat(REMOTE_DRIVER_REQUEST)?)?;
-    let remote_driver =
-        wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.remote_driver)?;
-    let remote_id =
-        PlayerId::new(remote_driver.player).ok_or(SampClientSdkResult::NativeCallFailed)?;
-    if remote_id != expected_remote {
-        return Err(SampClientSdkResult::NativeCallFailed);
-    }
-    wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
-        samp.players().player(remote_id).vehicle_sync().map(|sync| {
-            sync.is_some_and(|sync| in_car_sync_is_valid(sync, remote_id, remote_driver.vehicle))
-        })
-    })?;
-
-    wait_for_receipt(samp.net().send_chat(REMOTE_PASSENGER_REQUEST)?)?;
-    let remote_passenger =
-        wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.remote_passenger)?;
-    if remote_passenger.player != remote_id.get()
-        || remote_passenger.vehicle != remote_driver.vehicle
-    {
-        return Err(SampClientSdkResult::NativeCallFailed);
-    }
-    wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
-        samp.players()
-            .player(remote_id)
-            .passenger_sync()
-            .map(|sync| {
-                sync.is_some_and(|sync| {
-                    sync.id == remote_id.get()
-                        && sync.vehicle_id == remote_passenger.vehicle
-                        && sync.seat_id == 1
-                        && vector_is_finite(sync.position)
-                })
-            })
-    })?;
-
-    wait_for_receipt(samp.net().send_chat(REMOTE_TRAILER_REQUEST)?)?;
-    let remote_trailer =
-        wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.remote_trailer)?;
-    let Some(remote_trailer_id) = remote_trailer.trailer else {
-        return Err(SampClientSdkResult::NativeCallFailed);
-    };
-    if remote_trailer.player != remote_id.get() {
-        return Err(SampClientSdkResult::NativeCallFailed);
-    }
-    wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
-        let player = samp.players().player(remote_id);
-        let in_car = player.vehicle_sync()?;
-        let trailer = player.trailer_sync()?;
-        Ok(in_car.is_some_and(|sync| {
-            in_car_sync_is_valid(sync, remote_id, remote_trailer.vehicle)
-                && sync.trailer_id == remote_trailer_id
-        }) && trailer.is_some_and(|sync| {
-            sync.id == remote_id.get()
-                && sync.trailer_id == remote_trailer_id
-                && vector_is_finite(sync.position)
-                && vector_is_finite(sync.speed)
-                && vector_is_finite(sync.turn_speed)
-                && sync.quaternion.into_iter().all(f32::is_finite)
-        }))
-    })?;
-
     let vehicle_packet_mask =
         SYNC_PACKET_VEHICLE | SYNC_PACKET_PASSENGER | SYNC_PACKET_UNOCCUPIED | SYNC_PACKET_TRAILER;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
@@ -1570,13 +1469,9 @@ fn verify_sync_snapshots(samp: Samp) -> Result<(), SampClientSdkResult> {
         let Some(remote_onfoot) = remote.onfoot_sync()? else {
             return Ok(false);
         };
-        let Some(remote_aim) = remote.aim_sync()? else {
-            return Ok(false);
-        };
         Ok(local_onfoot.id == local_id.get()
             && local_aim.id == local_id.get()
             && remote_onfoot.id == remote_id.get()
-            && remote_aim.id == remote_id.get()
             && vector_is_finite(local_onfoot.position)
             && vector_is_finite(local_onfoot.speed)
             && local_onfoot.quaternion.into_iter().all(f32::is_finite)
@@ -1585,10 +1480,7 @@ fn verify_sync_snapshots(samp: Samp) -> Result<(), SampClientSdkResult> {
             && local_aim.aim_z.is_finite()
             && vector_is_finite(remote_onfoot.position)
             && vector_is_finite(remote_onfoot.speed)
-            && remote_onfoot.quaternion.into_iter().all(f32::is_finite)
-            && vector_is_finite(remote_aim.aim_first)
-            && vector_is_finite(remote_aim.aim_position)
-            && remote_aim.aim_z.is_finite())
+            && remote_onfoot.quaternion.into_iter().all(f32::is_finite))
     })
 }
 
