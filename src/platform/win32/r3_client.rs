@@ -1,4 +1,4 @@
-//! Private SA-MP 0.3.7 R3-1/R5-1 profile for fixture-backed direct helpers.
+//! Private SA-MP 0.3.7 R3-1/R5-1 and 0.3.DL-R1 profile for fixture-backed direct helpers.
 //!
 //! The profile exposes only copied snapshots and native calls whose object
 //! prefixes, method ABI, and fixed RVAs have all been pinned for each build. Raw
@@ -18,6 +18,7 @@ use std::{ffi::c_void, mem, ptr};
 
 const SAMP_R3_1_ENTRY_POINT: u32 = 0x0C_C4_D0;
 const SAMP_R5_1_ENTRY_POINT: u32 = 0x0C_BC_90;
+const SAMP_DL_R1_ENTRY_POINT: u32 = 0x0F_DB_60;
 const NET_GAME_SINGLETON_RVA: usize = 0x26_E8_DC;
 const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x30;
 const NET_GAME_HOSTNAME_OFFSET: usize = 0x131;
@@ -341,6 +342,7 @@ impl From<Vector3> for NativeVector3 {
 enum ClassicVersion {
     R3,
     R5,
+    Dl,
 }
 
 #[derive(Clone, Copy)]
@@ -350,7 +352,7 @@ struct RemotePlayerLayout {
     animation_offset: usize,
 }
 
-/// The verified R3-1/R5-1 direct-helper profile.
+/// The verified classic-client direct-helper profile.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct ClassicClientProfile {
     module_base: usize,
@@ -374,79 +376,92 @@ impl ClassicClientProfile {
         })
     }
 
-    const fn build_value(self, r3: usize, r5: usize) -> usize {
+    /// Selects the profile only for the pinned DL-R1 executable.
+    pub(super) fn verify_dl(module_base: usize, entry_point: u32) -> Option<Self> {
+        (module_base != 0 && entry_point == SAMP_DL_R1_ENTRY_POINT).then_some(Self {
+            module_base,
+            version: ClassicVersion::Dl,
+        })
+    }
+
+    const fn build_value(self, r3: usize, r5: usize, dl: usize) -> usize {
         match self.version {
             ClassicVersion::R3 => r3,
             ClassicVersion::R5 => r5,
+            ClassicVersion::Dl => dl,
         }
     }
 
     const fn player_pool_local_id_offset(self) -> usize {
-        self.build_value(PLAYER_POOL_LOCAL_ID_OFFSET, 0x04)
+        self.build_value(PLAYER_POOL_LOCAL_ID_OFFSET, 0x04, 0x00)
     }
 
     const fn player_pool_largest_id_offset(self) -> usize {
-        self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A)
+        self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A, 0x22)
     }
 
     const fn player_pool_objects_offset(self) -> usize {
-        self.build_value(PLAYER_POOL_OBJECTS_OFFSET, 0x1F8A)
+        self.build_value(PLAYER_POOL_OBJECTS_OFFSET, 0x1F8A, 0x26)
     }
 
     const fn player_info_npc_offset(self) -> usize {
-        self.build_value(PLAYER_INFO_IS_NPC_OFFSET, 0x08)
+        self.build_value(PLAYER_INFO_IS_NPC_OFFSET, 0x08, 0x04)
     }
 
     const fn player_info_readable_size(self) -> usize {
-        self.build_value(PLAYER_INFO_READABLE_SIZE, 0x30)
+        self.build_value(PLAYER_INFO_READABLE_SIZE, 0x30, 0x2C)
     }
 
     const fn local_player_incar_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_INCAR_OFFSET, 0x00)
+        self.build_value(LOCAL_PLAYER_INCAR_OFFSET, 0x00, 0x96)
     }
 
     const fn local_player_aim_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_AIM_OFFSET, 0x3F)
+        self.build_value(LOCAL_PLAYER_AIM_OFFSET, 0x3F, 0xD5)
     }
 
     const fn local_player_trailer_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_TRAILER_OFFSET, 0x5E)
+        self.build_value(LOCAL_PLAYER_TRAILER_OFFSET, 0x5E, 0x04)
     }
 
     const fn local_player_onfoot_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_ONFOOT_OFFSET, 0x94)
+        self.build_value(LOCAL_PLAYER_ONFOOT_OFFSET, 0x94, 0x3A)
     }
 
     const fn local_player_passenger_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_PASSENGER_OFFSET, 0xD8)
+        self.build_value(LOCAL_PLAYER_PASSENGER_OFFSET, 0xD8, 0x7E)
     }
 
     const fn local_player_active_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_ACTIVE_OFFSET, 0xF0)
+        self.build_value(LOCAL_PLAYER_ACTIVE_OFFSET, 0xF0, 0xF4)
     }
 
     const fn local_player_current_vehicle_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, 0xF8)
+        self.build_value(LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, 0xF8, 0xFC)
     }
 
     const fn local_player_ped_offset(self) -> usize {
-        self.build_value(0x00, 0x104)
+        self.build_value(0x00, 0x104, 0x00)
     }
 
     const fn local_player_readable_size(self) -> usize {
-        self.build_value(LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE, 0x108)
+        self.build_value(LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE, 0x108, 0x102)
+    }
+
+    const fn local_player_last_any_update_offset(self) -> usize {
+        self.build_value(LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET, 0x13F, 0x110)
     }
 
     const fn remote_player_special_action_offset(self) -> usize {
-        self.build_value(REMOTE_PLAYER_SPECIAL_ACTION_OFFSET, 0x0C)
+        self.build_value(REMOTE_PLAYER_SPECIAL_ACTION_OFFSET, 0x0C, 0x18)
     }
 
     const fn remote_player_animation_offset(self) -> usize {
-        self.build_value(REMOTE_PLAYER_ANIMATION_OFFSET, 0x1B4)
+        self.build_value(REMOTE_PLAYER_ANIMATION_OFFSET, 0x1B4, 0x1C0)
     }
 
     const fn remote_player_ped_offset(self) -> usize {
-        self.build_value(REMOTE_PLAYER_PED_OFFSET, 0x1DD)
+        self.build_value(REMOTE_PLAYER_PED_OFFSET, 0x1DD, 0x04)
     }
 
     const fn remote_player_state_readable_size(self) -> usize {
@@ -462,27 +477,79 @@ impl ClassicClientProfile {
     }
 
     const fn pools_pickup_offset(self) -> usize {
-        self.build_value(NET_GAME_POOLS_PICKUP_POOL_OFFSET, 0x08)
+        self.build_value(NET_GAME_POOLS_PICKUP_POOL_OFFSET, 0x08, 0x10)
     }
 
     const fn pools_object_offset(self) -> usize {
-        self.build_value(NET_GAME_POOLS_OBJECT_POOL_OFFSET, 0x0C)
+        self.build_value(NET_GAME_POOLS_OBJECT_POOL_OFFSET, 0x0C, 0x14)
     }
 
     const fn pools_gangzone_offset(self) -> usize {
-        self.build_value(NET_GAME_POOLS_GANGZONE_POOL_OFFSET, 0x14)
+        self.build_value(NET_GAME_POOLS_GANGZONE_POOL_OFFSET, 0x14, 0x18)
     }
 
     const fn pools_label_offset(self) -> usize {
-        self.build_value(NET_GAME_POOLS_LABEL_POOL_OFFSET, 0x18)
+        self.build_value(NET_GAME_POOLS_LABEL_POOL_OFFSET, 0x18, 0x1C)
     }
 
     const fn pools_textdraw_offset(self) -> usize {
-        self.build_value(NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, 0x1C)
+        self.build_value(NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET, 0x1C, 0x20)
+    }
+
+    const fn player_pool_get_remote_player_rva(self) -> usize {
+        self.build_value(
+            PLAYER_POOL_GET_REMOTE_PLAYER_RVA,
+            PLAYER_POOL_GET_REMOTE_PLAYER_RVA,
+            0x10F0,
+        )
+    }
+
+    const fn remote_player_onfoot_offset(self) -> usize {
+        self.build_value(
+            REMOTE_PLAYER_ONFOOT_OFFSET,
+            REMOTE_PLAYER_ONFOOT_OFFSET,
+            0x3C,
+        )
+    }
+
+    const fn remote_player_incar_offset(self) -> usize {
+        self.build_value(REMOTE_PLAYER_INCAR_OFFSET, REMOTE_PLAYER_INCAR_OFFSET, 0x80)
+    }
+
+    const fn remote_player_passenger_offset(self) -> usize {
+        self.build_value(
+            REMOTE_PLAYER_PASSENGER_OFFSET,
+            REMOTE_PLAYER_PASSENGER_OFFSET,
+            0x24,
+        )
+    }
+
+    const fn remote_player_trailer_offset(self) -> usize {
+        self.build_value(
+            REMOTE_PLAYER_TRAILER_OFFSET,
+            REMOTE_PLAYER_TRAILER_OFFSET,
+            0xBF,
+        )
+    }
+
+    const fn remote_player_aim_offset(self) -> usize {
+        self.build_value(REMOTE_PLAYER_AIM_OFFSET, REMOTE_PLAYER_AIM_OFFSET, 0xF5)
+    }
+
+    const fn max_samp_objects(self) -> u16 {
+        self.build_value(MAX_SAMP_OBJECTS as usize, MAX_SAMP_OBJECTS as usize, 2100) as u16
+    }
+
+    const fn object_pool_objects_offset(self) -> usize {
+        self.build_value(
+            OBJECT_POOL_OBJECTS_OFFSET,
+            OBJECT_POOL_OBJECTS_OFFSET,
+            0x20D4,
+        )
     }
 
     pub(super) const fn dialog_close_target(self) -> usize {
-        self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630)
+        self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630, 0x700D0)
     }
 
     /// Returns the R3 RakPeer base proved by the R3 RakClient constructor.
@@ -587,7 +654,8 @@ impl ClassicClientProfile {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let shutdown: NetGameNoArgFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(NET_GAME_SHUTDOWN_FOR_RESTART_RVA, 0xA540),
+                self.module_base
+                    + self.build_value(NET_GAME_SHUTDOWN_FOR_RESTART_RVA, 0xA540, 0xA230),
             )
         };
         unsafe { shutdown(net_game) };
@@ -595,7 +663,7 @@ impl ClassicClientProfile {
     }
 
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8);
+        let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8, 0x1419D0);
         (0..ANIMATION_TABLE_ENTRY_COUNT)
             .map(|index| {
                 let entry = table
@@ -656,7 +724,8 @@ impl ClassicClientProfile {
                 .ok_or(DirectClientError::NotReady)?;
         let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                self.module_base
+                    + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
             )
         };
         let local = unsafe { get_local(pool) };
@@ -680,28 +749,37 @@ impl ClassicClientProfile {
         }
 
         let get_name: PlayerPoolGetNameFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0))
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0, 0x170D0),
+            )
         };
         let get_score: PlayerPoolGetLocalStatFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_SCORE_RVA, 0x6E8B0),
+                self.module_base
+                    + self.build_value(PLAYER_POOL_GET_LOCAL_SCORE_RVA, 0x6E8B0, 0x6E2E0),
             )
         };
         let get_ping: PlayerPoolGetLocalStatFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PING_RVA, 0x6E8C0),
+                self.module_base
+                    + self.build_value(PLAYER_POOL_GET_LOCAL_PING_RVA, 0x6E8C0, 0x6E2F0),
             )
         };
         let get_colour: LocalPlayerGetColourArgbFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(LOCAL_PLAYER_GET_COLOUR_ARGB_RVA, 0x3F20),
+                self.module_base
+                    + self.build_value(LOCAL_PLAYER_GET_COLOUR_ARGB_RVA, 0x3F20, 0x3E20),
             )
         };
         let get_health: PedGetStatFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PED_GET_HEALTH_RVA, 0xABD50))
+            mem::transmute(
+                self.module_base + self.build_value(PED_GET_HEALTH_RVA, 0xABD50, 0xAB970),
+            )
         };
         let get_armour: PedGetStatFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PED_GET_ARMOUR_RVA, 0xABD90))
+            mem::transmute(
+                self.module_base + self.build_value(PED_GET_ARMOUR_RVA, 0xABD90, 0xAB9B0),
+            )
         };
 
         let nickname = unsafe { bounded_c_string(get_name(pool, id), 256) }
@@ -773,11 +851,13 @@ impl ClassicClientProfile {
         })
     }
 
-    /// Copies both R3-1 `CPlayerPool::GetCount` modes on the game thread.
+    /// Copies both classic-client `CPlayerPool::GetCount` modes on the game thread.
     pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
         let pool = self.player_pool()?;
         let get_count: PlayerPoolGetCountFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0))
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0, 0x138C0),
+            )
         };
         copy_player_counts(pool, get_count)
     }
@@ -797,26 +877,33 @@ impl ClassicClientProfile {
         let is_connected: PlayerPoolPlayerBooleanFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         let get_name: PlayerPoolGetNameFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0))
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0, 0x170D0),
+            )
         };
         let get_score: PlayerPoolGetPlayerStatFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_SCORE_RVA, 0x6E850))
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_SCORE_RVA, 0x6E850, 0x6E290),
+            )
         };
         let get_ping: PlayerPoolGetPlayerStatFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(PLAYER_POOL_GET_PING_RVA, 0x6E880))
+            mem::transmute(
+                self.module_base + self.build_value(PLAYER_POOL_GET_PING_RVA, 0x6E880, 0x6E2B0),
+            )
         };
         let get_colour: RemotePlayerGetColourArgbFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(REMOTE_PLAYER_GET_COLOUR_ARGB_RVA, 0x16180),
+                self.module_base
+                    + self.build_value(REMOTE_PLAYER_GET_COLOUR_ARGB_RVA, 0x16180, 0x15E30),
             )
         };
         let get_status: RemotePlayerGetStatusFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(REMOTE_PLAYER_GET_STATUS_RVA, 0x16330),
+                self.module_base + self.build_value(REMOTE_PLAYER_GET_STATUS_RVA, 0x16330, 0x15FD0),
             )
         };
         copy_player_info(
@@ -845,7 +932,7 @@ impl ClassicClientProfile {
         let is_connected: PlayerPoolPlayerBooleanFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         copy_remote_player_state(
@@ -867,7 +954,7 @@ impl ClassicClientProfile {
         let is_connected: PlayerPoolPlayerBooleanFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         copy_remote_player_is_streamed_out(
@@ -895,7 +982,8 @@ impl ClassicClientProfile {
         if local_id == Some(id) {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -906,7 +994,7 @@ impl ClassicClientProfile {
         let is_connected: PlayerPoolPlayerBooleanFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         copy_remote_onfoot_sync(
@@ -915,7 +1003,7 @@ impl ClassicClientProfile {
             is_connected,
             get_player,
             does_exist,
-            REMOTE_PLAYER_ONFOOT_OFFSET,
+            self.remote_player_onfoot_offset(),
         )
     }
 
@@ -934,7 +1022,8 @@ impl ClassicClientProfile {
         if local_id == Some(id) {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -945,7 +1034,7 @@ impl ClassicClientProfile {
         let is_connected: PlayerPoolPlayerBooleanFn =
             unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         copy_remote_incar_sync(
@@ -954,7 +1043,7 @@ impl ClassicClientProfile {
             is_connected,
             get_player,
             does_exist,
-            REMOTE_PLAYER_INCAR_OFFSET,
+            self.remote_player_incar_offset(),
         )
     }
 
@@ -973,7 +1062,8 @@ impl ClassicClientProfile {
         if local_id == Some(id) {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -991,23 +1081,17 @@ impl ClassicClientProfile {
             _ => return Err(DirectClientError::NotReady),
         }
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let remote = unsafe { get_player(pool, id) };
-        if remote.is_null()
-            || !readable_range(
-                remote.cast(),
-                REMOTE_PLAYER_PASSENGER_OFFSET + PASSENGER_SYNC_SIZE,
-            )
-        {
+        let sync_offset = self.remote_player_passenger_offset();
+        if remote.is_null() || !readable_range(remote.cast(), sync_offset + PASSENGER_SYNC_SIZE) {
             return Err(DirectClientError::NotReady);
         }
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         match unsafe { does_exist(remote) } {
             0 => Ok(None),
-            1 => {
-                copy_passenger_sync(id, remote as usize + REMOTE_PLAYER_PASSENGER_OFFSET).map(Some)
-            }
+            1 => copy_passenger_sync(id, remote as usize + sync_offset).map(Some),
             _ => Err(DirectClientError::NotReady),
         }
     }
@@ -1027,7 +1111,8 @@ impl ClassicClientProfile {
         if local_id == Some(id) {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -1043,21 +1128,17 @@ impl ClassicClientProfile {
             _ => return Err(DirectClientError::NotReady),
         }
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let remote = unsafe { get_player(pool, id) };
-        if remote.is_null()
-            || !readable_range(
-                remote.cast(),
-                REMOTE_PLAYER_TRAILER_OFFSET + TRAILER_SYNC_SIZE,
-            )
-        {
+        let sync_offset = self.remote_player_trailer_offset();
+        if remote.is_null() || !readable_range(remote.cast(), sync_offset + TRAILER_SYNC_SIZE) {
             return Err(DirectClientError::NotReady);
         }
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         match unsafe { does_exist(remote) } {
             0 => Ok(None),
-            1 => copy_trailer_sync(id, remote as usize + REMOTE_PLAYER_TRAILER_OFFSET).map(Some),
+            1 => copy_trailer_sync(id, remote as usize + sync_offset).map(Some),
             _ => Err(DirectClientError::NotReady),
         }
     }
@@ -1074,7 +1155,8 @@ impl ClassicClientProfile {
         if local_id == Some(id) {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -1090,40 +1172,39 @@ impl ClassicClientProfile {
             _ => return Err(DirectClientError::NotReady),
         }
         let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let remote = unsafe { get_player(pool, id) };
-        if remote.is_null()
-            || !readable_range(remote.cast(), REMOTE_PLAYER_AIM_OFFSET + AIM_SYNC_SIZE)
-        {
+        let sync_offset = self.remote_player_aim_offset();
+        if remote.is_null() || !readable_range(remote.cast(), sync_offset + AIM_SYNC_SIZE) {
             return Err(DirectClientError::NotReady);
         }
         let does_exist: RemotePlayerDoesExistFn =
             unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
         match unsafe { does_exist(remote) } {
             0 => Ok(None),
-            1 => copy_aim_sync(id, remote as usize + REMOTE_PLAYER_AIM_OFFSET).map(Some),
+            1 => copy_aim_sync(id, remote as usize + sync_offset).map(Some),
             _ => Err(DirectClientError::NotReady),
         }
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendAimData` on the game thread.
     pub(super) fn force_aim_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(self.build_value(0x5040, 0x5210), true)
+        self.force_no_arg_sync(self.build_value(0x5040, 0x5210, 0x5090), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendOnfootData` on the game thread.
     pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(self.build_value(0x4D40, 0x4F00), true)
+        self.force_no_arg_sync(self.build_value(0x4D40, 0x4F00, 0x4DB0), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendStats` on the game thread.
     pub(super) fn force_stats_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(self.build_value(0x5B10, 0x5D00), true)
+        self.force_no_arg_sync(self.build_value(0x5B10, 0x5D00, 0x5B50), true)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::UpdateWeapons` on the game thread.
     pub(super) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
-        self.force_no_arg_sync(self.build_value(0x6090, 0x6290), false)
+        self.force_no_arg_sync(self.build_value(0x6090, 0x6290, 0x60D0), false)
     }
 
     /// Invokes R3-1 `SCLocalPlayer::SendTrailerData` on the game thread.
@@ -1134,7 +1215,7 @@ impl ClassicClientProfile {
         let local = self.local_player_address()?;
         self.reset_last_any_update(local)?;
         let send: LocalPlayerTrailerFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x51F0, 0x53D0)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x51F0, 0x53D0, 0x5240)) };
         unsafe { send(local, trailer) };
         Ok(())
     }
@@ -1152,7 +1233,7 @@ impl ClassicClientProfile {
         unsafe { std::ptr::write_unaligned(target, vehicle) };
         self.reset_last_any_update(local)?;
         let send: LocalPlayerNoArgFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x6E40, 0x7080)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x6E40, 0x7080, 0x6E80)) };
         unsafe { send(local) };
         Ok(())
     }
@@ -1182,7 +1263,7 @@ impl ClassicClientProfile {
         }
         self.reset_last_any_update(local)?;
         let send: LocalPlayerNoArgFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x53B0, 0x5590)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x53B0, 0x5590, 0x5400)) };
         unsafe { send(local) };
         Ok(())
     }
@@ -1198,7 +1279,7 @@ impl ClassicClientProfile {
         }
         let local = self.local_player_address()?;
         let send: LocalPlayerUnoccupiedFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x4B60, 0x4D30)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x4B60, 0x4D30, 0x4BD0)) };
         unsafe { send(local, vehicle, seat) };
         Ok(())
     }
@@ -1210,9 +1291,9 @@ impl ClassicClientProfile {
     ) -> Result<(), DirectClientError> {
         let rate = i32::try_from(milliseconds).map_err(|_| DirectClientError::NotReady)?;
         let rva = match kind {
-            0 => ONFOOT_SEND_RATE_RVA,
-            1 => INCAR_SEND_RATE_RVA,
-            2 => AIM_SEND_RATE_RVA,
+            0 => self.build_value(ONFOOT_SEND_RATE_RVA, ONFOOT_SEND_RATE_RVA, 0x13C0A8),
+            1 => self.build_value(INCAR_SEND_RATE_RVA, INCAR_SEND_RATE_RVA, 0x13C0AC),
+            2 => self.build_value(AIM_SEND_RATE_RVA, AIM_SEND_RATE_RVA, 0x13C0B0),
             _ => return Err(DirectClientError::NotReady),
         };
         let field = (self.module_base + rva) as *mut i32;
@@ -1226,7 +1307,7 @@ impl ClassicClientProfile {
     pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
         let local = self.local_player_address()?;
         let spawn: LocalPlayerSpawnFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x3AD0, 0x3C20)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x3AD0, 0x3C20, 0x3A70)) };
         (unsafe { spawn(local) } != 0)
             .then_some(())
             .ok_or(DirectClientError::NotReady)
@@ -1240,7 +1321,7 @@ impl ClassicClientProfile {
         let mut name = name.to_vec();
         name.push(0);
         let set_name: PlayerPoolSetLocalPlayerNameFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0xB5C0, 0xB8A0)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0xB5C0, 0xB8A0, 0xB490)) };
         unsafe { set_name(pool, name.as_ptr().cast()) };
         Ok(())
     }
@@ -1254,8 +1335,9 @@ impl ClassicClientProfile {
             unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) };
         if local_id == Some(id) {
             let local = self.local_player_address()?;
-            let set: LocalPlayerSetColourFn =
-                unsafe { mem::transmute(self.module_base + self.build_value(0x3D50, 0x3ED0)) };
+            let set: LocalPlayerSetColourFn = unsafe {
+                mem::transmute(self.module_base + self.build_value(0x3D50, 0x3ED0, 0x3DE0))
+            };
             unsafe { set(local, colour) };
             return Ok(());
         }
@@ -1265,13 +1347,14 @@ impl ClassicClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let get: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
         let remote = unsafe { get(pool, id) };
         if remote.is_null() || !readable_range(remote.cast(), 1) {
             return Err(DirectClientError::NotReady);
         }
-        let set: RemotePlayerSetColourFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x15BE0, 0x16150)) };
+        let set: RemotePlayerSetColourFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(0x15BE0, 0x16150, 0x15E00))
+        };
         unsafe { set(remote, colour) };
         Ok(())
     }
@@ -1285,7 +1368,7 @@ impl ClassicClientProfile {
         }
         let local = self.local_player_address()?;
         let set: LocalPlayerSetSpecialActionFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x30C0, 0x30F0)) };
+            unsafe { mem::transmute(self.module_base + self.build_value(0x30C0, 0x30F0, 0x3110)) };
         unsafe { set(local, action) };
         Ok(())
     }
@@ -1302,8 +1385,9 @@ impl ClassicClientProfile {
         let mut prefix = request.prefix;
         text.push(0);
         prefix.push(0);
-        let add: ChatAddEntryFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x67460, 0x67BE0)) };
+        let add: ChatAddEntryFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(0x67460, 0x67BE0, 0x67650))
+        };
         unsafe {
             add(
                 chat,
@@ -1333,8 +1417,9 @@ impl ClassicClientProfile {
         let mut victim = request.victim;
         killer.push(0);
         victim.push(0);
-        let add: DeathWindowAddMessageFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x69F40, 0x6A6B0)) };
+        let add: DeathWindowAddMessageFn = unsafe {
+            mem::transmute(self.module_base + self.build_value(0x69F40, 0x6A6B0, 0x6A0F0))
+        };
         unsafe {
             add(
                 window,
@@ -1369,9 +1454,9 @@ impl ClassicClientProfile {
             mem::transmute(
                 self.module_base
                     + if enabled {
-                        self.build_value(INPUT_OPEN_RVA, 0x69480)
+                        self.build_value(INPUT_OPEN_RVA, 0x69480, 0x68EC0)
                     } else {
-                        self.build_value(INPUT_CLOSE_RVA, 0x69580)
+                        self.build_value(INPUT_CLOSE_RVA, 0x69580, 0x68FC0)
                     },
             )
         };
@@ -1396,14 +1481,17 @@ impl ClassicClientProfile {
         name.push(0);
         let get_handler: InputGetCommandHandlerFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(INPUT_GET_COMMAND_HANDLER_RVA, 0x69710),
+                self.module_base
+                    + self.build_value(INPUT_GET_COMMAND_HANDLER_RVA, 0x69710, 0x69150),
             )
         };
         if !unsafe { get_handler(input, name.as_ptr().cast()) }.is_null() {
             return Err(DirectClientError::NotReady);
         }
         let add_command: InputAddCommandFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(INPUT_ADD_COMMAND_RVA, 0x69770))
+            mem::transmute(
+                self.module_base + self.build_value(INPUT_ADD_COMMAND_RVA, 0x69770, 0x691B0),
+            )
         };
         unsafe { add_command(input, name.as_ptr().cast(), callback) };
         Ok(())
@@ -1486,7 +1574,9 @@ impl ClassicClientProfile {
         let mut text = text.to_vec();
         text.push(0);
         let set_text: DxutEditBoxSetTextFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580))
+            mem::transmute(
+                self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580, 0x85000),
+            )
         };
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
@@ -1497,7 +1587,7 @@ impl ClassicClientProfile {
         self.set_chat_input_text(text)?;
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         let process: InputNoArgFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(INPUT_PROCESS_RVA, 0x699D0))
+            mem::transmute(self.module_base + self.build_value(INPUT_PROCESS_RVA, 0x699D0, 0x69410))
         };
         unsafe { process(input) };
         Ok(())
@@ -1542,7 +1632,9 @@ impl ClassicClientProfile {
             .filter(|editbox| !editbox.is_null())
             .ok_or(DirectClientError::NotReady)?;
         let get_text: DxutEditBoxGetTextFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650))
+            mem::transmute(
+                self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650, 0x850D0),
+            )
         };
         copy_chat_input_text(editbox.cast(), get_text)
     }
@@ -1551,7 +1643,7 @@ impl ClassicClientProfile {
     pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
         let chat = self.chat().ok_or(DirectClientError::NotReady)?;
         let get_mode: ChatGetModeFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(CHAT_GET_MODE_RVA, 0x612B0))
+            mem::transmute(self.module_base + self.build_value(CHAT_GET_MODE_RVA, 0x612B0, 0x60D30))
         };
         copy_chat_display_mode(chat, get_mode)
     }
@@ -1717,7 +1809,9 @@ impl ClassicClientProfile {
         }
         let game = self.game().ok_or(DirectClientError::NotReady)?;
         let set_cursor_mode: GameSetCursorModeFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(GAME_SET_CURSOR_MODE_RVA, 0xA06F0))
+            mem::transmute(
+                self.module_base + self.build_value(GAME_SET_CURSOR_MODE_RVA, 0xA06F0, 0xA0530),
+            )
         };
         unsafe { set_cursor_mode(game, mode, i32::from(mode != 0)) };
         Ok(())
@@ -1731,7 +1825,8 @@ impl ClassicClientProfile {
             let game = self.game().ok_or(DirectClientError::NotReady)?;
             let process_input_enabling: GameProcessInputEnablingFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(GAME_PROCESS_INPUT_ENABLING_RVA, 0xA05D0),
+                    self.module_base
+                        + self.build_value(GAME_PROCESS_INPUT_ENABLING_RVA, 0xA05D0, 0xA0410),
                 )
             };
             unsafe { process_input_enabling(game) };
@@ -1743,7 +1838,7 @@ impl ClassicClientProfile {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(NET_GAME_GET_PLAYER_POOL_RVA, 0x1170),
+                self.module_base + self.build_value(NET_GAME_GET_PLAYER_POOL_RVA, 0x1170, 0x1170),
             )
         };
         let pool = unsafe { get_pool(net_game) };
@@ -1762,7 +1857,7 @@ impl ClassicClientProfile {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180),
+                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180, 0x1180),
             )
         };
         let pool = unsafe { get_pool(net_game) };
@@ -1775,17 +1870,19 @@ impl ClassicClientProfile {
         let pool = self.player_pool()?;
         let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                self.module_base
+                    + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
             )
         };
         let local = unsafe { get_local(pool) };
-        (!local.is_null() && readable_range(local.cast(), LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET + 4))
-            .then_some(local)
-            .ok_or(DirectClientError::NotReady)
+        (!local.is_null()
+            && readable_range(local.cast(), self.local_player_last_any_update_offset() + 4))
+        .then_some(local)
+        .ok_or(DirectClientError::NotReady)
     }
 
     fn reset_last_any_update(self, local: *mut c_void) -> Result<(), DirectClientError> {
-        let field = (local as usize + LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET) as *mut u32;
+        let field = (local as usize + self.local_player_last_any_update_offset()) as *mut u32;
         if !writable_range(field.cast(), mem::size_of::<u32>()) {
             return Err(DirectClientError::NotReady);
         }
@@ -1833,7 +1930,7 @@ impl ClassicClientProfile {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_pool: NetGameGetPlayerPoolFn = unsafe {
             mem::transmute(
-                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180),
+                self.module_base + self.build_value(NET_GAME_GET_VEHICLE_POOL_RVA, 0x1180, 0x1180),
             )
         };
         let pool = unsafe { get_pool(net_game) };
@@ -1842,7 +1939,9 @@ impl ClassicClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let exists: PlayerPoolPlayerBooleanFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(VEHICLE_POOL_DOES_EXIST_RVA, 0x1150))
+            mem::transmute(
+                self.module_base + self.build_value(VEHICLE_POOL_DOES_EXIST_RVA, 0x1150, 0x1150),
+            )
         };
         match unsafe { exists(pool, id) } {
             0 => Ok(false),
@@ -1852,7 +1951,7 @@ impl ClassicClientProfile {
     }
 
     pub(super) fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
-        if id >= MAX_SAMP_OBJECTS {
+        if id >= self.max_samp_objects() {
             return Err(DirectClientError::NotReady);
         }
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
@@ -1878,7 +1977,7 @@ impl ClassicClientProfile {
 
     /// Converts one R3 object-pool entry's pinned GTA entity handle to GTAREF.
     pub(super) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
-        if id >= MAX_SAMP_OBJECTS {
+        if id >= self.max_samp_objects() {
             return Err(DirectClientError::NotReady);
         }
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
@@ -1893,7 +1992,7 @@ impl ClassicClientProfile {
             .filter(|pool| *pool != 0)
             .ok_or(DirectClientError::NotReady)?;
         let flag = OBJECT_POOL_NOT_EMPTY_OFFSET + usize::from(id) * mem::size_of::<i32>();
-        let object = OBJECT_POOL_OBJECTS_OFFSET + usize::from(id) * mem::size_of::<usize>();
+        let object = self.object_pool_objects_offset() + usize::from(id) * mem::size_of::<usize>();
         if !readable_range(
             pool as *const u8,
             (flag + 4).max(object + mem::size_of::<usize>()),
@@ -1919,7 +2018,7 @@ impl ClassicClientProfile {
     }
 
     pub(super) fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
-        for id in 0..MAX_SAMP_OBJECTS {
+        for id in 0..self.max_samp_objects() {
             if self.object_handle(id)? == Some(handle) {
                 return Ok(Some(id));
             }
@@ -2008,7 +2107,8 @@ impl ClassicClientProfile {
         let game_ped = if id == local_id {
             let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
                 mem::transmute(
-                    self.module_base + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40),
+                    self.module_base
+                        + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
                 )
             };
             let local = unsafe { get_local(pool) };
@@ -2037,8 +2137,9 @@ impl ClassicClientProfile {
             if unsafe { is_connected(pool, id) } != 1 {
                 return Ok(None);
             }
-            let get_remote: PlayerPoolGetRemotePlayerFn =
-                unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
+            let get_remote: PlayerPoolGetRemotePlayerFn = unsafe {
+                mem::transmute(self.module_base + self.player_pool_get_remote_player_rva())
+            };
             let remote = unsafe { get_remote(pool, id) };
             if remote.is_null()
                 || !readable_range(
@@ -2198,7 +2299,9 @@ impl ClassicClientProfile {
         let mut text = text.to_vec();
         text.push(0);
         let create: LabelPoolCreateFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(LABEL_POOL_CREATE_RVA, 0x11D0))
+            mem::transmute(
+                self.module_base + self.build_value(LABEL_POOL_CREATE_RVA, 0x11D0, 0x11D0),
+            )
         };
         unsafe {
             create(
@@ -2222,7 +2325,9 @@ impl ClassicClientProfile {
         }
         let pool = self.label_pool()? as *mut c_void;
         let delete: LabelPoolDeleteFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(LABEL_POOL_DELETE_RVA, 0x12E0))
+            mem::transmute(
+                self.module_base + self.build_value(LABEL_POOL_DELETE_RVA, 0x12E0, 0x12E0),
+            )
         };
         (unsafe { delete(pool, id) } != 0)
             .then_some(())
@@ -2309,7 +2414,9 @@ impl ClassicClientProfile {
     pub(super) fn delete_textdraw(self, id: u16) -> Result<(), DirectClientError> {
         let (pool, _) = self.textdraw_pool_slot(id)?;
         let delete: TextdrawPoolDeleteFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(TEXTDRAW_DELETE_RVA, 0x1E7F0))
+            mem::transmute(
+                self.module_base + self.build_value(TEXTDRAW_DELETE_RVA, 0x1E7F0, 0x1E2B0),
+            )
         };
         unsafe { delete((pool as *mut u8).cast(), id) };
         Ok(())
@@ -2345,7 +2452,9 @@ impl ClassicClientProfile {
         let mut text = text.to_vec();
         text.push(0);
         let create: TextdrawPoolCreateFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(TEXTDRAW_CREATE_RVA, 0x1E910))
+            mem::transmute(
+                self.module_base + self.build_value(TEXTDRAW_CREATE_RVA, 0x1E910, 0x1E3D0),
+            )
         };
         (!unsafe {
             create(
@@ -2559,7 +2668,9 @@ impl ClassicClientProfile {
         let mut text = text.to_vec();
         text.push(0);
         let set_text: TextdrawSetTextFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60))
+            mem::transmute(
+                self.module_base + self.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60, 0xB2B60),
+            )
         };
         unsafe { set_text(object, text.as_ptr()) };
         Ok(())
@@ -2677,10 +2788,11 @@ impl ClassicClientProfile {
 
     fn input(self) -> Option<*mut c_void> {
         let input: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(INPUT_SINGLETON_RVA, 0x26_EB_84))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                INPUT_SINGLETON_RVA,
+                0x26_EB_84,
+                0x2A_CA_14,
+            ))?)
         }?
         .cast();
         (!input.is_null() && readable_range(input.cast(), INPUT_CACHE_READABLE_SIZE))
@@ -2689,10 +2801,11 @@ impl ClassicClientProfile {
 
     fn dialog(self) -> Option<*mut c_void> {
         let dialog: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(DIALOG_SINGLETON_RVA, 0x26_EB_50))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                DIALOG_SINGLETON_RVA,
+                0x26_EB_50,
+                0x2A_C9_E0,
+            ))?)
         }?
         .cast();
         (!dialog.is_null() && readable_range(dialog.cast(), DIALOG_ACTIVE_READABLE_SIZE))
@@ -2701,10 +2814,11 @@ impl ClassicClientProfile {
 
     fn scoreboard(self) -> Option<*mut c_void> {
         let scoreboard: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(SCOREBOARD_SINGLETON_RVA, 0x26_EB_4C))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                SCOREBOARD_SINGLETON_RVA,
+                0x26_EB_4C,
+                0x2A_C9_DC,
+            ))?)
         }?
         .cast();
         (!scoreboard.is_null() && readable_range(scoreboard.cast(), SCOREBOARD_READABLE_SIZE))
@@ -2713,10 +2827,11 @@ impl ClassicClientProfile {
 
     fn chat(self) -> Option<*mut c_void> {
         let chat: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(CHAT_SINGLETON_RVA, 0x26_EB_80))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                CHAT_SINGLETON_RVA,
+                0x26_EB_80,
+                0x2A_CA_10,
+            ))?)
         }?
         .cast();
         (!chat.is_null() && readable_range(chat.cast(), 1)).then_some(chat)
@@ -2724,10 +2839,11 @@ impl ClassicClientProfile {
 
     fn death_window(self) -> Option<*mut c_void> {
         let window: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(DEATH_WINDOW_SINGLETON_RVA, 0x26_EB_88))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                DEATH_WINDOW_SINGLETON_RVA,
+                0x26_EB_88,
+                0x2A_CA_18,
+            ))?)
         }?
         .cast();
         (!window.is_null() && readable_range(window.cast(), 1)).then_some(window)
@@ -2735,10 +2851,11 @@ impl ClassicClientProfile {
 
     fn game(self) -> Option<*mut c_void> {
         let game: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(GAME_SINGLETON_RVA, 0x26_EB_AC))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                GAME_SINGLETON_RVA,
+                0x26_EB_AC,
+                0x2A_CA_3C,
+            ))?)
         }?
         .cast();
         (!game.is_null() && readable_range(game.cast(), GAME_CURSOR_MODE_READABLE_SIZE))
@@ -2747,10 +2864,11 @@ impl ClassicClientProfile {
 
     fn net_game(self) -> Option<*mut c_void> {
         let net_game: *mut c_void = unsafe {
-            read_pointer(
-                self.module_base
-                    .checked_add(self.build_value(NET_GAME_SINGLETON_RVA, 0x26_EB_94))?,
-            )
+            read_pointer(self.module_base.checked_add(self.build_value(
+                NET_GAME_SINGLETON_RVA,
+                0x26_EB_94,
+                0x2A_CA_24,
+            ))?)
         }?
         .cast();
         (!net_game.is_null() && readable_range(net_game.cast(), NET_GAME_SCALAR_READABLE_SIZE))
@@ -2776,7 +2894,7 @@ impl ClassicClientProfile {
         button1.push(0);
         button2.push(0);
         let show: DialogShowFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DIALOG_SHOW_RVA, 0x6FFB0))
+            mem::transmute(self.module_base + self.build_value(DIALOG_SHOW_RVA, 0x6FFB0, 0x6FA50))
         };
         unsafe {
             show(
@@ -2800,7 +2918,7 @@ impl ClassicClientProfile {
         }
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         let close: DialogCloseFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630))
+            mem::transmute(self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630, 0x700D0))
         };
         unsafe { close(dialog, button) };
         Ok(())
@@ -2958,7 +3076,9 @@ impl ClassicClientProfile {
             return Err(DirectClientError::NotReady);
         }
         let get_text: DxutEditBoxGetTextFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650))
+            mem::transmute(
+                self.module_base + self.build_value(DXUT_EDIT_BOX_GET_TEXT_RVA, 0x85650, 0x850D0),
+            )
         };
         unsafe { bounded_c_string(get_text(editbox), MAX_DIALOG_EDITBOX_TEXT_BYTES + 1) }
             .map(Some)
@@ -3011,7 +3131,9 @@ impl ClassicClientProfile {
         let mut text = text.to_vec();
         text.push(0);
         let set_text: DxutEditBoxSetTextFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580))
+            mem::transmute(
+                self.module_base + self.build_value(DXUT_EDIT_BOX_SET_TEXT_RVA, 0x85580, 0x85000),
+            )
         };
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
@@ -3617,7 +3739,56 @@ mod tests {
         assert_eq!(profile.pools_gangzone_offset(), 0x14);
         assert_eq!(profile.pools_label_offset(), 0x18);
         assert_eq!(profile.pools_textdraw_offset(), 0x1C);
-        assert_eq!(profile.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60), 0xB2F60);
+        assert_eq!(
+            profile.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60, 0xB2B60),
+            0xB2F60
+        );
+    }
+
+    #[test]
+    fn selects_dl_and_uses_its_distinct_layout_and_addresses() {
+        let profile = ClassicClientProfile::verify_dl(0x10000, SAMP_DL_R1_ENTRY_POINT).unwrap();
+        assert!(ClassicClientProfile::verify_dl(0x10000, SAMP_DL_R1_ENTRY_POINT - 1).is_none());
+        assert_eq!(profile.player_pool_local_id_offset(), 0x00);
+        assert_eq!(profile.player_pool_largest_id_offset(), 0x22);
+        assert_eq!(profile.player_pool_objects_offset(), 0x26);
+        assert_eq!(profile.player_info_npc_offset(), 0x04);
+        assert_eq!(profile.player_info_readable_size(), 0x2C);
+        assert_eq!(profile.local_player_ped_offset(), 0x00);
+        assert_eq!(profile.local_player_trailer_offset(), 0x04);
+        assert_eq!(profile.local_player_onfoot_offset(), 0x3A);
+        assert_eq!(profile.local_player_passenger_offset(), 0x7E);
+        assert_eq!(profile.local_player_incar_offset(), 0x96);
+        assert_eq!(profile.local_player_aim_offset(), 0xD5);
+        assert_eq!(profile.local_player_last_any_update_offset(), 0x110);
+        assert_eq!(profile.remote_player_ped_offset(), 0x04);
+        assert_eq!(profile.remote_player_special_action_offset(), 0x18);
+        assert_eq!(profile.remote_player_passenger_offset(), 0x24);
+        assert_eq!(profile.remote_player_onfoot_offset(), 0x3C);
+        assert_eq!(profile.remote_player_incar_offset(), 0x80);
+        assert_eq!(profile.remote_player_trailer_offset(), 0xBF);
+        assert_eq!(profile.remote_player_aim_offset(), 0xF5);
+        assert_eq!(profile.pools_pickup_offset(), 0x10);
+        assert_eq!(profile.pools_object_offset(), 0x14);
+        assert_eq!(profile.pools_gangzone_offset(), 0x18);
+        assert_eq!(profile.pools_label_offset(), 0x1C);
+        assert_eq!(profile.pools_textdraw_offset(), 0x20);
+        assert_eq!(profile.max_samp_objects(), 2100);
+        assert_eq!(profile.object_pool_objects_offset(), 0x20D4);
+        assert_eq!(profile.player_pool_get_remote_player_rva(), 0x10F0);
+        assert_eq!(
+            profile.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0, 0x138C0),
+            0x138C0
+        );
+        assert_eq!(profile.dialog_close_target(), 0x800D0);
+        assert_eq!(
+            profile.build_value(ONFOOT_SEND_RATE_RVA, ONFOOT_SEND_RATE_RVA, 0x13C0A8),
+            0x13C0A8
+        );
+        assert_eq!(
+            profile.build_value(TEXTDRAW_SET_TEXT_RVA, 0xB2F60, 0xB2B60),
+            0xB2B60
+        );
     }
 
     #[test]

@@ -950,6 +950,230 @@ struct FixtureDlDialog {
     std::int32_t server_side;
     std::uint8_t pad[536];
 };
+
+struct FixtureDlPools {
+    void* menu;
+    void* actor;
+    void* player;
+    void* vehicle;
+    void* pickup;
+    void* object;
+    void* gangzone;
+    void* label;
+    void* textdraw;
+};
+
+struct FixtureDlSampString {
+    std::uint8_t storage[0x1C];
+};
+
+struct FixtureDlPlayerInfo {
+    std::int32_t score;
+    std::int32_t is_npc;
+    void* player;
+    std::int32_t ping;
+    FixtureDlSampString nickname;
+};
+
+struct FixtureDlPlayerPool {
+    std::uint16_t local_id;
+    FixtureDlSampString local_name;
+    void* local_player;
+    std::uint16_t largest_id;
+    std::uint16_t unknown_24;
+    FixtureDlPlayerInfo* players[1004];
+    std::int32_t not_empty[1004];
+    std::int32_t previous_collision[1004];
+    std::int32_t local_ping;
+    std::int32_t local_score;
+};
+
+struct FixtureDlLocalPlayer {
+    void* ped;
+    FixtureR1TrailerData trailer;
+    FixtureR1OnfootData onfoot;
+    FixtureR1PassengerData passenger;
+    FixtureR1IncarData incar;
+    FixtureR1AimData aim;
+    std::int32_t active;
+    std::uint8_t pad_f8[0x04];
+    std::uint16_t current_vehicle;
+    std::uint8_t pad_fe[0x12];
+    std::uint32_t last_any_update;
+    std::uint8_t pad_114[0x214];
+};
+
+struct FixtureDlRemotePlayer {
+    std::uint16_t player_id;
+    std::uint16_t vehicle_id;
+    void* ped;
+    void* vehicle;
+    std::uint8_t pad_0c[0x0C];
+    std::uint8_t special_action;
+    std::uint8_t pad_19[0x0B];
+    FixtureR1PassengerData passenger;
+    FixtureR1OnfootData onfoot;
+    FixtureR1IncarData incar;
+    FixtureR1TrailerData trailer;
+    FixtureR1AimData aim;
+    std::uint8_t pad_114[0x98];
+    float reported_armour;
+    float reported_health;
+    std::uint8_t pad_1b4[0x0C];
+    std::uint32_t animation;
+    std::uint8_t pad_1c4[0x39];
+};
+
+struct FixtureDlVehiclePool {
+    std::uint8_t pad_0[0x3074];
+    std::int32_t not_empty[2000];
+    void* game_objects[2000];
+    std::uint8_t pad_6ef4[0x109A4];
+};
+
+struct FixtureDlObjectPool {
+    std::uint16_t largest_id;
+    std::uint16_t pad_2;
+    std::int32_t not_empty[2100];
+    void* objects[2100];
+};
+
+struct FixtureDlPickupPool {
+    std::int32_t count;
+    std::int32_t handles[4096];
+    std::uint8_t pad_4004[0x1F000];
+};
+
+struct FixtureDlEntity {
+    void* vtable;
+    std::uint8_t pad_4[0x3C];
+    void* game_entity;
+    std::int32_t handle;
+};
+
+struct FixtureDlPed {
+    std::uint8_t pad_0[0x2A4];
+    void* game_ped;
+    std::uint8_t pad_2a8[0x85];
+};
+
+struct FixtureDlGangzone {
+    float left;
+    float bottom;
+    float right;
+    float top;
+    std::uint32_t colour;
+    std::uint32_t alternate_colour;
+};
+
+struct FixtureDlGangzonePool {
+    FixtureDlGangzone* gangzones[1024];
+    std::int32_t not_empty[1024];
+};
+
+struct FixtureDlTextLabel {
+    char* text;
+    std::uint32_t colour;
+    float position[3];
+    float draw_distance;
+    std::uint8_t behind_walls;
+    std::uint16_t attached_player;
+    std::uint16_t attached_vehicle;
+};
+
+struct FixtureDlTextLabelPool {
+    FixtureDlTextLabel labels[2048];
+    std::int32_t not_empty[2048];
+};
+
+struct FixtureDlTextdrawTransmit {
+    std::uint8_t pad_0[0x21];
+    float x;
+    float y;
+    std::uint8_t pad_29[0x16];
+};
+
+struct FixtureDlTextdrawData {
+    float letter_width;
+    float letter_height;
+    std::uint32_t letter_colour;
+    std::uint8_t unknown;
+    std::uint8_t align_center;
+    std::uint8_t box_enabled;
+    float box_width;
+    float box_height;
+    std::uint32_t box_colour;
+    std::uint8_t proportional;
+    std::uint32_t background_colour;
+    std::uint8_t shadow;
+    std::uint8_t outline;
+    std::uint8_t align_left;
+    std::uint8_t align_right;
+    std::int32_t style;
+    float x;
+    float y;
+    std::uint8_t pad_30[0x15];
+    std::uint16_t model_id;
+    float rotation[3];
+    float zoom;
+    std::uint16_t model_colour1;
+    std::uint16_t model_colour2;
+    std::uint8_t pad_5b[0x18];
+};
+
+struct FixtureDlTextdraw {
+    char text[801];
+    char string[1602];
+    FixtureDlTextdrawData data;
+};
+
+struct FixtureDlTextdrawPool {
+    std::int32_t not_empty[2304];
+    FixtureDlTextdraw* objects[2304];
+};
+
+struct FixtureDlChatEntry {
+    std::int32_t type;
+    char prefix[28];
+    char text[144];
+    std::uint8_t pad_b0[0x44];
+    std::uint32_t text_colour;
+    std::uint32_t prefix_colour;
+};
+
+struct FixtureDlChat {
+    std::uint8_t pad_0[0x08];
+    std::int32_t mode;
+    std::uint8_t pad_0c[0x126];
+    FixtureDlChatEntry entries[100];
+    std::uint8_t pad_63a2[0x48];
+};
+
+struct FixtureDlScoreboard {
+    std::int32_t enabled;
+    std::uint8_t pad_4[0x40];
+};
+
+struct FixtureDlGamePrefix {
+    std::uint8_t pad_0[0x61];
+    std::int32_t cursor_mode;
+};
+
+struct FixtureDlListboxPrefix {
+    std::uint8_t pad_0[0x143];
+    std::int32_t selected;
+    std::uint8_t pad_147[0x05];
+    void* items;
+    std::int32_t item_count;
+};
+
+struct FixtureDlListboxItemPrefix {
+    char text[256];
+};
+
+struct FixtureDlAnimationEntry {
+    char name_and_file[36];
+};
 #pragma pack(pop)
 
 static_assert(sizeof(void*) == 4, "the RakNet layout fixture must be compiled for x86");
@@ -1216,6 +1440,102 @@ static_assert(offsetof(FixtureDlInput, enabled) == 0x14E0);
 static_assert(sizeof(FixtureDlDialog) == 0x29D);
 static_assert(offsetof(FixtureDlDialog, active) == 0x28);
 static_assert(offsetof(FixtureDlDialog, caption) == 0x40);
+static_assert(sizeof(FixtureDlPools) == 0x24);
+static_assert(offsetof(FixtureDlPools, pickup) == 0x10);
+static_assert(offsetof(FixtureDlPools, object) == 0x14);
+static_assert(offsetof(FixtureDlPools, gangzone) == 0x18);
+static_assert(offsetof(FixtureDlPools, label) == 0x1C);
+static_assert(offsetof(FixtureDlPools, textdraw) == 0x20);
+static_assert(sizeof(FixtureDlSampString) == 0x1C);
+static_assert(sizeof(FixtureDlPlayerInfo) == 0x2C);
+static_assert(offsetof(FixtureDlPlayerInfo, score) == 0x00);
+static_assert(offsetof(FixtureDlPlayerInfo, is_npc) == 0x04);
+static_assert(offsetof(FixtureDlPlayerInfo, player) == 0x08);
+static_assert(offsetof(FixtureDlPlayerInfo, ping) == 0x0C);
+static_assert(offsetof(FixtureDlPlayerInfo, nickname) == 0x10);
+static_assert(sizeof(FixtureDlPlayerPool) == 0x2F3E);
+static_assert(offsetof(FixtureDlPlayerPool, local_id) == 0x00);
+static_assert(offsetof(FixtureDlPlayerPool, local_name) == 0x02);
+static_assert(offsetof(FixtureDlPlayerPool, local_player) == 0x1E);
+static_assert(offsetof(FixtureDlPlayerPool, largest_id) == 0x22);
+static_assert(offsetof(FixtureDlPlayerPool, unknown_24) == 0x24);
+static_assert(offsetof(FixtureDlPlayerPool, players) == 0x26);
+static_assert(offsetof(FixtureDlPlayerPool, not_empty) == 0xFD6);
+static_assert(offsetof(FixtureDlPlayerPool, previous_collision) == 0x1F86);
+static_assert(offsetof(FixtureDlPlayerPool, local_ping) == 0x2F36);
+static_assert(offsetof(FixtureDlPlayerPool, local_score) == 0x2F3A);
+static_assert(sizeof(FixtureDlLocalPlayer) == 0x328);
+static_assert(offsetof(FixtureDlLocalPlayer, ped) == 0x00);
+static_assert(offsetof(FixtureDlLocalPlayer, trailer) == 0x04);
+static_assert(offsetof(FixtureDlLocalPlayer, onfoot) == 0x3A);
+static_assert(offsetof(FixtureDlLocalPlayer, passenger) == 0x7E);
+static_assert(offsetof(FixtureDlLocalPlayer, incar) == 0x96);
+static_assert(offsetof(FixtureDlLocalPlayer, aim) == 0xD5);
+static_assert(offsetof(FixtureDlLocalPlayer, active) == 0xF4);
+static_assert(offsetof(FixtureDlLocalPlayer, current_vehicle) == 0xFC);
+static_assert(offsetof(FixtureDlLocalPlayer, last_any_update) == 0x110);
+static_assert(sizeof(FixtureDlRemotePlayer) == 0x1FD);
+static_assert(offsetof(FixtureDlRemotePlayer, player_id) == 0x00);
+static_assert(offsetof(FixtureDlRemotePlayer, vehicle_id) == 0x02);
+static_assert(offsetof(FixtureDlRemotePlayer, ped) == 0x04);
+static_assert(offsetof(FixtureDlRemotePlayer, vehicle) == 0x08);
+static_assert(offsetof(FixtureDlRemotePlayer, special_action) == 0x18);
+static_assert(offsetof(FixtureDlRemotePlayer, passenger) == 0x24);
+static_assert(offsetof(FixtureDlRemotePlayer, onfoot) == 0x3C);
+static_assert(offsetof(FixtureDlRemotePlayer, incar) == 0x80);
+static_assert(offsetof(FixtureDlRemotePlayer, trailer) == 0xBF);
+static_assert(offsetof(FixtureDlRemotePlayer, aim) == 0xF5);
+static_assert(offsetof(FixtureDlRemotePlayer, reported_armour) == 0x1AC);
+static_assert(offsetof(FixtureDlRemotePlayer, reported_health) == 0x1B0);
+static_assert(offsetof(FixtureDlRemotePlayer, animation) == 0x1C0);
+static_assert(sizeof(FixtureDlVehiclePool) == 0x17898);
+static_assert(offsetof(FixtureDlVehiclePool, not_empty) == 0x3074);
+static_assert(offsetof(FixtureDlVehiclePool, game_objects) == 0x4FB4);
+static_assert(sizeof(FixtureDlObjectPool) == 0x41A4);
+static_assert(offsetof(FixtureDlObjectPool, not_empty) == 0x04);
+static_assert(offsetof(FixtureDlObjectPool, objects) == 0x20D4);
+static_assert(sizeof(FixtureDlPickupPool) == 0x23004);
+static_assert(offsetof(FixtureDlPickupPool, handles) == 0x04);
+static_assert(sizeof(FixtureDlEntity) == 0x48);
+static_assert(offsetof(FixtureDlEntity, handle) == 0x44);
+static_assert(sizeof(FixtureDlPed) == 0x32D);
+static_assert(offsetof(FixtureDlPed, game_ped) == 0x2A4);
+static_assert(sizeof(FixtureDlGangzone) == 0x18);
+static_assert(sizeof(FixtureDlGangzonePool) == 0x2000);
+static_assert(offsetof(FixtureDlGangzonePool, not_empty) == 0x1000);
+static_assert(sizeof(FixtureDlTextLabel) == 0x1D);
+static_assert(sizeof(FixtureDlTextLabelPool) == 0x10800);
+static_assert(offsetof(FixtureDlTextLabelPool, not_empty) == 0xE800);
+static_assert(sizeof(FixtureDlTextdrawTransmit) == 0x3F);
+static_assert(offsetof(FixtureDlTextdrawTransmit, x) == 0x21);
+static_assert(offsetof(FixtureDlTextdrawTransmit, y) == 0x25);
+static_assert(sizeof(FixtureDlTextdrawData) == 0x73);
+static_assert(offsetof(FixtureDlTextdrawData, proportional) == 0x1B);
+static_assert(offsetof(FixtureDlTextdrawData, style) == 0x24);
+static_assert(offsetof(FixtureDlTextdrawData, x) == 0x28);
+static_assert(offsetof(FixtureDlTextdrawData, model_id) == 0x45);
+static_assert(sizeof(FixtureDlTextdraw) == 0x9D6);
+static_assert(offsetof(FixtureDlTextdraw, string) == 0x321);
+static_assert(offsetof(FixtureDlTextdraw, data) == 0x963);
+static_assert(sizeof(FixtureDlTextdrawPool) == 0x4800);
+static_assert(offsetof(FixtureDlTextdrawPool, objects) == 0x2400);
+static_assert(sizeof(FixtureDlChatEntry) == 0xFC);
+static_assert(offsetof(FixtureDlChatEntry, prefix) == 0x04);
+static_assert(offsetof(FixtureDlChatEntry, text) == 0x20);
+static_assert(offsetof(FixtureDlChatEntry, text_colour) == 0xF4);
+static_assert(offsetof(FixtureDlChatEntry, prefix_colour) == 0xF8);
+static_assert(sizeof(FixtureDlChat) == 0x63EA);
+static_assert(offsetof(FixtureDlChat, mode) == 0x08);
+static_assert(offsetof(FixtureDlChat, entries) == 0x132);
+static_assert(sizeof(FixtureDlScoreboard) == 0x44);
+static_assert(offsetof(FixtureDlScoreboard, enabled) == 0x00);
+static_assert(sizeof(FixtureDlGamePrefix) == 0x65);
+static_assert(offsetof(FixtureDlGamePrefix, cursor_mode) == 0x61);
+static_assert(offsetof(FixtureDlListboxPrefix, selected) == 0x143);
+static_assert(offsetof(FixtureDlListboxPrefix, items) == 0x14C);
+static_assert(offsetof(FixtureDlListboxPrefix, item_count) == 0x150);
+static_assert(sizeof(FixtureDlListboxItemPrefix::text) == 256);
+static_assert(sizeof(FixtureDlAnimationEntry) == 0x24);
 
 extern "C" {
 
@@ -1998,6 +2318,72 @@ SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_r5_1_local_player_active_
 SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_r5_1_local_player_current_vehicle_offset, FixtureR5_1LocalPlayer, current_vehicle)
 SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_r5_1_local_player_ped_offset, FixtureR5_1LocalPlayer, ped)
 SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_r5_1_local_player_last_any_update_offset, FixtureR5_1LocalPlayer, last_any_update)
+
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_pools_size, FixtureDlPools)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pools_pickup_offset, FixtureDlPools, pickup)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pools_object_offset, FixtureDlPools, object)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pools_gangzone_offset, FixtureDlPools, gangzone)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pools_label_offset, FixtureDlPools, label)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pools_textdraw_offset, FixtureDlPools, textdraw)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_samp_string_size, FixtureDlSampString)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_player_info_size, FixtureDlPlayerInfo)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_info_is_npc_offset, FixtureDlPlayerInfo, is_npc)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_player_pool_size, FixtureDlPlayerPool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_local_id_offset, FixtureDlPlayerPool, local_id)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_local_player_offset, FixtureDlPlayerPool, local_player)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_largest_id_offset, FixtureDlPlayerPool, largest_id)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_players_offset, FixtureDlPlayerPool, players)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_not_empty_offset, FixtureDlPlayerPool, not_empty)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_collision_offset, FixtureDlPlayerPool, previous_collision)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_ping_offset, FixtureDlPlayerPool, local_ping)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_player_pool_score_offset, FixtureDlPlayerPool, local_score)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_local_player_size, FixtureDlLocalPlayer)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_ped_offset, FixtureDlLocalPlayer, ped)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_trailer_offset, FixtureDlLocalPlayer, trailer)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_onfoot_offset, FixtureDlLocalPlayer, onfoot)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_passenger_offset, FixtureDlLocalPlayer, passenger)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_incar_offset, FixtureDlLocalPlayer, incar)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_aim_offset, FixtureDlLocalPlayer, aim)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_active_offset, FixtureDlLocalPlayer, active)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_current_vehicle_offset, FixtureDlLocalPlayer, current_vehicle)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_local_player_last_any_update_offset, FixtureDlLocalPlayer, last_any_update)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_remote_player_size, FixtureDlRemotePlayer)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_ped_offset, FixtureDlRemotePlayer, ped)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_special_action_offset, FixtureDlRemotePlayer, special_action)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_passenger_offset, FixtureDlRemotePlayer, passenger)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_onfoot_offset, FixtureDlRemotePlayer, onfoot)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_incar_offset, FixtureDlRemotePlayer, incar)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_trailer_offset, FixtureDlRemotePlayer, trailer)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_aim_offset, FixtureDlRemotePlayer, aim)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_armour_offset, FixtureDlRemotePlayer, reported_armour)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_health_offset, FixtureDlRemotePlayer, reported_health)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_remote_player_animation_offset, FixtureDlRemotePlayer, animation)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_vehicle_pool_size, FixtureDlVehiclePool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_vehicle_pool_not_empty_offset, FixtureDlVehiclePool, not_empty)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_vehicle_pool_game_objects_offset, FixtureDlVehiclePool, game_objects)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_object_pool_size, FixtureDlObjectPool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_object_pool_not_empty_offset, FixtureDlObjectPool, not_empty)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_object_pool_objects_offset, FixtureDlObjectPool, objects)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_pickup_pool_size, FixtureDlPickupPool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_pickup_pool_handles_offset, FixtureDlPickupPool, handles)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_entity_size, FixtureDlEntity)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_entity_handle_offset, FixtureDlEntity, handle)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_ped_size, FixtureDlPed)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_ped_game_ped_offset, FixtureDlPed, game_ped)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_gangzone_pool_size, FixtureDlGangzonePool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_gangzone_pool_not_empty_offset, FixtureDlGangzonePool, not_empty)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_label_pool_size, FixtureDlTextLabelPool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_label_pool_not_empty_offset, FixtureDlTextLabelPool, not_empty)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_textdraw_size, FixtureDlTextdraw)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_textdraw_data_offset, FixtureDlTextdraw, data)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_textdraw_pool_size, FixtureDlTextdrawPool)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_textdraw_pool_objects_offset, FixtureDlTextdrawPool, objects)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_chat_size, FixtureDlChat)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_chat_mode_offset, FixtureDlChat, mode)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_chat_entries_offset, FixtureDlChat, entries)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_scoreboard_size, FixtureDlScoreboard)
+SAMP_CLIENT_SDK_OFFSET_FIXTURE(samp_client_sdk_fixture_dl_game_cursor_mode_offset, FixtureDlGamePrefix, cursor_mode)
+SAMP_CLIENT_SDK_SIZE_FIXTURE(samp_client_sdk_fixture_dl_animation_entry_size, FixtureDlAnimationEntry)
 
 #undef SAMP_CLIENT_SDK_OFFSET_FIXTURE
 #undef SAMP_CLIENT_SDK_SIZE_FIXTURE

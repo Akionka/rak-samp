@@ -21,8 +21,11 @@ pub const MAX_SAMP_CHAT_ENTRIES: u16 = 100;
 pub const MAX_SAMP_CHAT_ENTRY_TEXT_BYTES: usize = 143;
 /// Maximum non-NUL bytes in one R1 chat-history prefix field.
 pub const MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES: usize = 27;
-/// Number of addressable SA-MP object IDs in the R1 object pool.
-pub const MAX_SAMP_OBJECTS: u16 = 1_000;
+/// Maximum number of addressable object IDs across supported SA-MP builds.
+///
+/// DL-R1 expands the object pool to 2,100 entries. Profiles for other builds
+/// reject IDs outside their native 1,000-entry pools.
+pub const MAX_SAMP_OBJECTS: u16 = 2_100;
 /// Number of addressable SA-MP pickup slots in the R1 pickup pool.
 pub const MAX_SAMP_PICKUPS: u16 = 4_096;
 /// Number of addressable SA-MP gangzone IDs in the R1 gangzone pool.

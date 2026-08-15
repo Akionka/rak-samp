@@ -53,7 +53,7 @@ reconnect, or hook-restoration checklists.
 | --- | --- | --- |
 | R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); copied game/server/local-player/player-pool/chat-input/chat-display/dialog-active/scoreboard-open/cursor-mode caches passed fixture and interactive loopback checks (`0x0000FFFF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
 | R5-1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent R5 layouts, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
-| DL R1 | Host attached; constructor and `HandleRPCPacket` hooks became ready. The first incoming packet was valid (`18` bytes, `144` bits), then the client exited. | Partial pass |
+| DL R1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent DL layouts, its 2100-object pool, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
 
 ## R3-1 network smoke observation (2026-08-12)
 
@@ -284,6 +284,33 @@ showed the setter at `0xB2F60`; the corrected address completed the lifecycle
 in the same full probe. Process-exit cleanup is covered by owned hook-lifecycle
 tests because the active ASI loader does not unload plugins before GTA exits.
 
+## DL-R1 complete direct-profile observation (2026-08-15)
+
+The isolated DL-R1 client and the supplied `v0.3.DL-R1` server completed the
+unified probe with `status=0x3FFFFFFF` and `failure=0`. The pinned client has
+PE entry-point RVA `0x0FDB60` and SHA-256
+`BCCDB297464BD382625635BE25585DF07A8FA6668BC0015650708E3EB4FFCD4B`.
+The status file recorded `textdraw_phase=complete`, `vehicle_phase=complete`,
+`game_state=6`, `address_hex=3132372E302E302E31`, `hostname_hex=53412D4D50`,
+`port=7777`, and ready server, local-player, and incoming caches after
+reconnect.
+
+The run covered the complete direct bridge: identity, network and codec paths,
+all caches and native mutations, command registration, entity and GTA handle
+round trips, every local force-sync packet, 3D text-label and textdraw
+lifecycles, driver/passenger/trailer states, disconnect invalidation, and
+reconnect restoration. Independent C++ fixtures pin every consumed DL layout,
+including the 2100-entry object pool and NPC remote-player state.
+
+Live validation corrected two unsafe addresses. `CPlayerPool::GetCount` is at
+`0x138C0`; `0x6E300` only reads an unrelated field at offset `0x24`. The
+remote-player data accessor is at `0x10F0`; `0x10D0` returns the outer
+`CPlayerInfo` record. Using that outer record as remote-player data caused the
+observed access violations. An R2 server initially rejected the DL client as
+an incorrect version; the supplied DL-R1 server was required. Process-exit
+cleanup is covered by the hook-lifecycle tests because the ASI loader exits
+with GTA.
+
 ## SA-MP 0.3.7 R1
 
 Pinned artifact: installed `samp.dll`, SHA-256
@@ -349,12 +376,13 @@ Pinned artifact: `sa-mp-0.3.7-R5-1-install.exe` → `samp.dll`, SHA-256
 Pinned artifact: `sa-mp-0.3.DL-R1-install.exe` → `samp.dll`, SHA-256
 `BCCDB297464BD382625635BE25585DF07A8FA6668BC0015650708E3EB4FFCD4B`.
 
-- [ ] Confirm the PE entry-point RVA is `0x0FDB60` and the logged fingerprint
+- [x] Confirm the PE entry-point RVA is `0x0FDB60` and the logged fingerprint
   matches the pinned hash.
-- [ ] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
+- [x] Verify the network-only `AddressSet`: constructor hook, inbound RPC,
   packet allocation, bitstream lock/unlock, and string codec round-trip.
-- [ ] Prove the profile's `stSAMP`, `stInputInfo`, and `stDialogInfo` values
+- [x] Prove the profile's `stSAMP`, `stInputInfo`, and `stDialogInfo` values
   against the fixture before enabling any helper that consumes them.
-- [ ] Obtain or disassemble evidence for every additional DL layout family;
+- [x] Obtain or disassemble evidence for every additional DL layout family;
   do not reuse a non-DL layout merely because a field name matches.
-- [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.
+- [x] Disconnect and reconnect in game; cover hook restoration and owned-slot
+  teardown with the host lifecycle tests because the ASI loader exits with GTA.

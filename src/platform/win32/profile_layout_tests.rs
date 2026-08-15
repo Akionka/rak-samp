@@ -1,8 +1,7 @@
-//! Independent minimal layout gates for unenabled native client profiles.
+//! Independent native-client profile layout fixtures.
 //!
-//! The runtime keeps direct helpers R1-only apart from the narrow, read-only
-//! R3 CNetGame scalar cache. These tests record the first three structures any
-//! future R3-1, R5-1, or DL profile must prove before a broader gate is relaxed.
+//! These tests cover the native structures consumed by the enabled R3-1,
+//! R5-1, and DL-R1 direct-helper profiles.
 
 use crate::client::SampVersion;
 
@@ -120,6 +119,71 @@ unsafe extern "C" {
     fn samp_client_sdk_fixture_dl_dialog_size() -> usize;
     fn samp_client_sdk_fixture_dl_dialog_active_offset() -> usize;
     fn samp_client_sdk_fixture_dl_dialog_caption_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_size() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_pickup_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_object_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_gangzone_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_label_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pools_textdraw_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_samp_string_size() -> usize;
+    fn samp_client_sdk_fixture_dl_player_info_size() -> usize;
+    fn samp_client_sdk_fixture_dl_player_info_is_npc_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_local_id_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_local_player_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_largest_id_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_players_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_collision_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_ping_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_player_pool_score_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_size() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_ped_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_trailer_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_onfoot_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_passenger_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_aim_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_active_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_current_vehicle_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_local_player_last_any_update_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_size() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_ped_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_special_action_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_passenger_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_onfoot_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_trailer_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_aim_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_armour_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_health_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_remote_player_animation_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_vehicle_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_vehicle_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_vehicle_pool_game_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_object_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_object_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_object_pool_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_pickup_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_pickup_pool_handles_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_entity_size() -> usize;
+    fn samp_client_sdk_fixture_dl_entity_handle_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_ped_size() -> usize;
+    fn samp_client_sdk_fixture_dl_ped_game_ped_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_gangzone_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_gangzone_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_label_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_label_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_textdraw_size() -> usize;
+    fn samp_client_sdk_fixture_dl_textdraw_data_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_textdraw_pool_size() -> usize;
+    fn samp_client_sdk_fixture_dl_textdraw_pool_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_chat_size() -> usize;
+    fn samp_client_sdk_fixture_dl_chat_mode_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_chat_entries_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_scoreboard_size() -> usize;
+    fn samp_client_sdk_fixture_dl_game_cursor_mode_offset() -> usize;
+    fn samp_client_sdk_fixture_dl_animation_entry_size() -> usize;
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -271,6 +335,143 @@ fn r5_distinct_player_and_pool_layouts_match_the_independent_cpp_fixture() {
         (
             0x324, 0x00, 0x3F, 0x5E, 0x94, 0xD8, 0xF0, 0xF8, 0x104, 0x13F
         )
+    );
+}
+
+#[test]
+fn dl_pool_and_player_layouts_match_the_independent_cpp_fixture() {
+    let pools = unsafe {
+        [
+            samp_client_sdk_fixture_dl_pools_size(),
+            samp_client_sdk_fixture_dl_pools_pickup_offset(),
+            samp_client_sdk_fixture_dl_pools_object_offset(),
+            samp_client_sdk_fixture_dl_pools_gangzone_offset(),
+            samp_client_sdk_fixture_dl_pools_label_offset(),
+            samp_client_sdk_fixture_dl_pools_textdraw_offset(),
+        ]
+    };
+    assert_eq!(pools, [0x24, 0x10, 0x14, 0x18, 0x1C, 0x20]);
+
+    let player_pool = unsafe {
+        [
+            samp_client_sdk_fixture_dl_samp_string_size(),
+            samp_client_sdk_fixture_dl_player_info_size(),
+            samp_client_sdk_fixture_dl_player_info_is_npc_offset(),
+            samp_client_sdk_fixture_dl_player_pool_size(),
+            samp_client_sdk_fixture_dl_player_pool_local_id_offset(),
+            samp_client_sdk_fixture_dl_player_pool_local_player_offset(),
+            samp_client_sdk_fixture_dl_player_pool_largest_id_offset(),
+            samp_client_sdk_fixture_dl_player_pool_players_offset(),
+            samp_client_sdk_fixture_dl_player_pool_not_empty_offset(),
+            samp_client_sdk_fixture_dl_player_pool_collision_offset(),
+            samp_client_sdk_fixture_dl_player_pool_ping_offset(),
+            samp_client_sdk_fixture_dl_player_pool_score_offset(),
+        ]
+    };
+    assert_eq!(
+        player_pool,
+        [
+            0x1C, 0x2C, 0x04, 0x2F3E, 0x00, 0x1E, 0x22, 0x26, 0xFD6, 0x1F86, 0x2F36, 0x2F3A,
+        ]
+    );
+}
+
+#[test]
+fn dl_local_and_remote_player_layouts_match_the_independent_cpp_fixture() {
+    let local = unsafe {
+        [
+            samp_client_sdk_fixture_dl_local_player_size(),
+            samp_client_sdk_fixture_dl_local_player_ped_offset(),
+            samp_client_sdk_fixture_dl_local_player_trailer_offset(),
+            samp_client_sdk_fixture_dl_local_player_onfoot_offset(),
+            samp_client_sdk_fixture_dl_local_player_passenger_offset(),
+            samp_client_sdk_fixture_dl_local_player_incar_offset(),
+            samp_client_sdk_fixture_dl_local_player_aim_offset(),
+            samp_client_sdk_fixture_dl_local_player_active_offset(),
+            samp_client_sdk_fixture_dl_local_player_current_vehicle_offset(),
+            samp_client_sdk_fixture_dl_local_player_last_any_update_offset(),
+        ]
+    };
+    assert_eq!(
+        local,
+        [0x328, 0x00, 0x04, 0x3A, 0x7E, 0x96, 0xD5, 0xF4, 0xFC, 0x110]
+    );
+
+    let remote = unsafe {
+        [
+            samp_client_sdk_fixture_dl_remote_player_size(),
+            samp_client_sdk_fixture_dl_remote_player_ped_offset(),
+            samp_client_sdk_fixture_dl_remote_player_special_action_offset(),
+            samp_client_sdk_fixture_dl_remote_player_passenger_offset(),
+            samp_client_sdk_fixture_dl_remote_player_onfoot_offset(),
+            samp_client_sdk_fixture_dl_remote_player_incar_offset(),
+            samp_client_sdk_fixture_dl_remote_player_trailer_offset(),
+            samp_client_sdk_fixture_dl_remote_player_aim_offset(),
+            samp_client_sdk_fixture_dl_remote_player_armour_offset(),
+            samp_client_sdk_fixture_dl_remote_player_health_offset(),
+            samp_client_sdk_fixture_dl_remote_player_animation_offset(),
+        ]
+    };
+    assert_eq!(
+        remote,
+        [
+            0x1FD, 0x04, 0x18, 0x24, 0x3C, 0x80, 0xBF, 0xF5, 0x1AC, 0x1B0, 0x1C0,
+        ]
+    );
+}
+
+#[test]
+fn dl_entity_pool_layouts_match_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        [
+            samp_client_sdk_fixture_dl_vehicle_pool_size(),
+            samp_client_sdk_fixture_dl_vehicle_pool_not_empty_offset(),
+            samp_client_sdk_fixture_dl_vehicle_pool_game_objects_offset(),
+            samp_client_sdk_fixture_dl_object_pool_size(),
+            samp_client_sdk_fixture_dl_object_pool_not_empty_offset(),
+            samp_client_sdk_fixture_dl_object_pool_objects_offset(),
+            samp_client_sdk_fixture_dl_pickup_pool_size(),
+            samp_client_sdk_fixture_dl_pickup_pool_handles_offset(),
+            samp_client_sdk_fixture_dl_entity_size(),
+            samp_client_sdk_fixture_dl_entity_handle_offset(),
+            samp_client_sdk_fixture_dl_ped_size(),
+            samp_client_sdk_fixture_dl_ped_game_ped_offset(),
+        ]
+    };
+    assert_eq!(
+        observed,
+        [
+            0x17898, 0x3074, 0x4FB4, 0x41A4, 0x04, 0x20D4, 0x23004, 0x04, 0x48, 0x44, 0x32D, 0x2A4,
+        ]
+    );
+}
+
+#[test]
+fn dl_ui_and_world_layouts_match_the_independent_cpp_fixture() {
+    let observed = unsafe {
+        [
+            samp_client_sdk_fixture_dl_gangzone_pool_size(),
+            samp_client_sdk_fixture_dl_gangzone_pool_not_empty_offset(),
+            samp_client_sdk_fixture_dl_label_pool_size(),
+            samp_client_sdk_fixture_dl_label_pool_not_empty_offset(),
+            samp_client_sdk_fixture_dl_textdraw_size(),
+            samp_client_sdk_fixture_dl_textdraw_data_offset(),
+            samp_client_sdk_fixture_dl_textdraw_pool_size(),
+            samp_client_sdk_fixture_dl_textdraw_pool_objects_offset(),
+            samp_client_sdk_fixture_dl_chat_size(),
+            samp_client_sdk_fixture_dl_chat_mode_offset(),
+            samp_client_sdk_fixture_dl_chat_entries_offset(),
+            samp_client_sdk_fixture_dl_scoreboard_size(),
+            samp_client_sdk_fixture_dl_game_cursor_mode_offset(),
+            samp_client_sdk_fixture_dl_animation_entry_size(),
+        ]
+    };
+    assert_eq!(
+        observed,
+        [
+            0x2000, 0x1000, 0x10800, 0xE800, 0x9D6, 0x963, 0x4800, 0x2400, 0x63EA, 0x08, 0x132,
+            0x44, 0x61, 0x24,
+        ]
     );
 }
 

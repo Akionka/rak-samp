@@ -28,6 +28,7 @@ targets = ["i686-pc-windows-msvc"]
 members = [
     "sdk",
     "examples/chat_command_plugin",
+    "examples/dl_network_probe",
     "examples/network_smoke_plugin",
     "examples/r3_network_probe",
     "examples/r5_network_probe",

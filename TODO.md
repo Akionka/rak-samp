@@ -526,6 +526,12 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   `0x3FFFFFFF`, `failure=0`, complete textdraw/vehicle phases, successful
   disconnect/reconnect, and post-reconnect incoming delivery. The run also
   corrected `CTextDraw::SetText` to `0xB2F60`; `0xB36E0` is its constructor.
+- [x] Execute the full DL-R1 live validation suite against the pinned DL server;
+  record final status `0x3FFFFFFF`, `failure=0`, complete textdraw/vehicle
+  phases, successful disconnect/reconnect, and post-reconnect incoming
+  delivery. The run corrected `CPlayerPool::GetCount` to `0x138C0` and the
+  remote-data accessor to `0x10F0`; `0x10D0` returns the outer player-info
+  record.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
@@ -538,13 +544,13 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 
 | Capability | R1 | R3-1 | R5-1 | DL | Evidence / required validation |
 | --- | --- | --- | --- | --- | --- |
-| `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [x] `0x0CBC90`; pinned R5 full live pass | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
-| Network `AddressSet` selection | [x] | [x] R3 smoke | [x] R5 exact-bit and full live pass | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `ClassicClientProfile::R3`; full helper dispatch and live suite | [x] `ClassicClientProfile::R5`; full helper dispatch and live suite | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
-| Game-process hook target | [x] GTA 1.0 US | [x] live attach/process exit and MinHook lifecycle test | [x] shared GTA hook and live process entry | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
-| Dialog-close hook target | [x] | [x] `CDialog::Close` fixture and live response | [x] `0x70630`; fixture and live response | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
-| RakClient vtable contract | [x] | [x] live send/receive/reconnect and owned-slot restoration test | [x] live send/receive/reconnect | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
-| Native bitstream ABI | [x] | [x] fixture and exact-bit live packet/RPC pass | [x] fixture and exact-bit live packet/RPC pass | [ ] SF/disasm | C++ fixture plus exact-bit packet/RPC smoke test |
+| `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [x] `0x0CBC90`; pinned R5 full live pass | [x] `0x0FDB60`; pinned DL full live pass | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
+| Network `AddressSet` selection | [x] | [x] R3 smoke | [x] R5 exact-bit and full live pass | [x] DL exact-bit and full live pass | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `ClassicClientProfile::R3`; full helper dispatch and live suite | [x] `ClassicClientProfile::R5`; full helper dispatch and live suite | [x] `NativeProfile::Dl`; full helper dispatch and live suite | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Game-process hook target | [x] GTA 1.0 US | [x] live attach/process exit and MinHook lifecycle test | [x] shared GTA hook and live process entry | [x] shared GTA hook and DL live process entry | Existing MinHook lifecycle test plus in-game attach/detach |
+| Dialog-close hook target | [x] | [x] `CDialog::Close` fixture and live response | [x] `0x70630`; fixture and live response | [x] `0x700D0`; fixture and live response | Hook, trampoline, and dialog-response smoke test |
+| RakClient vtable contract | [x] | [x] live send/receive/reconnect and owned-slot restoration test | [x] live send/receive/reconnect | [x] live send/receive/reconnect | Packet/RPC send/receive and restoration tests |
+| Native bitstream ABI | [x] | [x] fixture and exact-bit live packet/RPC pass | [x] fixture and exact-bit live packet/RPC pass | [x] fixture and exact-bit live packet/RPC pass | C++ fixture plus exact-bit packet/RPC smoke test |
 
 ### Network and codec RVAs (`AddressSet`)
 
@@ -564,14 +570,14 @@ or the live object pointer is safe; those checks remain required below.
 
 | Address / use | R1 | R3-1 | R5-1 | DL | Evidence / validation |
 | --- | --- | --- | --- | --- | --- |
-| Incoming RPC handler | [x] `0x372F0` | [x] `0x3A6A0`; R3 smoke | [x] `0x3ADE0`; R5 smoke | [ ] `0x3A8A0` | `src/client.rs`; MinHook/trampoline RPC smoke |
-| RakClient constructor | [x] `0x33DC0` | [x] `0x37170`; R3 smoke | [x] `0x378B0`; R5 smoke | [ ] `0x37370` | `src/client.rs`; constructor/vtable capture smoke |
-| Allocate packet | [x] `0x347E0` | [x] `0x37B90`; R3 smoke | [x] `0x382D0`; R5 exact-bit pass | [ ] `0x37D90` | `src/client.rs`; incoming packet emulation smoke |
-| Bitstream write lock | [x] `0x35B10` | [x] `0x38EC0`; R3 smoke | [x] `0x39600`; R5 exact-bit pass | [ ] `0x390C0` | `src/client.rs`; exact-bit send smoke |
-| Bitstream write unlock | [x] `0x35B50` | [x] `0x38F00`; R3 smoke | [x] `0x39640`; R5 exact-bit pass | [ ] `0x39100` | `src/client.rs`; exact-bit send smoke |
-| String encode | [x] `0x506B0` | [x] `0x53A60`; R3 smoke | [x] `0x541A0`; R5 codec pass | [ ] `0x53C60` | SF.lua for R1/R3/R5; codec round-trip |
-| String decode | [x] `0x507E0` | [x] `0x53B90`; R3 smoke | [x] `0x542D0`; R5 codec pass | [ ] `0x53D90` | SF.lua for R1/R3/R5; codec round-trip |
-| String-compressor pointer | [x] `0x10D894` | [x] `0x121914`; R3 smoke | [x] `0x121A3C`; R5 codec pass | [ ] `0x15FA54` | Static `StringCompressor::Instance()` cross-check; validate the live object/range before codec call |
+| Incoming RPC handler | [x] `0x372F0` | [x] `0x3A6A0`; R3 smoke | [x] `0x3ADE0`; R5 smoke | [x] `0x3A8A0`; DL live pass | `src/client.rs`; MinHook/trampoline RPC smoke |
+| RakClient constructor | [x] `0x33DC0` | [x] `0x37170`; R3 smoke | [x] `0x378B0`; R5 smoke | [x] `0x37370`; DL live pass | `src/client.rs`; constructor/vtable capture smoke |
+| Allocate packet | [x] `0x347E0` | [x] `0x37B90`; R3 smoke | [x] `0x382D0`; R5 exact-bit pass | [x] `0x37D90`; DL exact-bit pass | `src/client.rs`; incoming packet emulation smoke |
+| Bitstream write lock | [x] `0x35B10` | [x] `0x38EC0`; R3 smoke | [x] `0x39600`; R5 exact-bit pass | [x] `0x390C0`; DL exact-bit pass | `src/client.rs`; exact-bit send smoke |
+| Bitstream write unlock | [x] `0x35B50` | [x] `0x38F00`; R3 smoke | [x] `0x39640`; R5 exact-bit pass | [x] `0x39100`; DL exact-bit pass | `src/client.rs`; exact-bit send smoke |
+| String encode | [x] `0x506B0` | [x] `0x53A60`; R3 smoke | [x] `0x541A0`; R5 codec pass | [x] `0x53C60`; DL codec pass | SF.lua for R1/R3/R5; codec round-trip |
+| String decode | [x] `0x507E0` | [x] `0x53B90`; R3 smoke | [x] `0x542D0`; R5 codec pass | [x] `0x53D90`; DL codec pass | SF.lua for R1/R3/R5; codec round-trip |
+| String-compressor pointer | [x] `0x10D894` | [x] `0x121914`; R3 smoke | [x] `0x121A3C`; R5 codec pass | [x] `0x15FA54`; accessor and DL codec pass | Static `StringCompressor::Instance()` cross-check; validate the live object/range before codec call |
 
 ### Native singleton and method RVAs
 
@@ -583,73 +589,73 @@ the matching call signature and object/layout proof to that profile.
 
 | Native address / use | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
-| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [x] `0x26E898`; fixture and full live snapshot | [x] `0x26EB50`; fixture and R5 live pass | [ ] SF/disasm |
-| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [x] `0x6F8C0`; SAPI and live mutation | [x] `0x6FFB0`; fixture and R5 live pass | [ ] SF/disasm |
-| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [x] `0x6FF40`; fixture and live response hook | [x] `0x70630`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [x] `0x26E8CC`; fixture/live read-only cache | [x] `0x26EB84`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_OPEN_RVA` | [x] `0x657E0` | [x] `0x68D10`; SAPI and live mutation | [x] `0x69480`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [x] `0x68E10`; SAPI and live mutation | [x] `0x69580`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [x] `0x68FA0`; SAPI and live command pass | [x] `0x69710`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [x] `0x69000`; SAPI and live command pass | [x] `0x69770`; fixture and R5 live pass | [ ] SF/disasm |
-| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [x] `0x69260`; SAPI and live command pass | [x] `0x699D0`; fixture and R5 live pass | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [x] `0x84E70`; fixture and live mutation | [x] `0x85580`; fixture and R5 live pass | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [x] `0x84F40`; fixture and live snapshot | [x] `0x85650`; fixture and R5 live pass | [ ] SF/disasm |
-| `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [x] `0x26E8C8`; `GetMode` live read-only cache | [x] `0x26EB80`; fixture and R5 live pass | [ ] SF/disasm |
-| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [x] `0x67460`; fixture and live mutation | [x] `0x67BE0`; fixture and R5 live pass | [ ] SF/disasm |
-| `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [x] `0x60B40`; `__thiscall`, bounded live cache | [x] `0x612B0`; fixture and R5 live pass | [ ] SF/disasm |
-| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [x] `0x26E894`; `CScoreboard` fixture/live read-only open cache | [x] `0x26EB4C`; fixture and R5 live pass | [ ] SF/disasm |
-| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [x] `0x26E8D0`; SAPI and live mutation | [x] `0x26EB88`; fixture and R5 live pass | [ ] SF/disasm |
-| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [x] `0x69F40`; SAPI and live mutation | [x] `0x6A6B0`; fixture and R5 live pass | [ ] SF/disasm |
-| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [x] `0x26E8DC`; SAPI and full live pass | [x] `0x26EB94`; fixture and R5 live pass | [ ] SF/disasm |
-| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [x] `0x2E10`; SAPI and live state transitions | [x] `0x2E30`; fixture and R5 live pass | [ ] SF/disasm |
-| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [x] `0x1160`; SAPI and live pool pass | [x] `0x1170`; fixture and R5 live pass | [ ] SF/disasm |
-| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [x] `0x1170`; SAPI and live pool pass | [x] `0x1180`; fixture and R5 live pass | [ ] SF/disasm |
-| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [x] `0xA1E0`; SAPI and live reconnect | [x] `0xA540`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [x] `0x1A30`; SAPI and live snapshot | [x] `0x1A40`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [x] `0x6E140`; SAPI and live snapshot | [x] `0x6E8B0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [x] `0x6E150`; SAPI and live snapshot | [x] `0x6E8C0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [x] `0x10B0`; fixture and NPC live pass | [x] `0x10B0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [x] `0x10F0`; fixture and NPC live pass | [x] `0x10F0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [x] `CPlayerInfo` layout and NPC live pass | [x] `CPlayerInfo` layout and NPC live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [x] `0x16F00`; fixture and NPC live pass | [x] `0x175C0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [x] `0x6E0E0`; fixture and NPC live pass | [x] `0x6E850`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [x] `0x6E110`; fixture and NPC live pass | [x] `0x6E880`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_GET_COUNT_RVA` | [x] `0x10520` | [x] `0x13670`; SAPI ABI, fixture, PE entry, and loopback | [x] `0x139F0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [x] `0xB5C0`; SAPI and live mutation | [x] `0xB8A0`; fixture and R5 live pass | [ ] SF/disasm |
-| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [x] `0x1140`; SAPI and live entity pass | [x] `0x1150`; fixture and R5 live pass | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [x] `0x15C10`; fixture and NPC live pass | [x] `0x16180`; fixture and R5 live pass | [ ] SF/disasm |
-| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [x] `0x15BE0`; SAPI and live mutation | [x] `0x16150`; fixture and R5 live pass | [ ] SF/disasm |
-| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [x] `0x1080`; fixture and NPC live pass | [x] `0x1080`; fixture and R5 live pass | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [x] `0x15DB0`; fixture and NPC live pass | [x] `0x16330`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [x] `0x2D50`; SAPI and live handle pass | [x] `0x2D70`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [x] `0x3DA0`; SAPI and live snapshot | [x] `0x3F20`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [x] `0x3D50`; SAPI and live mutation | [x] `0x3ED0`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [x] `0x30C0`; SAPI and live mutation | [x] `0x30F0`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [x] `0x3AD0`; SAPI and live mutation | [x] `0x3C20`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [x] `0x4B60`; SAPI and live packet | [x] `0x4D30`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [x] `0x5040`; SAPI and live packet | [x] `0x5210`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [x] `0x4D40`; SAPI and live packet | [x] `0x4F00`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [x] `0x5B10`; SAPI and live packet | [x] `0x5D00`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [x] `0x51F0`; SAPI and live packet | [x] `0x53D0`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [x] `0x53B0`; SAPI and live packet | [x] `0x5590`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [x] `0x6E40`; SAPI and live packet | [x] `0x7080`; fixture and R5 live pass | [ ] SF/disasm |
-| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [x] `0x6090`; SAPI and live packet | [x] `0x6290`; fixture and R5 live pass | [ ] SF/disasm |
-| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [x] `0xFE0A8`; SAPI and live mutation | [x] `0xFE0A8`; fixture and R5 live pass | [ ] SF/disasm |
-| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [x] `0xFE0AC`; SAPI and live mutation | [x] `0xFE0AC`; fixture and R5 live pass | [ ] SF/disasm |
-| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [x] `0xFE0B0`; SAPI and live mutation | [x] `0xFE0B0`; fixture and R5 live pass | [ ] SF/disasm |
-| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [x] `0xAB4C0`; SAPI and live snapshot | [x] `0xABD50`; fixture and R5 live pass | [ ] SF/disasm |
-| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [x] `0xAB500`; SAPI and live snapshot | [x] `0xABD90`; fixture and R5 live pass | [ ] SF/disasm |
-| `GAME_SINGLETON_RVA` | [x] `0x21A10C` | [x] `0x26E8F4`; `CGame` fixture and automatic loopback smoke | [x] `0x26EBAC`; fixture and R5 live pass | [ ] SF/disasm |
-| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [x] `0x9FFE0`; SAPI and live mutation | [x] `0xA06F0`; fixture and R5 live pass | [ ] SF/disasm |
-| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [x] `0x9FEC0`; SAPI and live mutation | [x] `0xA05D0`; fixture and R5 live pass | [ ] SF/disasm |
-| `ANIMATION_TABLE_RVA` | [x] `0xF15B0` | [x] `0x1039D0`; SF.lua, fixture, and live lookup | [x] `0x1039E8`; fixture and R5 live pass | [ ] SF/disasm |
-| `CPOOLS_GET_PED_REF` (GTA) | [x] `0x54FF60` | [x] GTA shared live round trip | [x] GTA shared live round trip | [ ] GTA shared verify |
-| `CPOOLS_GET_VEHICLE_REF` (GTA) | [x] `0x54FFC0` | [x] GTA shared live round trip | [x] GTA shared live round trip | [ ] GTA shared verify |
-| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [x] `0x11C0`; fixture and live lifecycle | [x] `0x11D0`; fixture and R5 live pass | [ ] SF/disasm |
-| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [x] `0x12D0`; fixture and live lifecycle | [x] `0x12E0`; fixture and R5 live pass | [ ] SF/disasm |
-| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [x] `0x1E1C0`; fixture and live lifecycle | [x] `0x1E910`; fixture and R5 live pass | [ ] SF/disasm |
-| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [x] `0x1E0A0`; fixture and live lifecycle | [x] `0x1E7F0`; fixture and R5 live pass | [ ] SF/disasm |
-| `TEXTDRAW_SET_TEXT_RVA` | [x] bounded direct write | [x] `0xB26D0`; disassembly and live lifecycle | [x] `0xB2F60`; disassembly and live lifecycle | [ ] SF/disasm |
+| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [x] `0x26E898`; fixture and full live snapshot | [x] `0x26EB50`; fixture and R5 live pass | [x] `0x2AC9E0`; fixture and DL live pass |
+| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [x] `0x6F8C0`; SAPI and live mutation | [x] `0x6FFB0`; fixture and R5 live pass | [x] `0x6FA50`; fixture and DL live pass |
+| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [x] `0x6FF40`; fixture and live response hook | [x] `0x70630`; fixture and R5 live pass | [x] `0x700D0`; fixture and DL live pass |
+| `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [x] `0x26E8CC`; fixture/live read-only cache | [x] `0x26EB84`; fixture and R5 live pass | [x] `0x2ACA14`; fixture and DL live pass |
+| `INPUT_OPEN_RVA` | [x] `0x657E0` | [x] `0x68D10`; SAPI and live mutation | [x] `0x69480`; fixture and R5 live pass | [x] `0x68EC0`; fixture and DL live pass |
+| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [x] `0x68E10`; SAPI and live mutation | [x] `0x69580`; fixture and R5 live pass | [x] `0x68FC0`; fixture and DL live pass |
+| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [x] `0x68FA0`; SAPI and live command pass | [x] `0x69710`; fixture and R5 live pass | [x] `0x69150`; fixture and DL live pass |
+| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [x] `0x69000`; SAPI and live command pass | [x] `0x69770`; fixture and R5 live pass | [x] `0x691B0`; fixture and DL live pass |
+| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [x] `0x69260`; SAPI and live command pass | [x] `0x699D0`; fixture and R5 live pass | [x] `0x69410`; fixture and DL live pass |
+| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [x] `0x84E70`; fixture and live mutation | [x] `0x85580`; fixture and R5 live pass | [x] `0x85000`; fixture and DL live pass |
+| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [x] `0x84F40`; fixture and live snapshot | [x] `0x85650`; fixture and R5 live pass | [x] `0x850D0`; fixture and DL live pass |
+| `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [x] `0x26E8C8`; `GetMode` live read-only cache | [x] `0x26EB80`; fixture and R5 live pass | [x] `0x2ACA10`; fixture and DL live pass |
+| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [x] `0x67460`; fixture and live mutation | [x] `0x67BE0`; fixture and R5 live pass | [x] `0x67650`; fixture and DL live pass |
+| `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [x] `0x60B40`; `__thiscall`, bounded live cache | [x] `0x612B0`; fixture and R5 live pass | [x] `0x60D30`; fixture and DL live pass |
+| `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [x] `0x26E894`; `CScoreboard` fixture/live read-only open cache | [x] `0x26EB4C`; fixture and R5 live pass | [x] `0x2AC9DC`; fixture and DL live pass |
+| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [x] `0x26E8D0`; SAPI and live mutation | [x] `0x26EB88`; fixture and R5 live pass | [x] `0x2ACA18`; fixture and DL live pass |
+| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [x] `0x69F40`; SAPI and live mutation | [x] `0x6A6B0`; fixture and R5 live pass | [x] `0x6A0F0`; fixture and DL live pass |
+| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [x] `0x26E8DC`; SAPI and full live pass | [x] `0x26EB94`; fixture and R5 live pass | [x] `0x2ACA24`; fixture and DL live pass |
+| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [x] `0x2E10`; SAPI and live state transitions | [x] `0x2E30`; fixture and R5 live pass | [x] `0x2E60`; fixture and DL live pass |
+| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [x] `0x1160`; SAPI and live pool pass | [x] `0x1170`; fixture and R5 live pass | [x] `0x1170`; fixture and DL live pass |
+| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [x] `0x1170`; SAPI and live pool pass | [x] `0x1180`; fixture and R5 live pass | [x] `0x1180`; fixture and DL live pass |
+| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [x] `0xA1E0`; SAPI and live reconnect | [x] `0xA540`; fixture and R5 live pass | [x] `0xA230`; fixture and DL live reconnect |
+| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [x] `0x1A30`; SAPI and live snapshot | [x] `0x1A40`; fixture and R5 live pass | [x] `0x1A80`; fixture and DL live pass |
+| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [x] `0x6E140`; SAPI and live snapshot | [x] `0x6E8B0`; fixture and R5 live pass | [x] `0x6E2E0`; fixture and DL live pass |
+| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [x] `0x6E150`; SAPI and live snapshot | [x] `0x6E8C0`; fixture and R5 live pass | [x] `0x6E2F0`; fixture and DL live pass |
+| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [x] `0x10B0`; fixture and NPC live pass | [x] `0x10B0`; fixture and R5 live pass | [x] `0x10B0`; fixture and DL NPC pass |
+| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [x] `0x10F0`; fixture and NPC live pass | [x] `0x10F0`; fixture and R5 live pass | [x] `0x10F0`; nested data accessor and DL NPC pass |
+| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [x] `CPlayerInfo` layout and NPC live pass | [x] `CPlayerInfo` layout and NPC live pass | [x] `0xE300`; `CPlayerInfo` fixture and DL NPC pass |
+| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [x] `0x16F00`; fixture and NPC live pass | [x] `0x175C0`; fixture and R5 live pass | [x] `0x170D0`; fixture and DL NPC pass |
+| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [x] `0x6E0E0`; fixture and NPC live pass | [x] `0x6E850`; fixture and R5 live pass | [x] `0x6E290`; fixture and DL NPC pass |
+| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [x] `0x6E110`; fixture and NPC live pass | [x] `0x6E880`; fixture and R5 live pass | [x] `0x6E2B0`; fixture and DL NPC pass |
+| `PLAYER_POOL_GET_COUNT_RVA` | [x] `0x10520` | [x] `0x13670`; SAPI ABI, fixture, PE entry, and loopback | [x] `0x139F0`; fixture and R5 live pass | [x] `0x138C0`; disassembly ABI and DL live pass |
+| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [x] `0xB5C0`; SAPI and live mutation | [x] `0xB8A0`; fixture and R5 live pass | [x] `0xB490`; fixture and DL live pass |
+| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [x] `0x1140`; SAPI and live entity pass | [x] `0x1150`; fixture and R5 live pass | [x] `0x1150`; fixture and DL live pass |
+| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [x] `0x15C10`; fixture and NPC live pass | [x] `0x16180`; fixture and R5 live pass | [x] `0x15E30`; fixture and DL NPC pass |
+| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [x] `0x15BE0`; SAPI and live mutation | [x] `0x16150`; fixture and R5 live pass | [x] `0x15E00`; fixture and DL live pass |
+| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [x] `0x1080`; fixture and NPC live pass | [x] `0x1080`; fixture and R5 live pass | [x] `0x1080`; fixture and DL NPC pass |
+| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [x] `0x15DB0`; fixture and NPC live pass | [x] `0x16330`; fixture and R5 live pass | [x] `0x15FD0`; fixture and DL NPC pass |
+| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [x] `0x2D50`; SAPI and live handle pass | [x] `0x2D70`; fixture and R5 live pass | [x] `0x2D50`; fixture and DL live handle pass |
+| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [x] `0x3DA0`; SAPI and live snapshot | [x] `0x3F20`; fixture and R5 live pass | [x] `0x3E20`; fixture and DL live pass |
+| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [x] `0x3D50`; SAPI and live mutation | [x] `0x3ED0`; fixture and R5 live pass | [x] `0x3DE0`; fixture and DL live pass |
+| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [x] `0x30C0`; SAPI and live mutation | [x] `0x30F0`; fixture and R5 live pass | [x] `0x3110`; fixture and DL live pass |
+| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [x] `0x3AD0`; SAPI and live mutation | [x] `0x3C20`; fixture and R5 live pass | [x] `0x3A70`; fixture and DL live pass |
+| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [x] `0x4B60`; SAPI and live packet | [x] `0x4D30`; fixture and R5 live pass | [x] `0x4BD0`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [x] `0x5040`; SAPI and live packet | [x] `0x5210`; fixture and R5 live pass | [x] `0x5090`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [x] `0x4D40`; SAPI and live packet | [x] `0x4F00`; fixture and R5 live pass | [x] `0x4DB0`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [x] `0x5B10`; SAPI and live packet | [x] `0x5D00`; fixture and R5 live pass | [x] `0x5B50`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [x] `0x51F0`; SAPI and live packet | [x] `0x53D0`; fixture and R5 live pass | [x] `0x5240`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [x] `0x53B0`; SAPI and live packet | [x] `0x5590`; fixture and R5 live pass | [x] `0x5400`; fixture and DL live packet |
+| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [x] `0x6E40`; SAPI and live packet | [x] `0x7080`; fixture and R5 live pass | [x] `0x6E80`; fixture and DL live packet |
+| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [x] `0x6090`; SAPI and live packet | [x] `0x6290`; fixture and R5 live pass | [x] `0x60D0`; fixture and DL live packet |
+| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [x] `0xFE0A8`; SAPI and live mutation | [x] `0xFE0A8`; fixture and R5 live pass | [x] `0x13C0A8`; writable data and DL live pass |
+| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [x] `0xFE0AC`; SAPI and live mutation | [x] `0xFE0AC`; fixture and R5 live pass | [x] `0x13C0AC`; writable data and DL live pass |
+| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [x] `0xFE0B0`; SAPI and live mutation | [x] `0xFE0B0`; fixture and R5 live pass | [x] `0x13C0B0`; writable data and DL live pass |
+| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [x] `0xAB4C0`; SAPI and live snapshot | [x] `0xABD50`; fixture and R5 live pass | [x] `0xAB970`; fixture and DL live pass |
+| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [x] `0xAB500`; SAPI and live snapshot | [x] `0xABD90`; fixture and R5 live pass | [x] `0xAB9B0`; fixture and DL live pass |
+| `GAME_SINGLETON_RVA` | [x] `0x21A10C` | [x] `0x26E8F4`; `CGame` fixture and automatic loopback smoke | [x] `0x26EBAC`; fixture and R5 live pass | [x] `0x2ACA3C`; fixture and DL live pass |
+| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [x] `0x9FFE0`; SAPI and live mutation | [x] `0xA06F0`; fixture and R5 live pass | [x] `0xA0530`; fixture and DL live pass |
+| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [x] `0x9FEC0`; SAPI and live mutation | [x] `0xA05D0`; fixture and R5 live pass | [x] `0xA0410`; fixture and DL live pass |
+| `ANIMATION_TABLE_RVA` | [x] `0xF15B0` | [x] `0x1039D0`; SF.lua, fixture, and live lookup | [x] `0x1039E8`; fixture and R5 live pass | [x] `0x1419D0`; fixture and DL live lookup |
+| `CPOOLS_GET_PED_REF` (GTA) | [x] `0x54FF60` | [x] GTA shared live round trip | [x] GTA shared live round trip | [x] GTA shared DL live round trip |
+| `CPOOLS_GET_VEHICLE_REF` (GTA) | [x] `0x54FFC0` | [x] GTA shared live round trip | [x] GTA shared live round trip | [x] GTA shared DL live round trip |
+| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [x] `0x11C0`; fixture and live lifecycle | [x] `0x11D0`; fixture and R5 live pass | [x] `0x11D0`; fixture and DL live pass |
+| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [x] `0x12D0`; fixture and live lifecycle | [x] `0x12E0`; fixture and R5 live pass | [x] `0x12E0`; fixture and DL live pass |
+| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [x] `0x1E1C0`; fixture and live lifecycle | [x] `0x1E910`; fixture and R5 live pass | [x] `0x1E3D0`; fixture and DL live pass |
+| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [x] `0x1E0A0`; fixture and live lifecycle | [x] `0x1E7F0`; fixture and R5 live pass | [x] `0x1E2B0`; fixture and DL live pass |
+| `TEXTDRAW_SET_TEXT_RVA` | [x] bounded direct write | [x] `0xB26D0`; disassembly and live lifecycle | [x] `0xB2F60`; disassembly and live lifecycle | [x] `0xB2B60`; disassembly and DL live lifecycle |
 
 ### Native layout and raw-address matrix
 
@@ -660,16 +666,16 @@ build-specific fixture before its profile can be enabled.
 
 | Layout family / current R1 source | R1 | R3-1 | R5-1 | DL | Completion rule |
 | --- | --- | --- | --- | --- | --- |
-| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [x] fixture and full live suite | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
-| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] fixture, disassembly, reconnect, and dependent live caches | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
-| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] fixture and live cache/mutations | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
-| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] fixture, live controls, response hook, and mutations | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
-| Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [x] fixture and live mutations | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
-| Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [x] fixture and full entity lifecycle pass | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify pool sizes, not-empty arrays, and pointer indirection |
-| Local/remote player records and all sync structures (`players.rs`) | [x] | [x] fixture, NPC remote sync, and local full sync pass | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Fixture must cover on-foot, in-car, passenger, trailer, aim, stats |
-| Textdraw and text-label structures (`textdraws.rs`, `text_labels.rs`) | [x] | [x] fixture and live create/mutate/delete pass | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Verify creation/deletion ABI and every mutable field |
-| GTA ped/vehicle handles and `CPools` assumptions (`handles.rs`) | [x] | [x] fixture and live ID/handle round trips | [x] fixture and full R5 live pass | [ ] GTA shared fixture | Reconfirm GTA 1.0 US target and SAMP pointer chain |
-| RakPeer size, RPC node table, native bitstream (`raw.rs`, `native_bitstream.rs`) | [x] | [x] fixture and exact-bit live pass | [x] fixture and full R5 live pass | [ ] SF/disasm fixture | Validate all unsafe opaque-address computations |
+| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [x] fixture and full live suite | [x] fixture and full R5 live pass | [x] fixture and full DL live pass | Validate singleton slot and full readable object range |
+| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] fixture, disassembly, reconnect, and dependent live caches | [x] fixture and full R5 live pass | [x] fixture, disassembly, reconnect, and DL live pass | Verify every consumed field offset and signedness |
+| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] fixture and live cache/mutations | [x] fixture and full R5 live pass | [x] fixture and full DL live pass | Verify command count/name/proc capacity and native calls |
+| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] fixture, live controls, response hook, and mutations | [x] fixture and full R5 live pass | [x] fixture and full DL live pass | Verify full dialog/DXUT layouts and callback ABI |
+| Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [x] fixture and live mutations | [x] fixture and full R5 live pass | [x] fixture and full DL live pass | Verify bounded text fields, colours, and display mode |
+| Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [x] fixture and full entity lifecycle pass | [x] fixture and full R5 live pass | [x] 2100-object fixture and full DL live pass | Verify pool sizes, not-empty arrays, and pointer indirection |
+| Local/remote player records and all sync structures (`players.rs`) | [x] | [x] fixture, NPC remote sync, and local full sync pass | [x] fixture and full R5 live pass | [x] fixture, NPC remote sync, and full DL live pass | Fixture must cover on-foot, in-car, passenger, trailer, aim, stats |
+| Textdraw and text-label structures (`textdraws.rs`, `text_labels.rs`) | [x] | [x] fixture and live create/mutate/delete pass | [x] fixture and full R5 live pass | [x] fixture and full DL lifecycle pass | Verify creation/deletion ABI and every mutable field |
+| GTA ped/vehicle handles and `CPools` assumptions (`handles.rs`) | [x] | [x] fixture and live ID/handle round trips | [x] fixture and full R5 live pass | [x] GTA shared fixture and DL live round trips | Reconfirm GTA 1.0 US target and SAMP pointer chain |
+| RakPeer size, RPC node table, native bitstream (`raw.rs`, `native_bitstream.rs`) | [x] | [x] fixture and exact-bit live pass | [x] fixture and full R5 live pass | [x] fixture and exact-bit DL live pass | Validate all unsafe opaque-address computations |
 
 ### Profile implementation and enablement order
 
@@ -680,22 +686,22 @@ known.
 
 | Task | R1 | R3-1 | R5-1 | DL | Required proof |
 | --- | --- | --- | --- | --- | --- |
-| Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] full classic profile | [x] full classic profile | [x] remains gated | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no unverified non-R1 helper enabled |
-| Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture | [x] independent fixture | [x] independent fixture; remains gated | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
-| Network observe/send, codec, packet/RPC emulation | [x] | [x] R3 smoke and loopback | [x] R5 fixture and full live pass | [ ] | Hook, vtable, and exact-bit smoke tests |
-| Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [x] R5 fixture and full live pass | [ ] | Attachment/version identity test |
-| Cached game/server scalars | [x] | [x] R3 fixture, game-thread cache, and loopback probe | [x] R5 fixture and full live pass | [ ] | Profile fixture and game-thread publication test |
-| Local-player scalars | [x] | [x] `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and spawned loopback smoke | [x] R5 fixture and full live pass | [ ] | Separate `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and in-game spawn smoke |
-| Read-only player-pool count and largest ID | [x] | [x] `CPlayerPool`/`CPlayerInfo` fixture, `GetCount` ABI, and loopback `0/0/0` smoke | [x] R5 fixture and full live pass | [ ] | Copy only the scalar pair and largest ID; leave player directory and handles gated |
-| Read-only chat-input active flag, text, and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [x] R5 fixture and full live pass | [ ] | Copy only `enabled`, bounded text, and command names; leave mutations and commands gated |
-| Read-only chat display mode | [x] | [x] `CChat::GetMode` ABI and loopback smoke | [x] R5 fixture and full live pass | [ ] | Copy only native `0..=2` mode; leave chat writes and rendering helpers gated |
-| Read-only dialog active flag | [x] | [x] `CDialog` fixture and server-dialog loopback smoke | [x] R5 fixture and full live pass | [ ] | Copy only `m_bIsActive`; leave dialog snapshots, controls, hooks, and mutations gated |
-| Read-only scoreboard-open flag | [x] | [x] `CScoreboard` fixture and interactive loopback open/close smoke | [x] R5 fixture and full live pass | [ ] | Copy only `m_bIsEnabled`; leave scoreboard writes and all other UI helpers gated |
-| Read-only cursor mode | [x] | [x] `CGame` fixture and automatic loopback smoke | [x] R5 fixture and full live pass | [ ] | Copy only `m_nCursorMode`; leave cursor writes and all other game helpers gated |
-| Read-only player directory and remote state (`Player::is_defined`, `Players::get`, `Players::remote_state`) | [x] | [x] implementation, fixture, and two-client live probe | [x] R5 fixture and full live pass | [ ] | Copy bounded remote snapshots only; leave remote mutations and sync gated |
-| UI, dialog, chat input, native command registry | [x] | [x] fixture and full live mutation pass | [x] R5 fixture and full live pass | [ ] | Layout fixture plus in-game interaction test |
-| Player/pool/entity snapshots and handles | [x] | [x] fixture and live object/vehicle/pickup/gangzone/ped ID-handle round trips | [x] R5 fixture and full live pass | [ ] | Layout fixture, transition invalidation, in-game smoke |
-| Local-player commands and force sync | [x] | [x] queue coverage and live packet verification for every local sync type | [x] R5 fixture and full live pass | [ ] | Queue/receipt test and in-game packet verification |
-| Textdraw/text-label/gangzone commands | [x] | [x] fixture and full live lifecycle pass | [x] R5 fixture and full live pass | [ ] | Layout fixture, queue/receipt test, in-game smoke |
-| Unsafe raw singleton/function/RakPeer helpers | [x] | [x] fixture, constructor proof, and live validation | [x] R5 fixture and full live pass | [ ] | Per-build opaque-address fixture; no exposed references |
-| Documentation compatibility claim | [x] R1 full direct bridge | [x] full direct bridge live-tested | [x] R5 fixture and full live pass | [ ] | Update only after all rows used by the claim are complete |
+| Replace R1-only field with a version-neutral native-profile dispatch boundary | [x] preserve behavior | [x] full classic profile | [x] full classic profile | [x] full DL profile | `NativeProfile::select` test plus unchanged R1 queue/cache tests; no unverified non-R1 helper enabled |
+| Validate the minimum `CNetGame`/`CInput`/`CDialog` layout gate | [x] | [x] independent fixture | [x] independent fixture | [x] independent fixture and full profile fixture | This first gate does not validate singleton slots, complete readable ranges, or helper call ABIs |
+| Network observe/send, codec, packet/RPC emulation | [x] | [x] R3 smoke and loopback | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Hook, vtable, and exact-bit smoke tests |
+| Lifecycle/version/status and raw module base | [x] | [x] R3 identity probe | [x] R5 fixture and full live pass | [x] DL identity and reconnect pass | Attachment/version identity test |
+| Cached game/server scalars | [x] | [x] R3 fixture, game-thread cache, and loopback probe | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Profile fixture and game-thread publication test |
+| Local-player scalars | [x] | [x] `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and spawned loopback smoke | [x] R5 fixture and full live pass | [x] DL fixture and spawned live pass | Separate `CPlayerPool`/`CLocalPlayer`/`CPed` fixture and in-game spawn smoke |
+| Read-only player-pool count and largest ID | [x] | [x] `CPlayerPool`/`CPlayerInfo` fixture, `GetCount` ABI, and loopback `0/0/0` smoke | [x] R5 fixture and full live pass | [x] DL `GetCount` ABI, fixture, and live `1/0/0` pass | Copy only the scalar pair and largest ID; leave player directory and handles gated |
+| Read-only chat-input active flag, text, and command lookup | [x] | [x] `CInput` fixture and interactive loopback smoke | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Copy only `enabled`, bounded text, and command names; leave mutations and commands gated |
+| Read-only chat display mode | [x] | [x] `CChat::GetMode` ABI and loopback smoke | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Copy only native `0..=2` mode; leave chat writes and rendering helpers gated |
+| Read-only dialog active flag | [x] | [x] `CDialog` fixture and server-dialog loopback smoke | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Copy only `m_bIsActive`; leave dialog snapshots, controls, hooks, and mutations gated |
+| Read-only scoreboard-open flag | [x] | [x] `CScoreboard` fixture and interactive loopback open/close smoke | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Copy only `m_bIsEnabled`; leave scoreboard writes and all other UI helpers gated |
+| Read-only cursor mode | [x] | [x] `CGame` fixture and automatic loopback smoke | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Copy only `m_nCursorMode`; leave cursor writes and all other game helpers gated |
+| Read-only player directory and remote state (`Player::is_defined`, `Players::get`, `Players::remote_state`) | [x] | [x] implementation, fixture, and two-client live probe | [x] R5 fixture and full live pass | [x] DL fixture and NPC live pass | Copy bounded remote snapshots only; leave remote mutations and sync gated |
+| UI, dialog, chat input, native command registry | [x] | [x] fixture and full live mutation pass | [x] R5 fixture and full live pass | [x] DL fixture and full live mutation pass | Layout fixture plus in-game interaction test |
+| Player/pool/entity snapshots and handles | [x] | [x] fixture and live object/vehicle/pickup/gangzone/ped ID-handle round trips | [x] R5 fixture and full live pass | [x] DL fixture and full live round trips | Layout fixture, transition invalidation, in-game smoke |
+| Local-player commands and force sync | [x] | [x] queue coverage and live packet verification for every local sync type | [x] R5 fixture and full live pass | [x] DL queue receipts and every live sync packet | Queue/receipt test and in-game packet verification |
+| Textdraw/text-label/gangzone commands | [x] | [x] fixture and full live lifecycle pass | [x] R5 fixture and full live pass | [x] DL fixture and full live lifecycle pass | Layout fixture, queue/receipt test, in-game smoke |
+| Unsafe raw singleton/function/RakPeer helpers | [x] | [x] fixture, constructor proof, and live validation | [x] R5 fixture and full live pass | [x] DL fixture, constructor, codec, and network pass | Per-build opaque-address fixture; no exposed references |
+| Documentation compatibility claim | [x] R1 full direct bridge | [x] full direct bridge live-tested | [x] R5 fixture and full live pass | [x] DL fixture and full live pass | Update only after all rows used by the claim are complete |

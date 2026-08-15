@@ -119,7 +119,7 @@ const MAX_SAMP_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const MAX_SAMP_TEXTDRAWS: usize = 2304;
 const MAX_TEXTDRAW_CREATE_TEXT_BYTES: usize = 800;
 const MAX_CHAT_ENTRIES: usize = 100;
-const MAX_SAMP_OBJECTS: usize = 1000;
+const MAX_SAMP_OBJECTS: usize = 2100;
 const MAX_SAMP_PICKUPS: usize = 4096;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
@@ -600,6 +600,9 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         Some(NativeProfile::R5(_)) => {
             log::info!("R5-1 direct client helpers are enabled");
         }
+        Some(NativeProfile::Dl(_)) => {
+            log::info!("DL-R1 direct client helpers are enabled");
+        }
         None => {}
     }
 
@@ -929,7 +932,10 @@ impl BackendState {
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
         self.refresh_samp_game_state(scalar_profile);
         self.refresh_server_info_snapshot(scalar_profile);
-        if matches!(scalar_profile, NativeProfile::R3(_) | NativeProfile::R5(_)) {
+        if matches!(
+            scalar_profile,
+            NativeProfile::R3(_) | NativeProfile::R5(_) | NativeProfile::Dl(_)
+        ) {
             self.refresh_r3_local_player_snapshot(scalar_profile);
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);

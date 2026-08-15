@@ -113,6 +113,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "samp-client-sdk-dl-network-probe"
+version = "0.1.0"
+dependencies = [
+ "samp-client-sdk",
+ "windows-sys",
+]
+
+[[package]]
 name = "samp-client-sdk-host"
 version = "0.1.0-alpha.4"
 dependencies = [
