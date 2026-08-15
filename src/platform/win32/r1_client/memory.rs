@@ -1,7 +1,6 @@
 //! Fixed R1 native layouts and guarded memory access helpers.
 
 use crate::runtime::{DirectClientError, Vector3};
-#[cfg(test)]
 use std::ffi::c_void;
 use std::mem;
 use windows_sys::Win32::System::Memory::{
@@ -332,24 +331,32 @@ pub(crate) fn readable_range(address: *const u8, length: usize) -> bool {
     let Some(end) = (address as usize).checked_add(length) else {
         return false;
     };
-    let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
-    let queried = unsafe {
-        VirtualQuery(
-            address.cast(),
-            info.as_mut_ptr(),
-            mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-        )
-    };
-    if queried == 0 {
-        return false;
+    let mut current = address as usize;
+    while current < end {
+        let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
+        let queried = unsafe {
+            VirtualQuery(
+                current as *const c_void,
+                info.as_mut_ptr(),
+                mem::size_of::<MEMORY_BASIC_INFORMATION>(),
+            )
+        };
+        if queried == 0 {
+            return false;
+        }
+        let info = unsafe { info.assume_init() };
+        let Some(region_end) = (info.BaseAddress as usize).checked_add(info.RegionSize) else {
+            return false;
+        };
+        if info.State != MEM_COMMIT
+            || info.Protect & (PAGE_GUARD | PAGE_NOACCESS) != 0
+            || region_end <= current
+        {
+            return false;
+        }
+        current = region_end.min(end);
     }
-    let info = unsafe { info.assume_init() };
-    let Some(region_end) = (info.BaseAddress as usize).checked_add(info.RegionSize) else {
-        return false;
-    };
-    info.State == MEM_COMMIT
-        && info.Protect & (PAGE_GUARD | PAGE_NOACCESS) == 0
-        && end <= region_end
+    true
 }
 
 pub(crate) fn writable_range(address: *const u8, length: usize) -> bool {

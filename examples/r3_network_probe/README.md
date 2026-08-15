@@ -76,6 +76,11 @@ addresses are outside this probe because that API remains intentionally R1-only.
    address_hex=3132372E302E302E31
    hostname_hex=53412D4D50
    port=7777
+   reconnect_server_ready=true
+   reconnect_local_ready=true
+   reconnect_game_state=Some(5)
+   reconnect_spawned=Some(true)
+   reconnect_incoming_ready=true
    ```
 
 The ASI writes `samp-client-sdk-r3-network-probe.status` in GTA's working
@@ -92,10 +97,12 @@ Stock `samp-npc.exe` produces deterministic remote on-foot sync. It cannot
 emit aim, passenger, or standalone trailer packets. Those packet paths are
 validated on the local player; native fixtures cover the remote layouts.
 
-## Unload and hook-restoration check
+## Optional hot-unload check
 
-After `0x3FFFFFFF`, call `SampClientSdkR3NetworkProbe_Shutdown` from the loader's
-worker thread before unloading the probe. It must return nonzero. Close the
-isolated client and verify in the host log that the owned MinHook targets and
-RakClient vtable slots were restored. Do not call `FreeLibrary` from `DllMain`
-or from an SDK callback.
+Ordinary ASI loaders keep plugins loaded until GTA exits. Windows then reclaims
+the process address space, so no explicit teardown is required.
+
+Only a loader that supports hot unload must call
+`SampClientSdkR3NetworkProbe_Shutdown` from its worker thread before
+`FreeLibrary`. The export must return nonzero. Do not call `FreeLibrary` from
+`DllMain` or from an SDK callback.

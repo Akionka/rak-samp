@@ -866,6 +866,29 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
 }
 
 #[test]
+fn disconnect_invalidation_preserves_the_captured_rak_client_for_reconnect() {
+    let mut state = test_backend_state();
+    state.context.version = SampVersion::R3_1;
+    state.context.native_profile = r3_scalar_profile();
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.rpc_receiver.store(0x2000, Ordering::Release);
+    state.player_address.store(0x0100007F, Ordering::Release);
+    state.player_port.store(7777, Ordering::Release);
+
+    state.invalidate_after_disconnect();
+
+    assert_eq!(state.rak_client.load(Ordering::Acquire), 0x1000);
+    assert_eq!(state.rpc_receiver.load(Ordering::Acquire), 0);
+    assert_eq!(state.player_address.load(Ordering::Acquire), 0);
+    assert_eq!(state.player_port.load(Ordering::Acquire), 0);
+    assert!(
+        state
+            .submit_connect_to_server(b"127.0.0.1".to_vec(), 7777)
+            .is_ok()
+    );
+}
+
+#[test]
 fn incoming_emulation_readiness_requires_the_receiver_and_rpc_trampoline() {
     let state = test_backend_state();
     assert!(!state.incoming_emulation_ready());
@@ -1023,6 +1046,45 @@ fn connection_boundary_invalidates_cached_entities_and_pending_refreshes() {
     assert!(state.gangzone_requests.lock().unwrap().is_empty());
     assert!(!state.player_count_ready.load(Ordering::Acquire));
     assert!(!state.player_max_id_ready.load(Ordering::Acquire));
+}
+
+#[test]
+fn deleted_ui_entities_publish_absent_cache_entries() {
+    let state = test_backend_state();
+    state.text_label_exists_cache.lock().unwrap()[7] = TextLabelExistsCacheEntry::Known(true);
+    state.text_label_cache.lock().unwrap()[7] =
+        TextLabelCacheEntry::Known(Some(TextLabelSnapshot {
+            id: 7,
+            text: b"stale".to_vec(),
+            colour: 0xFFFFFFFF,
+            position: Vector3::default(),
+            draw_distance: 50.0,
+            behind_walls: false,
+            attached_player_id: None,
+            attached_vehicle_id: None,
+        }));
+    state.textdraw_exists_cache.lock().unwrap()[7] = TextdrawExistsCacheEntry::Known(true);
+    state.textdraw_cache.lock().unwrap()[7] = TextdrawCacheEntry::Unknown;
+
+    state.publish_deleted_text_label(7);
+    state.publish_deleted_textdraw(7);
+
+    assert!(matches!(
+        state.text_label_exists_cache.lock().unwrap()[7],
+        TextLabelExistsCacheEntry::Known(false)
+    ));
+    assert!(matches!(
+        state.text_label_cache.lock().unwrap()[7],
+        TextLabelCacheEntry::Known(None)
+    ));
+    assert!(matches!(
+        state.textdraw_exists_cache.lock().unwrap()[7],
+        TextdrawExistsCacheEntry::Known(false)
+    ));
+    assert!(matches!(
+        state.textdraw_cache.lock().unwrap()[7],
+        TextdrawCacheEntry::Known(None)
+    ));
 }
 
 #[test]

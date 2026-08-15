@@ -1152,6 +1152,13 @@ impl BackendState {
         }
     }
 
+    fn invalidate_after_disconnect(&self) {
+        self.rpc_receiver.store(0, Ordering::Release);
+        self.player_address.store(0, Ordering::Release);
+        self.player_port.store(0, Ordering::Release);
+        self.invalidate_connection_state();
+    }
+
     /// Invalidates every cache tied to one server connection. This runs on the
     /// game thread at a connection boundary and intentionally acquires each
     /// host cache lock: serving a prior server's entity data is worse than a

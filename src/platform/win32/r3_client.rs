@@ -116,6 +116,7 @@ const MAX_SAMP_TEXTDRAWS: u16 = 2304;
 const TEXTDRAW_POOL_OBJECTS_OFFSET: usize = 0x2400;
 const TEXTDRAW_CREATE_RVA: usize = 0x1E1C0;
 const TEXTDRAW_DELETE_RVA: usize = 0x1E0A0;
+const TEXTDRAW_SET_TEXT_RVA: usize = 0xB26D0;
 const TEXTDRAW_TRANSMIT_SIZE: usize = 0x3F;
 const TEXTDRAW_TRANSMIT_X_OFFSET: usize = 0x21;
 const TEXTDRAW_TRANSMIT_Y_OFFSET: usize = 0x25;
@@ -164,7 +165,7 @@ const INCAR_LANDING_GEAR_OFFSET: usize = 0x38;
 const INCAR_TRAILER_ID_OFFSET: usize = 0x39;
 const INCAR_VEHICLE_SPECIFIC_OFFSET: usize = 0x3B;
 const LOCAL_PLAYER_PASSENGER_OFFSET: usize = 0xDC;
-const LOCAL_PLAYER_TRAILER_OFFSET: usize = 0x6A;
+const LOCAL_PLAYER_TRAILER_OFFSET: usize = 0x62;
 const LOCAL_PLAYER_AIM_OFFSET: usize = 0x43;
 const LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET: usize = 0x13F;
 const PASSENGER_SYNC_SIZE: usize = 0x18;
@@ -311,6 +312,7 @@ type LabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type TextdrawPoolCreateFn =
     unsafe extern "thiscall" fn(*mut c_void, i32, *mut c_void, *const u8) -> *mut c_void;
 type TextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16);
+type TextdrawSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const u8);
 type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
 type NetGameNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type RakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void, u32, u8);
@@ -373,9 +375,15 @@ impl R3ClientProfile {
     }
 
     pub(super) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
-        if !matches!(state, 0 | 9 | 13 | 14 | 15 | 18) {
-            return Err(DirectClientError::NotReady);
-        }
+        let native_state = match state {
+            0 => 0,
+            9 => 1,
+            13 => 2,
+            14 => 5,
+            15 => 6,
+            18 => 11,
+            _ => return Err(DirectClientError::NotReady),
+        };
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let field = (net_game as *mut u8)
             .wrapping_add(NET_GAME_GAME_STATE_OFFSET)
@@ -383,7 +391,7 @@ impl R3ClientProfile {
         if !writable_range(field.cast(), mem::size_of::<i32>()) {
             return Err(DirectClientError::NotReady);
         }
-        unsafe { ptr::write_unaligned(field, state) };
+        unsafe { ptr::write_unaligned(field, native_state) };
         Ok(())
     }
 
@@ -451,14 +459,19 @@ impl R3ClientProfile {
 
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
         let table = self.module_base + ANIMATION_TABLE_RVA;
-        let length = ANIMATION_TABLE_ENTRY_COUNT * ANIMATION_TABLE_ENTRY_SIZE;
-        if !readable_range(table as *const u8, length) {
-            return Err(DirectClientError::NotReady);
-        }
-        let entries = unsafe { std::slice::from_raw_parts(table as *const u8, length) };
-        entries
-            .chunks_exact(ANIMATION_TABLE_ENTRY_SIZE)
-            .map(parse_animation_entry)
+        (0..ANIMATION_TABLE_ENTRY_COUNT)
+            .map(|index| {
+                let entry = table
+                    .checked_add(index * ANIMATION_TABLE_ENTRY_SIZE)
+                    .ok_or(DirectClientError::NotReady)?;
+                if !readable_range(entry as *const u8, ANIMATION_TABLE_ENTRY_SIZE) {
+                    return Err(DirectClientError::NotReady);
+                }
+                let bytes = unsafe {
+                    std::slice::from_raw_parts(entry as *const u8, ANIMATION_TABLE_ENTRY_SIZE)
+                };
+                parse_animation_entry(bytes)
+            })
             .collect()
     }
 
@@ -1917,7 +1930,7 @@ impl R3ClientProfile {
                 pool,
                 id,
                 text.as_ptr(),
-                colour,
+                argb_to_native_rgba(colour),
                 position.into(),
                 draw_distance,
                 u8::from(behind_walls),
@@ -2141,13 +2154,17 @@ impl R3ClientProfile {
         outline: u8,
         colour: u32,
     ) -> Result<(), DirectClientError> {
-        let mut bytes = colour.to_le_bytes().to_vec();
-        bytes.resize(
-            TEXTDRAW_OUTLINE_OFFSET - TEXTDRAW_BACKGROUND_COLOUR_OFFSET,
-            0,
-        );
-        bytes.push(outline);
-        self.write_textdraw(id, TEXTDRAW_BACKGROUND_COLOUR_OFFSET, &bytes)
+        let object = self.textdraw_object(id)?;
+        let background = (object + TEXTDRAW_BACKGROUND_COLOUR_OFFSET) as *mut u32;
+        let outline_field = (object + TEXTDRAW_OUTLINE_OFFSET) as *mut u8;
+        if !writable_range(background.cast(), 4) || !writable_range(outline_field, 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        unsafe {
+            std::ptr::write_unaligned(background, colour);
+            std::ptr::write_unaligned(outline_field, outline);
+        }
+        Ok(())
     }
 
     pub(super) fn set_textdraw_box(
@@ -2257,18 +2274,15 @@ impl R3ClientProfile {
     }
 
     pub(super) fn set_textdraw_string(self, id: u16, text: &[u8]) -> Result<(), DirectClientError> {
-        if text.len() > MAX_TEXTDRAW_STRING_BYTES || text.contains(&0) {
+        if text.len() > MAX_TEXTDRAW_CREATE_TEXT_BYTES || text.contains(&0) {
             return Err(DirectClientError::NotReady);
         }
-        let object = self.textdraw_object(id)?;
-        let field = (object + TEXTDRAW_STRING_OFFSET) as *mut u8;
-        if !writable_range(field, MAX_TEXTDRAW_STRING_BYTES + 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        unsafe {
-            std::ptr::write_bytes(field, 0, MAX_TEXTDRAW_STRING_BYTES + 1);
-            std::ptr::copy_nonoverlapping(text.as_ptr(), field, text.len());
-        }
+        let object = self.textdraw_object(id)? as *mut c_void;
+        let mut text = text.to_vec();
+        text.push(0);
+        let set_text: TextdrawSetTextFn =
+            unsafe { mem::transmute(self.module_base + TEXTDRAW_SET_TEXT_RVA) };
+        unsafe { set_text(object, text.as_ptr()) };
         Ok(())
     }
 
@@ -2688,6 +2702,10 @@ impl R3ClientProfile {
     pub(super) fn dialog_is_ready(self) -> bool {
         self.dialog().is_some()
     }
+}
+
+fn argb_to_native_rgba(colour: u32) -> u32 {
+    colour.rotate_left(8)
 }
 
 fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
@@ -3230,6 +3248,30 @@ mod tests {
                 port: 7777,
             })
         );
+    }
+
+    #[test]
+    fn maps_public_r1_game_states_to_r3_native_values() {
+        let mut module = vec![0_u8; NET_GAME_SINGLETON_RVA + std::mem::size_of::<usize>()];
+        let mut net_game = vec![0_u8; NET_GAME_GAME_STATE_OFFSET + std::mem::size_of::<i32>()];
+        let module_base = module.as_mut_ptr() as usize;
+        let net_game_pointer = net_game.as_mut_ptr();
+        unsafe {
+            ptr::write_unaligned(
+                module
+                    .as_mut_ptr()
+                    .add(NET_GAME_SINGLETON_RVA)
+                    .cast::<usize>(),
+                net_game_pointer as usize,
+            );
+        }
+        let profile = R3ClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+
+        for (public, native) in [(0, 0), (9, 1), (13, 2), (14, 5), (15, 6), (18, 11)] {
+            profile.set_game_state(public).unwrap();
+            assert_eq!(profile.game_state(), Ok(native));
+        }
+        assert_eq!(profile.set_game_state(1), Err(DirectClientError::NotReady));
     }
 
     #[test]
@@ -3825,5 +3867,10 @@ mod tests {
             ),
             Ok(b"/r3".to_vec())
         );
+    }
+
+    #[test]
+    fn converts_public_argb_to_r3_native_rgba() {
+        assert_eq!(argb_to_native_rgba(0xFF6FCF97), 0x6FCF97FF);
     }
 }

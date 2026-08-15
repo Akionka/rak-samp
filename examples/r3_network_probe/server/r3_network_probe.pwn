@@ -13,6 +13,14 @@
 #define R3_PROBE_COLOUR 0x6FCF97FF
 #define R3_PROBE_DIALOG_ID 25000
 #define R3_PROBE_NPC_NAME "R3ProbeBot"
+#define R3_PROBE_X 1880.0
+#define R3_PROBE_Y -2490.0
+#define R3_PROBE_Z 13.5
+#define R3_PROBE_ANGLE 90.0
+#define R3_PROBE_TRUCK_X 1880.0
+#define R3_PROBE_TRUCK_Y -2470.0
+#define R3_PROBE_TRUCK_ANGLE 0.0
+#define R3_PROBE_TRAILER_Y -2482.0
 
 new gProbeVehicle[MAX_PLAYERS];
 new gProbeTruck[MAX_PLAYERS];
@@ -103,7 +111,13 @@ public OnPlayerText(playerid, text[])
         new objectid, vehicleid, pickupid;
         new gangzoneid;
         new message[96];
-        GetPlayerPos(playerid, x, y, z);
+        x = R3_PROBE_X;
+        y = R3_PROBE_Y;
+        z = R3_PROBE_Z;
+        SetPlayerVirtualWorld(playerid, 0);
+        SetPlayerInterior(playerid, 0);
+        SetPlayerPos(playerid, x, y, z);
+        SetPlayerFacingAngle(playerid, R3_PROBE_ANGLE);
         for (new otherid = 0; otherid < MAX_PLAYERS; otherid++)
         {
             if (otherid == playerid || !IsPlayerConnected(otherid))
@@ -116,7 +130,7 @@ public OnPlayerText(playerid, text[])
             offset += 2.0;
         }
         objectid = CreateObject(19300, x + 2.0, y, z, 0.0, 0.0, 0.0);
-        vehicleid = CreateVehicle(411, x + 4.0, y, z, 0.0, 1, 1, -1);
+        vehicleid = CreateVehicle(411, x + 4.0, y, z, R3_PROBE_ANGLE, 1, 1, -1);
         gProbeVehicle[playerid] = vehicleid;
         pickupid = CreatePickup(1239, 1, x + 1.0, y, z, -1);
         gangzoneid = GangZoneCreate(x - 3.0, y - 3.0, x + 3.0, y + 3.0);
@@ -146,11 +160,11 @@ public OnPlayerText(playerid, text[])
     }
     if (!strcmp(text, R3_PROBE_LOCAL_TRAILER_REQUEST, false))
     {
-        new Float:x, Float:y, Float:z;
         new message[64];
-        GetPlayerPos(playerid, x, y, z);
-        gProbeTruck[playerid] = CreateVehicle(515, x + 6.0, y, z, 0.0, 1, 1, -1);
-        gProbeTrailer[playerid] = CreateVehicle(435, x + 10.0, y, z, 0.0, 1, 1, -1);
+        SetPlayerPos(playerid, R3_PROBE_TRUCK_X, R3_PROBE_TRUCK_Y, R3_PROBE_Z);
+        SetPlayerFacingAngle(playerid, R3_PROBE_TRUCK_ANGLE);
+        gProbeTruck[playerid] = CreateVehicle(515, R3_PROBE_TRUCK_X, R3_PROBE_TRUCK_Y, R3_PROBE_Z, R3_PROBE_TRUCK_ANGLE, 1, 1, -1);
+        gProbeTrailer[playerid] = CreateVehicle(435, R3_PROBE_TRUCK_X, R3_PROBE_TRAILER_Y, R3_PROBE_Z, R3_PROBE_TRUCK_ANGLE, 1, 1, -1);
         AttachTrailerToVehicle(gProbeTrailer[playerid], gProbeTruck[playerid]);
         PutPlayerInVehicle(playerid, gProbeTruck[playerid], 0);
         format(message, sizeof message, "R3_SDK_LOCAL_TRAILER_READY_%d,%d", gProbeTruck[playerid], gProbeTrailer[playerid]);

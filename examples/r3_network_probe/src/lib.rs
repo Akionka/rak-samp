@@ -65,6 +65,7 @@ const CALLBACK_TIMEOUT: Duration = Duration::from_secs(15);
 const RETRY_DELAY: Duration = Duration::from_millis(100);
 const STATUS_FILE: &str = "samp-client-sdk-r3-network-probe.status";
 const R3_1_ENTRY_POINT_RVA: u32 = 0x0CC4D0;
+const R3_CONNECTED_STATE: i32 = 5;
 const R3_WAIT_JOIN_STATE: i32 = 6;
 const MAX_PE_HEADER_OFFSET: usize = 0x1000;
 
@@ -141,10 +142,13 @@ static STATUS: AtomicU32 = AtomicU32::new(0);
 static FAILURE: AtomicU32 = AtomicU32::new(SampClientSdkResult::Ok as u32);
 static SCALAR_OBSERVATION: Mutex<Option<ScalarObservation>> = Mutex::new(None);
 static PLAYER_POOL_OBSERVATION: Mutex<Option<PlayerPoolObservation>> = Mutex::new(None);
+static RECONNECT_OBSERVATION: Mutex<Option<ReconnectObservation>> = Mutex::new(None);
 static ENTITY_IDS: Mutex<Option<EntityIds>> = Mutex::new(None);
 static CHAT_COMMAND_INVOKED: AtomicBool = AtomicBool::new(false);
 static SYNC_PACKETS_OBSERVED: AtomicU32 = AtomicU32::new(0);
 static SYNC_PACKET_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
+static TEXTDRAW_PHASE: Mutex<&'static str> = Mutex::new("none");
+static VEHICLE_PHASE: Mutex<&'static str> = Mutex::new("none");
 static VEHICLE_PHASES: Mutex<VehiclePhases> = Mutex::new(VehiclePhases::new());
 static RECONNECT_REQUESTED: AtomicBool = AtomicBool::new(false);
 static INCOMING_REPLY_COUNT: AtomicU32 = AtomicU32::new(0);
@@ -157,8 +161,6 @@ const SYNC_PACKET_VEHICLE: u32 = 1 << 4;
 const SYNC_PACKET_PASSENGER: u32 = 1 << 5;
 const SYNC_PACKET_UNOCCUPIED: u32 = 1 << 6;
 const SYNC_PACKET_TRAILER: u32 = 1 << 7;
-const SYNC_PACKET_BASIC_MASK: u32 =
-    SYNC_PACKET_AIM | SYNC_PACKET_ONFOOT | SYNC_PACKET_STATS | SYNC_PACKET_WEAPONS;
 const SYNC_INDEX_AIM: usize = 0;
 const SYNC_INDEX_ONFOOT: usize = 1;
 const SYNC_INDEX_STATS: usize = 2;
@@ -187,6 +189,15 @@ struct PlayerPoolObservation {
     including_npcs: u16,
     excluding_npcs: u16,
     max_id: Option<u16>,
+}
+
+#[derive(Clone, Copy, Eq, PartialEq)]
+struct ReconnectObservation {
+    server_ready: bool,
+    local_ready: bool,
+    game_state: Option<i32>,
+    spawned: Option<bool>,
+    incoming_ready: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -260,11 +271,20 @@ unsafe extern "system" fn DllMain(
             *PLAYER_POOL_OBSERVATION
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = None;
+            *RECONNECT_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = None;
             CHAT_COMMAND_INVOKED.store(false, Ordering::Release);
             SYNC_PACKETS_OBSERVED.store(0, Ordering::Release);
             for count in &SYNC_PACKET_COUNTS {
                 count.store(0, Ordering::Release);
             }
+            *TEXTDRAW_PHASE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = "none";
+            *VEHICLE_PHASE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = "none";
             RECONNECT_REQUESTED.store(false, Ordering::Release);
             INCOMING_REPLY_COUNT.store(0, Ordering::Release);
             *VEHICLE_PHASES
@@ -470,11 +490,11 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     verify_cached_dialog_active(samp)?;
     STATUS.fetch_or(STATUS_DIALOG_ACTIVE_CACHE, Ordering::AcqRel);
     publish_status();
-    verify_ui_mutations(samp)?;
-    STATUS.fetch_or(STATUS_UI_MUTATIONS, Ordering::AcqRel);
-    publish_status();
     verify_dialog_lifecycle(samp)?;
     STATUS.fetch_or(STATUS_DIALOG_LIFECYCLE, Ordering::AcqRel);
+    publish_status();
+    verify_ui_mutations(samp)?;
+    STATUS.fetch_or(STATUS_UI_MUTATIONS, Ordering::AcqRel);
     publish_status();
     verify_chat_command_lifecycle(samp)?;
     STATUS.fetch_or(STATUS_CHAT_COMMAND_LIFECYCLE, Ordering::AcqRel);
@@ -656,16 +676,10 @@ fn verify_entity_handles(samp: Samp) -> Result<(), SampClientSdkResult> {
 }
 
 fn verify_force_sync_receipts(samp: Samp) -> Result<(), SampClientSdkResult> {
-    verify_packet_after_command(SYNC_INDEX_AIM, || samp.local().force_aim_sync())?;
-    verify_packet_after_command(SYNC_INDEX_ONFOOT, || samp.local().force_onfoot_sync())?;
-    verify_packet_after_command(SYNC_INDEX_STATS, || samp.local().force_stats_sync())?;
-    verify_packet_after_command(SYNC_INDEX_WEAPONS, || samp.local().force_weapons_sync())?;
-    wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
-        Ok(
-            SYNC_PACKETS_OBSERVED.load(Ordering::Acquire) & SYNC_PACKET_BASIC_MASK
-                == SYNC_PACKET_BASIC_MASK,
-        )
-    })
+    wait_for_receipt(samp.local().force_aim_sync()?)?;
+    wait_for_receipt(samp.local().force_onfoot_sync()?)?;
+    wait_for_receipt(samp.local().force_stats_sync()?)?;
+    wait_for_receipt(samp.local().force_weapons_sync()?)
 }
 
 fn verify_packet_after_command(
@@ -1004,7 +1018,7 @@ fn verify_cached_dialog_active(samp: Samp) -> Result<(), SampClientSdkResult> {
 
 fn verify_ui_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
     let chat = samp.chat();
-    let original_chat_mode = chat.display_mode()?;
+    let original_chat_mode = wait_for_value(SCALAR_CACHE_TIMEOUT, || chat.display_mode())?;
     for mode in [
         LocalChatDisplayMode::Off,
         LocalChatDisplayMode::NoShadow,
@@ -1052,7 +1066,7 @@ fn verify_ui_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
     })?;
 
     let cursor = samp.cursor();
-    let original_cursor_mode = cursor.mode()?;
+    let original_cursor_mode = wait_for_value(SCALAR_CACHE_TIMEOUT, || cursor.mode())?;
     wait_for_receipt(cursor.set_mode(LocalCursorMode::LockCamera)?)?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         cursor
@@ -1177,27 +1191,29 @@ fn verify_chat_command_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> 
 }
 
 fn verify_animation_table(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let animation = samp.anim().get(0)?;
+    let animation = wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.anim().get(0))?;
     if animation.name.is_empty() || animation.file.is_empty() {
         return Err(SampClientSdkResult::NativeCallFailed);
     }
-    match samp.anim().find(&animation.name, &animation.file)? {
+    match wait_for_value(SCALAR_CACHE_TIMEOUT, || {
+        samp.anim().find(&animation.name, &animation.file)
+    })? {
         Some(0) => Ok(()),
         _ => Err(SampClientSdkResult::NativeCallFailed),
     }
 }
 
 fn verify_local_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let local = samp.local().player()?;
+    let local = wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.local().player())?;
     let local_id = PlayerId::new(local.id).ok_or(SampClientSdkResult::NativeCallFailed)?;
     let player = samp.players().player(local_id);
     let original_colour = local.colour;
-    let probe_colour = 0xFF6FCF97;
-    wait_for_receipt(player.set_colour(probe_colour)?)?;
+    let probe_colour: u32 = 0xFF6FCF97;
+    wait_for_receipt(player.set_colour(probe_colour.rotate_left(8))?)?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         player.colour().map(|colour| colour == Some(probe_colour))
     })?;
-    wait_for_receipt(player.set_colour(original_colour)?)?;
+    wait_for_receipt(player.set_colour(original_colour.rotate_left(8))?)?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         player
             .colour()
@@ -1220,7 +1236,7 @@ fn verify_local_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
 }
 
 fn verify_text_label_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let local = samp.local().player()?;
+    let local = wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.local().player())?;
     let mut create = samp.labels().create(
         LOCAL_LABEL_TEXT,
         0xFF6FCF97,
@@ -1269,28 +1285,46 @@ fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
     let mut free = None;
     for raw in (0..2_304).rev() {
         let id = TextdrawId::new(raw).ok_or(SampClientSdkResult::NativeCallFailed)?;
-        if !textdraws.exists(id)? {
+        if !wait_for_value(SCALAR_CACHE_TIMEOUT, || textdraws.exists(id))? {
             free = Some(id);
             break;
         }
     }
     let id = free.ok_or(SampClientSdkResult::NativeCallFailed)?;
-    wait_for_receipt(textdraws.create(id, LOCAL_TEXTDRAW_TEXT, 320.0, 180.0)?)?;
+    verify_textdraw_mutation("create_before", "create_after", || {
+        textdraws.create(id, LOCAL_TEXTDRAW_TEXT, 320.0, 180.0)
+    })?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         textdraws
             .get(id)
             .map(|textdraw| textdraw.is_some_and(|textdraw| textdraw.text == LOCAL_TEXTDRAW_TEXT))
     })?;
-    for receipt in [
-        textdraws.set_position(id, 300.0, 170.0)?,
-        textdraws.set_style(id, 1)?,
-        textdraws.set_letter_style(id, 0.3, 1.2, 0xFFFFFFFF)?,
-        textdraws.set_proportional(id, false)?,
-        textdraws.set_shadow(id, 2, 0xFF101010)?,
-        textdraws.set_outline(id, 1, 0xFF202020)?,
-        textdraws.set_box(id, true, 0x80202020, 180.0, 30.0)?,
-        textdraws.set_alignment(id, 2)?,
-        textdraws.set_text(id, LOCAL_TEXTDRAW_UPDATED_TEXT)?,
+    verify_textdraw_mutation("position_before", "position_after", || {
+        textdraws.set_position(id, 300.0, 170.0)
+    })?;
+    verify_textdraw_mutation("style_before", "style_after", || textdraws.set_style(id, 1))?;
+    verify_textdraw_mutation("letter_before", "letter_after", || {
+        textdraws.set_letter_style(id, 0.3, 1.2, 0xFFFFFFFF)
+    })?;
+    verify_textdraw_mutation("proportional_before", "proportional_after", || {
+        textdraws.set_proportional(id, false)
+    })?;
+    verify_textdraw_mutation("shadow_before", "shadow_after", || {
+        textdraws.set_shadow(id, 2, 0xFF101010)
+    })?;
+    verify_textdraw_mutation("outline_before", "outline_after", || {
+        textdraws.set_outline(id, 1, 0xFF202020)
+    })?;
+    verify_textdraw_mutation("box_before", "box_after", || {
+        textdraws.set_box(id, true, 0x80202020, 180.0, 30.0)
+    })?;
+    verify_textdraw_mutation("alignment_before", "alignment_after", || {
+        textdraws.set_alignment(id, 2)
+    })?;
+    verify_textdraw_mutation("string_before", "string_after", || {
+        textdraws.set_text(id, LOCAL_TEXTDRAW_UPDATED_TEXT)
+    })?;
+    verify_textdraw_mutation("model_before", "model_after", || {
         textdraws.set_model_style(
             id,
             Vector3 {
@@ -1301,10 +1335,9 @@ fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
             1.25,
             1,
             2,
-        )?,
-    ] {
-        wait_for_receipt(receipt)?;
-    }
+        )
+    })?;
+    set_textdraw_phase("snapshot_before");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         textdraws.get(id).map(|textdraw| {
             textdraw.is_some_and(|textdraw| {
@@ -1332,35 +1365,66 @@ fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
             })
         })
     })?;
-    wait_for_receipt(textdraws.delete(id)?)?;
+    set_textdraw_phase("snapshot_after");
+    verify_textdraw_mutation("delete_before", "delete_after", || textdraws.delete(id))?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         textdraws.exists(id).map(|exists| !exists)
-    })
+    })?;
+    set_textdraw_phase("complete");
+    Ok(())
+}
+
+fn verify_textdraw_mutation(
+    before: &'static str,
+    after: &'static str,
+    submit: impl FnOnce() -> Result<CommandReceipt<()>, SampClientSdkResult>,
+) -> Result<(), SampClientSdkResult> {
+    set_textdraw_phase(before);
+    wait_for_receipt(submit()?)?;
+    set_textdraw_phase(after);
+    Ok(())
+}
+
+fn set_textdraw_phase(phase: &'static str) {
+    *TEXTDRAW_PHASE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = phase;
+    publish_status();
 }
 
 fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
     let local_id =
-        PlayerId::new(samp.local().player()?.id).ok_or(SampClientSdkResult::NativeCallFailed)?;
+        PlayerId::new(wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.local().player())?.id)
+            .ok_or(SampClientSdkResult::NativeCallFailed)?;
 
+    set_vehicle_phase("driver_request_before");
     wait_for_receipt(samp.net().send_chat(LOCAL_DRIVER_REQUEST)?)?;
+    set_vehicle_phase("driver_request_after");
     let local_vehicle = wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_driver)?;
     let local_vehicle_id =
         VehicleId::new(local_vehicle).ok_or(SampClientSdkResult::NativeCallFailed)?;
+    set_vehicle_phase("driver_snapshot_before");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         samp.players().player(local_id).vehicle_sync().map(|sync| {
             sync.is_some_and(|sync| in_car_sync_is_valid(sync, local_id, local_vehicle))
         })
     })?;
+    set_vehicle_phase("driver_snapshot_after");
+    set_vehicle_phase("driver_force_before");
     verify_packet_after_command(SYNC_INDEX_VEHICLE, || {
         samp.local().force_vehicle_sync(local_vehicle_id)
     })?;
+    set_vehicle_phase("driver_force_after");
 
+    set_vehicle_phase("passenger_request_before");
     wait_for_receipt(samp.net().send_chat(LOCAL_PASSENGER_REQUEST)?)?;
+    set_vehicle_phase("passenger_request_after");
     let passenger_vehicle =
         wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_passenger)?;
     if passenger_vehicle != local_vehicle {
         return Err(SampClientSdkResult::NativeCallFailed);
     }
+    set_vehicle_phase("passenger_snapshot_before");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         samp.players()
             .player(local_id)
@@ -1374,15 +1438,21 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
                 })
             })
     })?;
+    set_vehicle_phase("passenger_snapshot_after");
+    set_vehicle_phase("passenger_force_before");
     verify_packet_after_command(SYNC_INDEX_PASSENGER, || {
         samp.local().force_passenger_sync(local_vehicle_id, 1)
     })?;
+    set_vehicle_phase("passenger_force_after");
 
+    set_vehicle_phase("trailer_request_before");
     wait_for_receipt(samp.net().send_chat(LOCAL_TRAILER_REQUEST)?)?;
+    set_vehicle_phase("trailer_request_after");
     let local_trailer =
         wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_trailer)?;
     let trailer_id =
         VehicleId::new(local_trailer.trailer).ok_or(SampClientSdkResult::NativeCallFailed)?;
+    set_vehicle_phase("trailer_snapshot_before");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         let player = samp.players().player(local_id);
         let in_car = player.vehicle_sync()?;
@@ -1399,29 +1469,49 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
                 && sync.quaternion.into_iter().all(f32::is_finite)
         }))
     })?;
+    set_vehicle_phase("trailer_snapshot_after");
+    set_vehicle_phase("trailer_force_before");
     verify_packet_after_command(SYNC_INDEX_TRAILER, || {
         samp.local().force_trailer_sync(trailer_id)
     })?;
+    set_vehicle_phase("trailer_force_after");
+    let truck_id =
+        VehicleId::new(local_trailer.vehicle).ok_or(SampClientSdkResult::NativeCallFailed)?;
+    set_vehicle_phase("unoccupied_force_before");
     verify_packet_after_command(SYNC_INDEX_UNOCCUPIED, || {
-        samp.local().force_unoccupied_sync(local_vehicle_id, 0)
+        samp.local().force_unoccupied_sync(truck_id, 0)
     })?;
+    set_vehicle_phase("unoccupied_force_after");
 
     let vehicle_packet_mask =
         SYNC_PACKET_VEHICLE | SYNC_PACKET_PASSENGER | SYNC_PACKET_UNOCCUPIED | SYNC_PACKET_TRAILER;
+    set_vehicle_phase("packet_mask_before");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         Ok(
             SYNC_PACKETS_OBSERVED.load(Ordering::Acquire) & vehicle_packet_mask
                 == vehicle_packet_mask,
         )
     })?;
+    set_vehicle_phase("packet_mask_after");
 
+    set_vehicle_phase("cleanup_request_before");
     wait_for_receipt(samp.net().send_chat(VEHICLE_CLEANUP_REQUEST)?)?;
+    set_vehicle_phase("cleanup_request_after");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         Ok(VEHICLE_PHASES
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .cleanup)
-    })
+    })?;
+    set_vehicle_phase("complete");
+    Ok(())
+}
+
+fn set_vehicle_phase(phase: &'static str) {
+    *VEHICLE_PHASE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = phase;
+    publish_status();
 }
 
 fn wait_for_vehicle_phase<T: Copy>(
@@ -1455,7 +1545,8 @@ fn in_car_sync_is_valid(sync: samp_client_sdk::InCarSync, player: PlayerId, vehi
 
 fn verify_sync_snapshots(samp: Samp) -> Result<(), SampClientSdkResult> {
     let local_id =
-        PlayerId::new(samp.local().player()?.id).ok_or(SampClientSdkResult::NativeCallFailed)?;
+        PlayerId::new(wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.local().player())?.id)
+            .ok_or(SampClientSdkResult::NativeCallFailed)?;
     let remote_id = find_remote_player(samp, SCALAR_CACHE_TIMEOUT)?;
     wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
         let local = samp.players().player(local_id);
@@ -1520,6 +1611,27 @@ fn wait_for_condition(
         match condition() {
             Ok(true) => return Ok(()),
             Ok(false) | Err(SampClientSdkResult::NotReady) => {}
+            Err(error) => return Err(error),
+        }
+        if deadline.saturating_duration_since(Instant::now()).is_zero() {
+            return Err(SampClientSdkResult::TimedOut);
+        }
+        thread::sleep(RETRY_DELAY);
+    }
+}
+
+fn wait_for_value<T>(
+    timeout: Duration,
+    mut read: impl FnMut() -> Result<T, SampClientSdkResult>,
+) -> Result<T, SampClientSdkResult> {
+    let deadline = Instant::now() + timeout;
+    loop {
+        if is_shutting_down() {
+            return Err(SampClientSdkResult::ShuttingDown);
+        }
+        match read() {
+            Ok(value) => return Ok(value),
+            Err(SampClientSdkResult::NotReady) => {}
             Err(error) => return Err(error),
         }
         if deadline.saturating_duration_since(Instant::now()).is_zero() {
@@ -1614,13 +1726,31 @@ fn verify_reconnect_on_request(samp: Samp) -> Result<(), SampClientSdkResult> {
 
     wait_for_receipt(samp.net().connect(b"127.0.0.1", 7777)?)?;
     wait_for_condition(HOST_CONNECTION_TIMEOUT, || {
-        let server = samp.server().info()?;
-        let local = samp.local().player()?;
-        Ok(server.address == b"127.0.0.1"
-            && server.port == 7777
-            && samp.game_state()? == R3_WAIT_JOIN_STATE
-            && local.spawned
-            && samp.net().incoming_emulation_ready())
+        let server = samp.server().info();
+        let local = samp.local().player();
+        let game_state = samp.game_state().ok();
+        let observation = ReconnectObservation {
+            server_ready: server
+                .as_ref()
+                .is_ok_and(|server| server.address == b"127.0.0.1" && server.port == 7777),
+            local_ready: local.is_ok(),
+            game_state,
+            spawned: local.as_ref().ok().map(|local| local.spawned),
+            incoming_ready: samp.net().incoming_emulation_ready(),
+        };
+        let ready = observation.server_ready
+            && observation.game_state == Some(R3_CONNECTED_STATE)
+            && observation.spawned == Some(true)
+            && observation.incoming_ready;
+        let mut published = RECONNECT_OBSERVATION
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        if published.as_ref() != Some(&observation) {
+            *published = Some(observation);
+            drop(published);
+            publish_status();
+        }
+        Ok(ready)
     })?;
 
     let replies_before = INCOMING_REPLY_COUNT.load(Ordering::Acquire);
@@ -1748,6 +1878,16 @@ fn publish_status() {
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .as_ref(),
+            RECONNECT_OBSERVATION
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .as_ref(),
+            *TEXTDRAW_PHASE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()),
+            *VEHICLE_PHASE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()),
         ),
     );
 }
@@ -1757,6 +1897,9 @@ fn status_record(
     failure: u32,
     scalar: Option<&ScalarObservation>,
     player_pool: Option<&PlayerPoolObservation>,
+    reconnect: Option<&ReconnectObservation>,
+    textdraw_phase: &str,
+    vehicle_phase: &str,
 ) -> String {
     use std::fmt::Write;
 
@@ -1780,6 +1923,19 @@ fn status_record(
         );
         let _ = writeln!(record, "player_max_id={:?}", player_pool.max_id);
     }
+    if let Some(reconnect) = reconnect {
+        let _ = writeln!(record, "reconnect_server_ready={}", reconnect.server_ready);
+        let _ = writeln!(record, "reconnect_local_ready={}", reconnect.local_ready);
+        let _ = writeln!(record, "reconnect_game_state={:?}", reconnect.game_state);
+        let _ = writeln!(record, "reconnect_spawned={:?}", reconnect.spawned);
+        let _ = writeln!(
+            record,
+            "reconnect_incoming_ready={}",
+            reconnect.incoming_ready
+        );
+    }
+    let _ = writeln!(record, "textdraw_phase={textdraw_phase}");
+    let _ = writeln!(record, "vehicle_phase={vehicle_phase}");
     record
 }
 
@@ -1844,9 +2000,12 @@ mod tests {
                 STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT,
                 0,
                 None,
-                None
+                None,
+                None,
+                "none",
+                "none"
             ),
-            "status=0x00000011\nfailure=0\n"
+            "status=0x00000011\nfailure=0\ntextdraw_phase=none\nvehicle_phase=none\n"
         );
     }
 
@@ -1929,6 +2088,23 @@ mod tests {
             )
             .is_none()
         );
+    }
+
+    #[test]
+    fn retries_transient_not_ready_values() {
+        let mut attempts = 0;
+        let value = wait_for_value(Duration::from_millis(500), || {
+            attempts += 1;
+            if attempts < 3 {
+                Err(SampClientSdkResult::NotReady)
+            } else {
+                Ok(37)
+            }
+        })
+        .expect("a published cache value should be returned");
+
+        assert_eq!(value, 37);
+        assert_eq!(attempts, 3);
     }
 
     #[test]

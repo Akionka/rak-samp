@@ -1264,11 +1264,7 @@ impl BackendState {
                                 .map_err(|_| CommandError::NativeFailure)
                         });
                     if result.is_ok() {
-                        self.rak_client.store(0, Ordering::Release);
-                        self.rpc_receiver.store(0, Ordering::Release);
-                        self.player_address.store(0, Ordering::Release);
-                        self.player_port.store(0, Ordering::Release);
-                        self.invalidate_connection_state();
+                        self.invalidate_after_disconnect();
                     }
                     result
                 }
@@ -1278,7 +1274,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .delete_textdraw(id)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.publish_deleted_textdraw(id);
+                        Ok(())
                     }),
                 GameCommand::CreateTextdraw { id, text, x, y } => self
                     .scalar_profile()
@@ -1296,7 +1294,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .delete_text_label(id)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.publish_deleted_text_label(id);
+                        Ok(())
                     }),
                 GameCommand::CreateTextLabel {
                     id,
@@ -1392,7 +1392,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_position(id, x, y)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawStyle { id, style } => self
                     .scalar_profile()
@@ -1415,7 +1417,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_letter_style(id, width, height, colour)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawProportional { id, proportional } => self
                     .scalar_profile()
@@ -1423,7 +1427,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_proportional(id, proportional)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawShadow { id, shadow, colour } => self
                     .scalar_profile()
@@ -1431,7 +1437,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_shadow(id, shadow, colour)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawOutline {
                     id,
@@ -1443,7 +1451,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_outline(id, outline, colour)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawBox {
                     id,
@@ -1457,7 +1467,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_box(id, enabled, colour, width, height)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawAlignment { id, alignment } => self
                     .scalar_profile()
@@ -1465,7 +1477,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_alignment(id, alignment)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawString { id, text } => self
                     .scalar_profile()
@@ -1473,7 +1487,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_string(id, &text)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SetTextdrawModelStyle {
                     id,
@@ -1487,7 +1503,9 @@ impl BackendState {
                     .and_then(|profile| {
                         profile
                             .set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
-                            .map_err(|_| CommandError::NativeFailure)
+                            .map_err(|_| CommandError::NativeFailure)?;
+                        self.invalidate_textdraw_snapshot(id);
+                        Ok(())
                     }),
                 GameCommand::SpawnLocalPlayer => self
                     .scalar_profile()

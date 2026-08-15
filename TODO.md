@@ -520,9 +520,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   second client with automatic SDK transitions and `R3ProbeBot`; keep remote
   aim/passenger/trailer outside the stock-NPC claim because `samp-npc.exe`
   cannot emit those packet types.
-- [ ] Execute the full R3 live validation suite; record connected status
-  `0x0FFFFFFF`, final reconnect status `0x3FFFFFFF`, server/host logs, and
-  unload-hook restoration evidence before checking the remaining R3 rows.
+- [x] Execute the full R3 live validation suite; record connected status
+  `0x0FFFFFFF`, final reconnect status `0x3FFFFFFF`, and server/host logs.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
   the R1 layout and in-game smoke tests unchanged.
 
@@ -537,11 +536,11 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
 | --- | --- | --- | --- | --- | --- |
 | `samp.dll` entry point | [x] `0x31DF13` | [x] `0x0CC4D0`; pinned R3 smoke | [ ] `0x0CBC90` | [ ] `0x0FDB60` | `src/client.rs`; compare PE optional-header RVA and pinned SHA-256 |
 | Network `AddressSet` selection | [x] | [x] R3 smoke | [ ] live verify | [ ] SF/disasm verify | `src/client.rs`; constructor, RPC, packet, lock, codec smoke tests |
-| Native profile selected after build detection | [x] `NativeProfile::R1` | [ ] `R3Scalars`; complete helper dispatch implemented, full live batch pending | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
-| Game-process hook target | [x] GTA 1.0 US | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
-| Dialog-close hook target | [x] | [ ] `CDialog::Close` ABI implementation/fixture complete; live response smoke pending | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
-| RakClient vtable contract | [x] | [ ] constructor proves `RakPeer + 0xDDE` and R1-compatible disconnect slot; implementation complete, live disconnect/reconnect pending | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
-| Native bitstream ABI | [x] | [ ] verify | [ ] verify | [ ] SF/disasm | C++ fixture plus exact-bit packet/RPC smoke test |
+| Native profile selected after build detection | [x] `NativeProfile::R1` | [x] `R3Scalars`; full helper dispatch and live suite | [ ] `R5ClientProfile` | [ ] `DlClientProfile` | Version-neutral profile trait/enum; unsupported operations must remain gated |
+| Game-process hook target | [x] GTA 1.0 US | [x] live attach/process exit and MinHook lifecycle test | [ ] GTA shared verify | [ ] GTA shared verify | Existing MinHook lifecycle test plus in-game attach/detach |
+| Dialog-close hook target | [x] | [x] `CDialog::Close` fixture and live response | [ ] profile RVA + ABI | [ ] SF/disasm | Hook, trampoline, and dialog-response smoke test |
+| RakClient vtable contract | [x] | [x] live send/receive/reconnect and owned-slot restoration test | [ ] verify slots/ABI | [ ] SF/disasm | Packet/RPC send/receive and restoration tests |
+| Native bitstream ABI | [x] | [x] fixture and exact-bit live packet/RPC pass | [ ] verify | [ ] SF/disasm | C++ fixture plus exact-bit packet/RPC smoke test |
 
 ### Network and codec RVAs (`AddressSet`)
 
@@ -580,72 +579,72 @@ the matching call signature and object/layout proof to that profile.
 
 | Native address / use | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
-| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [ ] `0x26E898`; active and full snapshot implementation/fixture complete, live batch pending | [ ] `0x26EB50` SAPI | [ ] SF/disasm |
-| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [ ] `0x6F8C0` SAPI; implementation complete, live batch pending | [ ] `0x6FFB0` SAPI | [ ] SF/disasm |
-| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [ ] `0x6FF40` SAPI; response-hook implementation/fixture complete, live smoke pending | [ ] `0x70630` SAPI | [ ] SF/disasm |
+| `DIALOG_SINGLETON_RVA` | [x] `0x21A0B8` | [x] `0x26E898`; fixture and full live snapshot | [ ] `0x26EB50` SAPI | [ ] SF/disasm |
+| `DIALOG_SHOW_RVA` | [x] `0x6B9C0` | [x] `0x6F8C0`; SAPI and live mutation | [ ] `0x6FFB0` SAPI | [ ] SF/disasm |
+| `DIALOG_CLOSE_RVA` | [x] `0x6C040` | [x] `0x6FF40`; fixture and live response hook | [ ] `0x70630` SAPI | [ ] SF/disasm |
 | `INPUT_SINGLETON_RVA` | [x] `0x21A0E8` | [x] `0x26E8CC`; fixture/live read-only cache | [ ] `0x26EB84` SAPI | [ ] SF/disasm |
-| `INPUT_OPEN_RVA` | [x] `0x657E0` | [ ] `0x68D10` SAPI | [ ] `0x69480` SAPI | [ ] SF/disasm |
-| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [ ] `0x68E10` SAPI | [ ] `0x69580` SAPI | [ ] SF/disasm |
-| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [ ] `0x68FA0` SAPI | [ ] `0x69710` SAPI | [ ] SF/disasm |
-| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [ ] `0x69000` SAPI | [ ] `0x69770` SAPI | [ ] SF/disasm |
-| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [ ] `0x69260` SAPI | [ ] `0x699D0` SAPI | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [ ] SF/disasm | [ ] SF/disasm | [ ] SF/disasm |
-| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [ ] `0x84F40`; full dialog snapshot implementation/fixture complete, live batch pending | [ ] SF/disasm | [ ] SF/disasm |
+| `INPUT_OPEN_RVA` | [x] `0x657E0` | [x] `0x68D10`; SAPI and live mutation | [ ] `0x69480` SAPI | [ ] SF/disasm |
+| `INPUT_CLOSE_RVA` | [x] `0x658E0` | [x] `0x68E10`; SAPI and live mutation | [ ] `0x69580` SAPI | [ ] SF/disasm |
+| `INPUT_GET_COMMAND_HANDLER_RVA` | [x] `0x65A70` | [x] `0x68FA0`; SAPI and live command pass | [ ] `0x69710` SAPI | [ ] SF/disasm |
+| `INPUT_ADD_COMMAND_RVA` | [x] `0x65AD0` | [x] `0x69000`; SAPI and live command pass | [ ] `0x69770` SAPI | [ ] SF/disasm |
+| `INPUT_PROCESS_RVA` | [x] `0x65D30` | [x] `0x69260`; SAPI and live command pass | [ ] `0x699D0` SAPI | [ ] SF/disasm |
+| `DXUT_EDIT_BOX_SET_TEXT_RVA` | [x] `0x80F60` | [x] fixture and live mutation | [ ] SF/disasm | [ ] SF/disasm |
+| `DXUT_EDIT_BOX_GET_TEXT_RVA` | [x] `0x81030` | [x] `0x84F40`; fixture and live snapshot | [ ] SF/disasm | [ ] SF/disasm |
 | `CHAT_SINGLETON_RVA` | [x] `0x21A0E4` | [x] `0x26E8C8`; `GetMode` live read-only cache | [ ] `0x26EB80` SAPI | [ ] SF/disasm |
-| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [ ] `0x67460` SAPI; implementation/fixture complete, live batch pending | [ ] `0x67BE0` SAPI | [ ] SF/disasm |
+| `CHAT_ADD_ENTRY_RVA` | [x] `0x64010` | [x] `0x67460`; fixture and live mutation | [ ] `0x67BE0` SAPI | [ ] SF/disasm |
 | `CHAT_GET_MODE_RVA` | [x] `0x5D7A0` | [x] `0x60B40`; `__thiscall`, bounded live cache | [ ] `0x612B0` SAPI | [ ] SF/disasm |
 | `SCOREBOARD_SINGLETON_RVA` | [x] `0x21A0B4` | [x] `0x26E894`; `CScoreboard` fixture/live read-only open cache | [ ] `0x26EB4C` SAPI | [ ] SF/disasm |
-| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [ ] `0x26E8D0` SAPI; implementation complete, live batch pending | [ ] `0x26EB88` SAPI | [ ] SF/disasm |
-| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [ ] `0x69F40` SAPI | [ ] `0x6A6B0` SAPI | [ ] SF/disasm |
-| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [ ] `0x26E8DC` SAPI | [ ] `0x26EB94` SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [ ] `0x2E10` SAPI; `set_game_state` implementation complete, live batch pending | [ ] `0x2E30` SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [ ] `0x1160` SAPI | [ ] `0x1170` SAPI | [ ] SF/disasm |
-| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [ ] `0x1170` SAPI | [ ] `0x1180` SAPI | [ ] SF/disasm |
-| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [ ] `0xA1E0` SAPI; reconnect fields/transition implementation complete, shutdown live batch pending | [ ] `0xA540` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [ ] `0x1A30` SAPI | [ ] `0x1A40` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [ ] `0x6E140` SAPI | [ ] `0x6E8B0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [ ] `0x6E150` SAPI | [ ] `0x6E8C0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [ ] `0x10B0`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x10B0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [ ] `0x10F0`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x10F0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [ ] SAPI layout | [ ] SAPI layout | [ ] SF/disasm |
-| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [ ] `0x16F00`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x175C0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [ ] `0x6E0E0`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x6E850` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [ ] `0x6E110`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x6E880` SAPI | [ ] SF/disasm |
+| `DEATH_WINDOW_SINGLETON_RVA` | [x] `0x21A0EC` | [x] `0x26E8D0`; SAPI and live mutation | [ ] `0x26EB88` SAPI | [ ] SF/disasm |
+| `DEATH_WINDOW_ADD_MESSAGE_RVA` | [x] `0x66A10` | [x] `0x69F40`; SAPI and live mutation | [ ] `0x6A6B0` SAPI | [ ] SF/disasm |
+| `NET_GAME_SINGLETON_RVA` | [x] `0x21A0F8` | [x] `0x26E8DC`; SAPI and full live pass | [ ] `0x26EB94` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_STATE_RVA` | [x] `0x2E20` | [x] `0x2E10`; SAPI and live state transitions | [ ] `0x2E30` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_PLAYER_POOL_RVA` | [x] `0x1160` | [x] `0x1160`; SAPI and live pool pass | [ ] `0x1170` SAPI | [ ] SF/disasm |
+| `NET_GAME_GET_VEHICLE_POOL_RVA` | [x] `0x1170` | [x] `0x1170`; SAPI and live pool pass | [ ] `0x1180` SAPI | [ ] SF/disasm |
+| `NET_GAME_SHUTDOWN_FOR_RESTART_RVA` | [x] `0xA060` | [x] `0xA1E0`; SAPI and live reconnect | [ ] `0xA540` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_PLAYER_RVA` | [x] `0x1A30` | [x] `0x1A30`; SAPI and live snapshot | [ ] `0x1A40` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_SCORE_RVA` | [x] `0x6A1F0` | [x] `0x6E140`; SAPI and live snapshot | [ ] `0x6E8B0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_LOCAL_PING_RVA` | [x] `0x6A200` | [x] `0x6E150`; SAPI and live snapshot | [ ] `0x6E8C0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_IS_CONNECTED_RVA` | [x] `0x10B0` | [x] `0x10B0`; fixture and NPC live pass | [ ] `0x10B0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_REMOTE_PLAYER_RVA` | [x] `0x10F0` | [x] `0x10F0`; fixture and NPC live pass | [ ] `0x10F0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_IS_NPC_RVA` | [x] `0xB680` | [x] SAPI layout and NPC live pass | [ ] SAPI layout | [ ] SF/disasm |
+| `PLAYER_POOL_GET_NAME_RVA` | [x] `0x13CE0` | [x] `0x16F00`; fixture and NPC live pass | [ ] `0x175C0` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_SCORE_RVA` | [x] `0x6A190` | [x] `0x6E0E0`; fixture and NPC live pass | [ ] `0x6E850` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_GET_PING_RVA` | [x] `0x6A1C0` | [x] `0x6E110`; fixture and NPC live pass | [ ] `0x6E880` SAPI | [ ] SF/disasm |
 | `PLAYER_POOL_GET_COUNT_RVA` | [x] `0x10520` | [x] `0x13670`; SAPI ABI, fixture, PE entry, and loopback | [ ] `0x139F0` SAPI | [ ] SF/disasm |
-| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [ ] `0xB5C0` SAPI | [ ] `0xB8A0` SAPI | [ ] SF/disasm |
-| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [ ] `0x1140` SAPI | [ ] `0x1150` SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [ ] `0x15C10`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x16180` SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [ ] `0x15BE0` SAPI | [ ] `0x16150` SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [ ] `0x1080`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x1080` SAPI | [ ] SF/disasm |
-| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [ ] `0x15DB0`; CPlayerPool/CPlayerInfo fixture, two-client smoke pending | [ ] `0x16330` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [ ] `0x2D50` SAPI | [ ] `0x2D70` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [ ] `0x3DA0` SAPI | [ ] `0x3F20` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [ ] `0x3D50` SAPI | [ ] `0x3ED0` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [ ] `0x30C0` SAPI | [ ] `0x30F0` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [ ] `0x3AD0` SAPI | [ ] `0x3C20` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [ ] `0x4B60` SAPI | [ ] `0x4D30` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [ ] `0x5040` SAPI | [ ] `0x5210` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [ ] `0x4D40` SAPI | [ ] `0x4F00` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [ ] `0x5B10` SAPI | [ ] `0x5D00` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [ ] `0x51F0` SAPI | [ ] `0x53D0` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [ ] `0x53B0` SAPI | [ ] `0x5590` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [ ] `0x6E40` SAPI | [ ] `0x7080` SAPI | [ ] SF/disasm |
-| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [ ] `0x6090` SAPI | [ ] `0x6290` SAPI | [ ] SF/disasm |
-| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [ ] `0xFE0A8` SAPI; implementation complete, live batch pending | [ ] `0xFE0A8` SAPI | [ ] SF/disasm |
-| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [ ] `0xFE0AC` SAPI; implementation complete, live batch pending | [ ] `0xFE0AC` SAPI | [ ] SF/disasm |
-| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [ ] `0xFE0B0` SAPI; implementation complete, live batch pending | [ ] `0xFE0B0` SAPI | [ ] SF/disasm |
-| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [ ] `0xAB4C0` SAPI | [ ] `0xABD50` SAPI | [ ] SF/disasm |
-| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [ ] `0xAB500` SAPI | [ ] `0xABD90` SAPI | [ ] SF/disasm |
+| `PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA` | [x] `0xB3E0` | [x] `0xB5C0`; SAPI and live mutation | [ ] `0xB8A0` SAPI | [ ] SF/disasm |
+| `VEHICLE_POOL_DOES_EXIST_RVA` | [x] `0x1140` | [x] `0x1140`; SAPI and live entity pass | [ ] `0x1150` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x12A00` | [x] `0x15C10`; fixture and NPC live pass | [ ] `0x16180` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_SET_COLOUR_RVA` | [x] `0x129D0` | [x] `0x15BE0`; SAPI and live mutation | [ ] `0x16150` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_DOES_EXIST_RVA` | [x] `0x1080` | [x] `0x1080`; fixture and NPC live pass | [ ] `0x1080` SAPI | [ ] SF/disasm |
+| `REMOTE_PLAYER_GET_STATUS_RVA` | [x] `0x12BA0` | [x] `0x15DB0`; fixture and NPC live pass | [ ] `0x16330` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_GET_PED_RVA` | [x] `0x2D60` | [x] `0x2D50`; SAPI and live handle pass | [ ] `0x2D70` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_GET_COLOUR_ARGB_RVA` | [x] `0x3D90` | [x] `0x3DA0`; SAPI and live snapshot | [ ] `0x3F20` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SET_COLOUR_RVA` | [x] `0x3D40` | [x] `0x3D50`; SAPI and live mutation | [ ] `0x3ED0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA` | [x] `0x30C0` | [x] `0x30C0`; SAPI and live mutation | [ ] `0x30F0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SPAWN_RVA` | [x] `0x3AD0` | [x] `0x3AD0`; SAPI and live mutation | [ ] `0x3C20` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA` | [x] `0x4B30` | [x] `0x4B60`; SAPI and live packet | [ ] `0x4D30` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_AIM_DATA_RVA` | [x] `0x4FF0` | [x] `0x5040`; SAPI and live packet | [ ] `0x5210` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA` | [x] `0x4D10` | [x] `0x4D40`; SAPI and live packet | [ ] `0x4F00` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_STATS_RVA` | [x] `0x5AF0` | [x] `0x5B10`; SAPI and live packet | [ ] `0x5D00` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_TRAILER_DATA_RVA` | [x] `0x51B0` | [x] `0x51F0`; SAPI and live packet | [ ] `0x53D0` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_PASSENGER_DATA_RVA` | [x] `0x5380` | [x] `0x53B0`; SAPI and live packet | [ ] `0x5590` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_SEND_INCAR_DATA_RVA` | [x] `0x6E30` | [x] `0x6E40`; SAPI and live packet | [ ] `0x7080` SAPI | [ ] SF/disasm |
+| `LOCAL_PLAYER_UPDATE_WEAPONS_RVA` | [x] `0x6080` | [x] `0x6090`; SAPI and live packet | [ ] `0x6290` SAPI | [ ] SF/disasm |
+| `ONFOOT_SEND_RATE_RVA` | [x] `0xEC0A8` | [x] `0xFE0A8`; SAPI and live mutation | [ ] `0xFE0A8` SAPI | [ ] SF/disasm |
+| `INCAR_SEND_RATE_RVA` | [x] `0xEC0AC` | [x] `0xFE0AC`; SAPI and live mutation | [ ] `0xFE0AC` SAPI | [ ] SF/disasm |
+| `AIM_SEND_RATE_RVA` | [x] `0xEC0B0` | [x] `0xFE0B0`; SAPI and live mutation | [ ] `0xFE0B0` SAPI | [ ] SF/disasm |
+| `PED_GET_HEALTH_RVA` | [x] `0xA6610` | [x] `0xAB4C0`; SAPI and live snapshot | [ ] `0xABD50` SAPI | [ ] SF/disasm |
+| `PED_GET_ARMOUR_RVA` | [x] `0xA6650` | [x] `0xAB500`; SAPI and live snapshot | [ ] `0xABD90` SAPI | [ ] SF/disasm |
 | `GAME_SINGLETON_RVA` | [x] `0x21A10C` | [x] `0x26E8F4`; `CGame` fixture and automatic loopback smoke | [ ] `0x26EBAC` SAPI | [ ] SF/disasm |
-| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [ ] `0x9FFE0` SAPI | [ ] `0xA06F0` SAPI | [ ] SF/disasm |
-| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [ ] `0x9FEC0` SAPI | [ ] `0xA05D0` SAPI | [ ] SF/disasm |
-| `ANIMATION_TABLE_RVA` | [x] `0xF15B0` | [ ] `0x1039D0` SF.lua; implementation/fixture complete, live batch pending | [ ] `0x1039E8` SF.lua | [ ] SF/disasm |
-| `CPOOLS_GET_PED_REF` (GTA) | [x] `0x54FF60` | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify |
-| `CPOOLS_GET_VEHICLE_REF` (GTA) | [x] `0x54FFC0` | [ ] GTA shared verify | [ ] GTA shared verify | [ ] GTA shared verify |
-| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [ ] `0x11C0` SAPI; fixture/implementation complete, live batch pending | [ ] `0x11D0` SAPI | [ ] SF/disasm |
-| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [ ] `0x12D0` SAPI; fixture/implementation complete, live batch pending | [ ] `0x12E0` SAPI | [ ] SF/disasm |
-| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [ ] `0x1E1C0` SAPI; mutation implementation complete, fixture/live batch pending | [ ] `0x1E910` SAPI | [ ] SF/disasm |
-| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [ ] `0x1E0A0` SAPI; mutation implementation complete, fixture/live batch pending | [ ] `0x1E7F0` SAPI | [ ] SF/disasm |
+| `GAME_SET_CURSOR_MODE_RVA` | [x] `0x9BD30` | [x] `0x9FFE0`; SAPI and live mutation | [ ] `0xA06F0` SAPI | [ ] SF/disasm |
+| `GAME_PROCESS_INPUT_ENABLING_RVA` | [x] `0x9BC10` | [x] `0x9FEC0`; SAPI and live mutation | [ ] `0xA05D0` SAPI | [ ] SF/disasm |
+| `ANIMATION_TABLE_RVA` | [x] `0xF15B0` | [x] `0x1039D0`; SF.lua, fixture, and live lookup | [ ] `0x1039E8` SF.lua | [ ] SF/disasm |
+| `CPOOLS_GET_PED_REF` (GTA) | [x] `0x54FF60` | [x] GTA shared live round trip | [ ] GTA shared verify | [ ] GTA shared verify |
+| `CPOOLS_GET_VEHICLE_REF` (GTA) | [x] `0x54FFC0` | [x] GTA shared live round trip | [ ] GTA shared verify | [ ] GTA shared verify |
+| `LABEL_POOL_CREATE_RVA` | [x] `0x11C0` | [x] `0x11C0`; fixture and live lifecycle | [ ] `0x11D0` SAPI | [ ] SF/disasm |
+| `LABEL_POOL_DELETE_RVA` | [x] `0x12D0` | [x] `0x12D0`; fixture and live lifecycle | [ ] `0x12E0` SAPI | [ ] SF/disasm |
+| `TEXTDRAW_POOL_CREATE_RVA` | [x] `0x1AE20` | [x] `0x1E1C0`; fixture and live lifecycle | [ ] `0x1E910` SAPI | [ ] SF/disasm |
+| `TEXTDRAW_POOL_DELETE_RVA` | [x] `0x1AD00` | [x] `0x1E0A0`; fixture and live lifecycle | [ ] `0x1E7F0` SAPI | [ ] SF/disasm |
 
 ### Native layout and raw-address matrix
 
@@ -656,16 +655,16 @@ build-specific fixture before its profile can be enabled.
 
 | Layout family / current R1 source | R1 | R3-1 | R5-1 | DL | Completion rule |
 | --- | --- | --- | --- | --- | --- |
-| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [ ] SAPI fixture; CNetGame/Input/Dialog/Chat/Scoreboard/Game slices proven | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
-| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [ ] scalar slice fixture/live probe; `SPools` order corrected against R3 disassembly, all dependent pool caches need re-smoke | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
-| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [ ] cache and mutations implemented; full live batch pending | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
-| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [ ] snapshots, controls, close hook, and mutations implemented; full live batch pending | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
-| Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [ ] SAPI fixture | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
-| Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [ ] player directory, vehicle/object existence, gangzone and label pool fixtures implemented; complete live batch pending | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify pool sizes, not-empty arrays, and pointer indirection |
-| Local/remote player records and all sync structures (`players.rs`) | [x] | [ ] local snapshot and remote state/onfoot fixture; full two-client sync smoke pending | [ ] SAPI fixture | [ ] SF/disasm fixture | Fixture must cover on-foot, in-car, passenger, trailer, aim, stats |
-| Textdraw and text-label structures (`textdraws.rs`, `text_labels.rs`) | [x] | [ ] SAPI fixture and R3 implementation complete; complete live batch pending | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify creation/deletion ABI and every mutable field |
-| GTA ped/vehicle handles and `CPools` assumptions (`handles.rs`) | [x] | [ ] R3 handle cache implementation/fixture complete; GTA shared live proof pending | [ ] GTA shared fixture | [ ] GTA shared fixture | Reconfirm GTA 1.0 US target and SAMP pointer chain |
-| RakPeer size, RPC node table, native bitstream (`raw.rs`, `native_bitstream.rs`) | [x] | [ ] binary fixture | [ ] binary fixture | [ ] SF/disasm fixture | Validate all unsafe opaque-address computations |
+| Singleton pointer storage and object sizes (`singletons.rs`) | [x] | [x] fixture and full live suite | [ ] SAPI fixture | [ ] SF/disasm fixture | Validate singleton slot and full readable object range |
+| `CNetGame`, server metadata, game state, pool roots (`memory.rs`) | [x] | [x] fixture, disassembly, reconnect, and dependent live caches | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify every consumed field offset and signedness |
+| `CInput`, command table, chat editbox (`ui.rs`) | [x] | [x] fixture and live cache/mutations | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify command count/name/proc capacity and native calls |
+| `CDialog` and DXUT list/edit controls (`ui.rs`) | [x] | [x] fixture, live controls, response hook, and mutations | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify full dialog/DXUT layouts and callback ABI |
+| Chat/death-window history entries (`chat_entries.rs`, `ui.rs`) | [x] | [x] fixture and live mutations | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify bounded text fields, colours, and display mode |
+| Player/vehicle/object/pickup/gangzone/label pools (`pools.rs`, `players.rs`) | [x] | [x] fixture and full entity lifecycle pass | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify pool sizes, not-empty arrays, and pointer indirection |
+| Local/remote player records and all sync structures (`players.rs`) | [x] | [x] fixture, NPC remote sync, and local full sync pass | [ ] SAPI fixture | [ ] SF/disasm fixture | Fixture must cover on-foot, in-car, passenger, trailer, aim, stats |
+| Textdraw and text-label structures (`textdraws.rs`, `text_labels.rs`) | [x] | [x] fixture and live create/mutate/delete pass | [ ] SAPI fixture | [ ] SF/disasm fixture | Verify creation/deletion ABI and every mutable field |
+| GTA ped/vehicle handles and `CPools` assumptions (`handles.rs`) | [x] | [x] fixture and live ID/handle round trips | [ ] GTA shared fixture | [ ] GTA shared fixture | Reconfirm GTA 1.0 US target and SAMP pointer chain |
+| RakPeer size, RPC node table, native bitstream (`raw.rs`, `native_bitstream.rs`) | [x] | [x] fixture and exact-bit live pass | [ ] binary fixture | [ ] SF/disasm fixture | Validate all unsafe opaque-address computations |
 
 ### Profile implementation and enablement order
 
@@ -689,9 +688,9 @@ known.
 | Read-only scoreboard-open flag | [x] | [x] `CScoreboard` fixture and interactive loopback open/close smoke | [ ] | [ ] | Copy only `m_bIsEnabled`; leave scoreboard writes and all other UI helpers gated |
 | Read-only cursor mode | [x] | [x] `CGame` fixture and automatic loopback smoke | [ ] | [ ] | Copy only `m_nCursorMode`; leave cursor writes and all other game helpers gated |
 | Read-only player directory and remote state (`Player::is_defined`, `Players::get`, `Players::remote_state`) | [x] | [x] implementation, fixture, and two-client live probe | [ ] | [ ] | Copy bounded remote snapshots only; leave remote mutations and sync gated |
-| UI, dialog, chat input, native command registry | [x] | [ ] implementation/fixture complete; live batch pending | [ ] | [ ] | Layout fixture plus in-game interaction test |
+| UI, dialog, chat input, native command registry | [x] | [x] fixture and full live mutation pass | [ ] | [ ] | Layout fixture plus in-game interaction test |
 | Player/pool/entity snapshots and handles | [x] | [x] fixture and live object/vehicle/pickup/gangzone/ped ID-handle round trips | [ ] | [ ] | Layout fixture, transition invalidation, in-game smoke |
-| Local-player commands and force sync | [x] | [ ] implementation, queue coverage, and live aim/on-foot/stats/weapons receipts complete; packet-verification batch pending | [ ] | [ ] | Queue/receipt test and in-game packet verification |
-| Textdraw/text-label/gangzone commands | [x] | [ ] implementation/fixture complete; live batch pending | [ ] | [ ] | Layout fixture, queue/receipt test, in-game smoke |
-| Unsafe raw singleton/function/RakPeer helpers | [x] | [ ] R3 constructor proves raw RakPeer offset; live validation pending | [ ] | [ ] | Per-build opaque-address fixture; no exposed references |
-| Documentation compatibility claim | [x] R1 full direct bridge | [ ] full direct bridge implementation complete; live batch pending | [ ] | [ ] | Update only after all rows used by the claim are complete |
+| Local-player commands and force sync | [x] | [x] queue coverage and live packet verification for every local sync type | [ ] | [ ] | Queue/receipt test and in-game packet verification |
+| Textdraw/text-label/gangzone commands | [x] | [x] fixture and full live lifecycle pass | [ ] | [ ] | Layout fixture, queue/receipt test, in-game smoke |
+| Unsafe raw singleton/function/RakPeer helpers | [x] | [x] fixture, constructor proof, and live validation | [ ] | [ ] | Per-build opaque-address fixture; no exposed references |
+| Documentation compatibility claim | [x] R1 full direct bridge | [x] full direct bridge live-tested | [ ] | [ ] | Update only after all rows used by the claim are complete |
