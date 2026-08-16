@@ -6,6 +6,13 @@ explicit unavailable strategy and return `DirectClientError::NotReady` for an
 affected operation until the required evidence is added. It must not use a
 guessed value or fallback.
 
+## ABI alias audit
+
+The R1 and classic (R3/R5/DL) function-pointer aliases remain separate. Some
+Rust declarations are textually identical, but no independent evidence proves
+their native ABI compatibility. Do not merge or reuse an alias across profiles
+until an ABI fixture or live-call validation covers that exact signature.
+
 | Profile | Operation or value | Current source | Required evidence | Status |
 | --- | --- | --- | --- | --- |
 | R1 | Singleton RVAs: dialog `0x21A0B8`, input `0x21A0E8`, chat `0x21A0E4`, scoreboard `0x21A0B4`, death window `0x21A0EC`, NetGame `0x21A0F8`, game `0x21A10C` | `r1_client/addresses.rs` | Shipped R1 binary or an executable pin test for each RVA | Unverified |

@@ -542,17 +542,17 @@ Evidence/commit: `11ddec9` (`feat(native-client): select immutable profiles`)
 
 ### 7. Shared memory and ABI primitives
 
-- [ ] Move guarded read/write helpers into `native_client/memory.rs`.
-- [ ] Move bounded native-string helpers.
-- [ ] Add overflow and invalid-range tests.
-- [ ] Add embedded-NUL and unterminated-string tests.
-- [ ] Define field-specific native boolean handling.
-- [ ] Audit every function-pointer alias across all four profiles.
-- [ ] Merge only aliases with proven identical signatures.
-- [ ] Record unverified signatures in the register.
-- [ ] Ensure no native pointer or borrowed string crosses the host ABI.
+- [x] Move guarded read/write helpers into `native_client/memory.rs`.
+- [x] Move bounded native-string helpers.
+- [x] Add overflow and invalid-range tests.
+- [x] Add embedded-NUL and unterminated-string tests.
+- [x] Define field-specific native boolean handling.
+- [x] Audit every function-pointer alias across all four profiles.
+- [x] Merge only aliases with proven identical signatures.
+- [x] Record unverified signatures in the register.
+- [x] Ensure no native pointer or borrowed string crosses the host ABI.
 
-Evidence/commit: _pending_
+Evidence/commit: `55e73eb` (`refactor(native-client): share guarded memory primitives`)
 
 ### 8. Connection and server metadata
 
