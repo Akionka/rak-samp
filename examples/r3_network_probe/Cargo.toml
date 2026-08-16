@@ -5,6 +5,12 @@ edition = "2024"
 publish = false
 license = "MIT"
 
+[features]
+default = ["r3-probe"]
+r1-probe = []
+r3-probe = []
+dl-probe = []
+
 [lib]
 crate-type = ["cdylib"]
 

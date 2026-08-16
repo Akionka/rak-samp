@@ -1,12 +1,12 @@
 [package]
-name = "samp-client-sdk-dl-network-probe"
+name = "samp-client-sdk-r1-network-probe"
 version = "0.1.0"
 edition = "2024"
 publish = false
 license = "MIT"
 
 [features]
-default = ["dl-probe"]
+default = ["r1-probe"]
 r1-probe = []
 r3-probe = []
 dl-probe = []

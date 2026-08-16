@@ -316,6 +316,12 @@ with GTA.
 Pinned artifact: installed `samp.dll`, SHA-256
 `7E30F3C9CD99D5E2932410F486E8139AFFA2DAD19BD65AD9C328F6A4071943F7`.
 
+- [x] Prepare the one-pass R1 validator, disposable server fixture, NPC mode,
+  and operator instructions in
+  [`examples/r1_network_probe`](../examples/r1_network_probe/README.md).
+  The validator verifies RVA `0x31DF13`, R1 states `15`/`14`, codec, exact
+  three-bit packet/RPC emulation, raw-address invalidation, and reconnect in
+  one status file. It is not a live-pass record.
 - [ ] Confirm the PE entry-point RVA is `0x31DF13` and the logged fingerprint
   matches the pinned hash.
 - [ ] Attach, join an isolated server, and verify constructor/RPC hooks and
