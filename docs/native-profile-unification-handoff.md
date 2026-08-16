@@ -503,14 +503,14 @@ Evidence/commit: `e7a0002` (`feat(native-client): freeze r3 profile data`)
 
 ### 4. Freeze R5 data
 
-- [ ] Create `native_client/profiles/r5.rs`.
-- [ ] Move R5 identity and entry point into `R5_SPEC`.
-- [ ] Materialize every R5 `build_value` override as a named field.
-- [ ] Copy shared classic values explicitly through reusable spec constants,
+- [x] Create `native_client/profiles/r5.rs`.
+- [x] Move R5 identity and entry point into `R5_SPEC`.
+- [x] Materialize every R5 `build_value` override as a named field.
+- [x] Copy shared classic values explicitly through reusable spec constants,
   without inheriting an R3 profile object.
-- [ ] Compare every layout value with the R5 fixture.
-- [ ] Register each unverified RVA or ABI.
-- [ ] Add exhaustive R5 spec-value tests.
+- [x] Compare every layout value with the R5 fixture.
+- [x] Register each unverified RVA or ABI.
+- [x] Add exhaustive R5 spec-value tests.
 
 Evidence/commit: _pending_
 

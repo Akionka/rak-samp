@@ -5,6 +5,7 @@
 
 use crate::client::SampVersion;
 use crate::platform::win32::native_client::profiles::r3::R3_SPEC;
+use crate::platform::win32::native_client::profiles::r5::R5_SPEC;
 
 type FixtureFn = unsafe extern "C" fn() -> usize;
 
@@ -539,6 +540,76 @@ fn r5_distinct_player_and_pool_layouts_match_the_independent_cpp_fixture() {
             0x324, 0x00, 0x3F, 0x5E, 0x94, 0xD8, 0xF0, 0xF8, 0x104, 0x13F
         )
     );
+}
+
+#[test]
+fn r5_spec_layout_fields_match_the_independent_cpp_fixture() {
+    unsafe {
+        assert_eq!(
+            R5_SPEC.net_game.rak_client_offset.map(|value| value.get()),
+            Some(samp_client_sdk_fixture_r5_1_netgame_rak_client_offset())
+        );
+        assert_eq!(
+            R5_SPEC.net_game.game_state_offset.get(),
+            samp_client_sdk_fixture_r5_1_netgame_game_state_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools_offset.get(),
+            samp_client_sdk_fixture_r5_1_netgame_pools_offset()
+        );
+        assert_eq!(
+            R5_SPEC.ui.input.command_count_offset.get(),
+            samp_client_sdk_fixture_r5_1_input_command_count_offset()
+        );
+        assert_eq!(
+            R5_SPEC.ui.input.enabled_offset.get(),
+            samp_client_sdk_fixture_r5_1_input_enabled_offset()
+        );
+        assert_eq!(
+            R5_SPEC.ui.dialog.active_offset.get(),
+            samp_client_sdk_fixture_r5_1_dialog_active_offset()
+        );
+        assert_eq!(
+            R5_SPEC.ui.dialog.caption_offset.get(),
+            samp_client_sdk_fixture_r5_1_dialog_caption_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools.pickup_offset.get(),
+            samp_client_sdk_fixture_r5_1_pools_pickup_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools.object_offset.get(),
+            samp_client_sdk_fixture_r5_1_pools_object_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools.gangzone_offset.get(),
+            samp_client_sdk_fixture_r5_1_pools_gangzone_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools.text_label_offset.get(),
+            samp_client_sdk_fixture_r5_1_pools_label_offset()
+        );
+        assert_eq!(
+            R5_SPEC.net_game.pools.textdraw_offset.get(),
+            samp_client_sdk_fixture_r5_1_pools_textdraw_offset()
+        );
+        assert_eq!(
+            R5_SPEC.pools.player.local_id_offset.get(),
+            samp_client_sdk_fixture_r5_1_player_pool_local_id_offset()
+        );
+        assert_eq!(
+            R5_SPEC.pools.player.objects_offset.map(|value| value.get()),
+            Some(samp_client_sdk_fixture_r5_1_player_pool_objects_offset())
+        );
+        assert_eq!(
+            R5_SPEC
+                .pools
+                .player
+                .player_info
+                .map(|value| value.npc_offset.get()),
+            Some(samp_client_sdk_fixture_r5_1_player_info_is_npc_offset())
+        );
+    }
 }
 
 #[test]

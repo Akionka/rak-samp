@@ -22,6 +22,7 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
     },
     net_game: NetGameSpec {
         singleton_rva: rva(0x26E8DC),
+        rak_client_offset: Some(offset(0x2C)),
         get_state_rva: None,
         get_player_pool_rva: rva(0x1170),
         get_vehicle_pool_rva: rva(0x1180),
@@ -156,6 +157,7 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
             readable_size: Some(size(0xFE)),
         },
         remote: RemotePlayerLayout {
+            ped_offset: Some(offset(0)),
             special_action_offset: offset(0x18),
             onfoot_offset: offset(0xC5),
             incar_offset: offset(0x19),

@@ -30,6 +30,7 @@ pub(crate) struct ProfileIdentity {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NetGameSpec {
     pub(crate) singleton_rva: NativeRva,
+    pub(crate) rak_client_offset: Option<FieldOffset>,
     pub(crate) get_state_rva: Option<NativeRva>,
     pub(crate) get_player_pool_rva: NativeRva,
     pub(crate) get_vehicle_pool_rva: NativeRva,
@@ -225,6 +226,7 @@ pub(crate) struct LocalInCarLayout {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RemotePlayerLayout {
+    pub(crate) ped_offset: Option<FieldOffset>,
     pub(crate) special_action_offset: FieldOffset,
     pub(crate) onfoot_offset: FieldOffset,
     pub(crate) incar_offset: FieldOffset,
