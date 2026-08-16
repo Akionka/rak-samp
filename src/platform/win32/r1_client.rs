@@ -95,10 +95,6 @@ impl R1ClientProfile {
             .collect()
     }
 
-    pub(super) fn death_window_is_ready(self) -> bool {
-        self.death_window().is_some()
-    }
-
     /// Invokes R1 `SCLocalPlayer::SetSpecialAction` on the game thread.
     pub(super) fn set_local_player_special_action(
         self,

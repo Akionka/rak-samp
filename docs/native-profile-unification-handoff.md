@@ -569,14 +569,14 @@ Evidence/commit: `0637ae4` (`refactor(native-client): share connection operation
 
 ### 9. Singletons and readiness
 
-- [ ] Migrate NetGame and pool-root lookup.
-- [ ] Migrate chat, input, dialog, scoreboard, death-window, and game lookup.
-- [ ] Migrate readiness checks.
-- [ ] Preserve checked ranges for every singleton.
-- [ ] Add synthetic-memory tests for every profile.
-- [ ] Remove the superseded singleton implementations.
+- [x] Migrate NetGame and pool-root lookup.
+- [x] Migrate chat, input, dialog, scoreboard, death-window, and game lookup.
+- [x] Migrate readiness checks.
+- [x] Preserve checked ranges for every singleton.
+- [x] Add synthetic-memory tests for every profile.
+- [x] Remove the superseded singleton implementations.
 
-Evidence/commit: _pending_
+Evidence/commit: _pending_ (`refactor(native-client): share singleton resolution`)
 
 ### 10. Players and player pools
 

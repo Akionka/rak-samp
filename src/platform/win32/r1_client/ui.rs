@@ -130,14 +130,6 @@ impl R1ClientProfile {
         Ok(())
     }
 
-    pub(in super::super) fn dialog_is_ready(self) -> bool {
-        self.dialog().is_some()
-    }
-
-    pub(in super::super) fn chat_is_ready(self) -> bool {
-        self.chat().is_some()
-    }
-
     pub(in super::super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
         let chat = self.chat().ok_or(DirectClientError::NotReady)?;
         let get_mode: ChatGetModeFn =

@@ -157,7 +157,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_raw_pool_addresses(&self, profile: NativeProfile) {
+    pub(super) fn refresh_raw_pool_addresses(&self, profile: NativeClientProfile) {
         let player_pool = profile.player_pool().map_or(0, |pool| pool as usize);
         let vehicle_pool = profile.vehicle_pool().map_or(0, |pool| pool as usize);
         self.raw_player_pool.store(player_pool, Ordering::Release);

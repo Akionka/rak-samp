@@ -66,20 +66,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn player_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_pool(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.player_pool(),
-        }
-    }
-
-    pub(super) fn vehicle_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.vehicle_pool(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.vehicle_pool(),
-        }
-    }
-
     pub(super) fn animation_catalog(
         self,
     ) -> Result<Vec<crate::runtime::AnimationSnapshot>, DirectClientError> {
@@ -423,12 +409,6 @@ impl NativeProfile {
             }
         }
     }
-    pub(super) fn chat_is_ready(self) -> bool {
-        match self {
-            Self::R1(profile) => profile.chat_is_ready(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.chat_is_ready(),
-        }
-    }
     pub(super) fn show_death_message(
         self,
         request: crate::runtime::LocalDeathMessageRequest,
@@ -440,15 +420,6 @@ impl NativeProfile {
             }
         }
     }
-    pub(super) fn death_window_is_ready(self) -> bool {
-        match self {
-            Self::R1(profile) => profile.death_window_is_ready(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.death_window_is_ready()
-            }
-        }
-    }
-
     pub(super) fn show_dialog(
         self,
         request: crate::runtime::LocalDialogRequest,
@@ -480,13 +451,6 @@ impl NativeProfile {
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.dialog_response_on_close(dialog, button)
             }
-        }
-    }
-
-    pub(super) fn dialog_is_ready(self) -> bool {
-        match self {
-            Self::R1(profile) => profile.dialog_is_ready(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.dialog_is_ready(),
         }
     }
 

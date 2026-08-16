@@ -241,7 +241,7 @@ impl NativeClientProfile {
             .get()
             .checked_add(self.spec.net_game.host_string_capacity.get())
             .ok_or(DirectClientError::NotReady)?;
-        self.singleton(self.spec.net_game.singleton_rva, minimum_size)
+        self.net_game_with_range(minimum_size)
             .ok_or(DirectClientError::NotReady)
     }
 }

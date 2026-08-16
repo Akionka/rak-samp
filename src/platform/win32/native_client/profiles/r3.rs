@@ -312,6 +312,7 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
         scoreboard: ScoreboardSpec {
             singleton_rva: rva(0x26E894),
             enabled_offset: offset(0),
+            readable_size: size(0x44),
         },
         death_window: DeathWindowSpec {
             singleton_rva: None,
@@ -382,6 +383,7 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
     strategies: ProfileStrategies {
         game_state_codec: GameStateCodec::Classic,
         local_player_source: LocalPlayerSource::PlayerPoolGetter,
+        pool_getter_abi: PoolGetterAbi::Classic,
         booleans: NativeBooleanPolicies {
             pool_occupancy: NativeBoolean::ValidatedI32,
             player_is_npc: NativeBoolean::ValidatedI32,

@@ -1281,10 +1281,6 @@ impl ClassicClientProfile {
         Ok(())
     }
 
-    pub(super) fn chat_is_ready(self) -> bool {
-        self.chat().is_some()
-    }
-
     pub(super) fn show_death_message(
         self,
         request: LocalDeathMessageRequest,
@@ -1311,10 +1307,6 @@ impl ClassicClientProfile {
             )
         };
         Ok(())
-    }
-
-    pub(super) fn death_window_is_ready(self) -> bool {
-        self.death_window().is_some()
     }
 
     /// Copies the R3-1 chat-input enabled flag without invoking its UI methods.
@@ -3017,10 +3009,6 @@ impl ClassicClientProfile {
         };
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
-    }
-
-    pub(super) fn dialog_is_ready(self) -> bool {
-        self.dialog().is_some()
     }
 }
 

@@ -1043,14 +1043,13 @@ impl BackendState {
         for queued in commands {
             let result = match queued.command {
                 GameCommand::ShowDialog(request) => self
-                    .scalar_profile()
+                    .connection_profile()
+                    .filter(|profile| profile.dialog_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .dialog_is_ready()
-                            .then_some(())
+                    .and_then(|_| {
+                        self.scalar_profile()
                             .ok_or(CommandError::NativeFailure)
-                            .and_then(|()| {
+                            .and_then(|profile| {
                                 profile
                                     .show_dialog(request)
                                     .map_err(|_| CommandError::NativeFailure)
@@ -1156,28 +1155,26 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::AddChatMessage(request) => self
-                    .scalar_profile()
+                    .connection_profile()
+                    .filter(|profile| profile.chat_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .chat_is_ready()
-                            .then_some(())
+                    .and_then(|_| {
+                        self.scalar_profile()
                             .ok_or(CommandError::NativeFailure)
-                            .and_then(|()| {
+                            .and_then(|profile| {
                                 profile
                                     .show_chat_message(request)
                                     .map_err(|_| CommandError::NativeFailure)
                             })
                     }),
                 GameCommand::AddDeathMessage(request) => self
-                    .scalar_profile()
+                    .connection_profile()
+                    .filter(|profile| profile.death_window_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .death_window_is_ready()
-                            .then_some(())
+                    .and_then(|_| {
+                        self.scalar_profile()
                             .ok_or(CommandError::NativeFailure)
-                            .and_then(|()| {
+                            .and_then(|profile| {
                                 profile
                                     .show_death_message(request)
                                     .map_err(|_| CommandError::NativeFailure)

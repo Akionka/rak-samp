@@ -429,6 +429,7 @@ pub(crate) struct ChatSpec {
 pub(crate) struct ScoreboardSpec {
     pub(crate) singleton_rva: NativeRva,
     pub(crate) enabled_offset: FieldOffset,
+    pub(crate) readable_size: NativeSize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -510,6 +511,7 @@ pub(crate) struct HandleSpec {
 pub(crate) struct ProfileStrategies {
     pub(crate) game_state_codec: GameStateCodec,
     pub(crate) local_player_source: LocalPlayerSource,
+    pub(crate) pool_getter_abi: PoolGetterAbi,
     pub(crate) booleans: NativeBooleanPolicies,
     pub(crate) force_sync_reset: ForceSyncReset,
     pub(crate) list_item_text_layout: ListItemTextLayout,
@@ -541,6 +543,11 @@ pub(crate) enum GameStateCodec {
 pub(crate) enum LocalPlayerSource {
     PlayerPoolGetter,
     NetGameField,
+}
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum PoolGetterAbi {
+    R1,
+    Classic,
 }
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) enum NativeBoolean {
