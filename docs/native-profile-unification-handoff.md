@@ -455,7 +455,7 @@ green.
 - [x] Create `docs/native-profile-unverified-values.md`.
 - [x] Add the known verification gaps from this handoff to that register.
 
-Evidence/commit: _pending_
+Evidence/commit: `a1f438a` (`feat(native-client): add profile data model`)
 
 ### 1. Profile data model
 
@@ -468,7 +468,7 @@ Evidence/commit: _pending_
 - [x] Add construction tests for every spec type.
 - [x] Run formatting and targeted tests.
 
-Evidence/commit: _pending_
+Evidence/commit: `a1f438a` (`feat(native-client): add profile data model`)
 
 ### 2. Freeze R1 data
 
