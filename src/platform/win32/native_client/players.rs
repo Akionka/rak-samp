@@ -4,7 +4,9 @@ use super::{
     memory::{bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range},
     profile::{LocalPlayerSource, NativeClientProfile, PoolGetterAbi},
 };
-use crate::runtime::{DirectClientError, LocalPlayerSnapshot};
+use crate::runtime::{
+    DirectClientError, LocalPlayerSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+};
 use std::{ffi::c_void, mem};
 
 type R1PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
@@ -20,6 +22,19 @@ type R1LocalPlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type ClassicLocalPlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 type R1PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 type ClassicPedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
+type R1PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type ClassicPlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type R1PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
+type ClassicPlayerPoolGetRemotePlayerFn =
+    unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
+type R1PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type ClassicPlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type R1RemotePlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
+type ClassicRemotePlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
+type R1RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+type ClassicRemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+type R1RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+type ClassicRemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 
 impl NativeClientProfile {
     /// Copies the count pair from the guarded player pool.
@@ -280,6 +295,344 @@ impl NativeClientProfile {
         })
     }
 
+    /// Copies one remote-player directory entry on the game thread.
+    pub(crate) fn player_info(
+        self,
+        id: u16,
+    ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+        let pool = self.player_pool()?;
+        let targets = self.remote_player_targets()?;
+        let remote = match self.connected_remote_player(pool, id, targets) {
+            Ok(Some(remote)) => remote,
+            Ok(None) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        let defined = self.remote_player_defined(remote, targets)?;
+        let is_npc = self.remote_player_is_npc(pool, id, targets)?;
+        let (name_pointer, score, ping, colour, status) = unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let name: R1PlayerPoolGetNameFn = mem::transmute(targets.name);
+                    let score: R1PlayerPoolGetPlayerStatFn = mem::transmute(targets.score);
+                    let ping: R1PlayerPoolGetPlayerStatFn = mem::transmute(targets.ping);
+                    let colour: R1RemotePlayerGetColourFn = mem::transmute(targets.colour);
+                    let status: R1RemotePlayerGetStatusFn = mem::transmute(targets.status);
+                    (
+                        name(pool, id),
+                        score(pool, id),
+                        ping(pool, id),
+                        colour(remote),
+                        status(remote),
+                    )
+                }
+                PoolGetterAbi::Classic => {
+                    let name: ClassicPlayerPoolGetNameFn = mem::transmute(targets.name);
+                    let score: ClassicPlayerPoolGetPlayerStatFn = mem::transmute(targets.score);
+                    let ping: ClassicPlayerPoolGetPlayerStatFn = mem::transmute(targets.ping);
+                    let colour: ClassicRemotePlayerGetColourFn = mem::transmute(targets.colour);
+                    let status: ClassicRemotePlayerGetStatusFn = mem::transmute(targets.status);
+                    (
+                        name(pool, id),
+                        score(pool, id),
+                        ping(pool, id),
+                        colour(remote),
+                        status(remote),
+                    )
+                }
+            }
+        };
+        let nickname = unsafe {
+            bounded_c_string(
+                name_pointer,
+                self.spec
+                    .players
+                    .local_player_name_capacity
+                    .get()
+                    .checked_add(1)
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|name| !name.is_empty())
+        .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(PlayerInfoSnapshot {
+            id,
+            defined,
+            paused: status == 0,
+            nickname,
+            is_local: false,
+            is_npc,
+            colour,
+            score,
+            ping: ping.max(0) as u32,
+        }))
+    }
+
+    /// Copies volatile remote-player state fields on the game thread.
+    pub(crate) fn remote_player_state(
+        self,
+        id: u16,
+    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
+        let pool = self.player_pool()?;
+        let targets = self.remote_player_targets()?;
+        let remote = match self.connected_remote_player(pool, id, targets) {
+            Ok(Some(remote)) => remote,
+            Ok(None) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if !readable_range(remote.cast(), self.spec.players.remote.state_size.get()) {
+            return Err(DirectClientError::NotReady);
+        }
+        if !self.remote_player_defined(remote, targets)? {
+            return Ok(None);
+        }
+        let layout = self.spec.players.remote;
+        let remote_address = remote as usize;
+        let health = unsafe {
+            read_unaligned::<f32>(
+                remote_address
+                    .checked_add(layout.reported_health_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|value| value.is_finite())
+        .ok_or(DirectClientError::NotReady)?;
+        let armour = unsafe {
+            read_unaligned::<f32>(
+                remote_address
+                    .checked_add(layout.reported_armour_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|value| value.is_finite())
+        .ok_or(DirectClientError::NotReady)?;
+        let special_action = unsafe {
+            read_unaligned::<u8>(
+                remote_address
+                    .checked_add(layout.special_action_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        let animation_id = unsafe {
+            read_unaligned::<u32>(
+                remote_address
+                    .checked_add(layout.animation_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)? as u16;
+        Ok(Some(RemotePlayerStateSnapshot {
+            id,
+            health,
+            armour,
+            special_action,
+            animation_id,
+        }))
+    }
+
+    /// Determines whether a connected, defined remote player lacks a GTA ped.
+    pub(crate) fn remote_player_is_streamed_out(
+        self,
+        id: u16,
+    ) -> Result<Option<bool>, DirectClientError> {
+        let pool = self.player_pool()?;
+        let targets = self.remote_player_targets()?;
+        let remote = match self.connected_remote_player(pool, id, targets) {
+            Ok(Some(remote)) => remote,
+            Ok(None) => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        if !self.remote_player_defined(remote, targets)? {
+            return Ok(None);
+        }
+        let ped_offset = self
+            .spec
+            .players
+            .remote
+            .ped_offset
+            .map_or(0, |offset| offset.get());
+        let ped = unsafe {
+            read_pointer(
+                (remote as usize)
+                    .checked_add(ped_offset)
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        if ped.is_null() {
+            return Ok(Some(true));
+        }
+        let game_ped_offset = self.spec.players.local.game_ped_offset.get();
+        let required_size = game_ped_offset
+            .checked_add(mem::size_of::<usize>())
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(ped.cast(), required_size) {
+            return Err(DirectClientError::NotReady);
+        }
+        let game_ped = unsafe {
+            read_pointer(
+                (ped as usize)
+                    .checked_add(game_ped_offset)
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        Ok(Some(game_ped.is_null()))
+    }
+
+    fn remote_player_targets(self) -> Result<RemotePlayerTargets, DirectClientError> {
+        Ok(RemotePlayerTargets {
+            connected: self
+                .player_function_target(self.spec.players.pool_rvas.is_connected.get())?,
+            remote: self
+                .player_function_target(self.spec.players.pool_rvas.get_remote_player.get())?,
+            exists: self.player_function_target(self.spec.players.remote_rvas.does_exist.get())?,
+            name: self.player_function_target(self.spec.players.pool_rvas.get_name.get())?,
+            score: self.player_function_target(self.spec.players.pool_rvas.get_score.get())?,
+            ping: self.player_function_target(self.spec.players.pool_rvas.get_ping.get())?,
+            colour: self
+                .player_function_target(self.spec.players.remote_rvas.get_colour_argb.get())?,
+            status: self.player_function_target(self.spec.players.remote_rvas.get_status.get())?,
+            is_npc: self
+                .spec
+                .players
+                .pool_rvas
+                .is_npc
+                .map(|rva| self.player_function_target(rva.get()))
+                .transpose()?,
+        })
+    }
+
+    fn connected_remote_player(
+        self,
+        pool: *mut c_void,
+        id: u16,
+        targets: RemotePlayerTargets,
+    ) -> Result<Option<*mut c_void>, DirectClientError> {
+        if usize::from(id) >= self.spec.pools.limits.players.get() {
+            return Err(DirectClientError::NotReady);
+        }
+        let connected = unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let function: R1PlayerPoolPlayerBooleanFn = mem::transmute(targets.connected);
+                    function(pool, id)
+                }
+                PoolGetterAbi::Classic => {
+                    let function: ClassicPlayerPoolPlayerBooleanFn =
+                        mem::transmute(targets.connected);
+                    function(pool, id)
+                }
+            }
+        };
+        match connected {
+            0 => Ok(None),
+            1 => {
+                let remote = unsafe {
+                    match self.spec.strategies.pool_getter_abi {
+                        PoolGetterAbi::R1 => {
+                            let function: R1PlayerPoolGetRemotePlayerFn =
+                                mem::transmute(targets.remote);
+                            function(pool, id)
+                        }
+                        PoolGetterAbi::Classic => {
+                            let function: ClassicPlayerPoolGetRemotePlayerFn =
+                                mem::transmute(targets.remote);
+                            function(pool, id)
+                        }
+                    }
+                };
+                (!remote.is_null() && readable_range(remote.cast(), 1))
+                    .then_some(remote)
+                    .ok_or(DirectClientError::NotReady)
+                    .map(Some)
+            }
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
+    fn remote_player_defined(
+        self,
+        remote: *mut c_void,
+        targets: RemotePlayerTargets,
+    ) -> Result<bool, DirectClientError> {
+        let exists = unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let function: R1RemotePlayerDoesExistFn = mem::transmute(targets.exists);
+                    function(remote)
+                }
+                PoolGetterAbi::Classic => {
+                    let function: ClassicRemotePlayerDoesExistFn = mem::transmute(targets.exists);
+                    function(remote)
+                }
+            }
+        };
+        match exists {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
+    fn remote_player_is_npc(
+        self,
+        pool: *mut c_void,
+        id: u16,
+        targets: RemotePlayerTargets,
+    ) -> Result<bool, DirectClientError> {
+        if let Some(target) = targets.is_npc {
+            let npc = unsafe {
+                let function: R1PlayerPoolPlayerBooleanFn = mem::transmute(target);
+                function(pool, id)
+            };
+            return match npc {
+                0 => Ok(false),
+                1 => Ok(true),
+                _ => Err(DirectClientError::NotReady),
+            };
+        }
+        let objects_offset = self
+            .spec
+            .pools
+            .player
+            .objects_offset
+            .ok_or(DirectClientError::NotReady)?
+            .get();
+        let player_info = self
+            .spec
+            .pools
+            .player
+            .player_info
+            .ok_or(DirectClientError::NotReady)?;
+        let slot_offset = usize::from(id)
+            .checked_mul(mem::size_of::<usize>())
+            .and_then(|offset| objects_offset.checked_add(offset))
+            .ok_or(DirectClientError::NotReady)?;
+        let info = unsafe {
+            read_pointer(
+                (pool as usize)
+                    .checked_add(slot_offset)
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        if info.is_null() || !readable_range(info.cast(), player_info.readable_size.get()) {
+            return Err(DirectClientError::NotReady);
+        }
+        match unsafe {
+            read_unaligned::<i32>(
+                (info as usize)
+                    .checked_add(player_info.npc_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        } {
+            Some(0) => Ok(false),
+            Some(1) => Ok(true),
+            _ => Err(DirectClientError::NotReady),
+        }
+    }
+
     fn local_player_ped(self, local: *mut c_void) -> Result<*mut c_void, DirectClientError> {
         let ped = match self.spec.players.local_rvas.get_ped {
             Some(rva) => {
@@ -340,6 +693,19 @@ struct LocalPlayerTargets {
     colour: usize,
     health: usize,
     armour: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RemotePlayerTargets {
+    connected: usize,
+    remote: usize,
+    exists: usize,
+    name: usize,
+    score: usize,
+    ping: usize,
+    colour: usize,
+    status: usize,
+    is_npc: Option<usize>,
 }
 
 fn validate_player_counts(

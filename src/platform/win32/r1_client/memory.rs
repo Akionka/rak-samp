@@ -69,16 +69,11 @@ pub(super) const GANGZONE_RIGHT_OFFSET: usize = 0x08;
 pub(super) const GANGZONE_TOP_OFFSET: usize = 0x0C;
 pub(super) const GANGZONE_COLOUR_OFFSET: usize = 0x10;
 pub(super) const GANGZONE_ALTERNATE_COLOUR_OFFSET: usize = 0x14;
-pub(super) const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0xBB;
 pub(super) const REMOTE_PLAYER_ONFOOT_OFFSET: usize = 0xC8;
 pub(super) const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x10C;
 pub(super) const REMOTE_PLAYER_PASSENGER_OFFSET: usize = 0x181;
 pub(super) const REMOTE_PLAYER_TRAILER_OFFSET: usize = 0x14B;
 pub(super) const REMOTE_PLAYER_AIM_OFFSET: usize = 0x199;
-pub(super) const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1B8;
-pub(super) const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1BC;
-pub(super) const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
-pub(super) const REMOTE_PLAYER_STATE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
 
 pub(super) const ONFOOT_SYNC_SIZE: usize = 68;
 pub(super) const ONFOOT_CONTROLLER_LEFT_STICK_X_OFFSET: usize = 0x00;

@@ -37,9 +37,6 @@ pub(super) type PlayerPoolGetLocalPlayerFn =
 pub(super) type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 pub(super) type PlayerPoolGetRemotePlayerFn =
     unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
-pub(super) type PlayerPoolGetPlayerNameFn =
-    unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
-pub(super) type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 pub(super) type PlayerPoolSetLocalPlayerNameFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8);
 pub(super) type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -57,8 +54,6 @@ pub(super) type LocalPlayerSendIncarDataFn = unsafe extern "thiscall" fn(*mut c_
 pub(super) type LocalPlayerUpdateWeaponsFn = unsafe extern "thiscall" fn(*mut c_void);
 pub(super) type GameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
 pub(super) type GameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
-pub(super) type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 pub(super) type RemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 pub(super) type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-pub(super) type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 pub(super) type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;

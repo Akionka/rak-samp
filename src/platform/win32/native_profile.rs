@@ -65,46 +65,6 @@ impl NativeProfile {
         }
     }
 
-    /// Copies one remote-player record on profiles that independently verified
-    /// the required native calls and layouts.
-    pub(super) fn player_info(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::PlayerInfoSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_info(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.player_info(id),
-        }
-    }
-
-    /// Copies one remote-player state snapshot on the profiles with a verified
-    /// remote-player layout prefix.
-    pub(super) fn remote_player_state(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::RemotePlayerStateSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.remote_player_state(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.remote_player_state(id)
-            }
-        }
-    }
-
-    /// Determines whether a remote player is currently streamed out on a
-    /// profile with a verified `CRemotePlayer` and `CPed` pointer chain.
-    pub(super) fn remote_player_is_streamed_out(
-        self,
-        id: u16,
-    ) -> Result<Option<bool>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.remote_player_is_streamed_out(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.remote_player_is_streamed_out(id)
-            }
-        }
-    }
-
     pub(super) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.object_handle(id),
@@ -881,17 +841,19 @@ mod tests {
     fn r1_player_and_sync_reads_reach_the_verified_profile() {
         let profile = NativeProfile::select(0x7000_0000, SampVersion::R1, 0x31DF13)
             .expect("the exact R1 entry point must select a native profile");
+        let native_client = NativeClientProfile::select(0x7000_0000, SampVersion::R1, 0x31DF13)
+            .expect("the exact R1 entry point must select an immutable profile");
 
         assert!(matches!(
-            profile.player_info(0),
+            native_client.player_info(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.remote_player_state(0),
+            native_client.remote_player_state(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.remote_player_is_streamed_out(0),
+            native_client.remote_player_is_streamed_out(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(

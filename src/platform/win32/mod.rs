@@ -934,6 +934,9 @@ impl BackendState {
         if let Some(connection_profile) = connection_profile {
             self.refresh_samp_game_state(connection_profile);
             self.refresh_server_info_snapshot(connection_profile);
+            self.refresh_player_info(connection_profile);
+            self.refresh_remote_player_state(connection_profile);
+            self.refresh_streamed_out_player_position(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
@@ -943,9 +946,6 @@ impl BackendState {
             self.player_count_ready.store(false, Ordering::Release);
             self.player_max_id_ready.store(false, Ordering::Release);
         }
-        self.refresh_player_info(profile);
-        self.refresh_remote_player_state(profile);
-        self.refresh_streamed_out_player_position(profile);
         self.refresh_onfoot_sync(profile);
         self.refresh_incar_sync(profile);
         self.refresh_passenger_sync(profile);

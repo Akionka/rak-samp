@@ -31,17 +31,23 @@ pub(super) const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
 pub(super) const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6A200;
 pub(super) const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
 pub(super) const PLAYER_POOL_GET_REMOTE_PLAYER_RVA: usize = 0x10F0;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_IS_NPC_RVA: usize = 0xB680;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_GET_NAME_RVA: usize = 0x13CE0;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
 #[cfg(test)]
 pub(super) const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
 pub(super) const PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA: usize = 0xB3E0;
 pub(super) const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
+#[cfg(test)]
 pub(super) const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
 pub(super) const REMOTE_PLAYER_SET_COLOUR_RVA: usize = 0x129D0;
 pub(super) const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
+#[cfg(test)]
 pub(super) const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x12BA0;
 pub(super) const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 #[cfg(test)]

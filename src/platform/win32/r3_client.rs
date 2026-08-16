@@ -15,9 +15,10 @@ use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, OnFootSyncSnapshot,
-    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    PassengerSyncSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
+#[cfg(test)]
+use crate::runtime::{PlayerInfoSnapshot, RemotePlayerStateSnapshot};
 use std::{ffi::c_void, mem, ptr};
 
 #[cfg(test)]
@@ -55,16 +56,15 @@ const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 const PLAYER_POOL_GET_COUNT_RVA: usize = 0x13670;
 const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
 const PLAYER_POOL_GET_REMOTE_PLAYER_RVA: usize = 0x10F0;
-const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6E0E0;
-const PLAYER_POOL_GET_PING_RVA: usize = 0x6E110;
-const PLAYER_POOL_GET_NAME_RVA: usize = 0x16F00;
 const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
-const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x15C10;
-const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x15DB0;
+#[cfg(test)]
 const REMOTE_PLAYER_SPECIAL_ACTION_OFFSET: usize = 0x18;
 const REMOTE_PLAYER_PED_OFFSET: usize = 0x00;
+#[cfg(test)]
 const REMOTE_PLAYER_REPORTED_ARMOUR_OFFSET: usize = 0x1AC;
+#[cfg(test)]
 const REMOTE_PLAYER_REPORTED_HEALTH_OFFSET: usize = 0x1B0;
+#[cfg(test)]
 const REMOTE_PLAYER_ANIMATION_OFFSET: usize = 0x1C0;
 #[cfg(test)]
 const REMOTE_PLAYER_STATE_READABLE_SIZE: usize = REMOTE_PLAYER_ANIMATION_OFFSET + 4;
@@ -75,8 +75,11 @@ const REMOTE_PLAYER_TRAILER_OFFSET: usize = 0x58;
 const REMOTE_PLAYER_AIM_OFFSET: usize = 0x8E;
 #[cfg(test)]
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
+#[cfg(test)]
 const PLAYER_POOL_OBJECTS_OFFSET: usize = 0x04;
+#[cfg(test)]
 const PLAYER_INFO_IS_NPC_OFFSET: usize = 0x28;
+#[cfg(test)]
 const PLAYER_INFO_READABLE_SIZE: usize = 0x2C;
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x2F1C;
 const LOCAL_PLAYER_INCAR_OFFSET: usize = 0x04;
@@ -270,12 +273,16 @@ type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *m
 type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
 type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
+#[cfg(test)]
 type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+#[cfg(test)]
 type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
 type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
+#[cfg(test)]
 type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
+#[cfg(test)]
 type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type LocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type LocalPlayerTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
@@ -342,6 +349,7 @@ enum ClassicVersion {
 }
 
 #[derive(Clone, Copy)]
+#[cfg(test)]
 struct RemotePlayerLayout {
     readable_size: usize,
     special_action_offset: usize,
@@ -421,14 +429,17 @@ impl ClassicClientProfile {
         self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A, 0x22)
     }
 
+    #[cfg(test)]
     const fn player_pool_objects_offset(self) -> usize {
         self.build_value(PLAYER_POOL_OBJECTS_OFFSET, 0x1F8A, 0x26)
     }
 
+    #[cfg(test)]
     const fn player_info_npc_offset(self) -> usize {
         self.build_value(PLAYER_INFO_IS_NPC_OFFSET, 0x08, 0x04)
     }
 
+    #[cfg(test)]
     const fn player_info_readable_size(self) -> usize {
         self.build_value(PLAYER_INFO_READABLE_SIZE, 0x30, 0x2C)
     }
@@ -461,28 +472,13 @@ impl ClassicClientProfile {
         self.build_value(LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET, 0x13F, 0x110)
     }
 
+    #[cfg(test)]
     const fn remote_player_special_action_offset(self) -> usize {
         self.build_value(REMOTE_PLAYER_SPECIAL_ACTION_OFFSET, 0x0C, 0x18)
     }
 
-    const fn remote_player_animation_offset(self) -> usize {
-        self.build_value(REMOTE_PLAYER_ANIMATION_OFFSET, 0x1B4, 0x1C0)
-    }
-
     const fn remote_player_ped_offset(self) -> usize {
         self.build_value(REMOTE_PLAYER_PED_OFFSET, 0x1DD, 0x04)
-    }
-
-    const fn remote_player_state_readable_size(self) -> usize {
-        self.remote_player_animation_offset() + mem::size_of::<u32>()
-    }
-
-    const fn remote_player_layout(self) -> RemotePlayerLayout {
-        RemotePlayerLayout {
-            readable_size: self.remote_player_state_readable_size(),
-            special_action_offset: self.remote_player_special_action_offset(),
-            animation_offset: self.remote_player_animation_offset(),
-        }
     }
 
     const fn pools_pickup_offset(self) -> usize {
@@ -573,105 +569,6 @@ impl ClassicClientProfile {
                 parse_animation_entry(bytes)
             })
             .collect()
-    }
-
-    /// Copies one R3-1 remote-player record on the game thread.
-    pub(super) fn player_info(
-        self,
-        id: u16,
-    ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
-        let pool = self.player_pool()?;
-        let is_connected: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
-        let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
-        let does_exist: RemotePlayerDoesExistFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        let get_name: PlayerPoolGetNameFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0, 0x170D0),
-            )
-        };
-        let get_score: PlayerPoolGetPlayerStatFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_SCORE_RVA, 0x6E850, 0x6E290),
-            )
-        };
-        let get_ping: PlayerPoolGetPlayerStatFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_PING_RVA, 0x6E880, 0x6E2B0),
-            )
-        };
-        let get_colour: RemotePlayerGetColourArgbFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(REMOTE_PLAYER_GET_COLOUR_ARGB_RVA, 0x16180, 0x15E30),
-            )
-        };
-        let get_status: RemotePlayerGetStatusFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(REMOTE_PLAYER_GET_STATUS_RVA, 0x16330, 0x15FD0),
-            )
-        };
-        copy_player_info(
-            pool,
-            id,
-            is_connected,
-            get_player,
-            does_exist,
-            get_name,
-            get_score,
-            get_ping,
-            get_colour,
-            get_status,
-            self.player_pool_objects_offset(),
-            self.player_info_readable_size(),
-            self.player_info_npc_offset(),
-        )
-    }
-
-    /// Copies R3-1 remote state fields maintained by the network update path.
-    pub(super) fn remote_player_state(
-        self,
-        id: u16,
-    ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
-        let pool = self.player_pool()?;
-        let is_connected: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
-        let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
-        let does_exist: RemotePlayerDoesExistFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_player_state(
-            pool,
-            id,
-            is_connected,
-            get_player,
-            does_exist,
-            self.remote_player_layout(),
-        )
-    }
-
-    /// Determines whether the R3-1 remote player currently lacks a GTA ped.
-    pub(super) fn remote_player_is_streamed_out(
-        self,
-        id: u16,
-    ) -> Result<Option<bool>, DirectClientError> {
-        let pool = self.player_pool()?;
-        let is_connected: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
-        let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
-        let does_exist: RemotePlayerDoesExistFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_DOES_EXIST_RVA) };
-        copy_remote_player_is_streamed_out(
-            pool,
-            id,
-            is_connected,
-            get_player,
-            does_exist,
-            self.remote_player_ped_offset(),
-        )
     }
 
     /// Copies one R3-1 on-foot synchronization record on the game thread.
@@ -2913,6 +2810,7 @@ fn copy_player_max_id(
 // The explicitly injected native call targets keep this copy routine testable
 // without fabricating a module image; grouping them would obscure the ABI.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 fn copy_player_info(
     pool: *mut c_void,
     id: u16,
@@ -2975,6 +2873,7 @@ fn copy_player_info(
     }
 }
 
+#[cfg(test)]
 fn copy_remote_player_state(
     pool: *mut c_void,
     id: u16,
@@ -3022,6 +2921,7 @@ fn copy_remote_player_state(
     }))
 }
 
+#[cfg(test)]
 fn copy_remote_player_is_streamed_out(
     pool: *mut c_void,
     id: u16,

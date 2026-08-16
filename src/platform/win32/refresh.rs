@@ -19,7 +19,7 @@ impl BackendState {
         self.cache_local_player_snapshot(snapshot);
     }
 
-    pub(super) fn refresh_player_info(&self, profile: NativeProfile) {
+    pub(super) fn refresh_player_info(&self, profile: NativeClientProfile) {
         for id in self.take_player_info_requests() {
             let Ok(snapshot) = profile.player_info(id) else {
                 continue;
@@ -33,7 +33,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_remote_player_state(&self, profile: NativeProfile) {
+    pub(super) fn refresh_remote_player_state(&self, profile: NativeClientProfile) {
         for id in self.take_remote_player_state_requests() {
             let Ok(snapshot) = profile.remote_player_state(id) else {
                 continue;
@@ -47,7 +47,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_streamed_out_player_position(&self, profile: NativeProfile) {
+    pub(super) fn refresh_streamed_out_player_position(&self, profile: NativeClientProfile) {
         for id in self.take_streamed_out_player_position_requests() {
             let Ok(streamed_out) = profile.remote_player_is_streamed_out(id) else {
                 continue;

@@ -44,15 +44,34 @@ fn r3_native_client_profile() -> Option<NativeClientProfile> {
 #[test]
 fn shared_refresh_helpers_accept_every_native_profile() {
     let profiles = [
-        r1_native_profile().expect("R1 must select its verified native profile"),
-        r3_native_profile().expect("R3 must select its verified native profile"),
-        NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
-            .expect("R5 must select its verified native profile"),
-        NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
-            .expect("DL must select its verified native profile"),
+        (
+            r1_native_profile().expect("R1 must select its verified native profile"),
+            NativeClientProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
+                .expect("R1 must select its immutable profile"),
+        ),
+        (
+            r3_native_profile().expect("R3 must select its verified native profile"),
+            r3_native_client_profile().expect("R3 must select its immutable profile"),
+        ),
+        (
+            NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
+                .expect("R5 must select its verified native profile"),
+            NativeClientProfile::select(
+                0x10000,
+                SampVersion::R5_1,
+                SampVersion::R5_1.entry_point(),
+            )
+            .expect("R5 must select its immutable profile"),
+        ),
+        (
+            NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+                .expect("DL must select its verified native profile"),
+            NativeClientProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+                .expect("DL must select its immutable profile"),
+        ),
     ];
 
-    for profile in profiles {
+    for (profile, native_client) in profiles {
         let state = test_backend_state();
         state.raw_local_player.store(1, Ordering::Release);
         state.player_info_requests.lock().unwrap().push_back(7);
@@ -72,11 +91,10 @@ fn shared_refresh_helpers_accept_every_native_profile() {
         state.trailer_sync_requests.lock().unwrap().push_back(7);
         state.aim_sync_requests.lock().unwrap().push_back(7);
 
-        let _ = profile;
         state.refresh_local_player_snapshot(None);
-        state.refresh_player_info(profile);
-        state.refresh_remote_player_state(profile);
-        state.refresh_streamed_out_player_position(profile);
+        state.refresh_player_info(native_client);
+        state.refresh_remote_player_state(native_client);
+        state.refresh_streamed_out_player_position(native_client);
         state.refresh_onfoot_sync(profile);
         state.refresh_incar_sync(profile);
         state.refresh_passenger_sync(profile);

@@ -18,8 +18,7 @@ use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, OnFootSyncSnapshot,
-    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, TextLabelSnapshot,
-    TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    PassengerSyncSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;
