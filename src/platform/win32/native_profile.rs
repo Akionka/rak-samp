@@ -28,11 +28,10 @@ pub(super) enum NativeProfile {
 
 /// Owned local-player data prepared for publication by the cache refresher.
 ///
-/// `raw_r1_address` stays inside the host and is non-zero only for the
-/// connected R1 profile.
+/// `raw_address` stays inside the host and is published only after the
+/// profile-neutral resolver validates the connected local-player object.
 pub(super) struct LocalPlayerCacheSnapshot {
     pub(super) snapshot: Option<LocalPlayerSnapshot>,
-    pub(super) raw_r1_address: usize,
 }
 
 impl NativeProfile {
@@ -77,8 +76,7 @@ impl NativeProfile {
         }
     }
 
-    /// Prepares the local-player cache data while keeping R1's raw-address
-    /// contract private to the selected native profile.
+    /// Prepares copied local-player data for the cache refresher.
     pub(super) fn local_player_cache_snapshot(
         self,
         r1_connected: bool,
@@ -86,34 +84,11 @@ impl NativeProfile {
         match self {
             Self::R1(profile) if r1_connected => LocalPlayerCacheSnapshot {
                 snapshot: profile.local_player().ok(),
-                raw_r1_address: profile
-                    .local_player_address()
-                    .map_or(0, |player| player as usize),
             },
-            Self::R1(_) => LocalPlayerCacheSnapshot {
-                snapshot: None,
-                raw_r1_address: 0,
-            },
+            Self::R1(_) => LocalPlayerCacheSnapshot { snapshot: None },
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => LocalPlayerCacheSnapshot {
                 snapshot: profile.local_player().ok(),
-                raw_r1_address: 0,
             },
-        }
-    }
-
-    /// Reads the copied player-pool count pair available on this profile.
-    pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_counts(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.player_counts(),
-        }
-    }
-
-    /// Reads the copied player-pool largest ID available on this profile.
-    pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_max_id(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.player_max_id(),
         }
     }
 
@@ -931,7 +906,7 @@ mod tests {
 
     #[test]
     fn r1_player_and_sync_reads_reach_the_verified_profile() {
-        let profile = NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13)
+        let profile = NativeProfile::select(0x7000_0000, SampVersion::R1, 0x31DF13)
             .expect("the exact R1 entry point must select a native profile");
 
         assert!(matches!(
@@ -969,12 +944,11 @@ mod tests {
     }
 
     #[test]
-    fn local_player_cache_keeps_the_raw_address_r1_only() {
+    fn local_player_cache_keeps_raw_addresses_out_of_legacy_dispatch() {
         let r1 = NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13)
             .expect("the exact R1 entry point must select a native profile");
         let r1_disconnected = r1.local_player_cache_snapshot(false);
         assert!(r1_disconnected.snapshot.is_none());
-        assert_eq!(r1_disconnected.raw_r1_address, 0);
 
         for (version, entry_point) in [
             (SampVersion::R3_1, SampVersion::R3_1.entry_point()),
@@ -983,7 +957,12 @@ mod tests {
         ] {
             let profile = NativeProfile::select(0x10000, version, entry_point)
                 .expect("every verified direct profile must select");
-            assert_eq!(profile.local_player_cache_snapshot(false).raw_r1_address, 0);
+            assert!(
+                profile
+                    .local_player_cache_snapshot(false)
+                    .snapshot
+                    .is_none()
+            );
         }
     }
 }

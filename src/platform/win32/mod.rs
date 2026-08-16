@@ -930,13 +930,19 @@ impl BackendState {
         // Odd generations are in-flight. Readers only observe the next even
         // generation after every cache path below has had one tick to refresh.
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
-        if let Some(connection_profile) = self.connection_profile() {
+        let connection_profile = self.connection_profile();
+        if let Some(connection_profile) = connection_profile {
             self.refresh_samp_game_state(connection_profile);
             self.refresh_server_info_snapshot(connection_profile);
         }
-        self.refresh_local_player_snapshot(profile);
-        self.refresh_player_count(profile);
-        self.refresh_player_max_id(profile);
+        self.refresh_local_player_snapshot(profile, connection_profile);
+        if let Some(connection_profile) = connection_profile {
+            self.refresh_player_count(connection_profile);
+            self.refresh_player_max_id(connection_profile);
+        } else {
+            self.player_count_ready.store(false, Ordering::Release);
+            self.player_max_id_ready.store(false, Ordering::Release);
+        }
         self.refresh_player_info(profile);
         self.refresh_remote_player_state(profile);
         self.refresh_streamed_out_player_position(profile);

@@ -51,7 +51,6 @@ const ANIMATION_TABLE_RVA: usize = 0x1039D0;
 const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
 const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
-const PLAYER_POOL_GET_COUNT_RVA: usize = 0x13670;
 const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
 const PLAYER_POOL_GET_REMOTE_PLAYER_RVA: usize = 0x10F0;
 const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6E0E0;
@@ -77,6 +76,7 @@ const REMOTE_PLAYER_INCAR_OFFSET: usize = 0x19;
 const REMOTE_PLAYER_PASSENGER_OFFSET: usize = 0xAD;
 const REMOTE_PLAYER_TRAILER_OFFSET: usize = 0x58;
 const REMOTE_PLAYER_AIM_OFFSET: usize = 0x8E;
+#[cfg(test)]
 const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 const PLAYER_POOL_OBJECTS_OFFSET: usize = 0x04;
 const PLAYER_INFO_IS_NPC_OFFSET: usize = 0x28;
@@ -273,6 +273,7 @@ const GAME_PROCESS_INPUT_ENABLING_RVA: usize = 0x9FEC0;
 
 type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
+#[cfg(test)]
 type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
 type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
@@ -423,10 +424,6 @@ impl ClassicClientProfile {
 
     const fn player_pool_local_id_offset(self) -> usize {
         self.build_value(PLAYER_POOL_LOCAL_ID_OFFSET, 0x04, 0x00)
-    }
-
-    const fn player_pool_largest_id_offset(self) -> usize {
-        self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A, 0x22)
     }
 
     const fn player_pool_objects_offset(self) -> usize {
@@ -729,23 +726,6 @@ impl ClassicClientProfile {
             score: unsafe { get_score(pool) },
             ping: (unsafe { get_ping(pool) }).max(0) as u32,
         })
-    }
-
-    /// Copies both classic-client `CPlayerPool::GetCount` modes on the game thread.
-    pub(super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
-        let pool = self.player_pool()?;
-        let get_count: PlayerPoolGetCountFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0, 0x138C0),
-            )
-        };
-        copy_player_counts(pool, get_count)
-    }
-
-    /// Copies the R3-1 player-pool largest ID from its verified prefix.
-    pub(super) fn player_max_id(self) -> Result<u16, DirectClientError> {
-        let pool = self.player_pool()?;
-        copy_player_max_id(pool, self.player_pool_largest_id_offset())
     }
 
     /// Copies one R3-1 remote-player record on the game thread.
@@ -3054,6 +3034,7 @@ fn copy_chat_display_mode(
         .ok_or(DirectClientError::NotReady)
 }
 
+#[cfg(test)]
 fn copy_player_counts(
     pool: *mut c_void,
     get_count: PlayerPoolGetCountFn,
@@ -3071,6 +3052,7 @@ fn copy_player_counts(
     Ok((including_npcs, excluding_npcs))
 }
 
+#[cfg(test)]
 fn copy_player_max_id(
     pool: *mut c_void,
     largest_id_offset: usize,

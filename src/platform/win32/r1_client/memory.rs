@@ -30,7 +30,6 @@ pub(super) const MAX_SAMP_PICKUPS: u16 = 4096;
 pub(super) const MAX_LOCAL_PLAYER_NAME_BYTES: usize = 255;
 
 pub(super) const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
-pub(super) const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 pub(super) const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
 pub(super) const VEHICLE_POOL_GAME_OBJECTS_OFFSET: usize = 0x4FB4;
 pub(super) const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;

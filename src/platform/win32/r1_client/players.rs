@@ -738,53 +738,6 @@ impl R1ClientProfile {
         })
     }
 
-    /// Reads both R1 `CPlayerPool::GetCount` modes on the game-thread pump.
-    /// The resulting scalar pair is published by the host; no pool layout or
-    /// pointer crosses this private profile boundary.
-    pub(in super::super) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_player_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
-        let pool = unsafe { get_player_pool(net_game) };
-        if pool.is_null() || !readable_range(pool.cast(), 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let get_count: PlayerPoolGetCountFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_COUNT_RVA) };
-        let including_npcs = unsafe { get_count(pool, 1) };
-        let excluding_npcs = unsafe { get_count(pool, 0) };
-        let including_npcs = u16::try_from(including_npcs)
-            .ok()
-            .filter(|count| *count <= MAX_SAMP_PLAYERS)
-            .ok_or(DirectClientError::NotReady)?;
-        let excluding_npcs = u16::try_from(excluding_npcs)
-            .ok()
-            .filter(|count| *count <= including_npcs)
-            .ok_or(DirectClientError::NotReady)?;
-        Ok((including_npcs, excluding_npcs))
-    }
-
-    pub(in super::super) fn player_max_id(self) -> Result<u16, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_player_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
-        let pool = unsafe { get_player_pool(net_game) };
-        if pool.is_null()
-            || !readable_range(
-                pool.cast(),
-                PLAYER_POOL_LARGEST_ID_OFFSET + mem::size_of::<i32>(),
-            )
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        let largest_id =
-            unsafe { read_unaligned::<i32>(pool as usize + PLAYER_POOL_LARGEST_ID_OFFSET) }
-                .and_then(|id| u16::try_from(id).ok())
-                .filter(|id| *id < MAX_SAMP_PLAYERS)
-                .ok_or(DirectClientError::NotReady)?;
-        Ok(largest_id)
-    }
-
     pub(in super::super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
         let get_player_pool: NetGameGetPlayerPoolFn =

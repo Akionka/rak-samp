@@ -3,13 +3,21 @@
 use super::*;
 
 impl BackendState {
-    pub(super) fn refresh_local_player_snapshot(&self, profile: NativeProfile) {
-        let snapshot = profile.local_player_cache_snapshot(
-            self.samp_game_state_ready.load(Ordering::Acquire)
-                && is_connected_game_state(self.samp_game_state.load(Ordering::Acquire)),
+    pub(super) fn refresh_local_player_snapshot(
+        &self,
+        profile: NativeProfile,
+        native_profile: Option<NativeClientProfile>,
+    ) {
+        let connected = self.samp_game_state_ready.load(Ordering::Acquire)
+            && is_connected_game_state(self.samp_game_state.load(Ordering::Acquire));
+        let snapshot = profile.local_player_cache_snapshot(connected);
+        self.raw_local_player.store(
+            native_profile
+                .filter(|_| connected)
+                .and_then(|profile| profile.local_player_address().ok())
+                .map_or(0, |player| player as usize),
+            Ordering::Release,
         );
-        self.raw_local_player
-            .store(snapshot.raw_r1_address, Ordering::Release);
         self.cache_local_player_snapshot(snapshot.snapshot);
     }
 
@@ -134,7 +142,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_count(&self, profile: NativeProfile) {
+    pub(super) fn refresh_player_count(&self, profile: NativeClientProfile) {
         match profile.player_counts() {
             Ok((including_npcs, excluding_npcs)) => {
                 self.player_count_including_npcs
@@ -147,7 +155,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_max_id(&self, profile: NativeProfile) {
+    pub(super) fn refresh_player_max_id(&self, profile: NativeClientProfile) {
         match profile.player_max_id() {
             Ok(id) => {
                 self.player_max_id.store(i32::from(id), Ordering::Release);

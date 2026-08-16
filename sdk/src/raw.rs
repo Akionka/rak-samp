@@ -85,14 +85,15 @@ pub unsafe fn vehicle_pool(
     samp.api().raw_vehicle_pool()
 }
 
-/// Returns the latest game-thread-captured R1 local-player object as an opaque
+/// Returns the latest game-thread-captured local-player object as an opaque
 /// native address.
 ///
 /// # Safety
 ///
-/// `samp` must refer to a live host attached to SA-MP 0.3.7 R1. The address is
-/// refreshed only on the host game thread, must never be made into a Rust
-/// reference, and becomes invalid when the local player or SA-MP unloads.
+/// `samp` must refer to a live host attached to a supported SA-MP 0.3.7 build.
+/// The address is refreshed only on the host game thread, must never be made
+/// into a Rust reference, and becomes invalid when the local player or SA-MP
+/// unloads.
 pub unsafe fn player(samp: crate::Samp) -> Result<NonNull<c_void>, crate::SampClientSdkResult> {
     samp.api().raw_local_player()
 }

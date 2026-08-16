@@ -42,7 +42,6 @@ pub(super) type PlayerPoolGetRemotePlayerFn =
 pub(super) type PlayerPoolGetPlayerNameFn =
     unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
 pub(super) type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-pub(super) type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
 pub(super) type PlayerPoolSetLocalPlayerNameFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8);
 pub(super) type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;

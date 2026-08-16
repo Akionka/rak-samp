@@ -37,6 +37,10 @@ fn r3_native_profile() -> Option<NativeProfile> {
     NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
 }
 
+fn r3_native_client_profile() -> Option<NativeClientProfile> {
+    NativeClientProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
+}
+
 #[test]
 fn shared_refresh_helpers_accept_every_native_profile() {
     let profiles = [
@@ -68,7 +72,7 @@ fn shared_refresh_helpers_accept_every_native_profile() {
         state.trailer_sync_requests.lock().unwrap().push_back(7);
         state.aim_sync_requests.lock().unwrap().push_back(7);
 
-        state.refresh_local_player_snapshot(profile);
+        state.refresh_local_player_snapshot(profile, None);
         state.refresh_player_info(profile);
         state.refresh_remote_player_state(profile);
         state.refresh_streamed_out_player_position(profile);
@@ -618,6 +622,7 @@ fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
     let mut state = test_backend_state();
     state.context.version = SampVersion::R3_1;
     state.context.native_profile = r3_native_profile();
+    state.context.native_client_profile = r3_native_client_profile();
     state.rak_client.store(1, Ordering::Release);
     state.samp_game_state.store(6, Ordering::Release);
     state.samp_game_state_ready.store(true, Ordering::Release);
