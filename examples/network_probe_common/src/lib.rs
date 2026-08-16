@@ -107,8 +107,15 @@ const LOCAL_CHAT_MARKER: &[u8] = profile_value!(
     b"R3 SDK full UI validation",
     b"DL SDK full UI validation"
 );
+const LOCAL_CHAT_PREFIX: &[u8] = profile_value!(b"R5 SDK", b"R1 SDK", b"R3 SDK", b"DL SDK");
 const LOCAL_COMMAND_NAME: &[u8] =
     profile_value!(b"r5sdkprobe", b"r1sdkprobe", b"r3sdkprobe", b"dlsdkprobe");
+const MISSING_COMMAND_NAME: &[u8] = profile_value!(
+    b"r5_sdk_probe_missing_command",
+    b"r1_sdk_probe_missing_command",
+    b"r3_sdk_probe_missing_command",
+    b"dl_sdk_probe_missing_command"
+);
 const LOCAL_COMMAND_TEXT: &[u8] = profile_value!(
     b"/r5sdkprobe consolidated",
     b"/r1sdkprobe consolidated",
@@ -120,6 +127,30 @@ const LOCAL_DIALOG_INPUT_TEXT: &[u8] = profile_value!(
     b"R1_INPUT_UPDATED",
     b"R3_INPUT_UPDATED",
     b"DL_INPUT_UPDATED"
+);
+const LOCAL_CHAT_INPUT_MUTATION: &[u8] = profile_value!(
+    b"R5_SDK_MUTATION",
+    b"R1_SDK_MUTATION",
+    b"R3_SDK_MUTATION",
+    b"DL_SDK_MUTATION"
+);
+const LOCAL_INPUT_DIALOG_TITLE: &[u8] = profile_value!(
+    b"R5 input dialog",
+    b"R1 input dialog",
+    b"R3 input dialog",
+    b"DL input dialog"
+);
+const LOCAL_INPUT_DIALOG_BODY: &[u8] = profile_value!(
+    b"R5 input body",
+    b"R1 input body",
+    b"R3 input body",
+    b"DL input body"
+);
+const LOCAL_LIST_DIALOG_TITLE: &[u8] = profile_value!(
+    b"R5 list dialog",
+    b"R1 list dialog",
+    b"R3 list dialog",
+    b"DL list dialog"
 );
 const LOCAL_LABEL_TEXT: &[u8] = profile_value!(
     b"R5 label validation",
@@ -174,6 +205,12 @@ const RECONNECT_COMMAND_NAME: &[u8] = profile_value!(
     b"r1sdkreconnect",
     b"r3sdkreconnect",
     b"dlsdkreconnect"
+);
+const MAIN_PASS_MESSAGE: &[u8] = profile_value!(
+    b"R5 main pass complete. Type /r5sdkreconnect for the final lifecycle pass.",
+    b"R1 main pass complete. Type /r1sdkreconnect for the final lifecycle pass.",
+    b"R3 main pass complete. Type /r3sdkreconnect for the final lifecycle pass.",
+    b"DL main pass complete. Type /dlsdkreconnect for the final lifecycle pass."
 );
 const HOST_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5 * 60);
 const INITIALIZATION_TIMEOUT: Duration = Duration::from_secs(45);
@@ -308,7 +345,12 @@ static ENTITY_IDS: Mutex<Option<EntityIds>> = Mutex::new(None);
 static CHAT_COMMAND_INVOKED: AtomicBool = AtomicBool::new(false);
 static SYNC_PACKETS_OBSERVED: AtomicU32 = AtomicU32::new(0);
 static SYNC_PACKET_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
+static TEXT_LABEL_PHASE: Mutex<&'static str> = Mutex::new("none");
+static TEXT_LABEL_INITIAL_FIELDS: AtomicU32 = AtomicU32::new(0);
+static TEXT_LABEL_INITIAL_RESULT: AtomicU32 = AtomicU32::new(0);
 static TEXTDRAW_PHASE: Mutex<&'static str> = Mutex::new("none");
+static TEXTDRAW_SNAPSHOT_FIELDS: AtomicU32 = AtomicU32::new(0);
+static TEXTDRAW_SNAPSHOT_RESULT: AtomicU32 = AtomicU32::new(0);
 static VEHICLE_PHASE: Mutex<&'static str> = Mutex::new("none");
 static VEHICLE_PHASES: Mutex<VehiclePhases> = Mutex::new(VehiclePhases::new());
 static RECONNECT_REQUESTED: AtomicBool = AtomicBool::new(false);
@@ -374,6 +416,17 @@ struct ReconnectObservation {
     game_state: Option<i32>,
     spawned: Option<bool>,
     incoming_ready: bool,
+}
+
+#[derive(Clone, Copy)]
+struct ProbePhaseStatus {
+    text_label_phase: &'static str,
+    text_label_initial_fields: u32,
+    text_label_initial_result: u32,
+    textdraw_phase: &'static str,
+    textdraw_snapshot_fields: u32,
+    textdraw_snapshot_result: u32,
+    vehicle_phase: &'static str,
 }
 
 #[derive(Clone, Copy)]
@@ -455,9 +508,16 @@ unsafe extern "system" fn DllMain(
             for count in &SYNC_PACKET_COUNTS {
                 count.store(0, Ordering::Release);
             }
+            *TEXT_LABEL_PHASE
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = "none";
+            TEXT_LABEL_INITIAL_FIELDS.store(0, Ordering::Release);
+            TEXT_LABEL_INITIAL_RESULT.store(0, Ordering::Release);
             *TEXTDRAW_PHASE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = "none";
+            TEXTDRAW_SNAPSHOT_FIELDS.store(0, Ordering::Release);
+            TEXTDRAW_SNAPSHOT_RESULT.store(0, Ordering::Release);
             *VEHICLE_PHASE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner()) = "none";
@@ -1282,7 +1342,7 @@ fn verify_cached_chat_input(samp: Samp) -> Result<(), SampClientSdkResult> {
         match (
             input.is_active(),
             input.is_command_defined(b"quit"),
-            input.is_command_defined(b"r5_sdk_probe_missing_command"),
+            input.is_command_defined(MISSING_COMMAND_NAME),
         ) {
             (Ok(true), Ok(true), Ok(false)) => return Ok(()),
             (Ok(_), Ok(_), Ok(false)) => {}
@@ -1360,11 +1420,17 @@ fn verify_ui_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
     }
     wait_for_receipt(chat.set_display_mode(original_chat_mode)?)?;
 
-    wait_for_receipt(chat.set_entry(99, LOCAL_CHAT_MARKER, b"R5 SDK", 0xFF6FCF97, 0xFFFFFFFF)?)?;
+    wait_for_receipt(chat.set_entry(
+        99,
+        LOCAL_CHAT_MARKER,
+        LOCAL_CHAT_PREFIX,
+        0xFF6FCF97,
+        0xFFFFFFFF,
+    )?)?;
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         chat.entry(99).map(|entry| {
             entry.text == LOCAL_CHAT_MARKER
-                && entry.prefix == b"R5 SDK"
+                && entry.prefix == LOCAL_CHAT_PREFIX
                 && entry.text_colour == 0xFF6FCF97
                 && entry.prefix_colour == 0xFFFFFFFF
         })
@@ -1377,7 +1443,7 @@ fn verify_ui_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
         prefix_colour: 0,
     })?)?;
     wait_for_receipt(chat.death_window().add(LocalDeathMessage {
-        killer: b"R5 SDK",
+        killer: LOCAL_CHAT_PREFIX,
         victim: b"validation",
         killer_colour: 0xFF6FCF97,
         victim_colour: 0xFFFFFFFF,
@@ -1385,9 +1451,9 @@ fn verify_ui_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
     })?)?;
 
     let input = samp.chat_input();
-    wait_for_receipt(input.set_text(b"R5_SDK_MUTATION")?)?;
+    wait_for_receipt(input.set_text(LOCAL_CHAT_INPUT_MUTATION)?)?;
     wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
-        input.text().map(|text| text == b"R5_SDK_MUTATION")
+        input.text().map(|text| text == LOCAL_CHAT_INPUT_MUTATION)
     })?;
     wait_for_receipt(input.set_enabled(false)?)?;
     wait_for_condition(CHAT_INPUT_CACHE_TIMEOUT, || {
@@ -1429,8 +1495,8 @@ fn verify_dialog_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
     wait_for_receipt(dialogs.show(LocalDialog {
         id: 26_000,
         style: LocalDialogStyle::Input,
-        title: b"R5 input dialog",
-        text: b"R5 input body",
+        title: LOCAL_INPUT_DIALOG_TITLE,
+        text: LOCAL_INPUT_DIALOG_BODY,
         button1: b"Accept",
         button2: b"Cancel",
     })?)?;
@@ -1440,8 +1506,8 @@ fn verify_dialog_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
             dialog.is_some_and(|dialog| {
                 dialog.id == 26_000
                     && dialog.style == LocalDialogStyle::Input
-                    && dialog.title == b"R5 input dialog"
-                    && dialog.text == b"R5 input body"
+                    && dialog.title == LOCAL_INPUT_DIALOG_TITLE
+                    && dialog.text == LOCAL_INPUT_DIALOG_BODY
                     && !dialog.server_side
             })
         })
@@ -1468,7 +1534,7 @@ fn verify_dialog_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
     wait_for_receipt(dialogs.show(LocalDialog {
         id: 26_001,
         style: LocalDialogStyle::List,
-        title: b"R5 list dialog",
+        title: LOCAL_LIST_DIALOG_TITLE,
         text: b"first\nsecond",
         button1: b"Select",
         button2: b"Cancel",
@@ -1565,7 +1631,9 @@ fn verify_local_mutations(samp: Samp) -> Result<(), SampClientSdkResult> {
 }
 
 fn verify_text_label_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
+    set_text_label_phase("local_player_wait");
     let local = wait_for_value(SCALAR_CACHE_TIMEOUT, || samp.local().player())?;
+    set_text_label_phase("create_wait");
     let mut create = samp.labels().create(
         LOCAL_LABEL_TEXT,
         0xFF6FCF97,
@@ -1586,27 +1654,60 @@ fn verify_text_label_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
             Err(error) => return Err(error),
         }
     };
+    set_text_label_phase("initial_cache_wait");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
-        samp.labels().get(id).map(|label| {
-            label.is_some_and(|label| {
-                label.id == id.get()
-                    && label.text == LOCAL_LABEL_TEXT
-                    && label.colour == 0xFF6FCF97
-                    && label.draw_distance == 40.0
-                    && !label.behind_walls
-            })
-        })
+        let label = match samp.labels().get(id) {
+            Ok(label) => {
+                let result = if label.is_some() { 2 } else { 1 };
+                if TEXT_LABEL_INITIAL_RESULT.swap(result, Ordering::AcqRel) != result {
+                    publish_status();
+                }
+                label
+            }
+            Err(error) => {
+                let result = 0x100 | error as u32;
+                if TEXT_LABEL_INITIAL_RESULT.swap(result, Ordering::AcqRel) != result {
+                    publish_status();
+                }
+                return Err(error);
+            }
+        };
+        let fields = label.map_or(0, |label| {
+            (1 << 0)
+                | (u32::from(label.id == id.get()) << 1)
+                | (u32::from(label.text == LOCAL_LABEL_TEXT) << 2)
+                | (u32::from(label.colour == 0xFF6FCF97) << 3)
+                | (u32::from(label.draw_distance == 40.0) << 4)
+                | (u32::from(!label.behind_walls) << 5)
+        });
+        if TEXT_LABEL_INITIAL_FIELDS.swap(fields, Ordering::AcqRel) != fields {
+            publish_status();
+        }
+        Ok(fields == 0b11_1111)
     })?;
+    set_text_label_phase("set_wait");
     wait_for_receipt(samp.labels().set_text(id, LOCAL_LABEL_UPDATED_TEXT)?)?;
+    set_text_label_phase("updated_cache_wait");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         samp.labels()
             .get(id)
             .map(|label| label.is_some_and(|label| label.text == LOCAL_LABEL_UPDATED_TEXT))
     })?;
+    set_text_label_phase("delete_wait");
     wait_for_receipt(samp.labels().delete(id)?)?;
+    set_text_label_phase("deleted_cache_wait");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         samp.labels().exists(id).map(|exists| !exists)
-    })
+    })?;
+    set_text_label_phase("complete");
+    Ok(())
+}
+
+fn set_text_label_phase(phase: &'static str) {
+    *TEXT_LABEL_PHASE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = phase;
+    publish_status();
 }
 
 fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -1667,32 +1768,16 @@ fn verify_textdraw_lifecycle(samp: Samp) -> Result<(), SampClientSdkResult> {
         )
     })?;
     set_textdraw_phase("snapshot_before");
-    wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
-        textdraws.get(id).map(|textdraw| {
-            textdraw.is_some_and(|textdraw| {
-                textdraw.text == LOCAL_TEXTDRAW_UPDATED_TEXT
-                    && textdraw.position() == (300.0, 170.0)
-                    && textdraw.style() == 1
-                    && textdraw.letter_style() == (0.3, 1.2, 0xFFFFFFFF)
-                    && !textdraw.is_proportional()
-                    && textdraw.shadow() == 2
-                    && textdraw.outline() == 1
-                    && textdraw.alignment() == (false, true, false)
-                    && textdraw.box_style() == (true, 180.0, 30.0, 0x80202020)
-                    && textdraw.model_style()
-                        == (
-                            0,
-                            Vector3 {
-                                x: 10.0,
-                                y: 20.0,
-                                z: 30.0,
-                            },
-                            1.25,
-                            1,
-                            2,
-                        )
-            })
-        })
+    wait_for_condition(SCALAR_CACHE_TIMEOUT, || match textdraws.get(id) {
+        Ok(textdraw) => {
+            let fields = textdraw.as_ref().map_or(0, textdraw_snapshot_fields);
+            publish_textdraw_snapshot_observation(if textdraw.is_some() { 2 } else { 1 }, fields);
+            Ok(fields == 0x7FF)
+        }
+        Err(error) => {
+            publish_textdraw_snapshot_observation(0x100 | error as u32, 0);
+            Err(error)
+        }
     })?;
     set_textdraw_phase("snapshot_after");
     verify_textdraw_mutation("delete_before", "delete_after", || textdraws.delete(id))?;
@@ -1719,6 +1804,41 @@ fn set_textdraw_phase(phase: &'static str) {
         .lock()
         .unwrap_or_else(|error| error.into_inner()) = phase;
     publish_status();
+}
+
+fn textdraw_snapshot_fields(textdraw: &samp_client_sdk::TextDraw) -> u32 {
+    (1 << 0)
+        | (u32::from(textdraw.text == LOCAL_TEXTDRAW_UPDATED_TEXT) << 1)
+        | (u32::from(textdraw.position() == (300.0, 170.0)) << 2)
+        | (u32::from(textdraw.style() == 1) << 3)
+        | (u32::from(textdraw.letter_style() == (0.3, 1.2, 0xFFFFFFFF)) << 4)
+        | (u32::from(!textdraw.is_proportional()) << 5)
+        | (u32::from(textdraw.shadow() == 2) << 6)
+        | (u32::from(textdraw.outline() == 1) << 7)
+        | (u32::from(textdraw.alignment() == (false, true, false)) << 8)
+        | (u32::from(textdraw.box_style() == (true, 180.0, 30.0, 0x80202020)) << 9)
+        | (u32::from(
+            textdraw.model_style()
+                == (
+                    0,
+                    Vector3 {
+                        x: 10.0,
+                        y: 20.0,
+                        z: 30.0,
+                    },
+                    1.25,
+                    1,
+                    2,
+                ),
+        ) << 10)
+}
+
+fn publish_textdraw_snapshot_observation(result: u32, fields: u32) {
+    let result_changed = TEXTDRAW_SNAPSHOT_RESULT.swap(result, Ordering::AcqRel) != result;
+    let fields_changed = TEXTDRAW_SNAPSHOT_FIELDS.swap(fields, Ordering::AcqRel) != fields;
+    if result_changed || fields_changed {
+        publish_status();
+    }
 }
 
 fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
@@ -2019,7 +2139,7 @@ fn verify_reconnect_on_request(samp: Samp) -> Result<(), SampClientSdkResult> {
         })?;
     wait_for_receipt(samp.chat().add(LocalChatMessage {
         style: LocalChatMessageStyle::Info,
-        text: b"R5 main pass complete. Type /r5sdkreconnect for the final lifecycle pass.",
+        text: MAIN_PASS_MESSAGE,
         prefix: b"",
         text_colour: 0xFF6FCF97,
         prefix_colour: 0,
@@ -2230,12 +2350,21 @@ fn publish_status() {
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .as_ref(),
-            *TEXTDRAW_PHASE
-                .lock()
-                .unwrap_or_else(|error| error.into_inner()),
-            *VEHICLE_PHASE
-                .lock()
-                .unwrap_or_else(|error| error.into_inner()),
+            ProbePhaseStatus {
+                text_label_phase: *TEXT_LABEL_PHASE
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()),
+                text_label_initial_fields: TEXT_LABEL_INITIAL_FIELDS.load(Ordering::Acquire),
+                text_label_initial_result: TEXT_LABEL_INITIAL_RESULT.load(Ordering::Acquire),
+                textdraw_phase: *TEXTDRAW_PHASE
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()),
+                textdraw_snapshot_fields: TEXTDRAW_SNAPSHOT_FIELDS.load(Ordering::Acquire),
+                textdraw_snapshot_result: TEXTDRAW_SNAPSHOT_RESULT.load(Ordering::Acquire),
+                vehicle_phase: *VEHICLE_PHASE
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()),
+            },
         ),
     );
 }
@@ -2246,8 +2375,7 @@ fn status_record(
     scalar: Option<&ScalarObservation>,
     player_pool: Option<&PlayerPoolObservation>,
     reconnect: Option<&ReconnectObservation>,
-    textdraw_phase: &str,
-    vehicle_phase: &str,
+    phases: ProbePhaseStatus,
 ) -> String {
     use std::fmt::Write;
 
@@ -2282,8 +2410,29 @@ fn status_record(
             reconnect.incoming_ready
         );
     }
-    let _ = writeln!(record, "textdraw_phase={textdraw_phase}");
-    let _ = writeln!(record, "vehicle_phase={vehicle_phase}");
+    let _ = writeln!(record, "text_label_phase={}", phases.text_label_phase);
+    let _ = writeln!(
+        record,
+        "text_label_initial_fields=0x{:02X}",
+        phases.text_label_initial_fields
+    );
+    let _ = writeln!(
+        record,
+        "text_label_initial_result=0x{:03X}",
+        phases.text_label_initial_result
+    );
+    let _ = writeln!(record, "textdraw_phase={}", phases.textdraw_phase);
+    let _ = writeln!(
+        record,
+        "textdraw_snapshot_fields=0x{:03X}",
+        phases.textdraw_snapshot_fields
+    );
+    let _ = writeln!(
+        record,
+        "textdraw_snapshot_result=0x{:03X}",
+        phases.textdraw_snapshot_result
+    );
+    let _ = writeln!(record, "vehicle_phase={}", phases.vehicle_phase);
     #[cfg(feature = "r1-probe")]
     {
         let _ = writeln!(
@@ -2424,6 +2573,70 @@ mod tests {
     }
 
     #[test]
+    fn selected_probe_ui_labels_match_its_client_version() {
+        let labels = (
+            LOCAL_CHAT_PREFIX,
+            LOCAL_CHAT_INPUT_MUTATION,
+            LOCAL_INPUT_DIALOG_TITLE,
+            LOCAL_INPUT_DIALOG_BODY,
+            LOCAL_LIST_DIALOG_TITLE,
+            MAIN_PASS_MESSAGE,
+        );
+        #[cfg(feature = "r1-probe")]
+        assert_eq!(
+            labels,
+            (
+                b"R1 SDK".as_slice(),
+                b"R1_SDK_MUTATION".as_slice(),
+                b"R1 input dialog".as_slice(),
+                b"R1 input body".as_slice(),
+                b"R1 list dialog".as_slice(),
+                b"R1 main pass complete. Type /r1sdkreconnect for the final lifecycle pass."
+                    .as_slice(),
+            )
+        );
+        #[cfg(feature = "r3-probe")]
+        assert_eq!(
+            labels,
+            (
+                b"R3 SDK".as_slice(),
+                b"R3_SDK_MUTATION".as_slice(),
+                b"R3 input dialog".as_slice(),
+                b"R3 input body".as_slice(),
+                b"R3 list dialog".as_slice(),
+                b"R3 main pass complete. Type /r3sdkreconnect for the final lifecycle pass."
+                    .as_slice(),
+            )
+        );
+        #[cfg(feature = "dl-probe")]
+        assert_eq!(
+            labels,
+            (
+                b"DL SDK".as_slice(),
+                b"DL_SDK_MUTATION".as_slice(),
+                b"DL input dialog".as_slice(),
+                b"DL input body".as_slice(),
+                b"DL list dialog".as_slice(),
+                b"DL main pass complete. Type /dlsdkreconnect for the final lifecycle pass."
+                    .as_slice(),
+            )
+        );
+        #[cfg(not(any(feature = "r1-probe", feature = "r3-probe", feature = "dl-probe")))]
+        assert_eq!(
+            labels,
+            (
+                b"R5 SDK".as_slice(),
+                b"R5_SDK_MUTATION".as_slice(),
+                b"R5 input dialog".as_slice(),
+                b"R5 input body".as_slice(),
+                b"R5 list dialog".as_slice(),
+                b"R5 main pass complete. Type /r5sdkreconnect for the final lifecycle pass."
+                    .as_slice(),
+            )
+        );
+    }
+
+    #[test]
     fn status_record_is_bounded_and_machine_readable() {
         let record = status_record(
             STATUS_HOST_CONNECTED | STATUS_OUTBOUND_RECEIPT,
@@ -2431,19 +2644,26 @@ mod tests {
             None,
             None,
             None,
-            "none",
-            "none",
+            ProbePhaseStatus {
+                text_label_phase: "none",
+                text_label_initial_fields: 0,
+                text_label_initial_result: 0,
+                textdraw_phase: "none",
+                textdraw_snapshot_fields: 0,
+                textdraw_snapshot_result: 0,
+                vehicle_phase: "none",
+            },
         );
         #[cfg(not(feature = "r1-probe"))]
         assert_eq!(
             record,
-            "status=0x00000011\nfailure=0\ntextdraw_phase=none\nvehicle_phase=none\n"
+            "status=0x00000011\nfailure=0\ntext_label_phase=none\ntext_label_initial_fields=0x00\ntext_label_initial_result=0x000\ntextdraw_phase=none\ntextdraw_snapshot_fields=0x000\ntextdraw_snapshot_result=0x000\nvehicle_phase=none\n"
         );
         #[cfg(feature = "r1-probe")]
         assert_eq!(
             record,
             concat!(
-                "status=0x00000011\nfailure=0\ntextdraw_phase=none\nvehicle_phase=none\n",
+                "status=0x00000011\nfailure=0\ntext_label_phase=none\ntext_label_initial_fields=0x00\ntext_label_initial_result=0x000\ntextdraw_phase=none\ntextdraw_snapshot_fields=0x000\ntextdraw_snapshot_result=0x000\nvehicle_phase=none\n",
                 "codec_round_trip=false\nincoming_packet_bits=0\nincoming_rpc_bits=0\n"
             )
         );
