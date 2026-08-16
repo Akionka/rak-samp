@@ -310,7 +310,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_vehicle_handles(&self, profile: NativeProfile) {
+    pub(super) fn refresh_vehicle_handles(&self, profile: NativeClientProfile) {
         for id in self.take_vehicle_handle_requests() {
             let Ok(handle) = profile.vehicle_handle(id) else {
                 continue;
@@ -324,7 +324,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_handles(&self, profile: NativeProfile) {
+    pub(super) fn refresh_player_handles(&self, profile: NativeClientProfile) {
         for id in self.take_player_handle_requests() {
             let Ok(handle) = profile.player_ped_handle(id) else {
                 continue;
@@ -362,7 +362,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_vehicle_handle_ids(&self, profile: NativeProfile) {
+    pub(super) fn refresh_vehicle_handle_ids(&self, profile: NativeClientProfile) {
         for handle in self.take_vehicle_handle_id_requests() {
             let Ok(id) = profile.vehicle_id_by_handle(handle) else {
                 continue;
@@ -374,7 +374,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_player_handle_ids(&self, profile: NativeProfile) {
+    pub(super) fn refresh_player_handle_ids(&self, profile: NativeClientProfile) {
         for handle in self.take_player_handle_id_requests() {
             let Ok(id) = profile.player_id_by_ped_handle(handle) else {
                 continue;

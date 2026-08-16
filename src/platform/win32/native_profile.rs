@@ -65,46 +65,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.vehicle_handle(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.vehicle_handle(id),
-        }
-    }
-
-    pub(super) fn vehicle_id_by_handle(
-        self,
-        handle: i32,
-    ) -> Result<Option<u16>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.vehicle_id_by_handle(handle),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.vehicle_id_by_handle(handle)
-            }
-        }
-    }
-
-    pub(super) fn player_ped_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_ped_handle(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.player_ped_handle(id)
-            }
-        }
-    }
-
-    pub(super) fn player_id_by_ped_handle(
-        self,
-        handle: i32,
-    ) -> Result<Option<u16>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.player_id_by_ped_handle(handle),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.player_id_by_ped_handle(handle)
-            }
-        }
-    }
-
     pub(super) fn show_chat_message(
         self,
         request: crate::runtime::LocalChatMessageRequest,

@@ -11,6 +11,10 @@ type R1PoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type ClassicPoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type R1VehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type ClassicVehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
+type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
+type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
+
+const GTA_CPOOLS_GET_VEHICLE_REF: usize = 0x54_FFC0;
 
 impl NativeClientProfile {
     pub(crate) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
@@ -170,6 +174,69 @@ impl NativeClientProfile {
         Ok(None)
     }
 
+    /// Converts one guarded vehicle game-object pointer to its GTA handle.
+    pub(crate) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if !self.vehicle_exists(id)? {
+            return Ok(None);
+        }
+        let layout = self.spec.pools.vehicle;
+        let required = layout
+            .game_objects_offset
+            .get()
+            .checked_add(
+                (usize::from(id) + 1)
+                    .checked_mul(mem::size_of::<usize>())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+            .ok_or(DirectClientError::NotReady)?;
+        let pool = self.vehicle_pool()?;
+        if !readable_range(pool.cast(), required) {
+            return Err(DirectClientError::NotReady);
+        }
+        let game_object = unsafe {
+            read_pointer(
+                (pool as usize)
+                    .checked_add(layout.game_objects_offset.get())
+                    .and_then(|address| {
+                        address.checked_add(usize::from(id) * mem::size_of::<usize>())
+                    })
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|pointer| !pointer.is_null() && readable_range(*pointer, 1))
+        .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(GTA_CPOOLS_GET_VEHICLE_REF as *const u8, 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let handle = unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let function: R1CpoolRefFn = mem::transmute(GTA_CPOOLS_GET_VEHICLE_REF);
+                    function(game_object.cast())
+                }
+                PoolGetterAbi::Classic => {
+                    let function: ClassicCpoolRefFn = mem::transmute(GTA_CPOOLS_GET_VEHICLE_REF);
+                    function(game_object.cast())
+                }
+            }
+        };
+        Ok((handle != 0).then_some(handle))
+    }
+
+    /// Finds a vehicle ID by its GTA handle.
+    pub(crate) fn vehicle_id_by_handle(
+        self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        for id in 0..self.spec.pools.limits.vehicles.get() {
+            let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
+            if self.vehicle_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
+    }
+
     /// Copies one guarded gangzone record from the selected pool.
     pub(crate) fn gangzone(self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.gangzones.get() {
@@ -303,5 +370,49 @@ impl NativeClientProfile {
         .filter(|pointer| !pointer.is_null() && readable_range(*pointer, pool_required_size))
         .ok_or(DirectClientError::NotReady)?;
         Ok(pool.cast())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::SampVersion;
+
+    #[test]
+    fn entity_operations_reject_every_profile_limit() {
+        for version in [
+            SampVersion::R1,
+            SampVersion::R3_1,
+            SampVersion::R5_1,
+            SampVersion::Dl,
+        ] {
+            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+                .expect("the supported identity must select");
+            assert_eq!(
+                profile.vehicle_exists(2000),
+                Err(DirectClientError::NotReady)
+            );
+            assert_eq!(
+                profile.object_exists(profile.spec.pools.limits.objects.get() as u16),
+                Err(DirectClientError::NotReady)
+            );
+            assert_eq!(
+                profile.pickup_handle(4096),
+                Err(DirectClientError::NotReady)
+            );
+            assert_eq!(profile.gangzone(1024), Err(DirectClientError::NotReady));
+        }
+    }
+
+    #[test]
+    fn dl_keeps_its_extended_object_limit() {
+        let profile =
+            NativeClientProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+                .expect("the DL identity must select");
+        assert_eq!(profile.spec.pools.limits.objects.get(), 2100);
+        assert_eq!(
+            profile.object_exists(2100),
+            Err(DirectClientError::NotReady)
+        );
     }
 }

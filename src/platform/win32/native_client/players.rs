@@ -55,6 +55,10 @@ type R1LocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type ClassicLocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type R1LocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 type ClassicLocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
+type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
+type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
+
+const GTA_CPOOLS_GET_PED_REF: usize = 0x54_FF60;
 
 impl NativeClientProfile {
     /// Copies the count pair from the guarded player pool.
@@ -498,6 +502,109 @@ impl NativeClientProfile {
         }
         .ok_or(DirectClientError::NotReady)?;
         Ok(Some(game_ped.is_null()))
+    }
+
+    /// Converts a guarded local or remote GTA ped pointer to its handle.
+    pub(crate) fn player_ped_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        if usize::from(id) >= self.spec.pools.limits.players.get() {
+            return Err(DirectClientError::NotReady);
+        }
+        let pool = self.player_pool()?;
+        let local_id = unsafe {
+            read_unaligned::<u16>(
+                (pool as usize)
+                    .checked_add(self.spec.pools.player.local_id_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|value| usize::from(*value) < self.spec.pools.limits.players.get())
+        .ok_or(DirectClientError::NotReady)?;
+        let game_ped = if id == local_id {
+            let local = self.local_player_address()?;
+            let ped = self.local_player_ped(local)?;
+            unsafe {
+                read_pointer(
+                    (ped as usize)
+                        .checked_add(self.spec.players.local.game_ped_offset.get())
+                        .ok_or(DirectClientError::NotReady)?,
+                )
+            }
+        } else {
+            let targets = self.remote_player_targets()?;
+            let Some(remote) = self.connected_remote_player(pool, id, targets)? else {
+                return Ok(None);
+            };
+            if !self.remote_player_defined(remote, targets)? {
+                return Ok(None);
+            }
+            let ped_offset = self
+                .spec
+                .players
+                .remote
+                .ped_offset
+                .map_or(0, |offset| offset.get());
+            let ped = unsafe {
+                read_pointer(
+                    (remote as usize)
+                        .checked_add(ped_offset)
+                        .ok_or(DirectClientError::NotReady)?,
+                )
+            }
+            .filter(|pointer| !pointer.is_null())
+            .ok_or(DirectClientError::NotReady)?;
+            unsafe {
+                read_pointer(
+                    (ped as usize)
+                        .checked_add(self.spec.players.local.game_ped_offset.get())
+                        .ok_or(DirectClientError::NotReady)?,
+                )
+            }
+        }
+        .filter(|pointer| !pointer.is_null() && readable_range(*pointer, 1))
+        .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(GTA_CPOOLS_GET_PED_REF as *const u8, 1) {
+            return Err(DirectClientError::NotReady);
+        }
+        let handle = unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let function: R1CpoolRefFn = mem::transmute(GTA_CPOOLS_GET_PED_REF);
+                    function(game_ped.cast())
+                }
+                PoolGetterAbi::Classic => {
+                    let function: ClassicCpoolRefFn = mem::transmute(GTA_CPOOLS_GET_PED_REF);
+                    function(game_ped.cast())
+                }
+            }
+        };
+        Ok((handle != 0).then_some(handle))
+    }
+
+    /// Finds a player ID by its GTA ped handle, checking the local player first.
+    pub(crate) fn player_id_by_ped_handle(
+        self,
+        handle: i32,
+    ) -> Result<Option<u16>, DirectClientError> {
+        let pool = self.player_pool()?;
+        let local_id = unsafe {
+            read_unaligned::<u16>(
+                (pool as usize)
+                    .checked_add(self.spec.pools.player.local_id_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|value| usize::from(*value) < self.spec.pools.limits.players.get())
+        .ok_or(DirectClientError::NotReady)?;
+        if self.player_ped_handle(local_id)? == Some(handle) {
+            return Ok(Some(local_id));
+        }
+        for id in 0..self.spec.pools.limits.players.get() {
+            let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
+            if id != local_id && self.player_ped_handle(id)? == Some(handle) {
+                return Ok(Some(id));
+            }
+        }
+        Ok(None)
     }
 
     /// Copies one on-foot record from the selected local or remote player.
