@@ -4,8 +4,12 @@
 //! prefixes, method ABI, and fixed RVAs have all been pinned for each build. Raw
 //! singleton access and every unverified pool family remain unavailable.
 
-use super::r1_client::memory::{
-    bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range, writable_range,
+use super::{
+    argb_to_native_rgba,
+    r1_client::memory::{
+        bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
+        writable_range,
+    },
 };
 use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
@@ -3142,10 +3146,6 @@ impl ClassicClientProfile {
     pub(super) fn dialog_is_ready(self) -> bool {
         self.dialog().is_some()
     }
-}
-
-fn argb_to_native_rgba(colour: u32) -> u32 {
-    colour.rotate_left(8)
 }
 
 fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {

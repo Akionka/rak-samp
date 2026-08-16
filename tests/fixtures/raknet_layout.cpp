@@ -1791,6 +1791,10 @@ std::size_t samp_client_sdk_fixture_r1_textdraw_data_offset() {
     return offsetof(FixtureR1TextDraw, data);
 }
 
+std::size_t samp_client_sdk_fixture_r1_textdraw_size() {
+    return sizeof(FixtureR1TextDraw);
+}
+
 std::size_t samp_client_sdk_fixture_r1_textdraw_transmit_size() {
     return sizeof(FixtureR1TextDrawTransmit);
 }

@@ -1,5 +1,6 @@
 //! R1 pool reads and mutations.
 
+use super::super::argb_to_native_rgba;
 use super::*;
 
 impl R1ClientProfile {
@@ -158,7 +159,7 @@ impl R1ClientProfile {
                 pool,
                 id,
                 text.as_ptr(),
-                colour,
+                argb_to_native_rgba(colour),
                 NativeVector3::from(position),
                 draw_distance,
                 u8::from(behind_walls),

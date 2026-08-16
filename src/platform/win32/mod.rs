@@ -122,6 +122,11 @@ const MAX_SAMP_OBJECTS: usize = 2100;
 const MAX_SAMP_PICKUPS: usize = 4096;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
+
+const fn argb_to_native_rgba(colour: u32) -> u32 {
+    colour.rotate_left(8)
+}
+
 /// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
 /// module base and is supported only for the fixed GTA executable selected by
 /// the host's R1/GTA configuration.

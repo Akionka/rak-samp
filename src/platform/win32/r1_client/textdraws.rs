@@ -578,7 +578,8 @@ impl R1ClientProfile {
         Ok(())
     }
 
-    /// Replaces one existing R1 textdraw's bounded display string.
+    /// Replaces one existing R1 textdraw's display string through its native
+    /// setter, which accepts at most 799 non-NUL bytes.
     pub(in super::super) fn set_textdraw_model_style(
         self,
         pool_index: u16,
@@ -663,7 +664,7 @@ impl R1ClientProfile {
         text: &[u8],
     ) -> Result<(), DirectClientError> {
         if pool_index >= MAX_SAMP_TEXTDRAWS
-            || text.len() > MAX_TEXTDRAW_STRING_BYTES
+            || text.len() >= MAX_TEXTDRAW_CREATE_TEXT_BYTES
             || text.contains(&0)
         {
             return Err(DirectClientError::NotReady);
@@ -698,13 +699,15 @@ impl R1ClientProfile {
         let object = unsafe { read_unaligned::<usize>(object_slot) }
             .filter(|object| *object != 0)
             .ok_or(DirectClientError::NotReady)?;
-        let destination = (object + 801) as *mut u8;
-        if !writable_range(destination, MAX_TEXTDRAW_STRING_BYTES + 1) {
+        let object = object as *mut c_void;
+        if !writable_range(object.cast(), TEXTDRAW_NATIVE_SIZE) {
             return Err(DirectClientError::NotReady);
         }
+        let text = nul_terminated(text.to_vec());
+        let set_text: TextdrawSetTextFn =
+            unsafe { mem::transmute(self.module_base + TEXTDRAW_SET_TEXT_RVA) };
         unsafe {
-            ptr::write_bytes(destination, 0, MAX_TEXTDRAW_STRING_BYTES + 1);
-            ptr::copy_nonoverlapping(text.as_ptr(), destination, text.len());
+            set_text(object, text.as_ptr());
         }
         Ok(())
     }

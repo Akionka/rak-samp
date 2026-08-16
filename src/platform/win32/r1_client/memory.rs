@@ -59,6 +59,7 @@ pub(super) const TEXTDRAW_TRANSMIT_SIZE: usize = 0x3F;
 pub(super) const TEXTDRAW_TRANSMIT_X_OFFSET: usize = 0x21;
 pub(super) const TEXTDRAW_TRANSMIT_Y_OFFSET: usize = 0x25;
 pub(super) const TEXTDRAW_STRING_OFFSET: usize = 801;
+pub(super) const TEXTDRAW_NATIVE_SIZE: usize = 0x9D6;
 pub(super) const TEXTDRAW_POOL_NOT_EMPTY_OFFSET: usize = 0;
 pub(super) const TEXTDRAW_POOL_OBJECTS_OFFSET: usize = 0x2400;
 pub(super) const GANGZONE_POOL_NOT_EMPTY_OFFSET: usize = 0x1000;

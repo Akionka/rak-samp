@@ -31,6 +31,7 @@ pub(super) type RakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void,
 pub(super) type TextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 pub(super) type TextdrawPoolCreateFn =
     unsafe extern "thiscall" fn(*mut c_void, i32, *mut c_void, *const u8) -> *mut c_void;
+pub(super) type TextdrawSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const u8);
 pub(super) type LabelPoolCreateFn =
     unsafe extern "thiscall" fn(*mut c_void, u16, *const u8, u32, NativeVector3, f32, u8, u16, u16);
 pub(super) type LabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
