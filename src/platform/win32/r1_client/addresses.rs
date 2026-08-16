@@ -41,20 +41,25 @@ pub(super) const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
 pub(super) const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
 #[cfg(test)]
 pub(super) const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA: usize = 0xB3E0;
 pub(super) const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 #[cfg(test)]
 pub(super) const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
+#[cfg(test)]
 pub(super) const REMOTE_PLAYER_SET_COLOUR_RVA: usize = 0x129D0;
 pub(super) const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
 #[cfg(test)]
 pub(super) const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x12BA0;
 pub(super) const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
 #[cfg(test)]
-pub(super) const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 pub(super) const LOCAL_PLAYER_SET_COLOUR_RVA: usize = 0x3D40;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA: usize = 0x30C0;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_SPAWN_RVA: usize = 0x3AD0;
+#[cfg(test)]
+pub(super) const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 pub(super) const LOCAL_PLAYER_SEND_UNOCCUPIED_DATA_RVA: usize = 0x4B30;
 pub(super) const LOCAL_PLAYER_SEND_AIM_DATA_RVA: usize = 0x4FF0;
 pub(super) const LOCAL_PLAYER_SEND_ONFOOT_DATA_RVA: usize = 0x4D10;

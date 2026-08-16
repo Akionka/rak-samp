@@ -27,7 +27,6 @@ pub(super) const MAX_SAMP_TEXTDRAWS: u16 = 2304;
 pub(super) const MAX_SAMP_OBJECTS: u16 = 1000;
 pub(super) const MAX_SAMP_GANGZONES: u16 = 1024;
 pub(super) const MAX_SAMP_PICKUPS: u16 = 4096;
-pub(super) const MAX_LOCAL_PLAYER_NAME_BYTES: usize = 255;
 
 pub(super) const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
 #[cfg(test)]

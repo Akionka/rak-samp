@@ -287,11 +287,6 @@ type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type LocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type LocalPlayerTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 type LocalPlayerUnoccupiedFn = unsafe extern "thiscall" fn(*mut c_void, u16, i32);
-type LocalPlayerSpawnFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type LocalPlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
-type RemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
-type PlayerPoolSetLocalPlayerNameFn = unsafe extern "thiscall" fn(*mut c_void, *const i8);
-type LocalPlayerSetSpecialActionFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 type ChatAddEntryFn = unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
 type DeathWindowAddMessageFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
@@ -905,75 +900,6 @@ impl ClassicClientProfile {
             return Err(DirectClientError::NotReady);
         }
         unsafe { ptr::write_unaligned(field, rate) };
-        Ok(())
-    }
-
-    pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
-        let local = self.local_player_address()?;
-        let spawn: LocalPlayerSpawnFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x3AD0, 0x3C20, 0x3A70)) };
-        (unsafe { spawn(local) } != 0)
-            .then_some(())
-            .ok_or(DirectClientError::NotReady)
-    }
-
-    pub(super) fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
-        if name.len() > 255 || name.contains(&0) {
-            return Err(DirectClientError::NotReady);
-        }
-        let pool = self.player_pool()?;
-        let mut name = name.to_vec();
-        name.push(0);
-        let set_name: PlayerPoolSetLocalPlayerNameFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0xB5C0, 0xB8A0, 0xB490)) };
-        unsafe { set_name(pool, name.as_ptr().cast()) };
-        Ok(())
-    }
-
-    pub(super) fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
-        if id >= MAX_SAMP_PLAYERS {
-            return Err(DirectClientError::NotReady);
-        }
-        let pool = self.player_pool()?;
-        let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) };
-        if local_id == Some(id) {
-            let local = self.local_player_address()?;
-            let set: LocalPlayerSetColourFn = unsafe {
-                mem::transmute(self.module_base + self.build_value(0x3D50, 0x3ED0, 0x3DE0))
-            };
-            unsafe { set(local, colour) };
-            return Ok(());
-        }
-        let connected: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
-        if unsafe { connected(pool, id) } != 1 {
-            return Err(DirectClientError::NotReady);
-        }
-        let get: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + self.player_pool_get_remote_player_rva()) };
-        let remote = unsafe { get(pool, id) };
-        if remote.is_null() || !readable_range(remote.cast(), 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let set: RemotePlayerSetColourFn = unsafe {
-            mem::transmute(self.module_base + self.build_value(0x15BE0, 0x16150, 0x15E00))
-        };
-        unsafe { set(remote, colour) };
-        Ok(())
-    }
-
-    pub(super) fn set_local_player_special_action(
-        self,
-        action: u8,
-    ) -> Result<(), DirectClientError> {
-        if !matches!(action, 0..=12 | 20..=25 | 68) {
-            return Err(DirectClientError::NotReady);
-        }
-        let local = self.local_player_address()?;
-        let set: LocalPlayerSetSpecialActionFn =
-            unsafe { mem::transmute(self.module_base + self.build_value(0x30C0, 0x30F0, 0x3110)) };
-        unsafe { set(local, action) };
         Ok(())
     }
 

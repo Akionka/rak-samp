@@ -1505,7 +1505,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SpawnLocalPlayer => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1513,7 +1513,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetLocalPlayerSpecialAction(action) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1521,7 +1521,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetLocalPlayerName(name) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1593,7 +1593,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetPlayerColour { id, colour } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile

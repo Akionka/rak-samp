@@ -38,18 +38,6 @@ impl R1ClientProfile {
         Self { module_base }
     }
 
-    /// Captures the validated R1 player-pool address on the game thread.
-    pub(super) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_player_pool: NetGameGetPlayerPoolFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_PLAYER_POOL_RVA) };
-        let pool = unsafe { get_player_pool(net_game) };
-        if pool.is_null() || !readable_range(pool.cast(), 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        Ok(pool)
-    }
-
     /// Captures the validated R1 vehicle-pool address on the game thread.
     pub(super) fn vehicle_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
@@ -92,76 +80,6 @@ impl R1ClientProfile {
             .chunks_exact(ANIMATION_TABLE_ENTRY_SIZE)
             .map(parse_animation_entry)
             .collect()
-    }
-
-    /// Invokes R1 `SCLocalPlayer::SetSpecialAction` on the game thread.
-    pub(super) fn set_local_player_special_action(
-        self,
-        action: u8,
-    ) -> Result<(), DirectClientError> {
-        if !matches!(action, 0..=12 | 20..=25 | 68) {
-            return Err(DirectClientError::NotReady);
-        }
-        let local_player = self.local_player_address()?;
-        let set_special_action: LocalPlayerSetSpecialActionFn =
-            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA) };
-        unsafe { set_special_action(local_player, action) };
-        Ok(())
-    }
-
-    /// Invokes the documented R1 local- or remote-player colour setter on the
-    /// game thread after resolving the checked player-pool entry.
-    pub(super) fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
-        if id >= MAX_SAMP_PLAYERS {
-            return Err(DirectClientError::NotReady);
-        }
-        let pool = self.player_pool()?;
-        if !readable_range(
-            pool.cast(),
-            PLAYER_POOL_LOCAL_ID_OFFSET + mem::size_of::<u16>(),
-        ) {
-            return Err(DirectClientError::NotReady);
-        }
-        let local_id =
-            unsafe { read_unaligned::<u16>(pool as usize + PLAYER_POOL_LOCAL_ID_OFFSET) }
-                .and_then(assigned_player_id);
-        if local_id == Some(id) {
-            let local = self.local_player_address()?;
-            let set_colour: LocalPlayerSetColourFn =
-                unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SET_COLOUR_RVA) };
-            unsafe { set_colour(local, colour) };
-            return Ok(());
-        }
-
-        let is_connected: PlayerPoolPlayerBooleanFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_IS_CONNECTED_RVA) };
-        if unsafe { is_connected(pool, id) } != 1 {
-            return Err(DirectClientError::NotReady);
-        }
-        let get_player: PlayerPoolGetRemotePlayerFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_GET_REMOTE_PLAYER_RVA) };
-        let remote = unsafe { get_player(pool, id) };
-        if remote.is_null() || !readable_range(remote.cast(), 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let set_colour: RemotePlayerSetColourFn =
-            unsafe { mem::transmute(self.module_base + REMOTE_PLAYER_SET_COLOUR_RVA) };
-        unsafe { set_colour(remote, colour) };
-        Ok(())
-    }
-
-    /// Updates R1's local player name through the documented player-pool
-    /// method, retaining no client pointer outside this game-thread call.
-    pub(super) fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
-        if name.len() > MAX_LOCAL_PLAYER_NAME_BYTES || name.contains(&0) {
-            return Err(DirectClientError::NotReady);
-        }
-        let pool = self.player_pool()?;
-        let name = nul_terminated(name.to_vec());
-        let set_name: PlayerPoolSetLocalPlayerNameFn =
-            unsafe { mem::transmute(self.module_base + PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA) };
-        unsafe { set_name(pool, name.as_ptr().cast()) };
-        Ok(())
     }
 
     /// Invokes R1 `SCLocalPlayer::SendUnoccupiedData` for one checked vehicle
@@ -304,17 +222,6 @@ impl R1ClientProfile {
         let send: LocalPlayerSendIncarDataFn =
             unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SEND_INCAR_DATA_RVA) };
         unsafe { send(local_player) };
-        Ok(())
-    }
-
-    /// Invokes R1 `SCLocalPlayer::Spawn` on the game thread.
-    pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
-        let local_player = self.local_player_address()?;
-        let spawn: LocalPlayerSpawnFn =
-            unsafe { mem::transmute(self.module_base + LOCAL_PLAYER_SPAWN_RVA) };
-        if unsafe { spawn(local_player) } == 0 {
-            return Err(DirectClientError::NotReady);
-        }
         Ok(())
     }
 

@@ -271,41 +271,6 @@ impl NativeProfile {
             }
         }
     }
-    pub(super) fn spawn_local_player(self) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.spawn_local_player(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.spawn_local_player()
-            }
-        }
-    }
-    pub(super) fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_local_player_name(name),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_local_player_name(name)
-            }
-        }
-    }
-    pub(super) fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_player_colour(id, colour),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_player_colour(id, colour)
-            }
-        }
-    }
-    pub(super) fn set_local_player_special_action(
-        self,
-        action: u8,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_local_player_special_action(action),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_local_player_special_action(action)
-            }
-        }
-    }
     pub(super) fn show_chat_message(
         self,
         request: crate::runtime::LocalChatMessageRequest,
