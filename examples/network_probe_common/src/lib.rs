@@ -192,7 +192,12 @@ const STATUS_FILE: &str = profile_value!(
 );
 const PROFILE_ENTRY_POINT_RVA: u32 = profile_value!(0x0CBC90, 0x31DF13, 0x0CC4D0, 0x0FDB60);
 const PROFILE_CONNECTED_STATE: i32 = profile_value!(5, 14, 5, 5);
-const PROFILE_WAIT_JOIN_STATE: i32 = profile_value!(6, 15, 6, 6);
+const PROFILE_SERVER_HOSTNAME: &[u8] = profile_value!(
+    b"SDK R5 loopback probe",
+    b"SDK R1 loopback probe",
+    b"SDK R3 loopback probe",
+    b"SDK DL loopback probe"
+);
 const PROFILE_CLIENT_VERSION: SampClientSdkClientVersion = profile_value!(
     SampClientSdkClientVersion::R5_1,
     SampClientSdkClientVersion::R1,
@@ -227,37 +232,37 @@ const MAX_PE_HEADER_OFFSET: usize = 0x1000;
 
 /// The SDK host API resolved for this probe.
 pub const STATUS_HOST_CONNECTED: u32 = 1 << 0;
-/// Public host status, version, and the opaque module base identify the pinned R5-1 image.
+/// Public host status, version, and the opaque module base identify the pinned profile image.
 pub const STATUS_RUNTIME_IDENTITY: u32 = 1 << 1;
-/// The R5 CNetGame scalar cache reported the expected connected server values.
+/// The selected profile's CNetGame scalar cache reported the expected connected server values.
 pub const STATUS_CNETGAME_SCALARS: u32 = 1 << 6;
-/// The R5 cached local-player snapshot passed bounded sanity checks.
+/// The selected profile's cached local-player snapshot passed bounded sanity checks.
 pub const STATUS_LOCAL_PLAYER_SNAPSHOT: u32 = 1 << 7;
-/// The R5 cached player-pool count pair and largest ID matched the loopback session.
+/// The selected profile's cached player-pool count pair and largest ID matched the loopback session.
 pub const STATUS_PLAYER_POOL_SCALARS: u32 = 1 << 12;
-/// The R5 cached scoreboard flag observed both the open and closed states.
+/// The selected profile's cached scoreboard flag observed both the open and closed states.
 pub const STATUS_SCOREBOARD_CACHE: u32 = 1 << 13;
-/// The R5 cached chat display mode returned a documented native value.
+/// The selected profile's cached chat display mode returned a documented native value.
 pub const STATUS_CHAT_DISPLAY_MODE: u32 = 1 << 14;
-/// The R5 cached cursor mode returned a documented native value.
+/// The selected profile's cached cursor mode returned a documented native value.
 pub const STATUS_CURSOR_MODE: u32 = 1 << 15;
-/// The R5 cached remote-player directory observed another loopback client.
+/// The selected profile's cached remote-player directory observed another loopback client.
 pub const STATUS_REMOTE_PLAYER_DIRECTORY: u32 = 1 << 16;
-/// R5 object, pickup, vehicle, gangzone, and player-ped handle paths round-tripped.
+/// Object, pickup, vehicle, gangzone, and player-ped handle paths round-tripped.
 pub const STATUS_ENTITY_HANDLES: u32 = 1 << 17;
-/// R5 native local-player force-sync methods completed on the game thread.
+/// Native local-player force-sync methods completed on the game thread.
 pub const STATUS_FORCE_SYNC_RECEIPTS: u32 = 1 << 18;
-/// R5 chat, input, cursor, scoreboard, and death-window mutations completed.
+/// Chat, input, cursor, scoreboard, and death-window mutations completed.
 pub const STATUS_UI_MUTATIONS: u32 = 1 << 19;
-/// R5 client-side input/list dialogs and the close-response hook passed.
+/// Client-side input/list dialogs and the close-response hook passed.
 pub const STATUS_DIALOG_LIFECYCLE: u32 = 1 << 20;
-/// An R5 native chat command was installed, invoked, and removed synchronously.
+/// A native chat command was installed, invoked, and removed synchronously.
 pub const STATUS_CHAT_COMMAND_LIFECYCLE: u32 = 1 << 21;
-/// The R5 animation table round-tripped one name/file pair.
+/// The animation table round-tripped one name/file pair.
 pub const STATUS_ANIMATION_TABLE: u32 = 1 << 22;
-/// R5 local-player colour/action and all send-rate writes completed and restored.
+/// Local-player colour/action and all send-rate writes completed and restored.
 pub const STATUS_LOCAL_MUTATIONS: u32 = 1 << 23;
-/// An automatically allocated R5 text label completed create/read/write/delete.
+/// An automatically allocated text label completed create/read/write/delete.
 pub const STATUS_TEXT_LABEL_LIFECYCLE: u32 = 1 << 24;
 /// A free R5 textdraw slot completed create/read/write/delete.
 pub const STATUS_TEXTDRAW_LIFECYCLE: u32 = 1 << 25;
@@ -1042,9 +1047,9 @@ fn verify_cached_cnetgame_scalars(samp: Samp) -> Result<(), SampClientSdkResult>
         match (samp.game_state(), samp.server().info()) {
             (Ok(game_state), Ok(info)) => {
                 record_scalar_observation(game_state, &info);
-                if game_state == PROFILE_WAIT_JOIN_STATE
+                if game_state == PROFILE_CONNECTED_STATE
                     && info.address == b"127.0.0.1"
-                    && info.hostname == b"SA-MP"
+                    && info.hostname == PROFILE_SERVER_HOSTNAME
                     && info.port == 7777
                 {
                     return Ok(());
@@ -2362,9 +2367,14 @@ mod tests {
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
                 PROFILE_CONNECTED_STATE,
-                PROFILE_WAIT_JOIN_STATE
+                PROFILE_SERVER_HOSTNAME
             ),
-            (SampClientSdkClientVersion::R1, 0x31DF13, 14, 15)
+            (
+                SampClientSdkClientVersion::R1,
+                0x31DF13,
+                14,
+                b"SDK R1 loopback probe".as_slice()
+            )
         );
         #[cfg(feature = "r3-probe")]
         assert_eq!(
@@ -2372,9 +2382,14 @@ mod tests {
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
                 PROFILE_CONNECTED_STATE,
-                PROFILE_WAIT_JOIN_STATE
+                PROFILE_SERVER_HOSTNAME
             ),
-            (SampClientSdkClientVersion::R3_1, 0x0CC4D0, 5, 6)
+            (
+                SampClientSdkClientVersion::R3_1,
+                0x0CC4D0,
+                5,
+                b"SDK R3 loopback probe".as_slice()
+            )
         );
         #[cfg(feature = "dl-probe")]
         assert_eq!(
@@ -2382,9 +2397,14 @@ mod tests {
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
                 PROFILE_CONNECTED_STATE,
-                PROFILE_WAIT_JOIN_STATE
+                PROFILE_SERVER_HOSTNAME
             ),
-            (SampClientSdkClientVersion::Dl, 0x0FDB60, 5, 6)
+            (
+                SampClientSdkClientVersion::Dl,
+                0x0FDB60,
+                5,
+                b"SDK DL loopback probe".as_slice()
+            )
         );
         #[cfg(not(any(feature = "r1-probe", feature = "r3-probe", feature = "dl-probe")))]
         assert_eq!(
@@ -2392,9 +2412,14 @@ mod tests {
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
                 PROFILE_CONNECTED_STATE,
-                PROFILE_WAIT_JOIN_STATE
+                PROFILE_SERVER_HOSTNAME
             ),
-            (SampClientSdkClientVersion::R5_1, 0x0CBC90, 5, 6)
+            (
+                SampClientSdkClientVersion::R5_1,
+                0x0CBC90,
+                5,
+                b"SDK R5 loopback probe".as_slice()
+            )
         );
     }
 
