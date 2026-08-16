@@ -65,38 +65,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.object_handle(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.object_handle(id),
-        }
-    }
-
-    pub(super) fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.object_id_by_handle(handle),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.object_id_by_handle(handle)
-            }
-        }
-    }
-
-    pub(super) fn pickup_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.pickup_handle(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.pickup_handle(id),
-        }
-    }
-
-    pub(super) fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.pickup_id_by_handle(handle),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.pickup_id_by_handle(handle)
-            }
-        }
-    }
-
     pub(super) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         match self {
             Self::R1(profile) => profile.vehicle_handle(id),
@@ -415,27 +383,6 @@ impl NativeProfile {
         match self {
             Self::R1(p) => p.textdraw_exists(id),
             Self::R3(p) | Self::R5(p) | Self::Dl(p) => p.textdraw_exists(id),
-        }
-    }
-    pub(super) fn vehicle_exists(self, id: u16) -> Result<bool, DirectClientError> {
-        match self {
-            Self::R1(p) => p.vehicle_exists(id),
-            Self::R3(p) | Self::R5(p) | Self::Dl(p) => p.vehicle_exists(id),
-        }
-    }
-    pub(super) fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
-        match self {
-            Self::R1(p) => p.object_exists(id),
-            Self::R3(p) | Self::R5(p) | Self::Dl(p) => p.object_exists(id),
-        }
-    }
-    pub(super) fn gangzone(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::GangzoneSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(p) => p.gangzone(id),
-            Self::R3(p) | Self::R5(p) | Self::Dl(p) => p.gangzone(id),
         }
     }
     pub(super) fn textdraw(

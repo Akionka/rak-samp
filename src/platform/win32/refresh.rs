@@ -170,7 +170,7 @@ impl BackendState {
         self.raw_vehicle_pool.store(vehicle_pool, Ordering::Release);
     }
 
-    pub(super) fn refresh_vehicle_exists(&self, profile: NativeProfile) {
+    pub(super) fn refresh_vehicle_exists(&self, profile: NativeClientProfile) {
         for id in self.take_vehicle_exists_requests() {
             let Ok(exists) = profile.vehicle_exists(id) else {
                 continue;
@@ -254,7 +254,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_exists(&self, profile: NativeProfile) {
+    pub(super) fn refresh_object_exists(&self, profile: NativeClientProfile) {
         for id in self.take_object_exists_requests() {
             let Ok(exists) = profile.object_exists(id) else {
                 continue;
@@ -268,7 +268,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_gangzones(&self, profile: NativeProfile) {
+    pub(super) fn refresh_gangzones(&self, profile: NativeClientProfile) {
         for id in self.take_gangzone_requests() {
             let Ok(snapshot) = profile.gangzone(id) else {
                 continue;
@@ -282,7 +282,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_handles(&self, profile: NativeProfile) {
+    pub(super) fn refresh_object_handles(&self, profile: NativeClientProfile) {
         for id in self.take_object_handle_requests() {
             let Ok(handle) = profile.object_handle(id) else {
                 continue;
@@ -296,7 +296,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_pickup_handles(&self, profile: NativeProfile) {
+    pub(super) fn refresh_pickup_handles(&self, profile: NativeClientProfile) {
         for id in self.take_pickup_handle_requests() {
             let Ok(handle) = profile.pickup_handle(id) else {
                 continue;
@@ -338,7 +338,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_object_handle_ids(&self, profile: NativeProfile) {
+    pub(super) fn refresh_object_handle_ids(&self, profile: NativeClientProfile) {
         for handle in self.take_object_handle_id_requests() {
             let Ok(id) = profile.object_id_by_handle(handle) else {
                 continue;
@@ -350,7 +350,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_pickup_handle_ids(&self, profile: NativeProfile) {
+    pub(super) fn refresh_pickup_handle_ids(&self, profile: NativeClientProfile) {
         for handle in self.take_pickup_handle_id_requests() {
             let Ok(id) = profile.pickup_id_by_handle(handle) else {
                 continue;

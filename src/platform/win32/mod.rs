@@ -942,6 +942,13 @@ impl BackendState {
             self.refresh_passenger_sync(connection_profile);
             self.refresh_trailer_sync(connection_profile);
             self.refresh_aim_sync(connection_profile);
+            self.refresh_vehicle_exists(connection_profile);
+            self.refresh_object_exists(connection_profile);
+            self.refresh_gangzones(connection_profile);
+            self.refresh_object_handles(connection_profile);
+            self.refresh_pickup_handles(connection_profile);
+            self.refresh_object_handle_ids(connection_profile);
+            self.refresh_pickup_handle_ids(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
@@ -968,15 +975,8 @@ impl BackendState {
         self.refresh_text_labels(profile);
         self.refresh_textdraw_exists(profile);
         self.refresh_textdraws(profile);
-        self.refresh_vehicle_exists(profile);
-        self.refresh_object_exists(profile);
-        self.refresh_gangzones(profile);
-        self.refresh_object_handles(profile);
-        self.refresh_pickup_handles(profile);
         self.refresh_vehicle_handles(profile);
         self.refresh_player_handles(profile);
-        self.refresh_object_handle_ids(profile);
-        self.refresh_pickup_handle_ids(profile);
         self.refresh_vehicle_handle_ids(profile);
         self.refresh_player_handle_ids(profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
