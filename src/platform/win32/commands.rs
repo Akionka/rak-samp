@@ -1232,7 +1232,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetGameState(state) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1241,7 +1241,7 @@ impl BackendState {
                     }),
                 GameCommand::ConnectToServer { address, port } => {
                     let result = self
-                        .scalar_profile()
+                        .connection_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile
@@ -1256,7 +1256,7 @@ impl BackendState {
                 GameCommand::DisconnectWithReason(block_duration) => {
                     let rak_client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
                     let result = self
-                        .scalar_profile()
+                        .connection_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile

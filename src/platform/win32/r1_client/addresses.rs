@@ -18,9 +18,11 @@ pub(super) const SCOREBOARD_SINGLETON_RVA: usize = 0x21A0B4;
 pub(super) const DEATH_WINDOW_SINGLETON_RVA: usize = 0x21A0EC;
 pub(super) const DEATH_WINDOW_ADD_MESSAGE_RVA: usize = 0x66A10;
 pub(super) const NET_GAME_SINGLETON_RVA: usize = 0x21A0F8;
+#[cfg(test)]
 pub(super) const NET_GAME_GET_STATE_RVA: usize = 0x2E20;
 pub(super) const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 pub(super) const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
+#[cfg(test)]
 pub(super) const NET_GAME_SHUTDOWN_FOR_RESTART_RVA: usize = 0xA060;
 pub(super) const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
 pub(super) const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;

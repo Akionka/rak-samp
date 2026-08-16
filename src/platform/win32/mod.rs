@@ -184,6 +184,7 @@ struct BackendContext {
     module_base: usize,
     version: SampVersion,
     addresses: AddressSet,
+    native_client_profile: Option<NativeClientProfile>,
     native_profile: Option<NativeProfile>,
 }
 
@@ -192,6 +193,10 @@ impl BackendContext {
     /// CNetGame scalars on this build.
     fn scalar_profile(&self) -> Option<NativeProfile> {
         self.native_profile
+    }
+
+    fn connection_profile(&self) -> Option<NativeClientProfile> {
+        self.native_client_profile
     }
 }
 
@@ -609,6 +614,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             module_base,
             version,
             addresses,
+            native_client_profile: selected_native_profile,
             native_profile,
         },
         rak_client: AtomicUsize::new(0),
@@ -921,8 +927,10 @@ impl BackendState {
         // Odd generations are in-flight. Readers only observe the next even
         // generation after every cache path below has had one tick to refresh.
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
-        self.refresh_samp_game_state(profile);
-        self.refresh_server_info_snapshot(profile);
+        if let Some(connection_profile) = self.connection_profile() {
+            self.refresh_samp_game_state(connection_profile);
+            self.refresh_server_info_snapshot(connection_profile);
+        }
         self.refresh_local_player_snapshot(profile);
         self.refresh_player_count(profile);
         self.refresh_player_max_id(profile);
@@ -1532,7 +1540,7 @@ fn player_info_from_local(player: &LocalPlayerSnapshot) -> PlayerInfoSnapshot {
     }
 }
 
-fn is_r1_connected_game_state(game_state: i32) -> bool {
+fn is_connected_game_state(game_state: i32) -> bool {
     game_state == R1_CONNECTED_GAME_STATE
 }
 
@@ -1550,10 +1558,10 @@ fn sent_game_command_result(sent: bool) -> Result<(), SendError> {
     sent.then_some(()).ok_or(SendError::NativeCallFailed)
 }
 
-fn crosses_r1_connection_boundary(was_ready: bool, previous: i32, current: i32) -> bool {
+fn crosses_connection_boundary(was_ready: bool, previous: i32, current: i32) -> bool {
     was_ready
         && previous != current
-        && (is_r1_connected_game_state(previous) || is_r1_connected_game_state(current))
+        && (is_connected_game_state(previous) || is_connected_game_state(current))
 }
 
 fn cached_direct_client_value<T>(

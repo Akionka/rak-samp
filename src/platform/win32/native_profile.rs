@@ -11,7 +11,7 @@ use super::{
 };
 use crate::{
     SampVersion,
-    runtime::{DirectClientError, LocalPlayerSnapshot, ServerInfoSnapshot},
+    runtime::{DirectClientError, LocalPlayerSnapshot},
 };
 
 /// A verified direct-native profile selected for the loaded SA-MP build.
@@ -75,31 +75,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn rakpeer_address(
-        self,
-        rakclient: *mut std::ffi::c_void,
-    ) -> Result<*mut std::ffi::c_void, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.rakpeer_address(rakclient),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.rakpeer_address(rakclient)
-            }
-        }
-    }
-
-    pub(super) fn disconnect_with_reason(
-        self,
-        rak_client: *mut std::ffi::c_void,
-        block_duration: u32,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.disconnect_with_reason(rak_client, block_duration),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.disconnect_with_reason(rak_client, block_duration)
-            }
-        }
-    }
-
     pub(super) fn player_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_pool(),
@@ -114,36 +89,6 @@ impl NativeProfile {
         }
     }
 
-    /// Reads the narrow scalar cache surface available on the selected build.
-    pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.game_state(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.game_state(),
-        }
-    }
-
-    pub(super) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_game_state(state),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_game_state(state)
-            }
-        }
-    }
-
-    pub(super) fn connect_to_server(
-        self,
-        address: &[u8],
-        port: u16,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.connect_to_server(address, port),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.connect_to_server(address, port)
-            }
-        }
-    }
-
     pub(super) fn animation_catalog(
         self,
     ) -> Result<Vec<crate::runtime::AnimationSnapshot>, DirectClientError> {
@@ -152,14 +97,6 @@ impl NativeProfile {
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.animation_catalog()
             }
-        }
-    }
-
-    /// Reads copied server metadata from the selected scalar profile.
-    pub(super) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.server_info(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.server_info(),
         }
     }
 

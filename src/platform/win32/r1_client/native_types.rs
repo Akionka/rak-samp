@@ -24,10 +24,7 @@ pub(super) type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) 
 pub(super) type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 pub(super) type DeathWindowAddMessageFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
-pub(super) type NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 pub(super) type NetGameGetPlayerPoolFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-pub(super) type NetGameNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
-pub(super) type RakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void, u32, u8);
 pub(super) type TextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 pub(super) type TextdrawPoolCreateFn =
     unsafe extern "thiscall" fn(*mut c_void, i32, *mut c_void, *const u8) -> *mut c_void;

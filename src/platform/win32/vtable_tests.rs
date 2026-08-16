@@ -131,6 +131,7 @@ fn test_backend_state() -> BackendState {
             module_base: 0,
             version: SampVersion::R1,
             addresses: AddressSet::for_version(SampVersion::R1),
+            native_client_profile: None,
             native_profile: None,
         },
         rak_client: AtomicUsize::new(0),
@@ -1852,12 +1853,12 @@ fn local_snapshot_cache_publishes_only_a_stable_identity() {
 #[test]
 fn r1_connected_state_matches_the_fixed_native_value() {
     assert_eq!(R1_CONNECTED_GAME_STATE, 14);
-    assert!(is_r1_connected_game_state(14));
-    assert!(!is_r1_connected_game_state(13));
-    assert!(!crosses_r1_connection_boundary(false, 0, 14));
-    assert!(crosses_r1_connection_boundary(true, 13, 14));
-    assert!(crosses_r1_connection_boundary(true, 14, 18));
-    assert!(!crosses_r1_connection_boundary(true, 14, 14));
+    assert!(is_connected_game_state(14));
+    assert!(!is_connected_game_state(13));
+    assert!(!crosses_connection_boundary(false, 0, 14));
+    assert!(crosses_connection_boundary(true, 13, 14));
+    assert!(crosses_connection_boundary(true, 14, 18));
+    assert!(!crosses_connection_boundary(true, 14, 14));
 }
 
 #[test]

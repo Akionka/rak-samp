@@ -16,7 +16,7 @@ use crate::runtime::{
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
     OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem, ptr};
 
@@ -27,15 +27,17 @@ const SAMP_R5_1_ENTRY_POINT: u32 = 0x0C_BC_90;
 #[cfg(test)]
 const SAMP_DL_R1_ENTRY_POINT: u32 = 0x0F_DB_60;
 const NET_GAME_SINGLETON_RVA: usize = 0x26_E8_DC;
+#[cfg(test)]
 const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x30;
+#[cfg(test)]
 const NET_GAME_HOSTNAME_OFFSET: usize = 0x131;
+#[cfg(test)]
 const NET_GAME_PORT_OFFSET: usize = 0x235;
+#[cfg(test)]
 const NET_GAME_GAME_STATE_OFFSET: usize = 0x3CD;
-const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
-const NET_GAME_SCALAR_READABLE_SIZE: usize = NET_GAME_GAME_STATE_OFFSET + mem::size_of::<i32>();
+const NET_GAME_SCALAR_READABLE_SIZE: usize = 0x3CD + mem::size_of::<i32>();
 const NET_GAME_GET_PLAYER_POOL_RVA: usize = 0x1160;
 const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
-const NET_GAME_SHUTDOWN_FOR_RESTART_RVA: usize = 0xA1E0;
 const NET_GAME_POOLS_OFFSET: usize = 0x3DE;
 const NET_GAME_POOLS_LABEL_POOL_OFFSET: usize = 0x1C;
 const NET_GAME_POOLS_TEXTDRAW_POOL_OFFSET: usize = 0x20;
@@ -107,8 +109,6 @@ const VEHICLE_POOL_GAME_OBJECTS_OFFSET: usize = 0x4FB4;
 const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 const CPOOLS_GET_PED_REF: usize = 0x54_FF60;
 const CPOOLS_GET_VEHICLE_REF: usize = 0x54_FFC0;
-const RAKPEER_SIZE: usize = 0xDDE;
-const RAK_CLIENT_DISCONNECT_VTABLE_SLOT: usize = 2;
 const MAX_SAMP_TEXT_LABELS: u16 = 2048;
 const MAX_TEXT_LABEL_TEXT_BYTES: usize = 4_095;
 const LABEL_POOL_NOT_EMPTY_OFFSET: usize = 0xE800;
@@ -324,8 +324,6 @@ type TextdrawPoolCreateFn =
 type TextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 type TextdrawSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const u8);
 type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-type NetGameNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
-type RakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void, u32, u8);
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -583,116 +581,6 @@ impl ClassicClientProfile {
         self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630, 0x700D0)
     }
 
-    /// Returns the R3 RakPeer base proved by the R3 RakClient constructor.
-    pub(super) fn rakpeer_address(
-        self,
-        rakclient: *mut c_void,
-    ) -> Result<*mut c_void, DirectClientError> {
-        let peer = (rakclient as usize)
-            .checked_sub(RAKPEER_SIZE)
-            .ok_or(DirectClientError::NotReady)? as *mut c_void;
-        if peer.is_null() || !readable_range(peer.cast(), RAKPEER_SIZE + 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        Ok(peer)
-    }
-
-    /// Captures the R3-1 CNetGame state with a guarded scalar read.
-    pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let field = (net_game as usize)
-            .checked_add(NET_GAME_GAME_STATE_OFFSET)
-            .ok_or(DirectClientError::NotReady)?;
-        unsafe { read_unaligned::<i32>(field) }.ok_or(DirectClientError::NotReady)
-    }
-
-    pub(super) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
-        let native_state = match state {
-            0 => 0,
-            9 => 1,
-            13 => 2,
-            14 => 5,
-            15 => 6,
-            18 => 11,
-            _ => return Err(DirectClientError::NotReady),
-        };
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let field = (net_game as *mut u8)
-            .wrapping_add(NET_GAME_GAME_STATE_OFFSET)
-            .cast::<i32>();
-        if !writable_range(field.cast(), mem::size_of::<i32>()) {
-            return Err(DirectClientError::NotReady);
-        }
-        unsafe { ptr::write_unaligned(field, native_state) };
-        Ok(())
-    }
-
-    pub(super) fn connect_to_server(
-        self,
-        address: &[u8],
-        port: u16,
-    ) -> Result<(), DirectClientError> {
-        if address.is_empty()
-            || address.len() >= NET_GAME_HOST_STRING_CAPACITY
-            || address.contains(&0)
-            || port == 0
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let host_address = (net_game as *mut u8).wrapping_add(NET_GAME_HOST_ADDRESS_OFFSET);
-        let port_field = (net_game as *mut u8)
-            .wrapping_add(NET_GAME_PORT_OFFSET)
-            .cast::<i32>();
-        if !writable_range(host_address, NET_GAME_HOST_STRING_CAPACITY)
-            || !writable_range(port_field.cast(), mem::size_of::<i32>())
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        unsafe {
-            ptr::write_bytes(host_address, 0, NET_GAME_HOST_STRING_CAPACITY);
-            ptr::copy_nonoverlapping(address.as_ptr(), host_address, address.len());
-            ptr::write_unaligned(port_field, i32::from(port));
-        }
-        self.set_game_state(9)
-    }
-
-    /// Executes the R3 RakClient disconnect virtual followed by CNetGame's
-    /// R3 restart shutdown routine on the game thread.
-    pub(super) fn disconnect_with_reason(
-        self,
-        rak_client: *mut c_void,
-        block_duration: u32,
-    ) -> Result<(), DirectClientError> {
-        if rak_client.is_null() {
-            return Err(DirectClientError::NotReady);
-        }
-        let vtable = unsafe { read_pointer(rak_client as usize) }
-            .filter(|vtable| !vtable.is_null())
-            .ok_or(DirectClientError::NotReady)?;
-        let offset = RAK_CLIENT_DISCONNECT_VTABLE_SLOT * mem::size_of::<usize>();
-        if !readable_range(vtable, offset + mem::size_of::<usize>()) {
-            return Err(DirectClientError::NotReady);
-        }
-        let address = unsafe { read_pointer(vtable as usize + offset) }
-            .filter(|address| !address.is_null())
-            .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(address, 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let disconnect: RakClientDisconnectFn = unsafe { mem::transmute(address) };
-        unsafe { disconnect(rak_client, block_duration, 0) };
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let shutdown: NetGameNoArgFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(NET_GAME_SHUTDOWN_FOR_RESTART_RVA, 0xA540, 0xA230),
-            )
-        };
-        unsafe { shutdown(net_game) };
-        Ok(())
-    }
-
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
         let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8, 0x1419D0);
         (0..ANIMATION_TABLE_ENTRY_COUNT)
@@ -709,41 +597,6 @@ impl ClassicClientProfile {
                 parse_animation_entry(bytes)
             })
             .collect()
-    }
-
-    /// Captures copied R3-1 server metadata from the guarded CNetGame fields.
-    pub(super) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let address = unsafe {
-            bounded_c_string(
-                net_game
-                    .cast::<u8>()
-                    .wrapping_add(NET_GAME_HOST_ADDRESS_OFFSET),
-                NET_GAME_HOST_STRING_CAPACITY,
-            )
-        }
-        .filter(|address| !address.is_empty())
-        .ok_or(DirectClientError::NotReady)?;
-        let hostname = unsafe {
-            bounded_c_string(
-                net_game.cast::<u8>().wrapping_add(NET_GAME_HOSTNAME_OFFSET),
-                NET_GAME_HOST_STRING_CAPACITY,
-            )
-        }
-        .filter(|hostname| !hostname.is_empty())
-        .ok_or(DirectClientError::NotReady)?;
-        let port_field = (net_game as usize)
-            .checked_add(NET_GAME_PORT_OFFSET)
-            .ok_or(DirectClientError::NotReady)?;
-        let port = unsafe { read_unaligned::<i32>(port_field) }
-            .and_then(|port| u16::try_from(port).ok())
-            .filter(|port| *port != 0)
-            .ok_or(DirectClientError::NotReady)?;
-        Ok(ServerInfoSnapshot {
-            address,
-            hostname,
-            port,
-        })
     }
 
     /// Copies the verified R3-1 local-player cache surface on the game thread.
@@ -3674,6 +3527,10 @@ fn copy_aim_sync(id: u16, address: usize) -> Result<AimSyncSnapshot, DirectClien
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        SampVersion, platform::win32::native_client::profile::NativeClientProfile,
+        runtime::ServerInfoSnapshot,
+    };
     use std::ptr;
 
     #[test]
@@ -3706,9 +3563,11 @@ mod tests {
         net_game[NET_GAME_HOSTNAME_OFFSET..NET_GAME_HOSTNAME_OFFSET + 8]
             .copy_from_slice(b"R3 probe");
 
-        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile =
+            NativeClientProfile::select(module_base, SampVersion::R3_1, SAMP_R3_1_ENTRY_POINT)
+                .unwrap();
 
-        assert_eq!(profile.game_state(), Ok(6));
+        assert_eq!(profile.game_state(), Ok(15));
         assert_eq!(
             profile.server_info(),
             Ok(ServerInfoSnapshot {
@@ -3720,7 +3579,7 @@ mod tests {
     }
 
     #[test]
-    fn maps_public_r1_game_states_to_r3_native_values() {
+    fn maps_public_game_states_to_r3_native_values() {
         let mut module = vec![0_u8; NET_GAME_SINGLETON_RVA + std::mem::size_of::<usize>()];
         let mut net_game = vec![0_u8; NET_GAME_GAME_STATE_OFFSET + std::mem::size_of::<i32>()];
         let module_base = module.as_mut_ptr() as usize;
@@ -3734,11 +3593,19 @@ mod tests {
                 net_game_pointer as usize,
             );
         }
-        let profile = ClassicClientProfile::verify(module_base, SAMP_R3_1_ENTRY_POINT).unwrap();
+        let profile =
+            NativeClientProfile::select(module_base, SampVersion::R3_1, SAMP_R3_1_ENTRY_POINT)
+                .unwrap();
 
         for (public, native) in [(0, 0), (9, 1), (13, 2), (14, 5), (15, 6), (18, 11)] {
             profile.set_game_state(public).unwrap();
-            assert_eq!(profile.game_state(), Ok(native));
+            assert_eq!(
+                unsafe {
+                    read_unaligned::<i32>(net_game_pointer as usize + NET_GAME_GAME_STATE_OFFSET)
+                },
+                Some(native)
+            );
+            assert_eq!(profile.game_state(), Ok(public));
         }
         assert_eq!(profile.set_game_state(1), Err(DirectClientError::NotReady));
     }

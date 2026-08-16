@@ -19,7 +19,7 @@ use crate::runtime::{
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
     OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-    ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use addresses::*;
 use memory::*;
@@ -86,20 +86,6 @@ impl R1ClientProfile {
         Ok(local)
     }
 
-    /// Returns the R1 RakPeer base underlying a captured RakClient interface.
-    pub(super) fn rakpeer_address(
-        self,
-        rakclient: *mut c_void,
-    ) -> Result<*mut c_void, DirectClientError> {
-        let peer = (rakclient as usize)
-            .checked_sub(RAKPEER_SIZE)
-            .ok_or(DirectClientError::NotReady)? as *mut c_void;
-        if !readable_range(peer.cast(), RAKPEER_SIZE + 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        Ok(peer)
-    }
-
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
         let table = self.module_base + ANIMATION_TABLE_RVA;
         let length = ANIMATION_TABLE_ENTRY_COUNT * ANIMATION_TABLE_ENTRY_SIZE;
@@ -115,101 +101,6 @@ impl R1ClientProfile {
 
     pub(super) fn death_window_is_ready(self) -> bool {
         self.death_window().is_some()
-    }
-
-    pub(super) fn game_state(self) -> Result<i32, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let get_state: NetGameGetStateFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_GET_STATE_RVA) };
-        Ok(unsafe { get_state(net_game) })
-    }
-
-    /// Writes one established R1 CNetGame state from the game-thread command
-    /// pump after checking the fixed-layout scalar is writable.
-    pub(super) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
-        if !is_r1_game_state(state) {
-            return Err(DirectClientError::NotReady);
-        }
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let field = unsafe {
-            (net_game as *mut u8)
-                .add(NET_GAME_GAME_STATE_OFFSET)
-                .cast::<i32>()
-        };
-        if !writable_range(field.cast(), mem::size_of::<i32>()) {
-            return Err(DirectClientError::NotReady);
-        }
-        unsafe { ptr::write_unaligned(field, state) };
-        Ok(())
-    }
-
-    /// Starts the documented R1 reconnect sequence after copying a bounded
-    /// server address and port into the validated CNetGame fields.
-    pub(super) fn connect_to_server(
-        self,
-        address: &[u8],
-        port: u16,
-    ) -> Result<(), DirectClientError> {
-        if address.is_empty()
-            || address.len() >= NET_GAME_HOST_STRING_CAPACITY
-            || address.contains(&0)
-            || port == 0
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let host_address = unsafe { (net_game as *mut u8).add(NET_GAME_HOST_ADDRESS_OFFSET) };
-        let port_field = unsafe {
-            (net_game as *mut u8)
-                .add(NET_GAME_PORT_OFFSET)
-                .cast::<i32>()
-        };
-        if !writable_range(host_address, NET_GAME_HOST_STRING_CAPACITY)
-            || !writable_range(port_field.cast(), mem::size_of::<i32>())
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        unsafe {
-            ptr::write_bytes(host_address, 0, NET_GAME_HOST_STRING_CAPACITY);
-            ptr::copy_nonoverlapping(address.as_ptr(), host_address, address.len());
-            ptr::write_unaligned(port_field, i32::from(port));
-        }
-        self.set_game_state(9)
-    }
-
-    /// Executes SF.lua's R1 disconnect sequence against the captured RakClient
-    /// interface, then lets CNetGame reset its state for a later connection.
-    pub(super) fn disconnect_with_reason(
-        self,
-        rak_client: *mut c_void,
-        block_duration: u32,
-    ) -> Result<(), DirectClientError> {
-        if rak_client.is_null() {
-            return Err(DirectClientError::NotReady);
-        }
-        let vtable =
-            unsafe { read_pointer(rak_client as usize) }.ok_or(DirectClientError::NotReady)?;
-        let disconnect_offset = RAK_CLIENT_DISCONNECT_VTABLE_SLOT
-            .checked_mul(mem::size_of::<usize>())
-            .ok_or(DirectClientError::NotReady)?;
-        if vtable.is_null() || !readable_range(vtable, disconnect_offset + mem::size_of::<usize>())
-        {
-            return Err(DirectClientError::NotReady);
-        }
-        let disconnect_address = unsafe { read_pointer(vtable as usize + disconnect_offset) }
-            .filter(|address| !address.is_null())
-            .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(disconnect_address, 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let disconnect: RakClientDisconnectFn = unsafe { mem::transmute(disconnect_address) };
-        unsafe { disconnect(rak_client, block_duration, 0) };
-
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let shutdown: NetGameNoArgFn =
-            unsafe { mem::transmute(self.module_base + NET_GAME_SHUTDOWN_FOR_RESTART_RVA) };
-        unsafe { shutdown(net_game) };
-        Ok(())
     }
 
     /// Invokes R1 `SCLocalPlayer::SetSpecialAction` on the game thread.
@@ -457,36 +348,6 @@ impl R1ClientProfile {
         Ok(())
     }
 
-    pub(super) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
-        let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
-        let address = unsafe {
-            bounded_c_string(
-                net_game
-                    .cast::<u8>()
-                    .wrapping_add(NET_GAME_HOST_ADDRESS_OFFSET),
-                NET_GAME_HOST_STRING_CAPACITY,
-            )
-        }
-        .filter(|address| !address.is_empty())
-        .ok_or(DirectClientError::NotReady)?;
-        let hostname = unsafe {
-            bounded_c_string(
-                net_game.cast::<u8>().wrapping_add(NET_GAME_HOSTNAME_OFFSET),
-                NET_GAME_HOST_STRING_CAPACITY,
-            )
-        }
-        .ok_or(DirectClientError::NotReady)?;
-        let port = unsafe { read_unaligned::<i32>(net_game as usize + NET_GAME_PORT_OFFSET) }
-            .and_then(|port| u16::try_from(port).ok())
-            .filter(|port| *port != 0)
-            .ok_or(DirectClientError::NotReady)?;
-        Ok(ServerInfoSnapshot {
-            address,
-            hostname,
-            port,
-        })
-    }
-
     fn net_game(self) -> Option<*mut c_void> {
         let net_game: *mut c_void =
             unsafe { read_pointer(self.module_base + NET_GAME_SINGLETON_RVA) }?.cast();
@@ -503,10 +364,6 @@ impl R1ClientProfile {
 
 fn assigned_player_id(id: u16) -> Option<u16> {
     (id != INVALID_ID).then_some(id)
-}
-
-const fn is_r1_game_state(state: i32) -> bool {
-    matches!(state, 0 | 9 | 13 | 14 | 15 | 18)
 }
 
 fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {

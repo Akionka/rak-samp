@@ -18,7 +18,6 @@ pub(super) const CHAT_ENTRY_TEXT_CAPACITY: usize = 144;
 pub(super) const CHAT_ENTRY_TEXT_COLOUR_OFFSET: usize = 0xF4;
 pub(super) const CHAT_ENTRY_PREFIX_COLOUR_OFFSET: usize = 0xF8;
 pub(super) const MAX_CHAT_ENTRIES: u16 = 100;
-pub(super) const RAKPEER_SIZE: usize = 0xDDE;
 pub(super) const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
 pub(super) const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 pub(super) const MAX_SAMP_PLAYERS: u16 = 1004;
@@ -141,15 +140,17 @@ pub(super) const AIM_ASPECT_RATIO_OFFSET: usize = 0x1E;
 // These packed CNetGame fields are cross-checked by the independently written
 // fixture. `GetGameState`'s signed R1 target reads offset 0x3BD from this same
 // layout, which anchors the packed field sequence.
+#[cfg(test)]
 pub(super) const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x20;
+#[cfg(test)]
 pub(super) const NET_GAME_HOSTNAME_OFFSET: usize = 0x121;
+#[cfg(test)]
 pub(super) const NET_GAME_PORT_OFFSET: usize = 0x225;
+#[cfg(test)]
 pub(super) const NET_GAME_GAME_STATE_OFFSET: usize = 0x3BD;
 #[cfg(test)]
 pub(super) const NET_GAME_SERVER_SETTINGS_OFFSET: usize = 0x3C5;
 pub(super) const NET_GAME_POOLS_PICKUP_POOL_OFFSET: usize = 0x20;
-pub(super) const NET_GAME_HOST_STRING_CAPACITY: usize = 257;
-pub(super) const RAK_CLIENT_DISCONNECT_VTABLE_SLOT: usize = 2;
 pub(super) const SCOREBOARD_ENABLED_OFFSET: usize = 0x00;
 pub(super) const GAME_CURSOR_MODE_OFFSET: usize = 0x55;
 pub(super) const DIALOG_ACTIVE_OFFSET: usize = 0x28;

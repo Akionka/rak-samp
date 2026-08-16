@@ -6,7 +6,7 @@ impl BackendState {
     pub(super) fn refresh_local_player_snapshot(&self, profile: NativeProfile) {
         let snapshot = profile.local_player_cache_snapshot(
             self.samp_game_state_ready.load(Ordering::Acquire)
-                && is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire)),
+                && is_connected_game_state(self.samp_game_state.load(Ordering::Acquire)),
         );
         self.raw_local_player
             .store(snapshot.raw_r1_address, Ordering::Release);
@@ -380,19 +380,19 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_server_info_snapshot(&self, profile: NativeProfile) {
+    pub(super) fn refresh_server_info_snapshot(&self, profile: NativeClientProfile) {
         let Ok(mut cached) = self.server_info_snapshot.try_lock() else {
             return;
         };
         *cached = profile.server_info().ok();
     }
 
-    pub(super) fn refresh_samp_game_state(&self, profile: NativeProfile) {
+    pub(super) fn refresh_samp_game_state(&self, profile: NativeClientProfile) {
         match profile.game_state() {
             Ok(game_state) => {
                 let previous = self.samp_game_state.swap(game_state, Ordering::AcqRel);
                 let was_ready = self.samp_game_state_ready.swap(true, Ordering::AcqRel);
-                if crosses_r1_connection_boundary(was_ready, previous, game_state) {
+                if crosses_connection_boundary(was_ready, previous, game_state) {
                     self.invalidate_connection_state();
                 }
             }
