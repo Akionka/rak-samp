@@ -102,6 +102,28 @@ fn shared_refresh_helpers_accept_every_native_profile() {
     }
 }
 
+#[test]
+fn game_tick_uses_one_generation_bracket_for_every_native_profile() {
+    let profiles = [
+        r1_native_profile().expect("R1 must select its verified native profile"),
+        r3_scalar_profile().expect("R3 must select its verified native profile"),
+        NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
+            .expect("R5 must select its verified native profile"),
+        NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+            .expect("DL must select its verified native profile"),
+    ];
+
+    for profile in profiles {
+        let mut state = test_backend_state();
+        state.context.native_profile = Some(profile);
+        state.cache_generation.store(2, Ordering::Release);
+
+        state.pump_game_tick(Vec::new());
+
+        assert_eq!(state.cache_generation.load(Ordering::Acquire), 4);
+    }
+}
+
 fn test_backend_state() -> BackendState {
     BackendState {
         context: BackendContext {

@@ -55,16 +55,6 @@ impl NativeProfile {
         }
     }
 
-    /// Returns the R1 fixed-layout implementation when it is the selected
-    /// profile. Existing direct helpers remain R1-specific until their build
-    /// alternatives have been independently proven.
-    pub(super) const fn as_r1(self) -> Option<R1ClientProfile> {
-        match self {
-            Self::R1(profile) => Some(profile),
-            Self::R3(_) | Self::R5(_) | Self::Dl(_) => None,
-        }
-    }
-
     pub(super) const fn dialog_close_target(self) -> usize {
         match self {
             Self::R1(profile) => profile.dialog_close_target(),

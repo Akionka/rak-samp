@@ -44,7 +44,6 @@ use hooks::{HookStorage, InlineHook, VtableHook};
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
 use native_profile::NativeProfile;
-use r1_client::R1ClientProfile;
 use std::{
     collections::{HashMap, VecDeque},
     ffi::c_void,
@@ -182,13 +181,6 @@ struct BackendContext {
 }
 
 impl BackendContext {
-    /// Extracts the existing R1 implementation from the version-selected
-    /// native-profile boundary. This keeps every fixed R1 layout call gated
-    /// until the corresponding build-specific implementation exists.
-    fn r1_client(&self) -> Option<R1ClientProfile> {
-        self.native_profile.and_then(NativeProfile::as_r1)
-    }
-
     /// Returns the narrow fixed-layout profile permitted to publish cached
     /// CNetGame scalars on this build.
     fn scalar_profile(&self) -> Option<NativeProfile> {
@@ -924,99 +916,51 @@ impl BackendState {
     /// is running remain owned by the following tick.
     fn pump_game_tick(&self, commands: Vec<QueuedCommand<GameCommand>>) {
         self.execute_game_commands(commands);
-        let Some(scalar_profile) = self.scalar_profile() else {
+        let Some(profile) = self.scalar_profile() else {
             return;
         };
         // Odd generations are in-flight. Readers only observe the next even
         // generation after every cache path below has had one tick to refresh.
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
-        self.refresh_samp_game_state(scalar_profile);
-        self.refresh_server_info_snapshot(scalar_profile);
-        if matches!(
-            scalar_profile,
-            NativeProfile::R3(_) | NativeProfile::R5(_) | NativeProfile::Dl(_)
-        ) {
-            self.refresh_local_player_snapshot(scalar_profile);
-            self.refresh_player_count(scalar_profile);
-            self.refresh_player_max_id(scalar_profile);
-            self.refresh_player_info(scalar_profile);
-            self.refresh_remote_player_state(scalar_profile);
-            self.refresh_streamed_out_player_position(scalar_profile);
-            self.refresh_onfoot_sync(scalar_profile);
-            self.refresh_incar_sync(scalar_profile);
-            self.refresh_passenger_sync(scalar_profile);
-            self.refresh_trailer_sync(scalar_profile);
-            self.refresh_aim_sync(scalar_profile);
-            self.refresh_local_chat_display_mode(scalar_profile);
-            self.refresh_local_cursor_mode(scalar_profile);
-            self.refresh_local_scoreboard_open(scalar_profile);
-            self.refresh_local_dialog_active(scalar_profile);
-            self.refresh_local_dialog_state(scalar_profile);
-            self.refresh_local_chat_input_active(scalar_profile);
-            self.refresh_local_chat_input_text(scalar_profile);
-            self.refresh_local_chat_input_commands(scalar_profile);
-            self.refresh_animation_catalog(scalar_profile);
-            self.refresh_raw_pool_addresses(scalar_profile);
-            self.refresh_chat_entries(scalar_profile);
-            self.refresh_text_label_exists(scalar_profile);
-            self.refresh_text_labels(scalar_profile);
-            self.refresh_textdraw_exists(scalar_profile);
-            self.refresh_textdraws(scalar_profile);
-            self.refresh_vehicle_exists(scalar_profile);
-            self.refresh_object_exists(scalar_profile);
-            self.refresh_gangzones(scalar_profile);
-            self.refresh_object_handles(scalar_profile);
-            self.refresh_pickup_handles(scalar_profile);
-            self.refresh_vehicle_handles(scalar_profile);
-            self.refresh_player_handles(scalar_profile);
-            self.refresh_object_handle_ids(scalar_profile);
-            self.refresh_pickup_handle_ids(scalar_profile);
-            self.refresh_vehicle_handle_ids(scalar_profile);
-            self.refresh_player_handle_ids(scalar_profile);
-            self.cache_generation.fetch_add(1, Ordering::Release);
-            return;
-        }
-        let Some(_) = self.r1_client() else {
-            self.cache_generation.fetch_add(1, Ordering::Release);
-            return;
-        };
-        self.refresh_raw_pool_addresses(scalar_profile);
-        self.refresh_local_chat_display_mode(scalar_profile);
-        self.refresh_local_cursor_mode(scalar_profile);
-        self.refresh_local_scoreboard_open(scalar_profile);
-        self.refresh_local_dialog_active(scalar_profile);
-        self.refresh_local_dialog_state(scalar_profile);
-        self.refresh_local_chat_input_active(scalar_profile);
-        self.refresh_local_chat_input_text(scalar_profile);
-        self.refresh_local_chat_input_commands(scalar_profile);
-        self.refresh_animation_catalog(scalar_profile);
-        self.refresh_local_player_snapshot(scalar_profile);
-        self.refresh_player_info(scalar_profile);
-        self.refresh_remote_player_state(scalar_profile);
-        self.refresh_streamed_out_player_position(scalar_profile);
-        self.refresh_onfoot_sync(scalar_profile);
-        self.refresh_incar_sync(scalar_profile);
-        self.refresh_passenger_sync(scalar_profile);
-        self.refresh_trailer_sync(scalar_profile);
-        self.refresh_aim_sync(scalar_profile);
-        self.refresh_player_count(scalar_profile);
-        self.refresh_player_max_id(scalar_profile);
-        self.refresh_vehicle_exists(scalar_profile);
-        self.refresh_text_label_exists(scalar_profile);
-        self.refresh_text_labels(scalar_profile);
-        self.refresh_textdraw_exists(scalar_profile);
-        self.refresh_textdraws(scalar_profile);
-        self.refresh_chat_entries(scalar_profile);
-        self.refresh_object_exists(scalar_profile);
-        self.refresh_gangzones(scalar_profile);
-        self.refresh_object_handles(scalar_profile);
-        self.refresh_pickup_handles(scalar_profile);
-        self.refresh_vehicle_handles(scalar_profile);
-        self.refresh_player_handles(scalar_profile);
-        self.refresh_object_handle_ids(scalar_profile);
-        self.refresh_pickup_handle_ids(scalar_profile);
-        self.refresh_vehicle_handle_ids(scalar_profile);
-        self.refresh_player_handle_ids(scalar_profile);
+        self.refresh_samp_game_state(profile);
+        self.refresh_server_info_snapshot(profile);
+        self.refresh_local_player_snapshot(profile);
+        self.refresh_player_count(profile);
+        self.refresh_player_max_id(profile);
+        self.refresh_player_info(profile);
+        self.refresh_remote_player_state(profile);
+        self.refresh_streamed_out_player_position(profile);
+        self.refresh_onfoot_sync(profile);
+        self.refresh_incar_sync(profile);
+        self.refresh_passenger_sync(profile);
+        self.refresh_trailer_sync(profile);
+        self.refresh_aim_sync(profile);
+        self.refresh_local_chat_display_mode(profile);
+        self.refresh_local_cursor_mode(profile);
+        self.refresh_local_scoreboard_open(profile);
+        self.refresh_local_dialog_active(profile);
+        self.refresh_local_dialog_state(profile);
+        self.refresh_local_chat_input_active(profile);
+        self.refresh_local_chat_input_text(profile);
+        self.refresh_local_chat_input_commands(profile);
+        self.refresh_animation_catalog(profile);
+        self.refresh_raw_pool_addresses(profile);
+        self.refresh_chat_entries(profile);
+        self.refresh_text_label_exists(profile);
+        self.refresh_text_labels(profile);
+        self.refresh_textdraw_exists(profile);
+        self.refresh_textdraws(profile);
+        self.refresh_vehicle_exists(profile);
+        self.refresh_object_exists(profile);
+        self.refresh_gangzones(profile);
+        self.refresh_object_handles(profile);
+        self.refresh_pickup_handles(profile);
+        self.refresh_vehicle_handles(profile);
+        self.refresh_player_handles(profile);
+        self.refresh_object_handle_ids(profile);
+        self.refresh_pickup_handle_ids(profile);
+        self.refresh_vehicle_handle_ids(profile);
+        self.refresh_player_handle_ids(profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
     }
 
