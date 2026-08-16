@@ -927,7 +927,7 @@ impl BackendState {
     pub(super) fn submit_force_unoccupied_sync(
         &self,
         vehicle: u16,
-        seat: i32,
+        seat: u8,
     ) -> Result<CommandId, DirectClientError> {
         if self.scalar_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
@@ -1529,7 +1529,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceUnoccupiedSync { vehicle, seat } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1537,7 +1537,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceAimSync => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1545,7 +1545,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceOnfootSync => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1553,7 +1553,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceStatsSync => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1561,7 +1561,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceTrailerSync { trailer } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1569,7 +1569,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceVehicleSync { vehicle } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1577,7 +1577,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForcePassengerSync { vehicle, seat } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1585,7 +1585,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ForceWeaponsSync => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1601,7 +1601,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetSendRate { kind, milliseconds } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile

@@ -1,5 +1,7 @@
 //! Fixed R1 native layouts and R1-specific helper wrappers.
 
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
+
 use crate::runtime::{DirectClientError, Vector3};
 #[cfg(test)]
 use std::ffi::c_void;

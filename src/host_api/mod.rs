@@ -419,7 +419,7 @@ unsafe extern "system" fn submit_samp_game_state(
 
 unsafe extern "system" fn submit_force_unoccupied_sync(
     vehicle: u16,
-    seat: i32,
+    seat: u8,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
     if receipt.is_null() || vehicle >= MAX_SAMP_VEHICLES {

@@ -211,10 +211,11 @@ the relevant layout/spec. Do not assume all fields share one representation.
 
 ### Force-sync behavior
 
-R1 clears `last_any_update` and writes records using R1 layouts before native
-send calls. R3/R5/DL use profile-dependent layouts and reset logic. Keep one
-shared force-sync flow parameterized by `SyncSpec` and an explicit reset
-strategy.
+Every profile clears `last_any_update` and writes records through its selected
+layout before the native send call. Keep one shared force-sync flow
+parameterized by `SyncSpec` and an explicit reset strategy. The public
+unoccupied-sync seat contract is `u8` for every profile; native calls receive
+that value widened to their `i32` ABI parameter.
 
 ### Dialog list-item layout
 
@@ -594,17 +595,17 @@ Evidence/commits: `24988d8` (`refactor(native-client): share player pool scalars
 
 ### 11. Sync records and force-send operations
 
-- [ ] Migrate on-foot sync reads.
-- [ ] Migrate in-car sync reads.
-- [ ] Migrate passenger sync reads.
-- [ ] Migrate trailer sync reads.
-- [ ] Migrate aim sync reads.
-- [ ] Migrate last-update reset logic through `SyncSpec`.
-- [ ] Migrate every force-send operation.
-- [ ] Add exact-layout and mutation tests for every profile.
-- [ ] Remove superseded sync implementations.
+- [x] Migrate on-foot sync reads.
+- [x] Migrate in-car sync reads.
+- [x] Migrate passenger sync reads.
+- [x] Migrate trailer sync reads.
+- [x] Migrate aim sync reads.
+- [x] Migrate last-update reset logic through `SyncSpec`.
+- [x] Migrate every force-send operation.
+- [x] Add exact-layout and mutation tests for every profile.
+- [x] Remove superseded sync runtime dispatch implementations.
 
-Evidence/commit: _pending_
+Evidence/commit: `24848ad` (`feat(native-client): share sync operations`); `cargo clippy --workspace -- -D warnings` and `cargo test -p samp-client-sdk-host --lib` (192 passed).
 
 ### 12. Handles and entity pools
 

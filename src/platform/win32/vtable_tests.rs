@@ -71,7 +71,7 @@ fn shared_refresh_helpers_accept_every_native_profile() {
         ),
     ];
 
-    for (profile, native_client) in profiles {
+    for (_profile, native_client) in profiles {
         let state = test_backend_state();
         state.raw_local_player.store(1, Ordering::Release);
         state.player_info_requests.lock().unwrap().push_back(7);
@@ -95,11 +95,11 @@ fn shared_refresh_helpers_accept_every_native_profile() {
         state.refresh_player_info(native_client);
         state.refresh_remote_player_state(native_client);
         state.refresh_streamed_out_player_position(native_client);
-        state.refresh_onfoot_sync(profile);
-        state.refresh_incar_sync(profile);
-        state.refresh_passenger_sync(profile);
-        state.refresh_trailer_sync(profile);
-        state.refresh_aim_sync(profile);
+        state.refresh_onfoot_sync(native_client);
+        state.refresh_incar_sync(native_client);
+        state.refresh_passenger_sync(native_client);
+        state.refresh_trailer_sync(native_client);
+        state.refresh_aim_sync(native_client);
 
         assert_eq!(state.raw_local_player.load(Ordering::Acquire), 0);
         assert!(state.player_info_requests.lock().unwrap().is_empty());

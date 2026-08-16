@@ -1328,7 +1328,7 @@ unsafe extern "system" fn test_submit_local_player_name(
 
 unsafe extern "system" fn test_submit_force_unoccupied_sync(
     vehicle: u16,
-    _seat: i32,
+    _seat: u8,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
     if vehicle >= crate::limits::MAX_SAMP_VEHICLES {

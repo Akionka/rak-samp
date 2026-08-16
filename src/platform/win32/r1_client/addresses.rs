@@ -1,5 +1,7 @@
 //! Approved SA-MP 0.3.7 R1 and GTA:SA 1.0 US native addresses.
 
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
+
 pub(super) const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 pub(super) const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 pub(super) const DIALOG_CLOSE_RVA: usize = 0x6C040;

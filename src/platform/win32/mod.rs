@@ -541,7 +541,7 @@ enum GameCommand {
     SetLocalPlayerName(Vec<u8>),
     ForceUnoccupiedSync {
         vehicle: u16,
-        seat: i32,
+        seat: u8,
     },
     ForceAimSync,
     ForceOnfootSync,
@@ -937,6 +937,11 @@ impl BackendState {
             self.refresh_player_info(connection_profile);
             self.refresh_remote_player_state(connection_profile);
             self.refresh_streamed_out_player_position(connection_profile);
+            self.refresh_onfoot_sync(connection_profile);
+            self.refresh_incar_sync(connection_profile);
+            self.refresh_passenger_sync(connection_profile);
+            self.refresh_trailer_sync(connection_profile);
+            self.refresh_aim_sync(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
@@ -946,11 +951,6 @@ impl BackendState {
             self.player_count_ready.store(false, Ordering::Release);
             self.player_max_id_ready.store(false, Ordering::Release);
         }
-        self.refresh_onfoot_sync(profile);
-        self.refresh_incar_sync(profile);
-        self.refresh_passenger_sync(profile);
-        self.refresh_trailer_sync(profile);
-        self.refresh_aim_sync(profile);
         self.refresh_local_chat_display_mode(profile);
         self.refresh_local_cursor_mode(profile);
         self.refresh_local_scoreboard_open(profile);

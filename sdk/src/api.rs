@@ -265,11 +265,11 @@ impl HostApi {
         self.command_receipt(result, receipt)
     }
 
-    /// Queues one documented R1 unoccupied-vehicle synchronization send.
+    /// Queues one verified unoccupied-vehicle synchronization send.
     pub fn submit_force_unoccupied_sync(
         self,
         vehicle: u16,
-        seat: i32,
+        seat: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         let mut receipt = SampClientSdkCommandReceipt::default();
         let result =

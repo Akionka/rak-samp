@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
+
 use super::memory::NativeVector3;
 use std::ffi::c_void;
 

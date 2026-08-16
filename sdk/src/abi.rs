@@ -998,12 +998,9 @@ pub struct SampClientSdkApiV1 {
         usize,
         *mut SampClientSdkCommandReceipt,
     ) -> SampClientSdkResult,
-    /// Queues one documented R1 unoccupied-vehicle synchronization send.
-    pub submit_force_unoccupied_sync: unsafe extern "system" fn(
-        u16,
-        i32,
-        *mut SampClientSdkCommandReceipt,
-    ) -> SampClientSdkResult,
+    /// Queues one verified unoccupied-vehicle synchronization send.
+    pub submit_force_unoccupied_sync:
+        unsafe extern "system" fn(u16, u8, *mut SampClientSdkCommandReceipt) -> SampClientSdkResult,
     /// Queues the documented R1 aim synchronization send.
     pub submit_force_aim_sync:
         unsafe extern "system" fn(*mut SampClientSdkCommandReceipt) -> SampClientSdkResult,

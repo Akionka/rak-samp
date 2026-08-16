@@ -895,7 +895,7 @@ impl Runtime {
     pub(crate) fn submit_force_unoccupied_sync(
         &self,
         vehicle: u16,
-        seat: i32,
+        seat: u8,
     ) -> Result<CommandId, DirectClientError> {
         self.backend.submit_force_unoccupied_sync(vehicle, seat)
     }

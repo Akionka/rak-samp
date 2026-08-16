@@ -2,6 +2,8 @@
 //!
 //! The profile exposes only copied snapshots and native calls whose object
 //! prefixes, method ABI, and fixed RVAs have all been pinned for each build. Raw
+
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
 //! singleton access and every unverified pool family remain unavailable.
 
 use super::{

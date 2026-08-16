@@ -4,6 +4,8 @@
 //! are supported across several clients, while these object layouts and native
 //! calls use approved fixed R1 offsets and validate native values at each access.
 
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
+
 mod addresses;
 mod handles;
 pub(crate) mod memory;

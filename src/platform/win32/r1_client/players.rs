@@ -1,5 +1,7 @@
 //! R1 player-directory and local-player snapshot operations.
 
+#![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
+
 use super::*;
 
 impl R1ClientProfile {

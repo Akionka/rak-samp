@@ -41,11 +41,11 @@ impl Local {
         self.api.submit_local_player_name(name)
     }
 
-    /// Queues the documented R1 unoccupied-vehicle synchronization send.
+    /// Queues one verified unoccupied-vehicle synchronization send.
     pub fn force_unoccupied_sync(
         self,
         vehicle: VehicleId,
-        seat: i32,
+        seat: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api.submit_force_unoccupied_sync(vehicle.get(), seat)
     }

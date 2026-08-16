@@ -137,140 +137,6 @@ impl NativeProfile {
         }
     }
 
-    /// Copies an owned on-foot synchronization snapshot on the profiles with a
-    /// verified local and remote sync layout.
-    pub(super) fn onfoot_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::OnFootSyncSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.onfoot_sync(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.onfoot_sync(id),
-        }
-    }
-
-    /// Copies an owned in-car synchronization snapshot on profiles with a
-    /// verified local and remote sync layout.
-    pub(super) fn incar_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::InCarSyncSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.incar_sync(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.incar_sync(id),
-        }
-    }
-
-    pub(super) fn passenger_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::PassengerSyncSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.passenger_sync(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.passenger_sync(id),
-        }
-    }
-
-    pub(super) fn trailer_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::TrailerSyncSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.trailer_sync(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.trailer_sync(id),
-        }
-    }
-
-    pub(super) fn aim_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<crate::runtime::AimSyncSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.aim_sync(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.aim_sync(id),
-        }
-    }
-
-    pub(super) fn force_aim_sync(self) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_aim_sync(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.force_aim_sync(),
-        }
-    }
-    pub(super) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_onfoot_sync(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_onfoot_sync()
-            }
-        }
-    }
-    pub(super) fn force_stats_sync(self) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_stats_sync(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.force_stats_sync(),
-        }
-    }
-    pub(super) fn force_trailer_sync(self, trailer: u16) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_trailer_sync(trailer),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_trailer_sync(trailer)
-            }
-        }
-    }
-    pub(super) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_vehicle_sync(vehicle),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_vehicle_sync(vehicle)
-            }
-        }
-    }
-    pub(super) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_weapons_sync(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_weapons_sync()
-            }
-        }
-    }
-    pub(super) fn force_passenger_sync(
-        self,
-        vehicle: u16,
-        seat: u8,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_passenger_sync(vehicle, seat),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_passenger_sync(vehicle, seat)
-            }
-        }
-    }
-    pub(super) fn force_unoccupied_sync(
-        self,
-        vehicle: u16,
-        seat: i32,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.force_unoccupied_sync(vehicle, seat),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.force_unoccupied_sync(vehicle, seat)
-            }
-        }
-    }
-    pub(super) fn set_send_rate(
-        self,
-        kind: u8,
-        milliseconds: u32,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_send_rate(kind, milliseconds),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_send_rate(kind, milliseconds)
-            }
-        }
-    }
     pub(super) fn show_chat_message(
         self,
         request: crate::runtime::LocalChatMessageRequest,
@@ -804,8 +670,6 @@ mod tests {
 
     #[test]
     fn r1_player_and_sync_reads_reach_the_verified_profile() {
-        let profile = NativeProfile::select(0x7000_0000, SampVersion::R1, 0x31DF13)
-            .expect("the exact R1 entry point must select a native profile");
         let native_client = NativeClientProfile::select(0x7000_0000, SampVersion::R1, 0x31DF13)
             .expect("the exact R1 entry point must select an immutable profile");
 
@@ -822,23 +686,23 @@ mod tests {
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.onfoot_sync(0),
+            native_client.onfoot_sync(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.incar_sync(0),
+            native_client.incar_sync(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.passenger_sync(0),
+            native_client.passenger_sync(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.trailer_sync(0),
+            native_client.trailer_sync(0),
             Err(DirectClientError::NotReady)
         ));
         assert!(matches!(
-            profile.aim_sync(0),
+            native_client.aim_sync(0),
             Err(DirectClientError::NotReady)
         ));
     }

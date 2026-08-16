@@ -70,7 +70,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_onfoot_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_onfoot_sync(&self, profile: NativeClientProfile) {
         for id in self.take_onfoot_sync_requests() {
             let Ok(snapshot) = profile.onfoot_sync(id) else {
                 continue;
@@ -84,7 +84,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_incar_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_incar_sync(&self, profile: NativeClientProfile) {
         for id in self.take_incar_sync_requests() {
             let Ok(snapshot) = profile.incar_sync(id) else {
                 continue;
@@ -98,7 +98,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_passenger_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_passenger_sync(&self, profile: NativeClientProfile) {
         for id in self.take_passenger_sync_requests() {
             let Ok(snapshot) = profile.passenger_sync(id) else {
                 continue;
@@ -112,7 +112,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_trailer_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_trailer_sync(&self, profile: NativeClientProfile) {
         for id in self.take_trailer_sync_requests() {
             let Ok(snapshot) = profile.trailer_sync(id) else {
                 continue;
@@ -126,7 +126,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_aim_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_aim_sync(&self, profile: NativeClientProfile) {
         for id in self.take_aim_sync_requests() {
             let Ok(snapshot) = profile.aim_sync(id) else {
                 continue;
