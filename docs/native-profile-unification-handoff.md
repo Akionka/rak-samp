@@ -472,19 +472,19 @@ Evidence/commit: `a1f438a` (`feat(native-client): add profile data model`)
 
 ### 2. Freeze R1 data
 
-- [ ] Create `native_client/profiles/r1.rs`.
-- [ ] Move R1 identity and entry point into `R1_SPEC`.
-- [ ] Copy all R1 native RVAs into named nested specs.
-- [ ] Copy all R1 layouts, sizes, capacities, and limits.
-- [ ] Record the R1 game-state codec.
-- [ ] Record the R1 local-player getter strategy.
-- [ ] Record the R1 native-boolean rules.
-- [ ] Record the R1 force-sync reset strategy.
-- [ ] Record the R1 list-item text layout.
-- [ ] Record the R1 textdraw native-call strategy.
-- [ ] Compare every moved layout value with the C++ fixture.
-- [ ] Register each unverified RVA or ABI instead of assuming proof.
-- [ ] Add exhaustive R1 spec-value tests.
+- [x] Create `native_client/profiles/r1.rs`.
+- [x] Move R1 identity and entry point into `R1_SPEC`.
+- [x] Copy all R1 native RVAs into named nested specs.
+- [x] Copy all R1 layouts, sizes, capacities, and limits.
+- [x] Record the R1 game-state codec.
+- [x] Record the R1 local-player getter strategy.
+- [x] Record the R1 native-boolean rules.
+- [x] Record the R1 force-sync reset strategy.
+- [x] Record the R1 list-item text layout.
+- [x] Record the R1 textdraw native-call strategy.
+- [x] Compare every moved layout value with the C++ fixture.
+- [x] Register each unverified RVA or ABI instead of assuming proof.
+- [x] Add exhaustive R1 spec-value tests.
 
 Evidence/commit: _pending_
 
