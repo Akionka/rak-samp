@@ -30,11 +30,76 @@ unsafe extern "C" fn fake_game_process() {
 }
 
 fn r1_native_profile() -> Option<NativeProfile> {
-    R1ClientProfile::verify(0x10000, SampVersion::R1.entry_point()).map(NativeProfile::R1)
+    NativeProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
 }
 
 fn r3_scalar_profile() -> Option<NativeProfile> {
     NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
+}
+
+#[test]
+fn shared_refresh_helpers_accept_every_native_profile() {
+    let profiles = [
+        r1_native_profile().expect("R1 must select its verified native profile"),
+        r3_scalar_profile().expect("R3 must select its verified native profile"),
+        NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
+            .expect("R5 must select its verified native profile"),
+        NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+            .expect("DL must select its verified native profile"),
+    ];
+
+    for profile in profiles {
+        let state = test_backend_state();
+        state.raw_local_player.store(1, Ordering::Release);
+        state.player_info_requests.lock().unwrap().push_back(7);
+        state
+            .remote_player_state_requests
+            .lock()
+            .unwrap()
+            .push_back(7);
+        state
+            .streamed_out_player_position_requests
+            .lock()
+            .unwrap()
+            .push_back(7);
+        state.onfoot_sync_requests.lock().unwrap().push_back(7);
+        state.incar_sync_requests.lock().unwrap().push_back(7);
+        state.passenger_sync_requests.lock().unwrap().push_back(7);
+        state.trailer_sync_requests.lock().unwrap().push_back(7);
+        state.aim_sync_requests.lock().unwrap().push_back(7);
+
+        state.refresh_local_player_snapshot(profile);
+        state.refresh_player_info(profile);
+        state.refresh_remote_player_state(profile);
+        state.refresh_streamed_out_player_position(profile);
+        state.refresh_onfoot_sync(profile);
+        state.refresh_incar_sync(profile);
+        state.refresh_passenger_sync(profile);
+        state.refresh_trailer_sync(profile);
+        state.refresh_aim_sync(profile);
+
+        assert_eq!(state.raw_local_player.load(Ordering::Acquire), 0);
+        assert!(state.player_info_requests.lock().unwrap().is_empty());
+        assert!(
+            state
+                .remote_player_state_requests
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            state
+                .streamed_out_player_position_requests
+                .lock()
+                .unwrap()
+                .is_empty()
+        );
+        assert!(state.onfoot_sync_requests.lock().unwrap().is_empty());
+        assert!(state.incar_sync_requests.lock().unwrap().is_empty());
+        assert!(state.passenger_sync_requests.lock().unwrap().is_empty());
+        assert!(state.trailer_sync_requests.lock().unwrap().is_empty());
+        assert!(state.aim_sync_requests.lock().unwrap().is_empty());
+    }
 }
 
 fn test_backend_state() -> BackendState {

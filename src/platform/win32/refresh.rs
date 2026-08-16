@@ -3,29 +3,17 @@
 use super::*;
 
 impl BackendState {
-    pub(super) fn refresh_r3_local_player_snapshot(&self, profile: NativeProfile) {
-        self.raw_local_player.store(0, Ordering::Release);
-        self.cache_local_player_snapshot(profile.local_player().ok());
-    }
-
-    pub(super) fn refresh_local_player_snapshot(&self, profile: R1ClientProfile) {
-        if !self.samp_game_state_ready.load(Ordering::Acquire)
-            || !is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire))
-        {
-            self.raw_local_player.store(0, Ordering::Release);
-            self.cache_local_player_snapshot(None);
-            return;
-        }
-        self.raw_local_player.store(
-            profile
-                .local_player_address()
-                .map_or(0, |player| player as usize),
-            Ordering::Release,
+    pub(super) fn refresh_local_player_snapshot(&self, profile: NativeProfile) {
+        let snapshot = profile.local_player_cache_snapshot(
+            self.samp_game_state_ready.load(Ordering::Acquire)
+                && is_r1_connected_game_state(self.samp_game_state.load(Ordering::Acquire)),
         );
-        self.cache_local_player_snapshot(profile.local_player().ok());
+        self.raw_local_player
+            .store(snapshot.raw_r1_address, Ordering::Release);
+        self.cache_local_player_snapshot(snapshot.snapshot);
     }
 
-    pub(super) fn refresh_player_info(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_player_info(&self, profile: NativeProfile) {
         for id in self.take_player_info_requests() {
             let Ok(snapshot) = profile.player_info(id) else {
                 continue;
@@ -39,21 +27,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_player_info(&self, profile: NativeProfile) {
-        for id in self.take_player_info_requests() {
-            let Ok(snapshot) = profile.player_info(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.player_info_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = PlayerInfoCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_r3_remote_player_state(&self, profile: NativeProfile) {
+    pub(super) fn refresh_remote_player_state(&self, profile: NativeProfile) {
         for id in self.take_remote_player_state_requests() {
             let Ok(snapshot) = profile.remote_player_state(id) else {
                 continue;
@@ -67,7 +41,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_streamed_out_player_position(&self, profile: NativeProfile) {
+    pub(super) fn refresh_streamed_out_player_position(&self, profile: NativeProfile) {
         for id in self.take_streamed_out_player_position_requests() {
             let Ok(streamed_out) = profile.remote_player_is_streamed_out(id) else {
                 continue;
@@ -90,7 +64,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_onfoot_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_onfoot_sync(&self, profile: NativeProfile) {
         for id in self.take_onfoot_sync_requests() {
             let Ok(snapshot) = profile.onfoot_sync(id) else {
                 continue;
@@ -104,7 +78,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_incar_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_incar_sync(&self, profile: NativeProfile) {
         for id in self.take_incar_sync_requests() {
             let Ok(snapshot) = profile.incar_sync(id) else {
                 continue;
@@ -118,7 +92,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_passenger_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_passenger_sync(&self, profile: NativeProfile) {
         for id in self.take_passenger_sync_requests() {
             let Ok(snapshot) = profile.passenger_sync(id) else {
                 continue;
@@ -132,7 +106,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_trailer_sync(&self, profile: NativeProfile) {
+    pub(super) fn refresh_trailer_sync(&self, profile: NativeProfile) {
         for id in self.take_trailer_sync_requests() {
             let Ok(snapshot) = profile.trailer_sync(id) else {
                 continue;
@@ -146,113 +120,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_r3_aim_sync(&self, profile: NativeProfile) {
-        for id in self.take_aim_sync_requests() {
-            let Ok(snapshot) = profile.aim_sync(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.aim_sync_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = AimSyncCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_remote_player_state(&self, profile: R1ClientProfile) {
-        for id in self.take_remote_player_state_requests() {
-            let Ok(snapshot) = profile.remote_player_state(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.remote_player_state_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = RemotePlayerStateCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_streamed_out_player_position(&self, profile: R1ClientProfile) {
-        for id in self.take_streamed_out_player_position_requests() {
-            let Ok(streamed_out) = profile.remote_player_is_streamed_out(id) else {
-                continue;
-            };
-            let position = match streamed_out {
-                Some(true) => self
-                    .marker_sync_positions
-                    .try_lock()
-                    .ok()
-                    .and_then(|positions| positions.get(usize::from(id)).copied().flatten())
-                    .filter(|position| position.x != 0.0 && position.y != 0.0),
-                Some(false) | None => None,
-            };
-            let Ok(mut cache) = self.streamed_out_player_position_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = StreamedOutPlayerPositionCacheEntry::Known(position);
-            }
-        }
-    }
-
-    pub(super) fn refresh_onfoot_sync(&self, profile: R1ClientProfile) {
-        for id in self.take_onfoot_sync_requests() {
-            let Ok(snapshot) = profile.onfoot_sync(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.onfoot_sync_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = OnFootSyncCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_incar_sync(&self, profile: R1ClientProfile) {
-        for id in self.take_incar_sync_requests() {
-            let Ok(snapshot) = profile.incar_sync(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.incar_sync_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = InCarSyncCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_passenger_sync(&self, profile: R1ClientProfile) {
-        for id in self.take_passenger_sync_requests() {
-            let Ok(snapshot) = profile.passenger_sync(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.passenger_sync_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = PassengerSyncCacheEntry::Known(snapshot);
-            }
-        }
-    }
-
-    pub(super) fn refresh_trailer_sync(&self, profile: R1ClientProfile) {
-        for id in self.take_trailer_sync_requests() {
-            let Ok(snapshot) = profile.trailer_sync(id) else {
-                continue;
-            };
-            let Ok(mut cache) = self.trailer_sync_cache.try_lock() else {
-                continue;
-            };
-            if let Some(entry) = cache.get_mut(usize::from(id)) {
-                *entry = TrailerSyncCacheEntry::Known(snapshot);
-            }
-        }
-    }
-    pub(super) fn refresh_aim_sync(&self, profile: R1ClientProfile) {
+    pub(super) fn refresh_aim_sync(&self, profile: NativeProfile) {
         for id in self.take_aim_sync_requests() {
             let Ok(snapshot) = profile.aim_sync(id) else {
                 continue;

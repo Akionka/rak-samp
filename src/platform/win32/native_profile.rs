@@ -23,6 +23,15 @@ pub(super) enum NativeProfile {
     Dl(ClassicClientProfile),
 }
 
+/// Owned local-player data prepared for publication by the cache refresher.
+///
+/// `raw_r1_address` stays inside the host and is non-zero only for the
+/// connected R1 profile.
+pub(super) struct LocalPlayerCacheSnapshot {
+    pub(super) snapshot: Option<LocalPlayerSnapshot>,
+    pub(super) raw_r1_address: usize,
+}
+
 impl NativeProfile {
     /// Selects a direct-native profile independently of the network
     /// [`crate::AddressSet`].
@@ -153,11 +162,27 @@ impl NativeProfile {
         }
     }
 
-    /// Reads the copied local-player snapshot available on this profile.
-    pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+    /// Prepares the local-player cache data while keeping R1's raw-address
+    /// contract private to the selected native profile.
+    pub(super) fn local_player_cache_snapshot(
+        self,
+        r1_connected: bool,
+    ) -> LocalPlayerCacheSnapshot {
         match self {
-            Self::R1(profile) => profile.local_player(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.local_player(),
+            Self::R1(profile) if r1_connected => LocalPlayerCacheSnapshot {
+                snapshot: profile.local_player().ok(),
+                raw_r1_address: profile
+                    .local_player_address()
+                    .map_or(0, |player| player as usize),
+            },
+            Self::R1(_) => LocalPlayerCacheSnapshot {
+                snapshot: None,
+                raw_r1_address: 0,
+            },
+            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => LocalPlayerCacheSnapshot {
+                snapshot: profile.local_player().ok(),
+                raw_r1_address: 0,
+            },
         }
     }
 
@@ -1048,5 +1073,24 @@ mod tests {
             profile.aim_sync(0),
             Err(DirectClientError::NotReady)
         ));
+    }
+
+    #[test]
+    fn local_player_cache_keeps_the_raw_address_r1_only() {
+        let r1 = NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13)
+            .expect("the exact R1 entry point must select a native profile");
+        let r1_disconnected = r1.local_player_cache_snapshot(false);
+        assert!(r1_disconnected.snapshot.is_none());
+        assert_eq!(r1_disconnected.raw_r1_address, 0);
+
+        for (version, entry_point) in [
+            (SampVersion::R3_1, SampVersion::R3_1.entry_point()),
+            (SampVersion::R5_1, SampVersion::R5_1.entry_point()),
+            (SampVersion::Dl, SampVersion::Dl.entry_point()),
+        ] {
+            let profile = NativeProfile::select(0x10000, version, entry_point)
+                .expect("every verified direct profile must select");
+            assert_eq!(profile.local_player_cache_snapshot(false).raw_r1_address, 0);
+        }
     }
 }

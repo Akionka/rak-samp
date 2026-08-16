@@ -936,17 +936,17 @@ impl BackendState {
             scalar_profile,
             NativeProfile::R3(_) | NativeProfile::R5(_) | NativeProfile::Dl(_)
         ) {
-            self.refresh_r3_local_player_snapshot(scalar_profile);
+            self.refresh_local_player_snapshot(scalar_profile);
             self.refresh_player_count(scalar_profile);
             self.refresh_player_max_id(scalar_profile);
-            self.refresh_r3_player_info(scalar_profile);
-            self.refresh_r3_remote_player_state(scalar_profile);
-            self.refresh_r3_streamed_out_player_position(scalar_profile);
-            self.refresh_r3_onfoot_sync(scalar_profile);
-            self.refresh_r3_incar_sync(scalar_profile);
-            self.refresh_r3_passenger_sync(scalar_profile);
-            self.refresh_r3_trailer_sync(scalar_profile);
-            self.refresh_r3_aim_sync(scalar_profile);
+            self.refresh_player_info(scalar_profile);
+            self.refresh_remote_player_state(scalar_profile);
+            self.refresh_streamed_out_player_position(scalar_profile);
+            self.refresh_onfoot_sync(scalar_profile);
+            self.refresh_incar_sync(scalar_profile);
+            self.refresh_passenger_sync(scalar_profile);
+            self.refresh_trailer_sync(scalar_profile);
+            self.refresh_aim_sync(scalar_profile);
             self.refresh_local_chat_display_mode(scalar_profile);
             self.refresh_local_cursor_mode(scalar_profile);
             self.refresh_local_scoreboard_open(scalar_profile);
@@ -976,7 +976,7 @@ impl BackendState {
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;
         }
-        let Some(profile) = self.r1_client() else {
+        let Some(_) = self.r1_client() else {
             self.cache_generation.fetch_add(1, Ordering::Release);
             return;
         };
@@ -990,15 +990,15 @@ impl BackendState {
         self.refresh_local_chat_input_text(scalar_profile);
         self.refresh_local_chat_input_commands(scalar_profile);
         self.refresh_animation_catalog(scalar_profile);
-        self.refresh_local_player_snapshot(profile);
-        self.refresh_player_info(profile);
-        self.refresh_remote_player_state(profile);
-        self.refresh_streamed_out_player_position(profile);
-        self.refresh_onfoot_sync(profile);
-        self.refresh_incar_sync(profile);
-        self.refresh_passenger_sync(profile);
-        self.refresh_trailer_sync(profile);
-        self.refresh_aim_sync(profile);
+        self.refresh_local_player_snapshot(scalar_profile);
+        self.refresh_player_info(scalar_profile);
+        self.refresh_remote_player_state(scalar_profile);
+        self.refresh_streamed_out_player_position(scalar_profile);
+        self.refresh_onfoot_sync(scalar_profile);
+        self.refresh_incar_sync(scalar_profile);
+        self.refresh_passenger_sync(scalar_profile);
+        self.refresh_trailer_sync(scalar_profile);
+        self.refresh_aim_sync(scalar_profile);
         self.refresh_player_count(scalar_profile);
         self.refresh_player_max_id(scalar_profile);
         self.refresh_vehicle_exists(scalar_profile);
