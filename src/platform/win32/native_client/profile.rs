@@ -30,7 +30,7 @@ pub(crate) struct ProfileIdentity {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NetGameSpec {
     pub(crate) singleton_rva: NativeRva,
-    pub(crate) get_state_rva: NativeRva,
+    pub(crate) get_state_rva: Option<NativeRva>,
     pub(crate) get_player_pool_rva: NativeRva,
     pub(crate) get_vehicle_pool_rva: NativeRva,
     pub(crate) shutdown_for_restart_rva: NativeRva,
@@ -47,6 +47,8 @@ pub(crate) struct NetGameSpec {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NetGamePoolSpec {
+    pub(crate) player_offset: Option<FieldOffset>,
+    pub(crate) vehicle_offset: Option<FieldOffset>,
     pub(crate) object_offset: FieldOffset,
     pub(crate) gangzone_offset: FieldOffset,
     pub(crate) text_label_offset: FieldOffset,
@@ -82,6 +84,14 @@ pub(crate) struct PoolLimits {
 pub(crate) struct PlayerPoolLayout {
     pub(crate) largest_id_offset: FieldOffset,
     pub(crate) local_id_offset: FieldOffset,
+    pub(crate) objects_offset: Option<FieldOffset>,
+    pub(crate) player_info: Option<PlayerInfoLayout>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct PlayerInfoLayout {
+    pub(crate) npc_offset: FieldOffset,
+    pub(crate) readable_size: NativeSize,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -143,7 +153,7 @@ pub(crate) struct PlayerPoolRvas {
     pub(crate) get_local_ping: NativeRva,
     pub(crate) is_connected: NativeRva,
     pub(crate) get_remote_player: NativeRva,
-    pub(crate) is_npc: NativeRva,
+    pub(crate) is_npc: Option<NativeRva>,
     pub(crate) get_name: NativeRva,
     pub(crate) get_score: NativeRva,
     pub(crate) get_ping: NativeRva,
@@ -161,7 +171,7 @@ pub(crate) struct RemotePlayerRvas {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct LocalPlayerRvas {
-    pub(crate) get_ped: NativeRva,
+    pub(crate) get_ped: Option<NativeRva>,
     pub(crate) get_colour_argb: NativeRva,
     pub(crate) set_colour: NativeRva,
     pub(crate) set_special_action: NativeRva,
@@ -184,6 +194,7 @@ pub(crate) struct PedRvas {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct LocalPlayerLayout {
+    pub(crate) ped_offset: Option<FieldOffset>,
     pub(crate) active_offset: FieldOffset,
     pub(crate) current_vehicle_offset: FieldOffset,
     pub(crate) onfoot_offset: FieldOffset,
@@ -195,6 +206,7 @@ pub(crate) struct LocalPlayerLayout {
     pub(crate) onfoot: LocalOnFootLayout,
     pub(crate) incar: LocalInCarLayout,
     pub(crate) game_ped_offset: FieldOffset,
+    pub(crate) readable_size: Option<NativeSize>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -369,8 +381,8 @@ pub(crate) struct InputSpec {
     pub(crate) get_command_handler_rva: NativeRva,
     pub(crate) add_command_rva: NativeRva,
     pub(crate) process_rva: NativeRva,
-    pub(crate) edit_box_set_text_rva: NativeRva,
-    pub(crate) edit_box_get_text_rva: NativeRva,
+    pub(crate) edit_box_set_text_rva: Option<NativeRva>,
+    pub(crate) edit_box_get_text_rva: Option<NativeRva>,
     pub(crate) enabled_offset: FieldOffset,
     pub(crate) edit_box_offset: FieldOffset,
     pub(crate) command_proc_offset: FieldOffset,
@@ -407,8 +419,8 @@ pub(crate) struct ScoreboardSpec {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct DeathWindowSpec {
-    pub(crate) singleton_rva: NativeRva,
-    pub(crate) add_message_rva: NativeRva,
+    pub(crate) singleton_rva: Option<NativeRva>,
+    pub(crate) add_message_rva: Option<NativeRva>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

@@ -644,7 +644,11 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         addresses::NET_GAME_SINGLETON_RVA
     );
     assert_eq!(
-        R1_SPEC.net_game.get_state_rva.get(),
+        R1_SPEC
+            .net_game
+            .get_state_rva
+            .expect("R1 get-state RVA")
+            .get(),
         addresses::NET_GAME_GET_STATE_RVA
     );
     assert_eq!(
@@ -687,11 +691,21 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         addresses::INPUT_PROCESS_RVA
     );
     assert_eq!(
-        R1_SPEC.ui.input.edit_box_set_text_rva.get(),
+        R1_SPEC
+            .ui
+            .input
+            .edit_box_set_text_rva
+            .expect("R1 set-text RVA")
+            .get(),
         addresses::DXUT_EDIT_BOX_SET_TEXT_RVA
     );
     assert_eq!(
-        R1_SPEC.ui.input.edit_box_get_text_rva.get(),
+        R1_SPEC
+            .ui
+            .input
+            .edit_box_get_text_rva
+            .expect("R1 get-text RVA")
+            .get(),
         addresses::DXUT_EDIT_BOX_GET_TEXT_RVA
     );
     assert_eq!(
@@ -711,11 +725,21 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         addresses::SCOREBOARD_SINGLETON_RVA
     );
     assert_eq!(
-        R1_SPEC.ui.death_window.singleton_rva.get(),
+        R1_SPEC
+            .ui
+            .death_window
+            .singleton_rva
+            .expect("R1 death-window singleton RVA")
+            .get(),
         addresses::DEATH_WINDOW_SINGLETON_RVA
     );
     assert_eq!(
-        R1_SPEC.ui.death_window.add_message_rva.get(),
+        R1_SPEC
+            .ui
+            .death_window
+            .add_message_rva
+            .expect("R1 death-window add-message RVA")
+            .get(),
         addresses::DEATH_WINDOW_ADD_MESSAGE_RVA
     );
     assert_eq!(
@@ -755,7 +779,12 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         addresses::PLAYER_POOL_GET_REMOTE_PLAYER_RVA
     );
     assert_eq!(
-        R1_SPEC.players.pool_rvas.is_npc.get(),
+        R1_SPEC
+            .players
+            .pool_rvas
+            .is_npc
+            .expect("R1 is-npc RVA")
+            .get(),
         addresses::PLAYER_POOL_IS_NPC_RVA
     );
     assert_eq!(
@@ -795,7 +824,12 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         addresses::REMOTE_PLAYER_GET_STATUS_RVA
     );
     assert_eq!(
-        R1_SPEC.players.local_rvas.get_ped.get(),
+        R1_SPEC
+            .players
+            .local_rvas
+            .get_ped
+            .expect("R1 get-ped RVA")
+            .get(),
         addresses::LOCAL_PLAYER_GET_PED_RVA
     );
     assert_eq!(

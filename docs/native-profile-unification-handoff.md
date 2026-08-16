@@ -490,14 +490,14 @@ Evidence/commit: `9470327` (`feat(native-client): freeze r1 profile data`)
 
 ### 3. Freeze R3 data
 
-- [ ] Create `native_client/profiles/r3.rs`.
-- [ ] Move R3 identity and entry point into `R3_SPEC`.
-- [ ] Copy every R3 base layout, RVA, size, capacity, and limit.
-- [ ] Replace each R3 `build_value` input with a named spec field.
-- [ ] Record the classic game-state codec and applicable strategies.
-- [ ] Compare every layout value with the R3 fixture.
-- [ ] Register each unverified RVA or ABI.
-- [ ] Add exhaustive R3 spec-value tests.
+- [x] Create `native_client/profiles/r3.rs`.
+- [x] Move R3 identity and entry point into `R3_SPEC`.
+- [x] Copy every R3 base layout, RVA, size, capacity, and limit.
+- [x] Replace each R3 `build_value` input with a named spec field.
+- [x] Record the classic game-state codec and applicable strategies.
+- [x] Compare every layout value with the R3 fixture.
+- [x] Register each unverified RVA or ABI.
+- [x] Add exhaustive R3 spec-value tests.
 
 Evidence/commit: _pending_
 

@@ -22,6 +22,11 @@ guessed value or fallback.
 | R1 | Textdraw setter RVA: `0xAC870` | `r1_client/addresses.rs`; literal pin test | Shipped R1 binary or executable pin test | Literal pin only |
 | R1 | Native ABI signatures and calling conventions for every R1 direct call | `r1_client/native_types.rs` | ABI fixture or live call validation for each signature | Unverified |
 | R1 | Remote-player fixture fields without individual Rust assertions | `src/platform/win32/r1_client/` | Field-level fixture assertions | Unverified |
+| R3 | Singleton RVAs: NetGame `0x26E8DC`, dialog `0x26E898`, input `0x26E8CC`, chat `0x26E8C8`, scoreboard `0x26E894`, game `0x26E8F4` | `src/platform/win32/r3_client.rs` | Shipped R3 binary or executable pin tests for each RVA | Unverified |
+| R3 | Connection, pool, player, ped, send-rate, and animation RVAs recorded in `R3_SPEC` | `src/platform/win32/r3_client.rs` | Shipped R3 binary or executable pin tests for each RVA | Unverified |
+| R3 | Dialog, input, chat, game, text-label, and textdraw RVAs recorded in `R3_SPEC` | `src/platform/win32/r3_client.rs` | Shipped R3 binary or executable pin tests for each RVA | Unverified |
+| R3 | Native ABI signatures and calling conventions for every direct call | `src/platform/win32/r3_client.rs` function aliases | ABI fixture or live call validation for each signature | Unverified |
+| R3 | `NET_GAME_SERVER_SETTINGS_OFFSET` at `0x3D5` | Packed R3 layout inference | Independent fixture member assertion or binary evidence | Fixture-backed only by inference; unused |
 | R3, R5, DL | Non-layout native and singleton RVAs | `src/platform/win32/r3_client.rs` | Shipped binary or executable pin tests for each profile | Unverified |
 | R3, R5, DL | Native ABI signatures and calling conventions | `src/platform/win32/r3_client.rs` function aliases | ABI fixture or live call validation | Unverified |
 | R3, R5, DL | GTA ped and vehicle handle-conversion targets | `src/platform/win32/r3_client.rs` | Executable GTA fixture or binary evidence | Unverified |
