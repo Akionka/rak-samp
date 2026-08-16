@@ -3,22 +3,20 @@
 use super::*;
 
 impl BackendState {
-    pub(super) fn refresh_local_player_snapshot(
-        &self,
-        profile: NativeProfile,
-        native_profile: Option<NativeClientProfile>,
-    ) {
+    pub(super) fn refresh_local_player_snapshot(&self, profile: Option<NativeClientProfile>) {
         let connected = self.samp_game_state_ready.load(Ordering::Acquire)
             && is_connected_game_state(self.samp_game_state.load(Ordering::Acquire));
-        let snapshot = profile.local_player_cache_snapshot(connected);
+        let snapshot = profile
+            .filter(|_| connected)
+            .and_then(|profile| profile.local_player().ok());
         self.raw_local_player.store(
-            native_profile
+            profile
                 .filter(|_| connected)
                 .and_then(|profile| profile.local_player_address().ok())
                 .map_or(0, |player| player as usize),
             Ordering::Release,
         );
-        self.cache_local_player_snapshot(snapshot.snapshot);
+        self.cache_local_player_snapshot(snapshot);
     }
 
     pub(super) fn refresh_player_info(&self, profile: NativeProfile) {

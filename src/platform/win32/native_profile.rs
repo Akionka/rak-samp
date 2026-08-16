@@ -9,10 +9,7 @@ use super::{
     native_client::profile::NativeClientProfile, r1_client::R1ClientProfile,
     r3_client::ClassicClientProfile,
 };
-use crate::{
-    SampVersion,
-    runtime::{DirectClientError, LocalPlayerSnapshot},
-};
+use crate::{SampVersion, runtime::DirectClientError};
 
 /// A verified direct-native profile selected for the loaded SA-MP build.
 ///
@@ -24,14 +21,6 @@ pub(super) enum NativeProfile {
     R3(ClassicClientProfile),
     R5(ClassicClientProfile),
     Dl(ClassicClientProfile),
-}
-
-/// Owned local-player data prepared for publication by the cache refresher.
-///
-/// `raw_address` stays inside the host and is published only after the
-/// profile-neutral resolver validates the connected local-player object.
-pub(super) struct LocalPlayerCacheSnapshot {
-    pub(super) snapshot: Option<LocalPlayerSnapshot>,
 }
 
 impl NativeProfile {
@@ -73,22 +62,6 @@ impl NativeProfile {
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.animation_catalog()
             }
-        }
-    }
-
-    /// Prepares copied local-player data for the cache refresher.
-    pub(super) fn local_player_cache_snapshot(
-        self,
-        r1_connected: bool,
-    ) -> LocalPlayerCacheSnapshot {
-        match self {
-            Self::R1(profile) if r1_connected => LocalPlayerCacheSnapshot {
-                snapshot: profile.local_player().ok(),
-            },
-            Self::R1(_) => LocalPlayerCacheSnapshot { snapshot: None },
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => LocalPlayerCacheSnapshot {
-                snapshot: profile.local_player().ok(),
-            },
         }
     }
 
@@ -941,28 +914,5 @@ mod tests {
             profile.aim_sync(0),
             Err(DirectClientError::NotReady)
         ));
-    }
-
-    #[test]
-    fn local_player_cache_keeps_raw_addresses_out_of_legacy_dispatch() {
-        let r1 = NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13)
-            .expect("the exact R1 entry point must select a native profile");
-        let r1_disconnected = r1.local_player_cache_snapshot(false);
-        assert!(r1_disconnected.snapshot.is_none());
-
-        for (version, entry_point) in [
-            (SampVersion::R3_1, SampVersion::R3_1.entry_point()),
-            (SampVersion::R5_1, SampVersion::R5_1.entry_point()),
-            (SampVersion::Dl, SampVersion::Dl.entry_point()),
-        ] {
-            let profile = NativeProfile::select(0x10000, version, entry_point)
-                .expect("every verified direct profile must select");
-            assert!(
-                profile
-                    .local_player_cache_snapshot(false)
-                    .snapshot
-                    .is_none()
-            );
-        }
     }
 }

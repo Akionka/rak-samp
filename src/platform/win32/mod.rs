@@ -935,7 +935,7 @@ impl BackendState {
             self.refresh_samp_game_state(connection_profile);
             self.refresh_server_info_snapshot(connection_profile);
         }
-        self.refresh_local_player_snapshot(profile, connection_profile);
+        self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
             self.refresh_player_count(connection_profile);
             self.refresh_player_max_id(connection_profile);

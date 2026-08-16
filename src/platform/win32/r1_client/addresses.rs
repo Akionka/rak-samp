@@ -25,7 +25,9 @@ pub(super) const NET_GAME_GET_VEHICLE_POOL_RVA: usize = 0x1170;
 #[cfg(test)]
 pub(super) const NET_GAME_SHUTDOWN_FOR_RESTART_RVA: usize = 0xA060;
 pub(super) const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6A1F0;
+#[cfg(test)]
 pub(super) const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6A200;
 pub(super) const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
 pub(super) const PLAYER_POOL_GET_REMOTE_PLAYER_RVA: usize = 0x10F0;
@@ -33,6 +35,8 @@ pub(super) const PLAYER_POOL_IS_NPC_RVA: usize = 0xB680;
 pub(super) const PLAYER_POOL_GET_NAME_RVA: usize = 0x13CE0;
 pub(super) const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6A190;
 pub(super) const PLAYER_POOL_GET_PING_RVA: usize = 0x6A1C0;
+#[cfg(test)]
+pub(super) const PLAYER_POOL_GET_COUNT_RVA: usize = 0x10520;
 pub(super) const PLAYER_POOL_SET_LOCAL_PLAYER_NAME_RVA: usize = 0xB3E0;
 pub(super) const VEHICLE_POOL_DOES_EXIST_RVA: usize = 0x1140;
 pub(super) const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x12A00;
@@ -40,6 +44,7 @@ pub(super) const REMOTE_PLAYER_SET_COLOUR_RVA: usize = 0x129D0;
 pub(super) const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
 pub(super) const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x12BA0;
 pub(super) const LOCAL_PLAYER_GET_PED_RVA: usize = 0x2D60;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3D90;
 pub(super) const LOCAL_PLAYER_SET_COLOUR_RVA: usize = 0x3D40;
 pub(super) const LOCAL_PLAYER_SET_SPECIAL_ACTION_RVA: usize = 0x30C0;
@@ -55,7 +60,9 @@ pub(super) const LOCAL_PLAYER_UPDATE_WEAPONS_RVA: usize = 0x6080;
 pub(super) const ONFOOT_SEND_RATE_RVA: usize = 0xEC0A8;
 pub(super) const INCAR_SEND_RATE_RVA: usize = 0xEC0AC;
 pub(super) const AIM_SEND_RATE_RVA: usize = 0xEC0B0;
+#[cfg(test)]
 pub(super) const PED_GET_HEALTH_RVA: usize = 0xA6610;
+#[cfg(test)]
 pub(super) const PED_GET_ARMOUR_RVA: usize = 0xA6650;
 pub(super) const GAME_SINGLETON_RVA: usize = 0x21A10C;
 pub(super) const GAME_SET_CURSOR_MODE_RVA: usize = 0x9BD30;

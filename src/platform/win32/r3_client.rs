@@ -14,9 +14,9 @@ use super::{
 use crate::runtime::{
     AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
     InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
-    LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, LocalPlayerSnapshot,
-    OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+    LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, OnFootSyncSnapshot,
+    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, TextLabelSnapshot,
+    TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
 use std::{ffi::c_void, mem, ptr};
 
@@ -51,16 +51,13 @@ const ANIMATION_TABLE_RVA: usize = 0x1039D0;
 const ANIMATION_TABLE_ENTRY_COUNT: usize = 1812;
 const ANIMATION_TABLE_ENTRY_SIZE: usize = 36;
 const PLAYER_POOL_GET_LOCAL_PLAYER_RVA: usize = 0x1A30;
+#[cfg(test)]
+const PLAYER_POOL_GET_COUNT_RVA: usize = 0x13670;
 const PLAYER_POOL_IS_CONNECTED_RVA: usize = 0x10B0;
 const PLAYER_POOL_GET_REMOTE_PLAYER_RVA: usize = 0x10F0;
 const PLAYER_POOL_GET_SCORE_RVA: usize = 0x6E0E0;
 const PLAYER_POOL_GET_PING_RVA: usize = 0x6E110;
-const PLAYER_POOL_GET_LOCAL_SCORE_RVA: usize = 0x6E140;
-const PLAYER_POOL_GET_LOCAL_PING_RVA: usize = 0x6E150;
 const PLAYER_POOL_GET_NAME_RVA: usize = 0x16F00;
-const LOCAL_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x3DA0;
-const PED_GET_HEALTH_RVA: usize = 0xAB4C0;
-const PED_GET_ARMOUR_RVA: usize = 0xAB500;
 const REMOTE_PLAYER_DOES_EXIST_RVA: usize = 0x1080;
 const REMOTE_PLAYER_GET_COLOUR_ARGB_RVA: usize = 0x15C10;
 const REMOTE_PLAYER_GET_STATUS_RVA: usize = 0x15DB0;
@@ -84,11 +81,7 @@ const PLAYER_INFO_READABLE_SIZE: usize = 0x2C;
 const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x2F1C;
 const LOCAL_PLAYER_INCAR_OFFSET: usize = 0x04;
 const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x98;
-const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0xF4;
-const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0xFC;
-const LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE: usize = LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET + 2;
 const SAMP_PED_GAME_PED_OFFSET: usize = 0x2A4;
-const INVALID_ID: u16 = u16::MAX;
 const MAX_SAMP_PLAYERS: u16 = 1004;
 const MAX_SAMP_VEHICLES: u16 = 2000;
 const MAX_SAMP_OBJECTS: u16 = 1000;
@@ -278,10 +271,7 @@ type PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32
 type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
 type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type PlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
-type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
-type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 type DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 type ChatGetModeFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
@@ -426,6 +416,11 @@ impl ClassicClientProfile {
         self.build_value(PLAYER_POOL_LOCAL_ID_OFFSET, 0x04, 0x00)
     }
 
+    #[cfg(test)]
+    const fn player_pool_largest_id_offset(self) -> usize {
+        self.build_value(PLAYER_POOL_LARGEST_ID_OFFSET, 0x2F3A, 0x22)
+    }
+
     const fn player_pool_objects_offset(self) -> usize {
         self.build_value(PLAYER_POOL_OBJECTS_OFFSET, 0x1F8A, 0x26)
     }
@@ -458,20 +453,8 @@ impl ClassicClientProfile {
         self.build_value(LOCAL_PLAYER_PASSENGER_OFFSET, 0xD8, 0x7E)
     }
 
-    const fn local_player_active_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_ACTIVE_OFFSET, 0xF0, 0xF4)
-    }
-
-    const fn local_player_current_vehicle_offset(self) -> usize {
-        self.build_value(LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET, 0xF8, 0xFC)
-    }
-
     const fn local_player_ped_offset(self) -> usize {
         self.build_value(0x00, 0x104, 0x00)
-    }
-
-    const fn local_player_readable_size(self) -> usize {
-        self.build_value(LOCAL_PLAYER_SNAPSHOT_READABLE_SIZE, 0x108, 0x102)
     }
 
     const fn local_player_last_any_update_offset(self) -> usize {
@@ -590,142 +573,6 @@ impl ClassicClientProfile {
                 parse_animation_entry(bytes)
             })
             .collect()
-    }
-
-    /// Copies the verified R3-1 local-player cache surface on the game thread.
-    pub(super) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
-        let pool = self.player_pool()?;
-        let id =
-            unsafe { read_unaligned::<u16>(pool as usize + self.player_pool_local_id_offset()) }
-                .filter(|id| *id < MAX_SAMP_PLAYERS)
-                .ok_or(DirectClientError::NotReady)?;
-        let get_local: PlayerPoolGetLocalPlayerFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(PLAYER_POOL_GET_LOCAL_PLAYER_RVA, 0x1A40, 0x1A80),
-            )
-        };
-        let local = unsafe { get_local(pool) };
-        if local.is_null() || !readable_range(local.cast(), self.local_player_readable_size()) {
-            return Err(DirectClientError::NotReady);
-        }
-        let ped = unsafe { read_pointer(local as usize + self.local_player_ped_offset()) }
-            .filter(|ped| !ped.is_null())
-            .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(
-            ped.cast(),
-            SAMP_PED_GAME_PED_OFFSET + mem::size_of::<usize>(),
-        ) {
-            return Err(DirectClientError::NotReady);
-        }
-        let game_ped = unsafe { read_pointer(ped as usize + SAMP_PED_GAME_PED_OFFSET) }
-            .filter(|ped| !ped.is_null())
-            .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(game_ped.cast(), 1) {
-            return Err(DirectClientError::NotReady);
-        }
-
-        let get_name: PlayerPoolGetNameFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PLAYER_POOL_GET_NAME_RVA, 0x175C0, 0x170D0),
-            )
-        };
-        let get_score: PlayerPoolGetLocalStatFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(PLAYER_POOL_GET_LOCAL_SCORE_RVA, 0x6E8B0, 0x6E2E0),
-            )
-        };
-        let get_ping: PlayerPoolGetLocalStatFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(PLAYER_POOL_GET_LOCAL_PING_RVA, 0x6E8C0, 0x6E2F0),
-            )
-        };
-        let get_colour: LocalPlayerGetColourArgbFn = unsafe {
-            mem::transmute(
-                self.module_base
-                    + self.build_value(LOCAL_PLAYER_GET_COLOUR_ARGB_RVA, 0x3F20, 0x3E20),
-            )
-        };
-        let get_health: PedGetStatFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PED_GET_HEALTH_RVA, 0xABD50, 0xAB970),
-            )
-        };
-        let get_armour: PedGetStatFn = unsafe {
-            mem::transmute(
-                self.module_base + self.build_value(PED_GET_ARMOUR_RVA, 0xABD90, 0xAB9B0),
-            )
-        };
-
-        let nickname = unsafe { bounded_c_string(get_name(pool, id), 256) }
-            .filter(|name| !name.is_empty())
-            .ok_or(DirectClientError::NotReady)?;
-        let current_vehicle = unsafe {
-            read_unaligned::<u16>(local as usize + self.local_player_current_vehicle_offset())
-        }
-        .ok_or(DirectClientError::NotReady)?;
-        let vehicle_id = (current_vehicle != INVALID_ID).then_some(current_vehicle);
-        let (position, velocity) = if vehicle_id.is_some() {
-            (
-                unsafe {
-                    read_vector3(
-                        local as usize + self.local_player_incar_offset() + INCAR_POSITION_OFFSET,
-                    )
-                },
-                unsafe {
-                    read_vector3(
-                        local as usize + self.local_player_incar_offset() + INCAR_SPEED_OFFSET,
-                    )
-                },
-            )
-        } else {
-            (
-                unsafe {
-                    read_vector3(
-                        local as usize + self.local_player_onfoot_offset() + ONFOOT_POSITION_OFFSET,
-                    )
-                },
-                unsafe {
-                    read_vector3(
-                        local as usize + self.local_player_onfoot_offset() + ONFOOT_SPEED_OFFSET,
-                    )
-                },
-            )
-        };
-
-        Ok(LocalPlayerSnapshot {
-            id,
-            nickname,
-            colour: unsafe { get_colour(local) },
-            spawned: unsafe {
-                read_unaligned::<u32>(local as usize + self.local_player_active_offset())
-            }
-            .ok_or(DirectClientError::NotReady)?
-                != 0,
-            health: unsafe { get_health(ped.cast()) },
-            armour: unsafe { get_armour(ped.cast()) },
-            position: position.ok_or(DirectClientError::NotReady)?,
-            velocity: velocity.ok_or(DirectClientError::NotReady)?,
-            special_action: unsafe {
-                read_unaligned::<u8>(
-                    local as usize
-                        + self.local_player_onfoot_offset()
-                        + ONFOOT_SPECIAL_ACTION_OFFSET,
-                )
-            }
-            .ok_or(DirectClientError::NotReady)?,
-            animation_id: unsafe {
-                read_unaligned::<u32>(
-                    local as usize + self.local_player_onfoot_offset() + ONFOOT_ANIMATION_OFFSET,
-                )
-            }
-            .ok_or(DirectClientError::NotReady)? as u16,
-            vehicle_id,
-            score: unsafe { get_score(pool) },
-            ping: (unsafe { get_ping(pool) }).max(0) as u32,
-        })
     }
 
     /// Copies one R3-1 remote-player record on the game thread.

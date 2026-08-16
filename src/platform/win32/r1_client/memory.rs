@@ -30,6 +30,8 @@ pub(super) const MAX_SAMP_PICKUPS: u16 = 4096;
 pub(super) const MAX_LOCAL_PLAYER_NAME_BYTES: usize = 255;
 
 pub(super) const PLAYER_POOL_LOCAL_ID_OFFSET: usize = 0x04;
+#[cfg(test)]
+pub(super) const PLAYER_POOL_LARGEST_ID_OFFSET: usize = 0x00;
 pub(super) const VEHICLE_POOL_NOT_EMPTY_OFFSET: usize = 0x3074;
 pub(super) const VEHICLE_POOL_GAME_OBJECTS_OFFSET: usize = 0x4FB4;
 pub(super) const OBJECT_POOL_NOT_EMPTY_OFFSET: usize = 0x04;
@@ -210,7 +212,9 @@ pub(super) const TEXTDRAW_ZOOM_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x53;
 pub(super) const TEXTDRAW_MODEL_COLOUR1_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x57;
 pub(super) const TEXTDRAW_MODEL_COLOUR2_OFFSET: usize = TEXTDRAW_DATA_OFFSET + 0x59;
 
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_ACTIVE_OFFSET: usize = 0x0C;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_CURRENT_VEHICLE_OFFSET: usize = 0x14;
 pub(super) const LOCAL_PLAYER_ONFOOT_OFFSET: usize = 0x18;
 pub(super) const LOCAL_PLAYER_INCAR_OFFSET: usize = 0xAA;
@@ -218,11 +222,17 @@ pub(super) const LOCAL_PLAYER_PASSENGER_OFFSET: usize = 0x5C;
 pub(super) const LOCAL_PLAYER_TRAILER_OFFSET: usize = 0x74;
 pub(super) const LOCAL_PLAYER_AIM_OFFSET: usize = 0xE9;
 pub(super) const LOCAL_PLAYER_LAST_ANY_UPDATE_OFFSET: usize = 0x1D8;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_ONFOOT_POSITION_OFFSET: usize = ONFOOT_POSITION_OFFSET;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_ONFOOT_SPEED_OFFSET: usize = ONFOOT_SPEED_OFFSET;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_ONFOOT_SPECIAL_ACTION_OFFSET: usize = ONFOOT_SPECIAL_ACTION_OFFSET;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_ONFOOT_ANIMATION_OFFSET: usize = ONFOOT_ANIMATION_OFFSET;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_INCAR_POSITION_OFFSET: usize = 0x18;
+#[cfg(test)]
 pub(super) const LOCAL_PLAYER_INCAR_SPEED_OFFSET: usize = 0x24;
 
 // `CPed` inherits a 0x48-byte `CEntity`, then owns its accessory arrays before

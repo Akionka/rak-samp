@@ -34,8 +34,6 @@ pub(super) type LabelPoolCreateFn =
 pub(super) type LabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 pub(super) type PlayerPoolGetLocalPlayerFn =
     unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-pub(super) type PlayerPoolGetLocalScoreFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-pub(super) type PlayerPoolGetLocalPingFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 pub(super) type PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 pub(super) type PlayerPoolGetRemotePlayerFn =
     unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
@@ -45,7 +43,6 @@ pub(super) type PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_v
 pub(super) type PlayerPoolSetLocalPlayerNameFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8);
 pub(super) type LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-pub(super) type LocalPlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
 pub(super) type LocalPlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 pub(super) type LocalPlayerSetSpecialActionFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 pub(super) type LocalPlayerSpawnFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
@@ -64,5 +61,4 @@ pub(super) type RemotePlayerGetColourArgbFn = unsafe extern "thiscall" fn(*mut c
 pub(super) type RemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 pub(super) type RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 pub(super) type RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-pub(super) type PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
 pub(super) type CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;

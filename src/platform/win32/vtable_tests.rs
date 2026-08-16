@@ -72,7 +72,8 @@ fn shared_refresh_helpers_accept_every_native_profile() {
         state.trailer_sync_requests.lock().unwrap().push_back(7);
         state.aim_sync_requests.lock().unwrap().push_back(7);
 
-        state.refresh_local_player_snapshot(profile, None);
+        let _ = profile;
+        state.refresh_local_player_snapshot(None);
         state.refresh_player_info(profile);
         state.refresh_remote_player_state(profile);
         state.refresh_streamed_out_player_position(profile);
