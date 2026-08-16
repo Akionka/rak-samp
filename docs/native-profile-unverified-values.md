@@ -30,6 +30,9 @@ guessed value or fallback.
 | R5 | Every non-layout RVA recorded in `R5_SPEC` | `src/platform/win32/r3_client.rs` build selectors | Shipped R5 binary or executable pin tests | Unverified |
 | R5 | Native ABI signatures and calling conventions | `src/platform/win32/r3_client.rs` function aliases | ABI fixture or live call validation for each signature | Unverified |
 | R5 | GTA ped and vehicle handle-conversion targets | GTA 1.0 US constants | Executable fixture or binary evidence | Unverified; operation unavailable |
+| DL | Every non-layout RVA recorded in `DL_SPEC` | `src/platform/win32/r3_client.rs` DL `build_value` selectors | Shipped DL binary or executable pin tests | Unverified |
+| DL | Native ABI signatures and calling conventions | `src/platform/win32/r3_client.rs` function aliases | ABI fixture or live call validation for each signature | Unverified |
+| DL | GTA ped and vehicle handle-conversion targets | GTA 1.0 US constants | Executable fixture or binary evidence | Unverified; operation unavailable |
 | R3, R5, DL | Non-layout native and singleton RVAs | `src/platform/win32/r3_client.rs` | Shipped binary or executable pin tests for each profile | Unverified |
 | R3, R5, DL | Native ABI signatures and calling conventions | `src/platform/win32/r3_client.rs` function aliases | ABI fixture or live call validation | Unverified |
 | R3, R5, DL | GTA ped and vehicle handle-conversion targets | `src/platform/win32/r3_client.rs` | Executable GTA fixture or binary evidence | Unverified |

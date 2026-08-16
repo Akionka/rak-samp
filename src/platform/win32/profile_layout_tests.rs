@@ -4,6 +4,7 @@
 //! R5-1, and DL-R1 direct-helper profiles.
 
 use crate::client::SampVersion;
+use crate::platform::win32::native_client::profiles::dl::DL_SPEC;
 use crate::platform::win32::native_client::profiles::r3::R3_SPEC;
 use crate::platform::win32::native_client::profiles::r5::R5_SPEC;
 
@@ -648,6 +649,56 @@ fn dl_pool_and_player_layouts_match_the_independent_cpp_fixture() {
             0x1C, 0x2C, 0x04, 0x2F3E, 0x00, 0x1E, 0x22, 0x26, 0xFD6, 0x1F86, 0x2F36, 0x2F3A,
         ]
     );
+}
+
+#[test]
+fn dl_spec_layout_fields_match_the_independent_cpp_fixture() {
+    unsafe {
+        assert_eq!(
+            DL_SPEC.net_game.rak_client_offset.map(|value| value.get()),
+            Some(samp_client_sdk_fixture_dl_netgame_rak_client_offset())
+        );
+        assert_eq!(
+            DL_SPEC.net_game.game_state_offset.get(),
+            samp_client_sdk_fixture_dl_netgame_game_state_offset()
+        );
+        assert_eq!(
+            DL_SPEC.net_game.pools_offset.get(),
+            samp_client_sdk_fixture_dl_netgame_pools_offset()
+        );
+        assert_eq!(
+            DL_SPEC.net_game.pools.object_offset.get(),
+            samp_client_sdk_fixture_dl_pools_object_offset()
+        );
+        assert_eq!(
+            DL_SPEC.pools.object.objects_offset.get(),
+            samp_client_sdk_fixture_dl_object_pool_objects_offset()
+        );
+        assert_eq!(
+            DL_SPEC.pools.player.local_id_offset.get(),
+            samp_client_sdk_fixture_dl_player_pool_local_id_offset()
+        );
+        assert_eq!(
+            DL_SPEC.pools.player.largest_id_offset.get(),
+            samp_client_sdk_fixture_dl_player_pool_largest_id_offset()
+        );
+        assert_eq!(
+            DL_SPEC.players.local.onfoot_offset.get(),
+            samp_client_sdk_fixture_dl_local_player_onfoot_offset()
+        );
+        assert_eq!(
+            DL_SPEC.players.local.last_any_update_offset.get(),
+            samp_client_sdk_fixture_dl_local_player_last_any_update_offset()
+        );
+        assert_eq!(
+            DL_SPEC.players.remote.onfoot_offset.get(),
+            samp_client_sdk_fixture_dl_remote_player_onfoot_offset()
+        );
+        assert_eq!(
+            DL_SPEC.players.remote.aim_offset.get(),
+            samp_client_sdk_fixture_dl_remote_player_aim_offset()
+        );
+    }
 }
 
 #[test]

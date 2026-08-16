@@ -516,13 +516,13 @@ Evidence/commit: `bbb1858` (`feat(native-client): freeze r5 profile data`)
 
 ### 5. Freeze DL data
 
-- [ ] Create `native_client/profiles/dl.rs`.
-- [ ] Move DL identity and entry point into `DL_SPEC`.
-- [ ] Materialize every DL `build_value` override as a named field.
-- [ ] Record DL limits, extended object pool, sync layouts, and RVAs.
-- [ ] Compare every layout value with the DL fixture.
-- [ ] Register each unverified RVA or ABI.
-- [ ] Add exhaustive DL spec-value tests.
+- [x] Create `native_client/profiles/dl.rs`.
+- [x] Move DL identity and entry point into `DL_SPEC`.
+- [x] Materialize every DL `build_value` override as a named field.
+- [x] Record DL limits, extended object pool, sync layouts, and RVAs.
+- [x] Compare every layout value with the DL fixture.
+- [x] Register each unverified RVA or ABI.
+- [x] Add exhaustive DL spec-value tests.
 
 Evidence/commit: _pending_
 
