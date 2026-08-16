@@ -524,21 +524,21 @@ Evidence/commit: `bbb1858` (`feat(native-client): freeze r5 profile data`)
 - [x] Register each unverified RVA or ABI.
 - [x] Add exhaustive DL spec-value tests.
 
-Evidence/commit: _pending_
+Evidence/commit: `9fcc749` (`feat(native-client): freeze dl profile data`)
 
 ### 6. Profile selection
 
-- [ ] Add `native_client/profiles/mod.rs`.
-- [ ] Implement one identity-to-spec selector.
-- [ ] Select only R1, R3, R5, and DL.
-- [ ] Reject mismatched entry points.
-- [ ] Reject a zero module base.
-- [ ] Replace version-specific verification constructors.
-- [ ] Replace enum-pattern logging with profile identity data.
-- [ ] Add selector tests for all profiles and mismatch cases.
-- [ ] Keep runtime behavior otherwise unchanged.
+- [x] Add `native_client/profiles/mod.rs`.
+- [x] Implement one identity-to-spec selector.
+- [x] Select only R1, R3, R5, and DL.
+- [x] Reject mismatched entry points.
+- [x] Reject a zero module base.
+- [x] Replace version-specific verification constructors.
+- [x] Replace enum-pattern logging with profile identity data.
+- [x] Add selector tests for all profiles and mismatch cases.
+- [x] Keep runtime behavior otherwise unchanged.
 
-Evidence/commit: _pending_
+Evidence/commit: `11ddec9` (`feat(native-client): select immutable profiles`)
 
 ### 7. Shared memory and ABI primitives
 
