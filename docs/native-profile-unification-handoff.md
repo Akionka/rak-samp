@@ -499,7 +499,7 @@ Evidence/commit: `9470327` (`feat(native-client): freeze r1 profile data`)
 - [x] Register each unverified RVA or ABI.
 - [x] Add exhaustive R3 spec-value tests.
 
-Evidence/commit: _pending_
+Evidence/commit: `e7a0002` (`feat(native-client): freeze r3 profile data`)
 
 ### 4. Freeze R5 data
 
