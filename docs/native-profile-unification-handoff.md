@@ -556,16 +556,16 @@ Evidence/commit: `55e73eb` (`refactor(native-client): share guarded memory primi
 
 ### 8. Connection and server metadata
 
-- [ ] Migrate RakPeer address resolution.
-- [ ] Migrate disconnect handling.
-- [ ] Migrate game-state reads and writes through `GameStateCodec`.
-- [ ] Migrate reconnect/server-address mutation.
-- [ ] Migrate server metadata snapshots.
-- [ ] Normalize empty-hostname behavior.
-- [ ] Add cross-profile result-parity tests.
-- [ ] Remove the superseded R1/classic connection implementations.
+- [x] Migrate RakPeer address resolution.
+- [x] Migrate disconnect handling.
+- [x] Migrate game-state reads and writes through `GameStateCodec`.
+- [x] Migrate reconnect/server-address mutation.
+- [x] Migrate server metadata snapshots.
+- [x] Normalize empty-hostname behavior.
+- [x] Add cross-profile result-parity tests.
+- [x] Remove the superseded R1/classic connection implementations.
 
-Evidence/commit: _pending_
+Evidence/commit: `0637ae4` (`refactor(native-client): share connection operations`)
 
 ### 9. Singletons and readiness
 
