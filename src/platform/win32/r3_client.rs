@@ -6,7 +6,7 @@
 
 use super::{
     argb_to_native_rgba,
-    r1_client::memory::{
+    native_client::memory::{
         bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
         writable_range,
     },

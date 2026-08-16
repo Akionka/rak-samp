@@ -185,7 +185,23 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
         ..R3_SPEC.textdraws
     },
     handles: R3_SPEC.handles,
-    strategies: R3_SPEC.strategies,
+    strategies: ProfileStrategies {
+        game_state_codec: GameStateCodec::Classic,
+        local_player_source: LocalPlayerSource::PlayerPoolGetter,
+        booleans: NativeBooleanPolicies {
+            pool_occupancy: NativeBoolean::ValidatedI32,
+            player_is_npc: NativeBoolean::ValidatedI32,
+            dialog_active: NativeBoolean::ValidatedI32,
+            dialog_server_side: NativeBoolean::ValidatedI32,
+            input_enabled: NativeBoolean::ValidatedI32,
+            label_behind_walls: NativeBoolean::ValidatedU8,
+            textdraw_flags: NativeBoolean::ValidatedU8,
+            vehicle_sync_flags: NativeBoolean::ValidatedU8,
+        },
+        force_sync_reset: ForceSyncReset::ClearLastAnyUpdate,
+        list_item_text_layout: ListItemTextLayout::DxutComboBoxItem,
+        textdraw_calls: TextdrawCallStrategy::NativeMethods,
+    },
 };
 
 #[cfg(test)]

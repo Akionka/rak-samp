@@ -1252,8 +1252,14 @@ fn r1_spec_copies_the_existing_rvas_layouts_limits_and_strategies() {
         R1_SPEC.strategies.local_player_source,
         LocalPlayerSource::PlayerPoolGetter
     );
-    assert_eq!(R1_SPEC.strategies.i32_boolean, NativeBoolean::ValidatedI32);
-    assert_eq!(R1_SPEC.strategies.u8_boolean, NativeBoolean::ValidatedU8);
+    assert_eq!(
+        R1_SPEC.strategies.booleans.pool_occupancy,
+        NativeBoolean::ValidatedI32
+    );
+    assert_eq!(
+        R1_SPEC.strategies.booleans.textdraw_flags,
+        NativeBoolean::ValidatedU8
+    );
     assert_eq!(
         R1_SPEC.strategies.force_sync_reset,
         ForceSyncReset::ClearLastAnyUpdate

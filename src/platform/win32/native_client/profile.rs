@@ -510,11 +510,26 @@ pub(crate) struct HandleSpec {
 pub(crate) struct ProfileStrategies {
     pub(crate) game_state_codec: GameStateCodec,
     pub(crate) local_player_source: LocalPlayerSource,
-    pub(crate) i32_boolean: NativeBoolean,
-    pub(crate) u8_boolean: NativeBoolean,
+    pub(crate) booleans: NativeBooleanPolicies,
     pub(crate) force_sync_reset: ForceSyncReset,
     pub(crate) list_item_text_layout: ListItemTextLayout,
     pub(crate) textdraw_calls: TextdrawCallStrategy,
+}
+
+/// Native boolean encodings grouped by the field families that consume them.
+///
+/// `LocalPlayerLayout::active_offset` is intentionally absent: it is a
+/// non-zero activity marker, not a strict native boolean.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct NativeBooleanPolicies {
+    pub(crate) pool_occupancy: NativeBoolean,
+    pub(crate) player_is_npc: NativeBoolean,
+    pub(crate) dialog_active: NativeBoolean,
+    pub(crate) dialog_server_side: NativeBoolean,
+    pub(crate) input_enabled: NativeBoolean,
+    pub(crate) label_behind_walls: NativeBoolean,
+    pub(crate) textdraw_flags: NativeBoolean,
+    pub(crate) vehicle_sync_flags: NativeBoolean,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

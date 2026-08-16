@@ -382,8 +382,16 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
     strategies: ProfileStrategies {
         game_state_codec: GameStateCodec::Classic,
         local_player_source: LocalPlayerSource::PlayerPoolGetter,
-        i32_boolean: NativeBoolean::ValidatedI32,
-        u8_boolean: NativeBoolean::ValidatedU8,
+        booleans: NativeBooleanPolicies {
+            pool_occupancy: NativeBoolean::ValidatedI32,
+            player_is_npc: NativeBoolean::ValidatedI32,
+            dialog_active: NativeBoolean::ValidatedI32,
+            dialog_server_side: NativeBoolean::ValidatedI32,
+            input_enabled: NativeBoolean::ValidatedI32,
+            label_behind_walls: NativeBoolean::ValidatedU8,
+            textdraw_flags: NativeBoolean::ValidatedU8,
+            vehicle_sync_flags: NativeBoolean::ValidatedU8,
+        },
         force_sync_reset: ForceSyncReset::ClearLastAnyUpdate,
         list_item_text_layout: ListItemTextLayout::DxutComboBoxItem,
         textdraw_calls: TextdrawCallStrategy::NativeMethods,
@@ -411,6 +419,9 @@ mod tests {
         assert_eq!(R3_SPEC.ui.input.edit_box_set_text_rva, None);
         assert_eq!(R3_SPEC.textdraws.text_setter_rva.get(), 0xB26D0);
         assert_eq!(R3_SPEC.strategies.game_state_codec, GameStateCodec::Classic);
-        assert_eq!(R3_SPEC.strategies.i32_boolean, NativeBoolean::ValidatedI32);
+        assert_eq!(
+            R3_SPEC.strategies.booleans.pool_occupancy,
+            NativeBoolean::ValidatedI32
+        );
     }
 }

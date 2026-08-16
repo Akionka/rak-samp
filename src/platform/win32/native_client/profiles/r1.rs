@@ -379,8 +379,16 @@ pub(crate) const R1_SPEC: ProfileSpec = ProfileSpec {
     strategies: ProfileStrategies {
         game_state_codec: GameStateCodec::Identity,
         local_player_source: LocalPlayerSource::PlayerPoolGetter,
-        i32_boolean: NativeBoolean::ValidatedI32,
-        u8_boolean: NativeBoolean::ValidatedU8,
+        booleans: NativeBooleanPolicies {
+            pool_occupancy: NativeBoolean::ValidatedI32,
+            player_is_npc: NativeBoolean::ValidatedI32,
+            dialog_active: NativeBoolean::ValidatedI32,
+            dialog_server_side: NativeBoolean::ValidatedI32,
+            input_enabled: NativeBoolean::ValidatedI32,
+            label_behind_walls: NativeBoolean::ValidatedU8,
+            textdraw_flags: NativeBoolean::ValidatedU8,
+            vehicle_sync_flags: NativeBoolean::ValidatedU8,
+        },
         force_sync_reset: ForceSyncReset::ClearLastAnyUpdate,
         list_item_text_layout: ListItemTextLayout::DxutComboBoxItem,
         textdraw_calls: TextdrawCallStrategy::NativeMethods,

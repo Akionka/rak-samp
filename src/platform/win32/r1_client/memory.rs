@@ -1,11 +1,11 @@
-//! Fixed R1 native layouts and guarded memory access helpers.
+//! Fixed R1 native layouts and R1-specific helper wrappers.
 
 use crate::runtime::{DirectClientError, Vector3};
+#[cfg(test)]
 use std::ffi::c_void;
-use std::mem;
-use windows_sys::Win32::System::Memory::{
-    MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY,
-    PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQuery,
+
+pub(crate) use super::super::native_client::memory::{
+    bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range, writable_range,
 };
 
 pub(super) const CHAT_DISPLAY_MODE_OFFSET: usize = 0x08;
@@ -273,111 +273,14 @@ impl From<Vector3> for NativeVector3 {
     }
 }
 
-pub(crate) unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
-    unsafe { read_unaligned::<usize>(address) }.map(|value| value as *mut u8)
-}
-
-pub(crate) unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
-    readable_range(address as *const u8, mem::size_of::<T>())
-        .then(|| unsafe { (address as *const T).read_unaligned() })
-}
-
-pub(crate) unsafe fn read_vector3(address: usize) -> Option<Vector3> {
-    Some(Vector3 {
-        x: unsafe { read_unaligned::<f32>(address) }?,
-        y: unsafe { read_unaligned::<f32>(address.checked_add(4)?) }?,
-        z: unsafe { read_unaligned::<f32>(address.checked_add(8)?) }?,
-    })
-}
-
 pub(super) fn read_r1_bool(address: usize) -> Result<bool, DirectClientError> {
-    match unsafe { read_unaligned::<i32>(address) } {
-        Some(0) => Ok(false),
-        Some(1) => Ok(true),
-        _ => Err(DirectClientError::NotReady),
-    }
+    super::super::native_client::memory::read_i32_bool(address)
 }
 
 pub(super) fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
-    match unsafe { read_unaligned::<u8>(address) } {
-        Some(0) => Ok(false),
-        Some(1) => Ok(true),
-        _ => Err(DirectClientError::NotReady),
-    }
-}
-
-pub(crate) unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
-    if pointer.is_null() {
-        return None;
-    }
-    let mut output = Vec::new();
-    for index in 0..maximum {
-        let byte = unsafe { read_unaligned::<u8>((pointer as usize).checked_add(index)?) }?;
-        if byte == 0 {
-            return Some(output);
-        }
-        output.push(byte);
-    }
-    None
+    super::super::native_client::memory::read_u8_bool(address)
 }
 
 pub(super) unsafe fn bounded_dxut_listbox_item_text(pointer: *const u8) -> Option<Vec<u8>> {
     unsafe { bounded_c_string(pointer, DXUT_LISTBOX_ITEM_TEXT_CAPACITY) }
-}
-
-pub(crate) fn readable_range(address: *const u8, length: usize) -> bool {
-    if address.is_null() || length == 0 {
-        return length == 0;
-    }
-    let Some(end) = (address as usize).checked_add(length) else {
-        return false;
-    };
-    let mut current = address as usize;
-    while current < end {
-        let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
-        let queried = unsafe {
-            VirtualQuery(
-                current as *const c_void,
-                info.as_mut_ptr(),
-                mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-            )
-        };
-        if queried == 0 {
-            return false;
-        }
-        let info = unsafe { info.assume_init() };
-        let Some(region_end) = (info.BaseAddress as usize).checked_add(info.RegionSize) else {
-            return false;
-        };
-        if info.State != MEM_COMMIT
-            || info.Protect & (PAGE_GUARD | PAGE_NOACCESS) != 0
-            || region_end <= current
-        {
-            return false;
-        }
-        current = region_end.min(end);
-    }
-    true
-}
-
-pub(crate) fn writable_range(address: *const u8, length: usize) -> bool {
-    if !readable_range(address, length) {
-        return false;
-    }
-    let mut info = mem::MaybeUninit::<MEMORY_BASIC_INFORMATION>::zeroed();
-    let queried = unsafe {
-        VirtualQuery(
-            address.cast(),
-            info.as_mut_ptr(),
-            mem::size_of::<MEMORY_BASIC_INFORMATION>(),
-        )
-    };
-    if queried == 0 {
-        return false;
-    }
-    let protection = unsafe { info.assume_init() }.Protect & 0xFF;
-    matches!(
-        protection,
-        PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY
-    )
 }
