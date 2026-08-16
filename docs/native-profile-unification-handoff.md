@@ -576,21 +576,21 @@ Evidence/commit: `0637ae4` (`refactor(native-client): share connection operation
 - [x] Add synthetic-memory tests for every profile.
 - [x] Remove the superseded singleton implementations.
 
-Evidence/commit: _pending_ (`refactor(native-client): share singleton resolution`)
+Evidence/commit: `321d598` (`refactor(native-client): share singleton resolution`)
 
 ### 10. Players and player pools
 
-- [ ] Migrate player-pool lookup and counts.
-- [ ] Migrate local-player lookup through `LocalPlayerSource`.
-- [ ] Migrate local-player snapshots.
-- [ ] Migrate remote-player directory and snapshots.
-- [ ] Migrate score, ping, name, colour, health, and armour reads.
-- [ ] Migrate player mutations.
-- [ ] Resolve the profile-neutral raw local-player address contract.
-- [ ] Add parity tests for R1/R3/R5/DL layouts and results.
-- [ ] Remove superseded player implementations.
+- [x] Migrate player-pool lookup and counts.
+- [x] Migrate local-player lookup through `LocalPlayerSource`.
+- [x] Migrate local-player snapshots.
+- [x] Migrate remote-player directory and snapshots.
+- [x] Migrate score, ping, name, colour, health, and armour reads.
+- [x] Migrate player mutations.
+- [x] Resolve the profile-neutral raw local-player address contract.
+- [x] Add parity tests for R1/R3/R5/DL layouts and results.
+- [x] Remove superseded player implementations.
 
-Evidence/commit: _pending_
+Evidence/commits: `24988d8` (`refactor(native-client): share player pool scalars`), `c57008a` (`refactor(native-client): share local player snapshot`), `6bc9d89` (`refactor(native-client): share remote player reads`), `51b3c9a` (`refactor(native-client): share player mutations`)
 
 ### 11. Sync records and force-send operations
 
