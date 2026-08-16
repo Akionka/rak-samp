@@ -486,7 +486,7 @@ Evidence/commit: `a1f438a` (`feat(native-client): add profile data model`)
 - [x] Register each unverified RVA or ABI instead of assuming proof.
 - [x] Add exhaustive R1 spec-value tests.
 
-Evidence/commit: _pending_
+Evidence/commit: `9470327` (`feat(native-client): freeze r1 profile data`)
 
 ### 3. Freeze R3 data
 
