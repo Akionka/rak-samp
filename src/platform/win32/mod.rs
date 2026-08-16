@@ -811,12 +811,15 @@ impl BackendState {
     }
 
     fn install_dialog_close_hook(&self) -> Result<(), AttachError> {
-        let Some(profile) = self.scalar_profile() else {
+        let Some(profile) = self.connection_profile() else {
             return Ok(());
         };
+        let target = profile
+            .dialog_close_target()
+            .ok_or(AttachError::HookInstallFailed("CDialog::Close target"))?;
         let (mut detour, trampoline) = InlineHook::create(
             "CDialog::Close",
-            profile.dialog_close_target(),
+            target,
             hooks::dialog_close_detour as *const () as usize,
         )
         .map_err(|_| AttachError::HookInstallFailed("CDialog::Close detour"))?;

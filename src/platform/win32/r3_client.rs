@@ -577,10 +577,6 @@ impl ClassicClientProfile {
         )
     }
 
-    pub(super) const fn dialog_close_target(self) -> usize {
-        self.module_base + self.build_value(DIALOG_CLOSE_RVA, 0x70630, 0x700D0)
-    }
-
     pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
         let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8, 0x1419D0);
         (0..ANIMATION_TABLE_ENTRY_COUNT)
@@ -3674,7 +3670,9 @@ mod tests {
             profile.build_value(PLAYER_POOL_GET_COUNT_RVA, 0x139F0, 0x138C0),
             0x138C0
         );
-        assert_eq!(profile.dialog_close_target(), 0x800D0);
+        let data_profile =
+            NativeClientProfile::select(0x10000, SampVersion::Dl, SAMP_DL_R1_ENTRY_POINT).unwrap();
+        assert_eq!(data_profile.dialog_close_target(), Some(0x800D0));
         assert_eq!(
             profile.build_value(ONFOOT_SEND_RATE_RVA, ONFOOT_SEND_RATE_RVA, 0x13C0A8),
             0x13C0A8

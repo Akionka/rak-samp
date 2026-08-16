@@ -234,14 +234,6 @@ impl NativeClientProfile {
     }
 
     fn net_game(self) -> Result<*mut c_void, DirectClientError> {
-        let singleton = self
-            .module_base
-            .checked_add(self.spec.net_game.singleton_rva.get())
-            .ok_or(DirectClientError::NotReady)?;
-        let net_game: *mut c_void = unsafe { read_pointer(singleton) }
-            .filter(|pointer| !pointer.is_null())
-            .ok_or(DirectClientError::NotReady)?
-            .cast();
         let minimum_size = self
             .spec
             .net_game
@@ -249,10 +241,8 @@ impl NativeClientProfile {
             .get()
             .checked_add(self.spec.net_game.host_string_capacity.get())
             .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(net_game.cast(), minimum_size) {
-            return Err(DirectClientError::NotReady);
-        }
-        Ok(net_game)
+        self.singleton(self.spec.net_game.singleton_rva, minimum_size)
+            .ok_or(DirectClientError::NotReady)
     }
 }
 

@@ -66,15 +66,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) const fn dialog_close_target(self) -> usize {
-        match self {
-            Self::R1(profile) => profile.dialog_close_target(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.dialog_close_target()
-            }
-        }
-    }
-
     pub(super) fn player_pool(self) -> Result<*mut std::ffi::c_void, DirectClientError> {
         match self {
             Self::R1(profile) => profile.player_pool(),

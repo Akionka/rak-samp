@@ -4,3 +4,4 @@ pub(crate) mod connection;
 pub(crate) mod memory;
 pub(crate) mod profile;
 pub(crate) mod profiles;
+pub(crate) mod singletons;

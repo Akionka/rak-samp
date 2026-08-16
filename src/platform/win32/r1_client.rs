@@ -39,10 +39,6 @@ impl R1ClientProfile {
         Self { module_base }
     }
 
-    pub(super) const fn dialog_close_target(self) -> usize {
-        self.module_base + DIALOG_CLOSE_RVA
-    }
-
     /// Captures the validated R1 player-pool address on the game thread.
     pub(super) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         let net_game = self.net_game().ok_or(DirectClientError::NotReady)?;
