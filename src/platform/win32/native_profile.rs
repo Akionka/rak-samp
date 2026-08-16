@@ -184,7 +184,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::PlayerInfoSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.player_info(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.player_info(id),
         }
     }
@@ -196,7 +196,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::RemotePlayerStateSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.remote_player_state(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.remote_player_state(id)
             }
@@ -210,7 +210,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<bool>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.remote_player_is_streamed_out(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.remote_player_is_streamed_out(id)
             }
@@ -296,7 +296,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::OnFootSyncSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.onfoot_sync(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.onfoot_sync(id),
         }
     }
@@ -308,7 +308,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::InCarSyncSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.incar_sync(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.incar_sync(id),
         }
     }
@@ -318,7 +318,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::PassengerSyncSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.passenger_sync(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.passenger_sync(id),
         }
     }
@@ -328,7 +328,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::TrailerSyncSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.trailer_sync(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.trailer_sync(id),
         }
     }
@@ -338,7 +338,7 @@ impl NativeProfile {
         id: u16,
     ) -> Result<Option<crate::runtime::AimSyncSnapshot>, DirectClientError> {
         match self {
-            Self::R1(_) => Err(DirectClientError::UnsupportedVersion),
+            Self::R1(profile) => profile.aim_sync(id),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.aim_sync(id),
         }
     }
@@ -989,7 +989,11 @@ mod tests {
 
     #[test]
     fn selector_enables_only_verified_direct_profiles() {
-        assert!(NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13).is_some());
+        assert!(matches!(
+            NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13),
+            Some(NativeProfile::R1(_))
+        ));
+        assert!(NativeProfile::select(0x10000, SampVersion::R1, 0x31DF14).is_none());
         assert!(matches!(
             NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point()),
             Some(NativeProfile::R3(_))
@@ -1005,5 +1009,44 @@ mod tests {
         for version in [SampVersion::R2, SampVersion::R4_2] {
             assert!(NativeProfile::select(0x10000, version, version.entry_point()).is_none());
         }
+    }
+
+    #[test]
+    fn r1_player_and_sync_reads_reach_the_verified_profile() {
+        let profile = NativeProfile::select(0x10000, SampVersion::R1, 0x31DF13)
+            .expect("the exact R1 entry point must select a native profile");
+
+        assert!(matches!(
+            profile.player_info(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.remote_player_state(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.remote_player_is_streamed_out(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.onfoot_sync(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.incar_sync(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.passenger_sync(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.trailer_sync(0),
+            Err(DirectClientError::NotReady)
+        ));
+        assert!(matches!(
+            profile.aim_sync(0),
+            Err(DirectClientError::NotReady)
+        ));
     }
 }
