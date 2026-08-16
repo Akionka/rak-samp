@@ -33,7 +33,7 @@ fn r1_native_profile() -> Option<NativeProfile> {
     NativeProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
 }
 
-fn r3_scalar_profile() -> Option<NativeProfile> {
+fn r3_native_profile() -> Option<NativeProfile> {
     NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
 }
 
@@ -41,7 +41,7 @@ fn r3_scalar_profile() -> Option<NativeProfile> {
 fn shared_refresh_helpers_accept_every_native_profile() {
     let profiles = [
         r1_native_profile().expect("R1 must select its verified native profile"),
-        r3_scalar_profile().expect("R3 must select its verified native profile"),
+        r3_native_profile().expect("R3 must select its verified native profile"),
         NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
             .expect("R5 must select its verified native profile"),
         NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
@@ -106,7 +106,7 @@ fn shared_refresh_helpers_accept_every_native_profile() {
 fn game_tick_uses_one_generation_bracket_for_every_native_profile() {
     let profiles = [
         r1_native_profile().expect("R1 must select its verified native profile"),
-        r3_scalar_profile().expect("R3 must select its verified native profile"),
+        r3_native_profile().expect("R3 must select its verified native profile"),
         NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
             .expect("R5 must select its verified native profile"),
         NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
@@ -293,7 +293,7 @@ fn dialog_response_take_is_one_shot() {
 fn r3_dialog_response_take_is_one_shot() {
     let mut state = test_backend_state();
     state.context.version = SampVersion::R3_1;
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(1, Ordering::Release);
     *state
         .local_dialog_response
@@ -356,7 +356,7 @@ fn test_snapshot(id: u16) -> LocalPlayerSnapshot {
 }
 
 #[test]
-fn direct_helpers_are_unsupported_without_the_r1_profile() {
+fn direct_helpers_require_a_verified_native_profile() {
     let state = test_backend_state();
     assert_eq!(
         state.show_local_dialog(test_dialog(1)),
@@ -616,7 +616,7 @@ fn cached_game_state_requires_the_profile_client_and_game_thread_publication() {
 fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
     let mut state = test_backend_state();
     state.context.version = SampVersion::R3_1;
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(1, Ordering::Release);
     state.samp_game_state.store(6, Ordering::Release);
     state.samp_game_state_ready.store(true, Ordering::Release);
@@ -667,7 +667,7 @@ fn r3_cached_reads_include_local_player_without_enabling_r1_helpers() {
 #[test]
 fn r3_player_pool_scalars_use_exact_published_values() {
     let mut state = test_backend_state();
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -692,7 +692,7 @@ fn r3_player_pool_scalars_use_exact_published_values() {
 #[test]
 fn r3_player_directory_uses_local_and_published_remote_states() {
     let mut state = test_backend_state();
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
     state.cache_local_player_snapshot(Some(test_snapshot(42)));
@@ -748,7 +748,7 @@ fn cached_ui_flags_require_game_thread_publication() {
 #[test]
 fn r3_cached_ui_reads_use_exact_published_values() {
     let mut state = test_backend_state();
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.cache_generation.store(2, Ordering::Release);
 
@@ -956,7 +956,7 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
 fn disconnect_invalidation_preserves_the_captured_rak_client_for_reconnect() {
     let mut state = test_backend_state();
     state.context.version = SampVersion::R3_1;
-    state.context.native_profile = r3_scalar_profile();
+    state.context.native_profile = r3_native_profile();
     state.rak_client.store(0x1000, Ordering::Release);
     state.rpc_receiver.store(0x2000, Ordering::Release);
     state.player_address.store(0x0100007F, Ordering::Release);
