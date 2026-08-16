@@ -609,16 +609,19 @@ Evidence/commit: `24848ad` (`feat(native-client): share sync operations`); `carg
 
 ### 12. Handles and entity pools
 
-- [ ] Migrate ped and vehicle handle conversion.
-- [ ] Keep GTA addresses outside SA-MP specs unless evidence requires otherwise.
-- [ ] Migrate vehicle existence and game-object lookup.
-- [ ] Migrate object and pickup pools.
-- [ ] Migrate gangzones.
-- [ ] Add limit and invalid-ID tests for every profile.
-- [ ] Cover DL extended object limits.
-- [ ] Remove superseded handle/entity implementations.
+- [x] Migrate ped and vehicle handle conversion.
+- [x] Keep GTA addresses outside SA-MP specs unless evidence requires otherwise.
+- [x] Migrate vehicle existence and game-object lookup.
+- [x] Migrate object and pickup pools.
+- [x] Migrate gangzones.
+- [x] Add limit and invalid-ID tests for every profile.
+- [x] Cover DL extended object limits.
+- [x] Remove superseded handle/entity runtime dispatch implementations.
 
-Evidence/commit: _pending_
+Evidence/commits: `ff6bfa9` (`refactor(native-client): share entity pool reads`) and
+`df8b8ae` (`refactor(native-client): share gta handle conversion`); `cargo clippy
+--workspace -- -D warnings` and `cargo test -p samp-client-sdk-host --lib` (194
+passed).
 
 ### 13. UI operations
 
