@@ -10,6 +10,7 @@ mod gangzones;
 mod handles;
 mod hooks;
 mod native_bitstream;
+mod native_client;
 mod native_profile;
 mod objects;
 mod packets;

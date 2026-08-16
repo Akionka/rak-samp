@@ -1,0 +1,728 @@
+# Native Profile Unification Handoff
+
+## Objective
+
+Replace the version-shaped native backends with one data-driven native client:
+
+```rust
+struct NativeClientProfile {
+    module_base: usize,
+    spec: &'static ProfileSpec,
+}
+```
+
+R1, R3-1, R5-1, and DL-R1 must be equal profiles. Shared operations must have
+one implementation. Version modules must contain only verified identity data,
+layouts, RVAs, limits, and narrowly scoped ABI or behavior strategies.
+
+This document is planning-only. Do not start the refactor from this handoff
+without first checking the current branch and working tree.
+
+## Confirmed decisions
+
+- Use one `NativeClientProfile` and four static `ProfileSpec` values.
+- Do not keep a version enum as the operation dispatcher.
+- Do not create R2 or R4 profiles.
+- Complete the structural refactor and static verification before any live
+  validation.
+- Run R1, R3, R5, and DL live validation as a separate final stage.
+- When an RVA, offset, ABI, or behavior is not verified, record it explicitly,
+  return `NotReady` for the affected operation, and research it after the
+  structural migration. Never add a guessed value or silent fallback.
+
+## Current state
+
+The existing design has two implementations:
+
+- `src/platform/win32/r1_client.rs` plus `r1_client/`: focused R1 modules.
+- `src/platform/win32/r3_client.rs`: a monolithic
+  `ClassicClientProfile` covering R3, R5, and DL through `ClassicVersion` and
+  `build_value(r3, r5, dl)`.
+
+`src/platform/win32/native_profile.rs` defines `NativeProfile::{R1,R3,R5,Dl}`
+and contains a large forwarding layer. Almost every variant exposes the same
+operation surface. Selection happens during `win32::attach`, and the selected
+profile is stored in `BackendContext`.
+
+The latest verified baseline includes:
+
+- `448a8bc fix(r1): correct label and textdraw mutations`
+- `3e03ca8 fix(probes): report profile-specific validation`
+- R1 live result: `status=0x3FFFFFFF`, `failure=0`
+
+The working tree may contain unrelated user files, including `TODO.md`,
+`.serena/memories/*`, and `docs/r1-native-profile-unification-handoff.md`.
+Do not stage, rewrite, or remove them.
+
+## Work log
+
+| Date | Branch | HEAD | Starting dirty files | Baseline checks |
+| --- | --- | --- | --- | --- |
+| 2026-08-16 | `feature/helpers` | `3e03ca846cab383e2cc172dab2f1675d4d91d792` | `TODO.md`; `.serena/memories/dl_binary_layout_corrections.md`; `.serena/memories/dl_exact_rva_reports.md`; `.serena/memories/dl_implementation_checkpoint.md`; `.serena/memories/dl_player_rvas.md`; `.serena/memories/dl_support_handoff.md`; `docs/native-profile-unification-handoff.md`; `docs/r1-native-profile-unification-handoff.md` | `cargo test --workspace` passed; `cargo clippy --workspace -- -D warnings` passed |
+
+## Target module structure
+
+```text
+src/platform/win32/native_client/
+  mod.rs
+  profile.rs
+  memory.rs
+  native_types.rs
+  singletons.rs
+  players.rs
+  handles.rs
+  pools.rs
+  ui.rs
+  text_labels.rs
+  textdraws.rs
+  sync.rs
+  profiles/
+    mod.rs
+    r1.rs
+    r3.rs
+    r5.rs
+    dl.rs
+```
+
+Responsibilities:
+
+- `profile.rs`: `NativeClientProfile`, nested spec types, strategies, and
+  selection.
+- `profiles/*.rs`: static verified data only. A profile module must not own a
+  duplicate lifecycle implementation.
+- Operation modules: one implementation per public/native operation.
+- `memory.rs`: guarded reads/writes and bounded string helpers that are valid
+  for all profiles.
+- `native_types.rs`: checked function signatures. Keep distinct aliases when
+  the ABI is not proven identical.
+
+Do not create a single flat `ProfileSpec` with hundreds of unrelated fields.
+Use nested subsystem specs so ownership and fixture coverage remain visible.
+
+## Proposed data model
+
+```rust
+struct ProfileSpec {
+    identity: ProfileIdentity,
+    net_game: NetGameSpec,
+    pools: PoolSpec,
+    players: PlayerSpec,
+    sync: SyncSpec,
+    ui: UiSpec,
+    text_labels: TextLabelSpec,
+    textdraws: TextdrawSpec,
+    handles: HandleSpec,
+    strategies: ProfileStrategies,
+}
+
+struct ProfileIdentity {
+    name: &'static str,
+    version: SampVersion,
+    entry_point: u32,
+}
+
+struct NativeRva(usize);
+struct FieldOffset(usize);
+struct NativeSize(usize);
+```
+
+Use small newtypes where they prevent mixing RVAs, offsets, sizes, and limits.
+All specs must be immutable `'static` data.
+
+Selection should be data-driven:
+
+```rust
+fn select(
+    module_base: usize,
+    version: SampVersion,
+    entry_point: u32,
+) -> Option<NativeClientProfile> {
+    let spec = profiles::for_identity(version, entry_point)?;
+    (module_base != 0).then_some(NativeClientProfile { module_base, spec })
+}
+```
+
+Do not expose version-specific constructors such as `verify_r5` or
+`verify_dl`.
+
+## Source of profile data
+
+Use these sources before moving values:
+
+- R1 RVAs: `src/platform/win32/r1_client/addresses.rs`.
+- R1 layouts and limits: `src/platform/win32/r1_client/memory.rs`.
+- R1 ABI aliases: `src/platform/win32/r1_client/native_types.rs`.
+- R3 base values and R3/R5/DL overrides:
+  `src/platform/win32/r3_client.rs`.
+- R3/R5/DL overrides are currently expressed by the `build_value` accessors
+  on `ClassicClientProfile`.
+- Independent layouts: `tests/fixtures/raknet_layout.cpp` and
+  `src/platform/win32/profile_layout_tests.rs`.
+- R1 fixture checks: `src/platform/win32/r1_client/tests.rs`.
+- Entry-point identities: `src/client.rs`.
+
+Pinned entry points:
+
+| Profile | Entry point |
+| --- | ---: |
+| R1 | `0x31DF13` |
+| R3-1 | `0x0CC4D0` |
+| R5-1 | `0x0CBC90` |
+| DL-R1 | `0x0FDB60` |
+
+Every current `build_value(r3, r5, dl)` call must become a named spec field.
+Add a spec-value test before deleting the corresponding old accessor.
+
+## Required strategies
+
+Offsets and RVAs are insufficient for the following confirmed differences.
+Model each difference explicitly. Do not put broad version checks inside shared
+operations.
+
+### Game-state codec
+
+R1 uses the public state values directly and accepts `0, 9, 13, 14, 15, 18`.
+The classic implementation maps those states to native `0, 1, 2, 5, 6, 11`.
+
+Use an explicit codec strategy:
+
+```rust
+enum GameStateCodec {
+    Identity,
+    Classic,
+}
+```
+
+### Local-player source and cached address
+
+R1 calls `CPlayerPool::GetLocalPlayer`. Classic profiles read a profile-specific
+pointer field. Model this as a `LocalPlayerSource` strategy.
+
+The cache currently publishes an R1-only `raw_r1_address`. Rename it to a
+profile-neutral concept. Before declaring parity complete, either verify and
+publish the equivalent address for every profile or remove the profile-specific
+contract. Do not retain an R1-named field in the unified design.
+
+### Native boolean representation
+
+R1 uses `read_r1_bool`; classic operations validate integer boolean fields at
+their call sites. Define the actual representation and validation policy in
+the relevant layout/spec. Do not assume all fields share one representation.
+
+### Force-sync behavior
+
+R1 clears `last_any_update` and writes records using R1 layouts before native
+send calls. R3/R5/DL use profile-dependent layouts and reset logic. Keep one
+shared force-sync flow parameterized by `SyncSpec` and an explicit reset
+strategy.
+
+### Dialog list-item layout
+
+R1 follows a `DXUTComboBoxItem` and reads its embedded text. The classic path
+treats an item as a direct text pointer. Use a narrow `ListItemTextLayout`
+strategy.
+
+### String validation
+
+R1 and classic direct methods currently differ on embedded NUL handling and
+empty server hostnames. The unified public behavior must be identical.
+Normalize to the safer bounded policy unless an existing public test requires
+another result:
+
+- reject embedded NUL input;
+- reject unterminated or oversized native strings;
+- treat an empty hostname consistently as not ready.
+
+Do this as an explicit behavior-normalization change with tests, not as an
+accidental side effect of moving code.
+
+### Textdraw native calls
+
+Create/delete/set-text RVAs differ. R1 and classic profiles also use different
+pool/layout values. Keep one operation flow with typed RVAs and layout data.
+The verified R1 text setter is `0xAC870` and must remain a native call.
+
+### Native function signatures
+
+R1 and classic currently define separate aliases. Merge an alias only after
+confirming parameters, return type, and calling convention for all four
+profiles. Otherwise store a typed strategy or retain separate aliases behind a
+shared operation.
+
+### Server metadata
+
+R1 currently accepts an empty hostname while classic rejects it. Normalize the
+observable result and cover it with parity tests.
+
+### GTA handle conversion
+
+The GTA `CPools::GetPedRef` and `CPools::GetVehicleRef` targets are shared GTA
+addresses, not SA-MP module RVAs. Keep them outside the per-SA-MP profile spec
+unless evidence proves a profile dependency.
+
+## Migration sequence
+
+Each phase must compile and pass static tests. Do not combine all moves into one
+commit.
+
+### Phase 1: Freeze the profile data
+
+1. Add nested spec types and four static specs without changing runtime
+   selection.
+2. Copy every existing R1 constant and every R3/R5/DL `build_value` result into
+   a named field.
+3. Add tests comparing new specs with the existing constants/accessors and C++
+   fixtures.
+4. Create `docs/native-profile-unverified-values.md` for every value without
+   independent evidence. Record profile, operation, current source, required
+   evidence, and status.
+
+### Phase 2: Replace selection and identity dispatch
+
+1. Introduce `NativeClientProfile { module_base, spec }`.
+2. Return it from one selector for R1/R3/R5/DL.
+3. Replace enum-pattern logging with `spec.identity.name`.
+4. Keep the old operation implementations temporarily behind the new profile
+   only if needed for an incremental build. Do not add a new permanent enum
+   dispatcher.
+
+### Phase 3: Move shared primitives
+
+1. Consolidate guarded memory reads/writes and bounded strings.
+2. Consolidate native type aliases only where ABI equality is proven.
+3. Move singleton lookup and profile-neutral address calculation.
+4. Add tests for overflow, invalid ranges, invalid booleans, embedded NULs, and
+   unterminated strings.
+
+### Phase 4: Migrate operations by subsystem
+
+Use this order to limit coupling:
+
+1. connection and server metadata;
+2. singleton lookup and UI readiness;
+3. players and player pools;
+4. sync reads and force-sync mutations;
+5. handles, vehicles, objects, pickups, and gangzones;
+6. chat, input, dialog, scoreboard, cursor, and death window;
+7. text labels;
+8. textdraws;
+9. animation catalog and remaining helpers.
+
+For each subsystem:
+
+1. add the required spec fields and strategies;
+2. port one shared implementation;
+3. run fixture and parity tests for all four specs;
+4. delete the superseded R1/classic implementation immediately;
+5. commit the completed subsystem separately.
+
+### Phase 5: Remove the forwarding architecture
+
+1. Replace the forwarding methods in `native_profile.rs` with direct
+   `NativeClientProfile` methods.
+2. Update `BackendContext`, refresh functions, commands, reads, and tests to use
+   the new type.
+3. Remove `NativeProfile`, `R1ClientProfile`, `ClassicClientProfile`,
+   `ClassicVersion`, and `build_value`.
+4. Remove `r1_client.rs`, `r1_client/`, and `r3_client.rs` only after their last
+   operation and test have moved.
+
+### Phase 6: Restore equal observable behavior
+
+1. Replace `raw_r1_address` with the resolved profile-neutral contract.
+2. Apply the shared string and server-metadata policy.
+3. Ensure every operation exposed through `NativeClientProfile` has the same
+   result semantics for all four profiles.
+4. Add a compile-time or table-driven parity test that exercises the complete
+   operation surface for all specs.
+
+### Phase 7: Documentation and static gates
+
+Update:
+
+- `ARCHITECTURE.md`
+- `CORE.md`
+- relevant agent guides if module ownership changes
+- fixture documentation and the unverified-value register
+
+Run:
+
+```powershell
+cargo fmt --all -- --check
+$env:CARGO_TARGET_DIR='target'; cargo test --workspace
+$env:CARGO_TARGET_DIR='target'; cargo clippy --workspace -- -D warnings
+$env:CARGO_TARGET_DIR='target'; cargo build --workspace
+git diff --check
+```
+
+## Static test requirements
+
+- Selector tests identify exactly R1, R3, R5, and DL specs.
+- Every layout field is fixture-backed or listed in the unverified-value
+  register.
+- Every strategy has tests for all applicable variants.
+- All four profiles traverse the same backend refresh and command paths.
+- No test helper constructs a version-specific backend type.
+- No shared operation contains `if version == ...` or a match over SA-MP
+  versions. Version selection belongs in the spec and narrow strategies.
+- Invalid pointers, ranges, enums, booleans, strings, and IDs retain current
+  safe failures.
+- No native pointer or borrowed native string crosses the host ABI.
+
+## Known verification gaps
+
+Record these before migration; do not silently treat current constants as
+independent proof:
+
+- Most native function and singleton RVAs are not checked against shipped
+  client binaries.
+- R1 RVAs are centralized but only the textdraw setter has a direct pin test.
+- Classic R3/R5/DL non-layout RVAs are mostly tested only through constants or
+  synthetic memory.
+- GTA handle-conversion targets lack an executable fixture.
+- Native ABI signatures and calling conventions are not fixture-verified.
+- Some R1 remote-player fixture fields exist without individual Rust
+  assertions.
+- `NET_GAME_SERVER_SETTINGS_OFFSET` is fixture-backed but unused.
+
+Use the agreed missing-value workflow:
+
+1. add an entry to `docs/native-profile-unverified-values.md`;
+2. make the affected spec field optional or use an explicit unavailable
+   strategy;
+3. return `DirectClientError::NotReady` for that operation;
+4. add a test proving there is no fallback or guessed call;
+5. research and pin the value after the structural migration;
+6. remove the register entry only when fixture, binary, or live evidence is
+   recorded.
+
+## Separate live-validation stage
+
+Do not perform live validation during the structural phases. After the full
+refactor and all static gates pass, prepare a separate run for each profile:
+
+1. R1
+2. R3
+3. R5
+4. DL
+
+Use the shared validators and require the complete status mask, zero failure,
+all lifecycle phases complete, codec round trip, and exact packet/RPC bits.
+Do not declare the unification complete from R1 evidence alone.
+
+## Completion criteria
+
+- One runtime type: `NativeClientProfile`.
+- Four equal static specs: R1, R3, R5, and DL.
+- One implementation of every shared operation.
+- Version-specific modules contain data and narrow verified strategies only.
+- No `ClassicVersion`, `build_value`, or version forwarding matches remain.
+- No R1-specific cache field or public behavior remains without an equivalent
+  profile-neutral contract.
+- All static gates pass.
+- The unverified-value register contains every remaining evidence gap.
+- The later live-validation stage passes independently for all four profiles.
+
+## First implementation task
+
+Define the nested `ProfileSpec` model and four static specs, then add tests that
+compare each spec field with the current constants, `build_value` results, and
+C++ fixtures. Do not move native operations until this data-freeze phase is
+green.
+
+## Progress checklist
+
+### Tracking rules
+
+- Check an item only after its stated verification passes.
+- Add the implementing commit hash after each completed subsection.
+- Keep at most one subsystem migration in progress.
+- Record every unknown value in
+  `docs/native-profile-unverified-values.md` before continuing.
+- Do not mark a value verified from an existing Rust constant alone.
+- Do not start live validation until every structural and static item is
+  complete.
+- Preserve unrelated working-tree changes.
+
+### 0. Baseline and ownership
+
+- [x] Select Variant B: one `NativeClientProfile` plus static specs.
+- [x] Complete read-only architecture research.
+- [x] Create this implementation handoff.
+- [x] Record the starting branch, HEAD, and dirty files in the work log.
+- [x] Confirm the baseline workspace tests pass before refactoring.
+- [x] Confirm the baseline Clippy check passes.
+- [x] Create `docs/native-profile-unverified-values.md`.
+- [x] Add the known verification gaps from this handoff to that register.
+
+Evidence/commit: _pending_
+
+### 1. Profile data model
+
+- [x] Add `native_client/profile.rs`.
+- [x] Define `NativeClientProfile`.
+- [x] Define nested `ProfileSpec` subsystem types.
+- [x] Add RVA, offset, and size newtypes where they prevent category errors.
+- [x] Define narrow strategy types for confirmed behavioral differences.
+- [x] Keep the new model unused by runtime selection during this phase.
+- [x] Add construction tests for every spec type.
+- [x] Run formatting and targeted tests.
+
+Evidence/commit: _pending_
+
+### 2. Freeze R1 data
+
+- [ ] Create `native_client/profiles/r1.rs`.
+- [ ] Move R1 identity and entry point into `R1_SPEC`.
+- [ ] Copy all R1 native RVAs into named nested specs.
+- [ ] Copy all R1 layouts, sizes, capacities, and limits.
+- [ ] Record the R1 game-state codec.
+- [ ] Record the R1 local-player getter strategy.
+- [ ] Record the R1 native-boolean rules.
+- [ ] Record the R1 force-sync reset strategy.
+- [ ] Record the R1 list-item text layout.
+- [ ] Record the R1 textdraw native-call strategy.
+- [ ] Compare every moved layout value with the C++ fixture.
+- [ ] Register each unverified RVA or ABI instead of assuming proof.
+- [ ] Add exhaustive R1 spec-value tests.
+
+Evidence/commit: _pending_
+
+### 3. Freeze R3 data
+
+- [ ] Create `native_client/profiles/r3.rs`.
+- [ ] Move R3 identity and entry point into `R3_SPEC`.
+- [ ] Copy every R3 base layout, RVA, size, capacity, and limit.
+- [ ] Replace each R3 `build_value` input with a named spec field.
+- [ ] Record the classic game-state codec and applicable strategies.
+- [ ] Compare every layout value with the R3 fixture.
+- [ ] Register each unverified RVA or ABI.
+- [ ] Add exhaustive R3 spec-value tests.
+
+Evidence/commit: _pending_
+
+### 4. Freeze R5 data
+
+- [ ] Create `native_client/profiles/r5.rs`.
+- [ ] Move R5 identity and entry point into `R5_SPEC`.
+- [ ] Materialize every R5 `build_value` override as a named field.
+- [ ] Copy shared classic values explicitly through reusable spec constants,
+  without inheriting an R3 profile object.
+- [ ] Compare every layout value with the R5 fixture.
+- [ ] Register each unverified RVA or ABI.
+- [ ] Add exhaustive R5 spec-value tests.
+
+Evidence/commit: _pending_
+
+### 5. Freeze DL data
+
+- [ ] Create `native_client/profiles/dl.rs`.
+- [ ] Move DL identity and entry point into `DL_SPEC`.
+- [ ] Materialize every DL `build_value` override as a named field.
+- [ ] Record DL limits, extended object pool, sync layouts, and RVAs.
+- [ ] Compare every layout value with the DL fixture.
+- [ ] Register each unverified RVA or ABI.
+- [ ] Add exhaustive DL spec-value tests.
+
+Evidence/commit: _pending_
+
+### 6. Profile selection
+
+- [ ] Add `native_client/profiles/mod.rs`.
+- [ ] Implement one identity-to-spec selector.
+- [ ] Select only R1, R3, R5, and DL.
+- [ ] Reject mismatched entry points.
+- [ ] Reject a zero module base.
+- [ ] Replace version-specific verification constructors.
+- [ ] Replace enum-pattern logging with profile identity data.
+- [ ] Add selector tests for all profiles and mismatch cases.
+- [ ] Keep runtime behavior otherwise unchanged.
+
+Evidence/commit: _pending_
+
+### 7. Shared memory and ABI primitives
+
+- [ ] Move guarded read/write helpers into `native_client/memory.rs`.
+- [ ] Move bounded native-string helpers.
+- [ ] Add overflow and invalid-range tests.
+- [ ] Add embedded-NUL and unterminated-string tests.
+- [ ] Define field-specific native boolean handling.
+- [ ] Audit every function-pointer alias across all four profiles.
+- [ ] Merge only aliases with proven identical signatures.
+- [ ] Record unverified signatures in the register.
+- [ ] Ensure no native pointer or borrowed string crosses the host ABI.
+
+Evidence/commit: _pending_
+
+### 8. Connection and server metadata
+
+- [ ] Migrate RakPeer address resolution.
+- [ ] Migrate disconnect handling.
+- [ ] Migrate game-state reads and writes through `GameStateCodec`.
+- [ ] Migrate reconnect/server-address mutation.
+- [ ] Migrate server metadata snapshots.
+- [ ] Normalize empty-hostname behavior.
+- [ ] Add cross-profile result-parity tests.
+- [ ] Remove the superseded R1/classic connection implementations.
+
+Evidence/commit: _pending_
+
+### 9. Singletons and readiness
+
+- [ ] Migrate NetGame and pool-root lookup.
+- [ ] Migrate chat, input, dialog, scoreboard, death-window, and game lookup.
+- [ ] Migrate readiness checks.
+- [ ] Preserve checked ranges for every singleton.
+- [ ] Add synthetic-memory tests for every profile.
+- [ ] Remove the superseded singleton implementations.
+
+Evidence/commit: _pending_
+
+### 10. Players and player pools
+
+- [ ] Migrate player-pool lookup and counts.
+- [ ] Migrate local-player lookup through `LocalPlayerSource`.
+- [ ] Migrate local-player snapshots.
+- [ ] Migrate remote-player directory and snapshots.
+- [ ] Migrate score, ping, name, colour, health, and armour reads.
+- [ ] Migrate player mutations.
+- [ ] Resolve the profile-neutral raw local-player address contract.
+- [ ] Add parity tests for R1/R3/R5/DL layouts and results.
+- [ ] Remove superseded player implementations.
+
+Evidence/commit: _pending_
+
+### 11. Sync records and force-send operations
+
+- [ ] Migrate on-foot sync reads.
+- [ ] Migrate in-car sync reads.
+- [ ] Migrate passenger sync reads.
+- [ ] Migrate trailer sync reads.
+- [ ] Migrate aim sync reads.
+- [ ] Migrate last-update reset logic through `SyncSpec`.
+- [ ] Migrate every force-send operation.
+- [ ] Add exact-layout and mutation tests for every profile.
+- [ ] Remove superseded sync implementations.
+
+Evidence/commit: _pending_
+
+### 12. Handles and entity pools
+
+- [ ] Migrate ped and vehicle handle conversion.
+- [ ] Keep GTA addresses outside SA-MP specs unless evidence requires otherwise.
+- [ ] Migrate vehicle existence and game-object lookup.
+- [ ] Migrate object and pickup pools.
+- [ ] Migrate gangzones.
+- [ ] Add limit and invalid-ID tests for every profile.
+- [ ] Cover DL extended object limits.
+- [ ] Remove superseded handle/entity implementations.
+
+Evidence/commit: _pending_
+
+### 13. UI operations
+
+- [ ] Migrate chat entries and messages.
+- [ ] Migrate death-window messages.
+- [ ] Migrate chat input and command registration.
+- [ ] Migrate dialog show, close, response, and edit-box operations.
+- [ ] Migrate list items through `ListItemTextLayout`.
+- [ ] Migrate scoreboard operations.
+- [ ] Migrate cursor operations.
+- [ ] Apply one bounded input-string policy to all profiles.
+- [ ] Add cross-profile behavior-parity tests.
+- [ ] Remove superseded UI implementations.
+
+Evidence/commit: _pending_
+
+### 14. Text labels
+
+- [ ] Migrate label existence and snapshots.
+- [ ] Migrate label creation, mutation, and deletion.
+- [ ] Preserve the shared ARGB-to-native conversion.
+- [ ] Add layout, colour, capacity, and lifecycle tests for all profiles.
+- [ ] Remove superseded label implementations.
+
+Evidence/commit: _pending_
+
+### 15. Textdraws
+
+- [ ] Migrate textdraw existence and snapshots.
+- [ ] Migrate create and delete native calls.
+- [ ] Migrate all numeric/style mutations.
+- [ ] Migrate text mutation through the verified native setter strategy.
+- [ ] Preserve R1 setter RVA `0xAC870` and its 799-byte input bound.
+- [ ] Add layout, capacity, setter, and lifecycle tests for all profiles.
+- [ ] Remove superseded textdraw implementations.
+
+Evidence/commit: _pending_
+
+### 16. Remaining shared operations
+
+- [ ] Migrate the animation catalog.
+- [ ] Migrate send-rate globals and mutations.
+- [ ] Migrate any operation not covered by earlier sections.
+- [ ] Audit the complete old forwarding surface for omissions.
+- [ ] Add operation-surface parity coverage.
+
+Evidence/commit: _pending_
+
+### 17. Remove the old architecture
+
+- [ ] Replace all `NativeProfile` type references.
+- [ ] Replace `BackendContext` and refresh-path references.
+- [ ] Replace command/read/test constructors.
+- [ ] Delete the forwarding match block.
+- [ ] Delete `ClassicVersion` and `build_value`.
+- [ ] Delete `R1ClientProfile` and `ClassicClientProfile`.
+- [ ] Delete `r1_client.rs`, `r1_client/`, and `r3_client.rs` after they are empty.
+- [ ] Confirm no R1/R3/R5/DL version branch remains in shared operations.
+- [ ] Confirm no version-specific cache field remains.
+
+Evidence/commit: _pending_
+
+### 18. Documentation and static completion
+
+- [ ] Update `ARCHITECTURE.md`.
+- [ ] Update `CORE.md`.
+- [ ] Update relevant agent guides.
+- [ ] Update fixture documentation.
+- [ ] Review the unverified-value register for completeness.
+- [ ] Run `cargo fmt --all -- --check`.
+- [ ] Run `cargo test --workspace`.
+- [ ] Run `cargo clippy --workspace -- -D warnings`.
+- [ ] Run `cargo build --workspace`.
+- [ ] Run `git diff --check`.
+- [ ] Confirm unrelated user files remain untouched.
+
+Evidence/commit: _pending_
+
+### 19. Separate live-validation stage
+
+- [ ] Confirm the structural refactor is complete before starting this stage.
+- [ ] Build and deploy the shared host and R1 validator.
+- [ ] Complete R1 live validation with the full status mask and zero failure.
+- [ ] Build and deploy the R3 validator.
+- [ ] Complete R3 live validation with the full status mask and zero failure.
+- [ ] Build and deploy the R5 validator.
+- [ ] Complete R5 live validation with the full status mask and zero failure.
+- [ ] Build and deploy the DL validator.
+- [ ] Complete DL live validation with the full status mask and zero failure.
+- [ ] Record hashes, status records, and relevant logs for all four profiles.
+- [ ] Resolve every live regression before declaring completion.
+
+Evidence/commit: _pending_
+
+### 20. Final acceptance
+
+- [ ] Exactly one runtime native-profile type remains.
+- [ ] Exactly four equal static profile specs remain.
+- [ ] Every shared operation has one implementation.
+- [ ] Profile modules contain only data and narrow verified strategies.
+- [ ] No guessed RVA, offset, ABI, or fallback exists.
+- [ ] Every remaining evidence gap is registered.
+- [ ] All static gates pass.
+- [ ] All four live validators pass independently.
+- [ ] Final commits follow Conventional Commits.
+- [ ] The handoff, checklist, and architecture documentation match the code.
+
+Final evidence/commits: _pending_
