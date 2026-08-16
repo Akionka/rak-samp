@@ -44,6 +44,7 @@ use hooks::{HookStorage, InlineHook, VtableHook};
 #[cfg(test)]
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
+use native_client::profile::NativeClientProfile;
 use native_profile::NativeProfile;
 use std::{
     collections::{HashMap, VecDeque},
@@ -587,22 +588,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let version = SampVersion::from_entry_point(entry_point)
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
-    let native_profile = NativeProfile::select(module_base, version, entry_point);
-    match native_profile {
-        Some(NativeProfile::R1(_)) => {
-            log::info!("direct R1 client helpers are enabled with fixed offsets");
-        }
-        Some(NativeProfile::R3(_)) => {
-            log::info!("R3-1 direct client helpers are enabled");
-        }
-        Some(NativeProfile::R5(_)) => {
-            log::info!("R5-1 direct client helpers are enabled");
-        }
-        Some(NativeProfile::Dl(_)) => {
-            log::info!("DL-R1 direct client helpers are enabled");
-        }
-        None => {}
+    let selected_native_profile = NativeClientProfile::select(module_base, version, entry_point);
+    if let Some(profile) = selected_native_profile {
+        log::info!(
+            "{} direct client helpers are enabled",
+            profile.spec.identity.name
+        );
     }
+    let native_profile = selected_native_profile.map(NativeProfile::from_native_client_profile);
 
     let active = ACTIVE_BACKEND.get_or_init(|| Mutex::new(None));
     let mut active = active.lock().unwrap_or_else(|error| error.into_inner());

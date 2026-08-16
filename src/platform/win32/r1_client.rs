@@ -28,20 +28,15 @@ use std::{ffi::c_void, mem, ptr};
 const INVALID_ID: u16 = u16::MAX;
 
 /// A narrow R1-only profile whose fields and call targets never cross the
-/// plugin ABI. `verify` has to succeed before any profile address is used.
+/// plugin ABI. Selection has to succeed before any profile address is used.
 #[derive(Clone, Copy, Debug)]
 pub(super) struct R1ClientProfile {
     module_base: usize,
 }
 
 impl R1ClientProfile {
-    pub(super) fn verify(module_base: usize, entry_point: u32) -> Option<Self> {
-        // Build selection is performed by `SampVersion::from_entry_point` before
-        // this profile is requested. R1's native bridge therefore uses the
-        // approved fixed offsets and validates every pointer, range, capacity,
-        // and enum at the point of use instead of gating the whole surface on
-        // global executable identity or instruction checks.
-        (module_base != 0 && entry_point == SAMP_R1_ENTRY_POINT).then_some(Self { module_base })
+    pub(super) const fn from_selected(module_base: usize) -> Self {
+        Self { module_base }
     }
 
     pub(super) const fn dialog_close_target(self) -> usize {

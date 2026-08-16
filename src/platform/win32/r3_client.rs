@@ -20,8 +20,11 @@ use crate::runtime::{
 };
 use std::{ffi::c_void, mem, ptr};
 
+#[cfg(test)]
 const SAMP_R3_1_ENTRY_POINT: u32 = 0x0C_C4_D0;
+#[cfg(test)]
 const SAMP_R5_1_ENTRY_POINT: u32 = 0x0C_BC_90;
+#[cfg(test)]
 const SAMP_DL_R1_ENTRY_POINT: u32 = 0x0F_DB_60;
 const NET_GAME_SINGLETON_RVA: usize = 0x26_E8_DC;
 const NET_GAME_HOST_ADDRESS_OFFSET: usize = 0x30;
@@ -364,7 +367,29 @@ pub(super) struct ClassicClientProfile {
 }
 
 impl ClassicClientProfile {
+    pub(super) const fn from_selected_r3(module_base: usize) -> Self {
+        Self {
+            module_base,
+            version: ClassicVersion::R3,
+        }
+    }
+
+    pub(super) const fn from_selected_r5(module_base: usize) -> Self {
+        Self {
+            module_base,
+            version: ClassicVersion::R5,
+        }
+    }
+
+    pub(super) const fn from_selected_dl(module_base: usize) -> Self {
+        Self {
+            module_base,
+            version: ClassicVersion::Dl,
+        }
+    }
+
     /// Selects the profile only for the pinned R3-1 executable.
+    #[cfg(test)]
     pub(super) fn verify(module_base: usize, entry_point: u32) -> Option<Self> {
         (module_base != 0 && entry_point == SAMP_R3_1_ENTRY_POINT).then_some(Self {
             module_base,
@@ -373,6 +398,7 @@ impl ClassicClientProfile {
     }
 
     /// Selects the profile only for the pinned R5-1 executable.
+    #[cfg(test)]
     pub(super) fn verify_r5(module_base: usize, entry_point: u32) -> Option<Self> {
         (module_base != 0 && entry_point == SAMP_R5_1_ENTRY_POINT).then_some(Self {
             module_base,
@@ -381,6 +407,7 @@ impl ClassicClientProfile {
     }
 
     /// Selects the profile only for the pinned DL-R1 executable.
+    #[cfg(test)]
     pub(super) fn verify_dl(module_base: usize, entry_point: u32) -> Option<Self> {
         (module_base != 0 && entry_point == SAMP_DL_R1_ENTRY_POINT).then_some(Self {
             module_base,

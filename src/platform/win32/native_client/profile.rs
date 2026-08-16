@@ -6,6 +6,18 @@ pub(crate) struct NativeClientProfile {
     pub(crate) spec: &'static ProfileSpec,
 }
 
+impl NativeClientProfile {
+    /// Selects a data-only native profile for an exact supported executable identity.
+    pub(crate) fn select(
+        module_base: usize,
+        version: SampVersion,
+        entry_point: u32,
+    ) -> Option<Self> {
+        let spec = super::profiles::for_identity(version, entry_point)?;
+        (module_base != 0).then_some(Self { module_base, spec })
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ProfileSpec {
     pub(crate) identity: ProfileIdentity,
@@ -609,5 +621,10 @@ mod tests {
             TextdrawCallStrategy::NativeMethods,
             TextdrawCallStrategy::NativeMethods
         );
+    }
+
+    #[test]
+    fn selection_rejects_a_zero_module_base() {
+        assert!(NativeClientProfile::select(0, SampVersion::R1, 0x31DF13).is_none());
     }
 }

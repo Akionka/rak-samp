@@ -1,7 +1,5 @@
 //! Approved SA-MP 0.3.7 R1 and GTA:SA 1.0 US native addresses.
 
-pub(super) const SAMP_R1_ENTRY_POINT: u32 = 0x31DF13;
-
 pub(super) const DIALOG_SINGLETON_RVA: usize = 0x21A0B8;
 pub(super) const DIALOG_SHOW_RVA: usize = 0x6B9C0;
 pub(super) const DIALOG_CLOSE_RVA: usize = 0x6C040;
@@ -73,3 +71,5 @@ pub(super) const LABEL_POOL_DELETE_RVA: usize = 0x12D0;
 pub(super) const TEXTDRAW_POOL_CREATE_RVA: usize = 0x1AE20;
 pub(super) const TEXTDRAW_POOL_DELETE_RVA: usize = 0x1AD00;
 pub(super) const TEXTDRAW_SET_TEXT_RVA: usize = 0xAC870;
+#[cfg(test)]
+pub(super) const SAMP_R1_ENTRY_POINT: u32 = 0x31DF13;

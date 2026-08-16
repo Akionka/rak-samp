@@ -5,7 +5,10 @@
 //! separately verified profile, so this boundary deliberately selects no
 //! profile for a recognized build until its layout gates are complete.
 
-use super::{r1_client::R1ClientProfile, r3_client::ClassicClientProfile};
+use super::{
+    native_client::profile::NativeClientProfile, r1_client::R1ClientProfile,
+    r3_client::ClassicClientProfile,
+};
 use crate::{
     SampVersion,
     runtime::{DirectClientError, LocalPlayerSnapshot, ServerInfoSnapshot},
@@ -35,23 +38,31 @@ pub(super) struct LocalPlayerCacheSnapshot {
 impl NativeProfile {
     /// Selects a direct-native profile independently of the network
     /// [`crate::AddressSet`].
+    #[cfg(test)]
     pub(super) fn select(
         module_base: usize,
         version: SampVersion,
         entry_point: u32,
     ) -> Option<Self> {
-        match version {
-            SampVersion::R1 => R1ClientProfile::verify(module_base, entry_point).map(Self::R1),
+        NativeClientProfile::select(module_base, version, entry_point)
+            .map(Self::from_native_client_profile)
+    }
+
+    /// Converts the selected immutable specification into the temporary
+    /// legacy operation dispatch until each operation reads the specification.
+    pub(super) fn from_native_client_profile(profile: NativeClientProfile) -> Self {
+        match profile.spec.identity.version {
+            SampVersion::R1 => Self::R1(R1ClientProfile::from_selected(profile.module_base)),
             SampVersion::R3_1 => {
-                ClassicClientProfile::verify(module_base, entry_point).map(Self::R3)
+                Self::R3(ClassicClientProfile::from_selected_r3(profile.module_base))
             }
             SampVersion::R5_1 => {
-                ClassicClientProfile::verify_r5(module_base, entry_point).map(Self::R5)
+                Self::R5(ClassicClientProfile::from_selected_r5(profile.module_base))
             }
             SampVersion::Dl => {
-                ClassicClientProfile::verify_dl(module_base, entry_point).map(Self::Dl)
+                Self::Dl(ClassicClientProfile::from_selected_dl(profile.module_base))
             }
-            SampVersion::R2 | SampVersion::R4_2 => None,
+            SampVersion::R2 | SampVersion::R4_2 => unreachable!("unsupported profile identity"),
         }
     }
 
