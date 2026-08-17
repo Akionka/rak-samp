@@ -1060,7 +1060,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetChatInputText(text) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1068,7 +1068,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetChatInputEnabled(enabled) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1076,7 +1076,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ProcessChatInput(text) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1201,7 +1201,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetDialogEditboxText(text) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile

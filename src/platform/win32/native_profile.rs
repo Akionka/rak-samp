@@ -78,42 +78,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_dialog_editbox_text(text),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_dialog_editbox_text(text)
-            }
-        }
-    }
-
-    pub(super) fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_chat_input_enabled(enabled),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_chat_input_enabled(enabled)
-            }
-        }
-    }
-
-    pub(super) fn set_chat_input_text(self, text: &[u8]) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_chat_input_text(text),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_chat_input_text(text)
-            }
-        }
-    }
-
-    pub(super) fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.process_chat_input(text),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.process_chat_input(text)
-            }
-        }
-    }
-
     pub(super) fn register_chat_command(
         self,
         name: &[u8],

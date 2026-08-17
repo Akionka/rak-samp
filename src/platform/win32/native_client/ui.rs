@@ -49,8 +49,124 @@ type R1GameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
 type ClassicGameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
 type R1GameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
 type ClassicGameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
+type R1InputNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
+type ClassicInputNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
+type R1DxutEditBoxSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const i8, bool);
+type ClassicDxutEditBoxSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const i8, bool);
 
 impl NativeClientProfile {
+    fn set_editbox_text(
+        self,
+        editbox: *mut u8,
+        rva: Option<super::profile::NativeRva>,
+        text: &[u8],
+        maximum: usize,
+    ) -> Result<(), DirectClientError> {
+        if text.len() > maximum
+            || text.contains(&0)
+            || editbox.is_null()
+            || !readable_range(editbox, 1)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let target = self.ui_target(rva.ok_or(DirectClientError::NotReady)?)?;
+        let mut text = text.to_vec();
+        text.push(0);
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let set_text: R1DxutEditBoxSetTextFn = mem::transmute(target);
+                    set_text(editbox.cast(), text.as_ptr().cast(), false);
+                }
+                PoolGetterAbi::Classic => {
+                    let set_text: ClassicDxutEditBoxSetTextFn = mem::transmute(target);
+                    set_text(editbox.cast(), text.as_ptr().cast(), false);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
+        let layout = self.spec.ui.dialog;
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let editbox = unsafe {
+            read_pointer(
+                (dialog as usize)
+                    .checked_add(layout.editbox_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        self.set_editbox_text(
+            editbox,
+            self.spec.ui.input.edit_box_set_text_rva,
+            text,
+            layout.max_editbox_text_bytes.get(),
+        )
+    }
+
+    pub(crate) fn set_chat_input_text(self, text: &[u8]) -> Result<(), DirectClientError> {
+        let layout = self.spec.ui.input;
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        let editbox = unsafe {
+            read_pointer(
+                (input as usize)
+                    .checked_add(layout.edit_box_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .ok_or(DirectClientError::NotReady)?;
+        self.set_editbox_text(
+            editbox,
+            layout.edit_box_set_text_rva,
+            text,
+            layout.max_text_bytes.get(),
+        )
+    }
+
+    pub(crate) fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        let rva = if enabled {
+            self.spec.ui.input.open_rva
+        } else {
+            self.spec.ui.input.close_rva
+        };
+        let target = self.ui_target(rva)?;
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let operation: R1InputNoArgFn = mem::transmute(target);
+                    operation(input);
+                }
+                PoolGetterAbi::Classic => {
+                    let operation: ClassicInputNoArgFn = mem::transmute(target);
+                    operation(input);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
+        self.set_chat_input_text(text)?;
+        let input = self.input().ok_or(DirectClientError::NotReady)?;
+        let target = self.ui_target(self.spec.ui.input.process_rva)?;
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let process: R1InputNoArgFn = mem::transmute(target);
+                    process(input);
+                }
+                PoolGetterAbi::Classic => {
+                    let process: ClassicInputNoArgFn = mem::transmute(target);
+                    process(input);
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn ui_target(self, rva: super::profile::NativeRva) -> Result<usize, DirectClientError> {
         self.module_base
             .checked_add(rva.get())
