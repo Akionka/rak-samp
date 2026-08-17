@@ -238,16 +238,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn chat_entry(
-        self,
-        id: u16,
-    ) -> Result<crate::runtime::ChatEntrySnapshot, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.chat_entry(id),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.chat_entry(id),
-        }
-    }
-
     pub(super) fn register_chat_command(
         self,
         name: &[u8],
@@ -482,16 +472,6 @@ impl NativeProfile {
         }
     }
 
-    /// Reads the copied chat-input enabled flag available on this profile.
-    pub(super) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.chat_input_is_active(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.chat_input_is_active()
-            }
-        }
-    }
-
     /// Reads copied native chat-command names available on this profile.
     pub(super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
         match self {
@@ -507,42 +487,6 @@ impl NativeProfile {
         match self {
             Self::R1(profile) => profile.chat_input_text(),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.chat_input_text(),
-        }
-    }
-
-    /// Reads the copied chat display mode available on this profile.
-    pub(super) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.chat_display_mode(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.chat_display_mode()
-            }
-        }
-    }
-
-    /// Reads the copied dialog active flag available on this profile.
-    pub(super) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.dialog_is_active(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.dialog_is_active(),
-        }
-    }
-
-    /// Reads the copied scoreboard enabled flag available on this profile.
-    pub(super) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.scoreboard_is_open(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.scoreboard_is_open()
-            }
-        }
-    }
-
-    /// Reads the copied cursor mode available on this profile.
-    pub(super) fn cursor_mode(self) -> Result<i32, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.cursor_mode(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.cursor_mode(),
         }
     }
 }

@@ -138,6 +138,7 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
     ui: UiSpec {
         dialog: DialogSpec {
             singleton_rva: rva(0x2AC9E0),
+            show_rva: rva(0x6FA50),
             close_rva: rva(0x700D0),
             ..R3_SPEC.ui.dialog
         },
@@ -200,7 +201,7 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
             vehicle_sync_flags: NativeBoolean::ValidatedU8,
         },
         force_sync_reset: ForceSyncReset::ClearLastAnyUpdate,
-        list_item_text_layout: ListItemTextLayout::DxutComboBoxItem,
+        list_item_text_layout: ListItemTextLayout::DirectPointer,
         textdraw_calls: TextdrawCallStrategy::NativeMethods,
     },
 };

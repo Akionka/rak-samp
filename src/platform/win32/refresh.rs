@@ -240,7 +240,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_chat_entries(&self, profile: NativeProfile) {
+    pub(super) fn refresh_chat_entries(&self, profile: NativeClientProfile) {
         for id in self.take_chat_entry_requests() {
             let Ok(snapshot) = profile.chat_entry(id) else {
                 continue;
@@ -415,7 +415,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_display_mode(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_chat_display_mode(&self, profile: NativeClientProfile) {
         match profile.chat_display_mode() {
             Ok(mode) => {
                 self.local_chat_display_mode.store(mode, Ordering::Release);
@@ -429,7 +429,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_cursor_mode(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_cursor_mode(&self, profile: NativeClientProfile) {
         match profile.cursor_mode() {
             Ok(mode) => {
                 self.local_cursor_mode.store(mode, Ordering::Release);
@@ -441,7 +441,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_scoreboard_open(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_scoreboard_open(&self, profile: NativeClientProfile) {
         match profile.scoreboard_is_open() {
             Ok(open) => {
                 self.local_scoreboard_open.store(open, Ordering::Release);
@@ -455,7 +455,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_dialog_active(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_dialog_active(&self, profile: NativeClientProfile) {
         match profile.dialog_is_active() {
             Ok(active) => {
                 self.local_dialog_active.store(active, Ordering::Release);
@@ -485,7 +485,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_active(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_chat_input_active(&self, profile: NativeClientProfile) {
         match profile.chat_input_is_active() {
             Ok(active) => {
                 self.local_chat_input_active

@@ -953,6 +953,12 @@ impl BackendState {
             self.refresh_pickup_handle_ids(connection_profile);
             self.refresh_vehicle_handle_ids(connection_profile);
             self.refresh_player_handle_ids(connection_profile);
+            self.refresh_local_chat_display_mode(connection_profile);
+            self.refresh_local_cursor_mode(connection_profile);
+            self.refresh_local_scoreboard_open(connection_profile);
+            self.refresh_local_dialog_active(connection_profile);
+            self.refresh_local_chat_input_active(connection_profile);
+            self.refresh_chat_entries(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
@@ -962,19 +968,13 @@ impl BackendState {
             self.player_count_ready.store(false, Ordering::Release);
             self.player_max_id_ready.store(false, Ordering::Release);
         }
-        self.refresh_local_chat_display_mode(profile);
-        self.refresh_local_cursor_mode(profile);
-        self.refresh_local_scoreboard_open(profile);
-        self.refresh_local_dialog_active(profile);
         self.refresh_local_dialog_state(profile);
-        self.refresh_local_chat_input_active(profile);
         self.refresh_local_chat_input_text(profile);
         self.refresh_local_chat_input_commands(profile);
         self.refresh_animation_catalog(profile);
         if let Some(connection_profile) = self.connection_profile() {
             self.refresh_raw_pool_addresses(connection_profile);
         }
-        self.refresh_chat_entries(profile);
         self.refresh_text_label_exists(profile);
         self.refresh_text_labels(profile);
         self.refresh_textdraw_exists(profile);

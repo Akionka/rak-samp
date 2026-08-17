@@ -7,3 +7,4 @@ pub(crate) mod pools;
 pub(crate) mod profile;
 pub(crate) mod profiles;
 pub(crate) mod singletons;
+pub(crate) mod ui;
