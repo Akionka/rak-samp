@@ -170,7 +170,7 @@ impl BackendState {
     }
 
     pub(super) fn animation_catalog(&self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {

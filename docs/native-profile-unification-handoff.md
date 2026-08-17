@@ -672,13 +672,13 @@ Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo te
 
 ### 16. Remaining shared operations
 
-- [ ] Migrate the animation catalog.
-- [ ] Migrate send-rate globals and mutations.
-- [ ] Migrate any operation not covered by earlier sections.
-- [ ] Audit the complete old forwarding surface for omissions.
-- [ ] Add operation-surface parity coverage.
+- [x] Migrate the animation catalog.
+- [x] Migrate send-rate globals and mutations.
+- [x] Migrate any operation not covered by earlier sections.
+- [x] Audit the complete old forwarding surface for omissions.
+- [x] Add operation-surface parity coverage.
 
-Evidence/commit: _pending_
+Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo test -p samp-client-sdk-host --lib -- --test-threads=1`, 199 passed)
 
 ### 17. Remove the old architecture
 

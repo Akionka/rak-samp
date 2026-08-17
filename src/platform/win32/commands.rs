@@ -1013,7 +1013,7 @@ impl BackendState {
         kind: u8,
         milliseconds: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0

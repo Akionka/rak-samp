@@ -11,7 +11,6 @@ mod handles;
 mod hooks;
 mod native_bitstream;
 mod native_client;
-mod native_profile;
 mod objects;
 mod packets;
 mod players;
@@ -45,7 +44,6 @@ use hooks::{HookStorage, InlineHook, VtableHook};
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
 use native_client::profile::NativeClientProfile;
-use native_profile::NativeProfile;
 use std::{
     collections::{HashMap, VecDeque},
     ffi::c_void,
@@ -181,18 +179,25 @@ struct BackendContext {
     version: SampVersion,
     addresses: AddressSet,
     native_client_profile: Option<NativeClientProfile>,
-    native_profile: Option<NativeProfile>,
+    #[cfg(test)]
+    native_profile: Option<NativeClientProfile>,
 }
 
 impl BackendContext {
-    /// Returns the narrow fixed-layout profile permitted to publish cached
-    /// CNetGame scalars on this build.
-    fn scalar_profile(&self) -> Option<NativeProfile> {
-        self.native_profile
+    /// Returns the selected immutable profile for cached direct operations.
+    fn scalar_profile(&self) -> Option<NativeClientProfile> {
+        self.connection_profile()
     }
 
     fn connection_profile(&self) -> Option<NativeClientProfile> {
-        self.native_client_profile
+        #[cfg(test)]
+        {
+            self.native_client_profile.or(self.native_profile)
+        }
+        #[cfg(not(test))]
+        {
+            self.native_client_profile
+        }
     }
 }
 
@@ -589,14 +594,13 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let version = SampVersion::from_entry_point(entry_point)
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
-    let selected_native_profile = NativeClientProfile::select(module_base, version, entry_point);
-    if let Some(profile) = selected_native_profile {
+    let selected_profile = NativeClientProfile::select(module_base, version, entry_point);
+    if let Some(profile) = selected_profile {
         log::info!(
             "{} direct client helpers are enabled",
             profile.spec.identity.name
         );
     }
-    let native_profile = selected_native_profile.map(NativeProfile::from_native_client_profile);
 
     let active = ACTIVE_BACKEND.get_or_init(|| Mutex::new(None));
     let mut active = active.lock().unwrap_or_else(|error| error.into_inner());
@@ -610,8 +614,9 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             module_base,
             version,
             addresses,
-            native_client_profile: selected_native_profile,
-            native_profile,
+            native_client_profile: selected_profile,
+            #[cfg(test)]
+            native_profile: None,
         },
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
@@ -920,61 +925,51 @@ impl BackendState {
     /// is running remain owned by the following tick.
     fn pump_game_tick(&self, commands: Vec<QueuedCommand<GameCommand>>) {
         self.execute_game_commands(commands);
-        let Some(profile) = self.scalar_profile() else {
+        let Some(connection_profile) = self.connection_profile() else {
             return;
         };
         // Odd generations are in-flight. Readers only observe the next even
         // generation after every cache path below has had one tick to refresh.
         self.cache_generation.fetch_add(1, Ordering::AcqRel);
-        let connection_profile = self.connection_profile();
-        if let Some(connection_profile) = connection_profile {
-            self.refresh_samp_game_state(connection_profile);
-            self.refresh_server_info_snapshot(connection_profile);
-            self.refresh_player_info(connection_profile);
-            self.refresh_remote_player_state(connection_profile);
-            self.refresh_streamed_out_player_position(connection_profile);
-            self.refresh_onfoot_sync(connection_profile);
-            self.refresh_incar_sync(connection_profile);
-            self.refresh_passenger_sync(connection_profile);
-            self.refresh_trailer_sync(connection_profile);
-            self.refresh_aim_sync(connection_profile);
-            self.refresh_vehicle_exists(connection_profile);
-            self.refresh_object_exists(connection_profile);
-            self.refresh_gangzones(connection_profile);
-            self.refresh_object_handles(connection_profile);
-            self.refresh_pickup_handles(connection_profile);
-            self.refresh_vehicle_handles(connection_profile);
-            self.refresh_player_handles(connection_profile);
-            self.refresh_object_handle_ids(connection_profile);
-            self.refresh_pickup_handle_ids(connection_profile);
-            self.refresh_vehicle_handle_ids(connection_profile);
-            self.refresh_player_handle_ids(connection_profile);
-            self.refresh_local_chat_display_mode(connection_profile);
-            self.refresh_local_cursor_mode(connection_profile);
-            self.refresh_local_scoreboard_open(connection_profile);
-            self.refresh_local_dialog_active(connection_profile);
-            self.refresh_local_dialog_state(connection_profile);
-            self.refresh_local_chat_input_active(connection_profile);
-            self.refresh_local_chat_input_commands(connection_profile);
-            self.refresh_local_chat_input_text(connection_profile);
-            self.refresh_chat_entries(connection_profile);
-            self.refresh_text_label_exists(connection_profile);
-            self.refresh_text_labels(connection_profile);
-        }
-        self.refresh_local_player_snapshot(connection_profile);
-        if let Some(connection_profile) = connection_profile {
-            self.refresh_player_count(connection_profile);
-            self.refresh_player_max_id(connection_profile);
-        } else {
-            self.player_count_ready.store(false, Ordering::Release);
-            self.player_max_id_ready.store(false, Ordering::Release);
-        }
-        self.refresh_animation_catalog(profile);
-        if let Some(connection_profile) = self.connection_profile() {
-            self.refresh_raw_pool_addresses(connection_profile);
-            self.refresh_textdraw_exists(connection_profile);
-            self.refresh_textdraws(connection_profile);
-        }
+        self.refresh_samp_game_state(connection_profile);
+        self.refresh_server_info_snapshot(connection_profile);
+        self.refresh_player_info(connection_profile);
+        self.refresh_remote_player_state(connection_profile);
+        self.refresh_streamed_out_player_position(connection_profile);
+        self.refresh_onfoot_sync(connection_profile);
+        self.refresh_incar_sync(connection_profile);
+        self.refresh_passenger_sync(connection_profile);
+        self.refresh_trailer_sync(connection_profile);
+        self.refresh_aim_sync(connection_profile);
+        self.refresh_vehicle_exists(connection_profile);
+        self.refresh_object_exists(connection_profile);
+        self.refresh_gangzones(connection_profile);
+        self.refresh_object_handles(connection_profile);
+        self.refresh_pickup_handles(connection_profile);
+        self.refresh_vehicle_handles(connection_profile);
+        self.refresh_player_handles(connection_profile);
+        self.refresh_object_handle_ids(connection_profile);
+        self.refresh_pickup_handle_ids(connection_profile);
+        self.refresh_vehicle_handle_ids(connection_profile);
+        self.refresh_player_handle_ids(connection_profile);
+        self.refresh_local_chat_display_mode(connection_profile);
+        self.refresh_local_cursor_mode(connection_profile);
+        self.refresh_local_scoreboard_open(connection_profile);
+        self.refresh_local_dialog_active(connection_profile);
+        self.refresh_local_dialog_state(connection_profile);
+        self.refresh_local_chat_input_active(connection_profile);
+        self.refresh_local_chat_input_commands(connection_profile);
+        self.refresh_local_chat_input_text(connection_profile);
+        self.refresh_chat_entries(connection_profile);
+        self.refresh_text_label_exists(connection_profile);
+        self.refresh_text_labels(connection_profile);
+        self.refresh_local_player_snapshot(Some(connection_profile));
+        self.refresh_player_count(connection_profile);
+        self.refresh_player_max_id(connection_profile);
+        self.refresh_animation_catalog(connection_profile);
+        self.refresh_raw_pool_addresses(connection_profile);
+        self.refresh_textdraw_exists(connection_profile);
+        self.refresh_textdraws(connection_profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
     }
 

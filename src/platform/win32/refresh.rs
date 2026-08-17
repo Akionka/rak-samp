@@ -541,7 +541,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_animation_catalog(&self, profile: NativeProfile) {
+    pub(super) fn refresh_animation_catalog(&self, profile: NativeClientProfile) {
         let Ok(mut catalog) = self.animation_catalog.try_lock() else {
             return;
         };

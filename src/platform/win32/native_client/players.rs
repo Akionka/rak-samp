@@ -8,8 +8,9 @@ use super::{
     profile::{ForceSyncReset, LocalPlayerSource, NativeClientProfile, PoolGetterAbi},
 };
 use crate::runtime::{
-    AimSyncSnapshot, DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
-    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, TrailerSyncSnapshot,
+    AimSyncSnapshot, AnimationSnapshot, DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot,
+    OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
+    TrailerSyncSnapshot,
 };
 use std::{ffi::c_void, mem};
 
@@ -61,6 +62,28 @@ type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
 const GTA_CPOOLS_GET_PED_REF: usize = 0x54_FF60;
 
 impl NativeClientProfile {
+    /// Copies the selected profile's fixed animation catalog.
+    pub(crate) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
+        let layout = self.spec.players.animation;
+        let length = layout
+            .entry_count
+            .get()
+            .checked_mul(layout.entry_size.get())
+            .ok_or(DirectClientError::NotReady)?;
+        let table = self
+            .module_base
+            .checked_add(layout.rva.get())
+            .ok_or(DirectClientError::NotReady)?;
+        if !readable_range(table as *const u8, length) {
+            return Err(DirectClientError::NotReady);
+        }
+        let entries = unsafe { std::slice::from_raw_parts(table as *const u8, length) };
+        entries
+            .chunks_exact(layout.entry_size.get())
+            .map(parse_animation_entry)
+            .collect()
+    }
+
     /// Copies the count pair from the guarded player pool.
     pub(crate) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
         let pool = self.player_pool()?;
@@ -1287,6 +1310,24 @@ impl NativeClientProfile {
     }
 }
 
+fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
+    let length = entry
+        .iter()
+        .position(|byte| *byte == 0)
+        .unwrap_or(entry.len());
+    let Some(separator) = entry[..length].iter().position(|byte| *byte == b':') else {
+        return Err(DirectClientError::NotReady);
+    };
+    let (name, file) = (&entry[..separator], &entry[separator + 1..length]);
+    if name.is_empty() || file.is_empty() || file.contains(&b':') {
+        return Err(DirectClientError::NotReady);
+    }
+    Ok(AnimationSnapshot {
+        name: name.to_vec(),
+        file: file.to_vec(),
+    })
+}
+
 struct LocalPlayerTargets {
     name: usize,
     score: usize,
@@ -1610,6 +1651,27 @@ mod tests {
             assert!(profile.spec.players.local_rvas.send_passenger_data.get() > 0);
             assert!(profile.spec.players.local_rvas.send_incar_data.get() > 0);
             assert!(profile.spec.players.local_rvas.update_weapons.get() > 0);
+        }
+    }
+
+    #[test]
+    fn animation_and_send_rate_specs_cover_every_supported_profile() {
+        let expected = [
+            (SampVersion::R1, 0xF15B0, [0xEC0A8, 0xEC0AC, 0xEC0B0]),
+            (SampVersion::R3_1, 0x1039D0, [0xFE0A8, 0xFE0AC, 0xFE0B0]),
+            (SampVersion::R5_1, 0x1039E8, [0xFE0A8, 0xFE0AC, 0xFE0B0]),
+            (SampVersion::Dl, 0x1419D0, [0x13C0A8, 0x13C0AC, 0x13C0B0]),
+        ];
+        for (version, table_rva, send_rates) in expected {
+            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+                .expect("the supported identity must select");
+            let animation = profile.spec.players.animation;
+            assert_eq!(animation.rva.get(), table_rva);
+            assert_eq!(animation.entry_count.get(), 1812);
+            assert_eq!(animation.entry_size.get(), 36);
+            assert_eq!(profile.spec.sync.send_rates.onfoot.get(), send_rates[0]);
+            assert_eq!(profile.spec.sync.send_rates.incar.get(), send_rates[1]);
+            assert_eq!(profile.spec.sync.send_rates.aim.get(), send_rates[2]);
         }
     }
 }

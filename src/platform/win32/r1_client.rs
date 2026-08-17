@@ -17,8 +17,8 @@ mod textdraws;
 mod ui;
 
 use crate::runtime::{
-    AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
-    InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+    AimSyncSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot, InCarSyncSnapshot,
+    LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, OnFootSyncSnapshot,
     PassengerSyncSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
@@ -69,19 +69,6 @@ impl R1ClientProfile {
             return Err(DirectClientError::NotReady);
         }
         Ok(local)
-    }
-
-    pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        let table = self.module_base + ANIMATION_TABLE_RVA;
-        let length = ANIMATION_TABLE_ENTRY_COUNT * ANIMATION_TABLE_ENTRY_SIZE;
-        if !readable_range(table as *const u8, length) {
-            return Err(DirectClientError::NotReady);
-        }
-        let entries = unsafe { std::slice::from_raw_parts(table as *const u8, length) };
-        entries
-            .chunks_exact(ANIMATION_TABLE_ENTRY_SIZE)
-            .map(parse_animation_entry)
-            .collect()
     }
 
     /// Invokes R1 `SCLocalPlayer::SendUnoccupiedData` for one checked vehicle
@@ -264,24 +251,6 @@ impl R1ClientProfile {
 
 fn assigned_player_id(id: u16) -> Option<u16> {
     (id != INVALID_ID).then_some(id)
-}
-
-fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
-    let length = entry
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(entry.len());
-    let Some(separator) = entry[..length].iter().position(|byte| *byte == b':') else {
-        return Err(DirectClientError::NotReady);
-    };
-    let (name, file) = (&entry[..separator], &entry[separator + 1..length]);
-    if name.is_empty() || file.is_empty() || file.contains(&b':') {
-        return Err(DirectClientError::NotReady);
-    }
-    Ok(AnimationSnapshot {
-        name: name.to_vec(),
-        file: file.to_vec(),
-    })
 }
 
 fn nul_terminated(mut value: Vec<u8>) -> Vec<u8> {

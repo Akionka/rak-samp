@@ -7,6 +7,8 @@ const FAKE_VTABLE_SLOTS: usize = 55;
 static ORIGINAL_PACKET_CALLED: AtomicBool = AtomicBool::new(false);
 static GAME_PROCESS_CALLS: AtomicU32 = AtomicU32::new(0);
 
+type NativeProfile = NativeClientProfile;
+
 #[repr(C)]
 struct FakeClient {
     vtable: *mut usize,

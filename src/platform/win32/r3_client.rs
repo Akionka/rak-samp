@@ -14,8 +14,8 @@ use super::native_client::{
     },
 };
 use crate::runtime::{
-    AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot,
-    InCarSyncSnapshot, LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+    AimSyncSnapshot, ChatEntrySnapshot, DirectClientError, GangzoneSnapshot, InCarSyncSnapshot,
+    LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
     LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle, OnFootSyncSnapshot,
     PassengerSyncSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
 };
@@ -548,24 +548,6 @@ impl ClassicClientProfile {
             OBJECT_POOL_OBJECTS_OFFSET,
             0x20D4,
         )
-    }
-
-    pub(super) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
-        let table = self.module_base + self.build_value(ANIMATION_TABLE_RVA, 0x1039E8, 0x1419D0);
-        (0..ANIMATION_TABLE_ENTRY_COUNT)
-            .map(|index| {
-                let entry = table
-                    .checked_add(index * ANIMATION_TABLE_ENTRY_SIZE)
-                    .ok_or(DirectClientError::NotReady)?;
-                if !readable_range(entry as *const u8, ANIMATION_TABLE_ENTRY_SIZE) {
-                    return Err(DirectClientError::NotReady);
-                }
-                let bytes = unsafe {
-                    std::slice::from_raw_parts(entry as *const u8, ANIMATION_TABLE_ENTRY_SIZE)
-                };
-                parse_animation_entry(bytes)
-            })
-            .collect()
     }
 
     /// Copies one R3-1 on-foot synchronization record on the game thread.
@@ -2662,24 +2644,6 @@ impl ClassicClientProfile {
         unsafe { set_text(editbox, text.as_ptr().cast(), false) };
         Ok(())
     }
-}
-
-fn parse_animation_entry(entry: &[u8]) -> Result<AnimationSnapshot, DirectClientError> {
-    let length = entry
-        .iter()
-        .position(|byte| *byte == 0)
-        .unwrap_or(entry.len());
-    let Some(separator) = entry[..length].iter().position(|byte| *byte == b':') else {
-        return Err(DirectClientError::NotReady);
-    };
-    let (name, file) = (&entry[..separator], &entry[separator + 1..length]);
-    if name.is_empty() || file.is_empty() || file.contains(&b':') {
-        return Err(DirectClientError::NotReady);
-    }
-    Ok(AnimationSnapshot {
-        name: name.to_vec(),
-        file: file.to_vec(),
-    })
 }
 
 fn copy_chat_input_text(
