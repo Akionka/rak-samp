@@ -76,14 +76,12 @@ The SDK root re-exports safe types, ABI declarations, wrapper glue, resolution,
 and subscription ownership from dedicated modules. The Win32 root retains only
 shared state and tick ordering; backend forwarding, command execution, queue
 draining, refresh publication, native bitstream/string work, and hook patching
-live in dedicated child modules. One version-selected `NativeProfile` gates
-every direct bridge: R1 uses its private verified implementation, while
-R3-1, R5-1, and DL-R1 use the classic-client implementation with explicit
-per-version RVAs and player/pool layouts. The common game-tick pump and cache
-refresh paths consume only `NativeProfile`; build-specific layouts stay in the
-selected implementation. The R1 profile delegates singleton lookup, native
-aliases, textdraws, UI, player/pool reads, and handle lookups to focused child
-modules. The Host API root retains
+live in dedicated child modules. One version-selected `NativeClientProfile`
+gates every direct bridge. Four equal profile specifications contain explicit
+per-version RVAs, layouts, and narrow strategies for R1, R3-1, R5-1, and
+DL-R1. The common game-tick pump and cache refresh paths consume only
+`NativeClientProfile`; shared modules own singleton lookup, native aliases,
+textdraws, UI, player/pool reads, and handle lookups. The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.
 

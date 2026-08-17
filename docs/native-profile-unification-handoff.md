@@ -682,31 +682,31 @@ Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo te
 
 ### 17. Remove the old architecture
 
-- [ ] Replace all `NativeProfile` type references.
-- [ ] Replace `BackendContext` and refresh-path references.
-- [ ] Replace command/read/test constructors.
-- [ ] Delete the forwarding match block.
-- [ ] Delete `ClassicVersion` and `build_value`.
-- [ ] Delete `R1ClientProfile` and `ClassicClientProfile`.
-- [ ] Delete `r1_client.rs`, `r1_client/`, and `r3_client.rs` after they are empty.
-- [ ] Confirm no R1/R3/R5/DL version branch remains in shared operations.
-- [ ] Confirm no version-specific cache field remains.
+- [x] Replace all `NativeProfile` type references.
+- [x] Replace `BackendContext` and refresh-path references.
+- [x] Replace command/read/test constructors.
+- [x] Delete the forwarding match block.
+- [x] Delete `ClassicVersion` and `build_value`.
+- [x] Delete `R1ClientProfile` and `ClassicClientProfile`.
+- [x] Delete `r1_client.rs`, `r1_client/`, and `r3_client.rs` after they are empty.
+- [x] Confirm no R1/R3/R5/DL version branch remains in shared operations.
+- [x] Confirm no version-specific cache field remains.
 
 Evidence/commit: _pending_
 
 ### 18. Documentation and static completion
 
-- [ ] Update `ARCHITECTURE.md`.
-- [ ] Update `CORE.md`.
-- [ ] Update relevant agent guides.
-- [ ] Update fixture documentation.
-- [ ] Review the unverified-value register for completeness.
-- [ ] Run `cargo fmt --all -- --check`.
-- [ ] Run `cargo test --workspace`.
-- [ ] Run `cargo clippy --workspace -- -D warnings`.
-- [ ] Run `cargo build --workspace`.
-- [ ] Run `git diff --check`.
-- [ ] Confirm unrelated user files remain untouched.
+- [x] Update `ARCHITECTURE.md`.
+- [x] Update `CORE.md`.
+- [x] Update relevant agent guides.
+- [x] Update fixture documentation.
+- [x] Review the unverified-value register for completeness.
+- [x] Run `cargo fmt --all -- --check`.
+- [x] Run `cargo test --workspace`.
+- [x] Run `cargo clippy --workspace -- -D warnings`.
+- [x] Run `cargo build --workspace`.
+- [x] Run `git diff --check`.
+- [x] Confirm unrelated user files remain untouched.
 
 Evidence/commit: _pending_
 

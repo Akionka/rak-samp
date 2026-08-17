@@ -1,16 +1,84 @@
 //! Independent native-client profile layout fixtures.
 //!
-//! These tests cover the native structures consumed by the enabled R3-1,
+//! These tests cover the native structures consumed by the enabled R1, R3-1,
 //! R5-1, and DL-R1 direct-helper profiles.
 
 use crate::client::SampVersion;
 use crate::platform::win32::native_client::profiles::dl::DL_SPEC;
+use crate::platform::win32::native_client::profiles::r1::R1_SPEC;
 use crate::platform::win32::native_client::profiles::r3::R3_SPEC;
 use crate::platform::win32::native_client::profiles::r5::R5_SPEC;
 
 type FixtureFn = unsafe extern "C" fn() -> usize;
 
 unsafe extern "C" {
+    fn samp_client_sdk_fixture_r1_onfoot_size() -> usize;
+    fn samp_client_sdk_fixture_r1_incar_size() -> usize;
+    fn samp_client_sdk_fixture_r1_local_active_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_current_vehicle_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_onfoot_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_incar_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_passenger_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_local_trailer_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_onfoot_position_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_onfoot_speed_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_onfoot_special_action_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_onfoot_animation_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_incar_position_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_incar_speed_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_ped_game_ped_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_player_pool_local_id_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_player_pool_largest_id_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_vehicle_pool_game_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_object_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_object_pool_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_pickup_pool_handles_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_entity_handle_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_host_address_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_hostname_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_port_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_game_state_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_server_settings_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_label_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_text_draw_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_object_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_gang_zone_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_net_game_pools_pickup_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_label_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_size() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_text_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_colour_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_position_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_draw_distance_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_behind_walls_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_attached_player_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_text_label_attached_vehicle_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_pool_objects_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_data_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_size() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_size() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_x_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_transmit_y_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_letter_width_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_textdraw_model_id_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_gangzone_size() -> usize;
+    fn samp_client_sdk_fixture_r1_gangzone_pool_not_empty_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_game_cursor_mode_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_scoreboard_enabled_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_active_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_listbox_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_editbox_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_text_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_type_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_id_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_caption_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_dialog_server_side_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_input_enabled_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_chat_entries_offset() -> usize;
+    fn samp_client_sdk_fixture_r1_chat_entry_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_size() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_rak_client_offset() -> usize;
     fn samp_client_sdk_fixture_r3_1_netgame_host_address_offset() -> usize;
@@ -1034,5 +1102,283 @@ fn non_r1_profile_layout_gates_match_the_independent_cpp_fixture() {
     for (fixture, expected) in fixtures {
         let actual = unsafe { fixture.observed() };
         assert_eq!(actual, expected, "{:#?} layout fixture", fixture.version);
+    }
+}
+
+#[test]
+fn r1_profile_layout_matches_the_independent_cpp_fixture() {
+    let spec = R1_SPEC;
+    unsafe {
+        assert_eq!(
+            samp_client_sdk_fixture_r1_onfoot_size(),
+            spec.sync.onfoot.size.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_incar_size(),
+            spec.sync.incar.size.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_active_offset(),
+            spec.players.local.active_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_current_vehicle_offset(),
+            spec.players.local.current_vehicle_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_onfoot_offset(),
+            spec.players.local.onfoot_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_incar_offset(),
+            spec.players.local.incar_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_passenger_offset(),
+            spec.players.local.passenger_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_local_trailer_offset(),
+            spec.players.local.trailer_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_onfoot_position_offset(),
+            spec.players.local.onfoot.position_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_onfoot_speed_offset(),
+            spec.players.local.onfoot.speed_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_onfoot_special_action_offset(),
+            spec.players.local.onfoot.special_action_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_onfoot_animation_offset(),
+            spec.players.local.onfoot.animation_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_incar_position_offset(),
+            spec.players.local.incar.position_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_incar_speed_offset(),
+            spec.players.local.incar.speed_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_ped_game_ped_offset(),
+            spec.players.local.game_ped_offset.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_player_pool_local_id_offset(),
+            spec.pools.player.local_id_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_player_pool_largest_id_offset(),
+            spec.pools.player.largest_id_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_vehicle_pool_not_empty_offset(),
+            spec.pools.vehicle.not_empty_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_vehicle_pool_game_objects_offset(),
+            spec.pools.vehicle.game_objects_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_object_pool_not_empty_offset(),
+            spec.pools.object.not_empty_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_object_pool_objects_offset(),
+            spec.pools.object.objects_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_pickup_pool_handles_offset(),
+            spec.pools.pickup.handles_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_entity_handle_offset(),
+            spec.pools.entity_handle_offset.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_host_address_offset(),
+            spec.net_game.host_address_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_hostname_offset(),
+            spec.net_game.hostname_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_port_offset(),
+            spec.net_game.port_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_game_state_offset(),
+            spec.net_game.game_state_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_server_settings_offset(),
+            spec.net_game.server_settings_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_offset(),
+            spec.net_game.pools_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_label_offset(),
+            spec.net_game.pools.text_label_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_text_draw_offset(),
+            spec.net_game.pools.textdraw_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_object_offset(),
+            spec.net_game.pools.object_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_gang_zone_offset(),
+            spec.net_game.pools.gangzone_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_net_game_pools_pickup_offset(),
+            spec.net_game.pools.pickup_offset.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_label_pool_not_empty_offset(),
+            spec.pools.text_label.not_empty_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_size(),
+            spec.text_labels.size.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_text_offset(),
+            spec.text_labels.text_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_colour_offset(),
+            spec.text_labels.colour_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_position_offset(),
+            spec.text_labels.position_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_draw_distance_offset(),
+            spec.text_labels.draw_distance_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_behind_walls_offset(),
+            spec.text_labels.behind_walls_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_attached_player_offset(),
+            spec.text_labels.attached_player_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_text_label_attached_vehicle_offset(),
+            spec.text_labels.attached_vehicle_offset.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_pool_not_empty_offset(),
+            spec.pools.textdraw.not_empty_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_pool_objects_offset(),
+            spec.pools.textdraw.objects_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_data_offset(),
+            spec.textdraws.data_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_size(),
+            spec.textdraws.native_size.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_size(),
+            spec.textdraws.transmit.size.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_x_offset(),
+            spec.textdraws.transmit.x.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_transmit_y_offset(),
+            spec.textdraws.transmit.y.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_letter_width_offset(),
+            spec.textdraws.data.width.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_textdraw_model_id_offset(),
+            spec.textdraws.data.model_id.get()
+        );
+        assert_eq!(samp_client_sdk_fixture_r1_gangzone_size(), 0x18);
+        assert_eq!(
+            samp_client_sdk_fixture_r1_gangzone_pool_not_empty_offset(),
+            spec.pools.gangzone.not_empty_offset.get()
+        );
+
+        assert_eq!(
+            samp_client_sdk_fixture_r1_game_cursor_mode_offset(),
+            spec.ui.game.cursor_mode_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_scoreboard_enabled_offset(),
+            spec.ui.scoreboard.enabled_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_active_offset(),
+            spec.ui.dialog.active_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_listbox_offset(),
+            spec.ui.dialog.listbox_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_editbox_offset(),
+            spec.ui.dialog.editbox_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_text_offset(),
+            spec.ui.dialog.text_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_type_offset(),
+            spec.ui.dialog.dialog_type_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_id_offset(),
+            spec.ui.dialog.id_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_caption_offset(),
+            spec.ui.dialog.caption_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_dialog_server_side_offset(),
+            spec.ui.dialog.server_side_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_input_enabled_offset(),
+            spec.ui.input.enabled_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_chat_entries_offset(),
+            spec.ui.chat.entries_offset.get()
+        );
+        assert_eq!(
+            samp_client_sdk_fixture_r1_chat_entry_size(),
+            spec.ui.chat.entry_size.get()
+        );
     }
 }

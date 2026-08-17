@@ -14,8 +14,6 @@ pub(crate) mod native_client;
 mod objects;
 mod packets;
 mod players;
-pub(crate) mod r1_client;
-mod r3_client;
 mod reads;
 mod refresh;
 mod requests;
