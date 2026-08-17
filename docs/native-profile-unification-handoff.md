@@ -625,18 +625,26 @@ passed).
 
 ### 13. UI operations
 
-- [ ] Migrate chat entries and messages.
-- [ ] Migrate death-window messages.
-- [ ] Migrate chat input and command registration.
-- [ ] Migrate dialog show, close, response, and edit-box operations.
-- [ ] Migrate list items through `ListItemTextLayout`.
-- [ ] Migrate scoreboard operations.
-- [ ] Migrate cursor operations.
-- [ ] Apply one bounded input-string policy to all profiles.
-- [ ] Add cross-profile behavior-parity tests.
-- [ ] Remove superseded UI implementations.
+- [x] Migrate chat entries and messages.
+- [x] Migrate death-window messages.
+- [x] Migrate chat input and command registration.
+- [x] Migrate dialog show, close, response, and edit-box operations.
+- [x] Migrate list items through `ListItemTextLayout`.
+- [x] Migrate scoreboard operations.
+- [x] Migrate cursor operations.
+- [x] Apply one bounded input-string policy to all profiles.
+- [x] Add cross-profile behavior-parity tests.
+- [x] Remove superseded UI runtime dispatch implementations.
 
-Evidence/commit: _pending_
+Evidence/commits: `c03ecfe` (`refactor(native-client): share ui cache reads`),
+`1cc6360` (`refactor(native-client): share chat command cache`), `0650e54`
+(`refactor(native-client): share dialog cache reads`), `b45d8c6`
+(`refactor(native-client): share ui memory writes`), `8279b26`
+(`refactor(native-client): share ui native calls`), `e07530c`
+(`refactor(native-client): share ui input operations`), `d3e0185`
+(`refactor(native-client): share ui command routes`), and `3e4d2e4`
+(`test(native-client): cover ui profile boundaries`); `cargo clippy --workspace --
+-D warnings` and `cargo test -p samp-client-sdk-host --lib` (196 passed).
 
 ### 14. Text labels
 
