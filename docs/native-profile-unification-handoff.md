@@ -660,15 +660,15 @@ samp-client-sdk-host --lib -- --test-threads=1` (198 passed).
 
 ### 15. Textdraws
 
-- [ ] Migrate textdraw existence and snapshots.
-- [ ] Migrate create and delete native calls.
-- [ ] Migrate all numeric/style mutations.
-- [ ] Migrate text mutation through the verified native setter strategy.
-- [ ] Preserve R1 setter RVA `0xAC870` and its 799-byte input bound.
-- [ ] Add layout, capacity, setter, and lifecycle tests for all profiles.
-- [ ] Remove superseded textdraw implementations.
+- [x] Migrate textdraw existence and snapshots.
+- [x] Migrate create and delete native calls.
+- [x] Migrate all numeric/style mutations.
+- [x] Migrate text mutation through the verified native setter strategy.
+- [x] Preserve R1 setter RVA `0xAC870` and its 799-byte input bound.
+- [x] Add layout, capacity, setter, and lifecycle tests for all profiles.
+- [x] Remove superseded textdraw implementations.
 
-Evidence/commit: _pending_
+Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo test -p samp-client-sdk-host --lib -- --test-threads=1`, 200 passed)
 
 ### 16. Remaining shared operations
 

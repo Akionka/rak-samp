@@ -212,7 +212,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_textdraw_exists(&self, profile: NativeProfile) {
+    pub(super) fn refresh_textdraw_exists(&self, profile: NativeClientProfile) {
         for pool_index in self.take_textdraw_exists_requests() {
             let Ok(exists) = profile.textdraw_exists(pool_index) else {
                 continue;
@@ -226,7 +226,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_textdraws(&self, profile: NativeProfile) {
+    pub(super) fn refresh_textdraws(&self, profile: NativeClientProfile) {
         for pool_index in self.take_textdraw_requests() {
             let Ok(snapshot) = profile.textdraw(pool_index) else {
                 continue;

@@ -972,9 +972,9 @@ impl BackendState {
         self.refresh_animation_catalog(profile);
         if let Some(connection_profile) = self.connection_profile() {
             self.refresh_raw_pool_addresses(connection_profile);
+            self.refresh_textdraw_exists(connection_profile);
+            self.refresh_textdraws(connection_profile);
         }
-        self.refresh_textdraw_exists(profile);
-        self.refresh_textdraws(profile);
         self.cache_generation.fetch_add(1, Ordering::Release);
     }
 

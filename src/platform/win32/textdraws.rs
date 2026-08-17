@@ -48,7 +48,7 @@ impl BackendState {
     }
 
     pub(super) fn textdraw_exists(&self, pool_index: u16) -> Result<bool, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {
@@ -79,7 +79,7 @@ impl BackendState {
         &self,
         pool_index: u16,
     ) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || !self.cache_is_published() {

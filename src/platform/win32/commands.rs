@@ -489,7 +489,7 @@ impl BackendState {
     }
 
     pub(super) fn submit_delete_textdraw(&self, id: u16) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -505,7 +505,7 @@ impl BackendState {
         x: f32,
         y: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -693,7 +693,7 @@ impl BackendState {
         x: f32,
         y: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -711,7 +711,7 @@ impl BackendState {
         id: u16,
         style: i32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -730,7 +730,7 @@ impl BackendState {
         height: f32,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -753,7 +753,7 @@ impl BackendState {
         id: u16,
         proportional: bool,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -768,7 +768,7 @@ impl BackendState {
         shadow: u8,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -783,7 +783,7 @@ impl BackendState {
         outline: u8,
         colour: u32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXTDRAWS {
@@ -804,7 +804,7 @@ impl BackendState {
         width: f32,
         height: f32,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -828,7 +828,7 @@ impl BackendState {
         id: u16,
         alignment: u8,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -845,12 +845,12 @@ impl BackendState {
         id: u16,
         text: Vec<u8>,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
             || usize::from(id) >= MAX_SAMP_TEXTDRAWS
-            || text.len() > 1_601
+            || text.len() >= MAX_TEXTDRAW_CREATE_TEXT_BYTES
             || text.contains(&0)
         {
             return Err(DirectClientError::NotReady);
@@ -866,7 +866,7 @@ impl BackendState {
         colour1: u16,
         colour2: u16,
     ) -> Result<CommandId, DirectClientError> {
-        if self.scalar_profile().is_none() {
+        if self.connection_profile().is_none() {
             return Err(DirectClientError::UnsupportedVersion);
         }
         if self.rak_client.load(Ordering::Acquire) == 0
@@ -1246,7 +1246,7 @@ impl BackendState {
                     result
                 }
                 GameCommand::DeleteTextdraw(id) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1256,7 +1256,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::CreateTextdraw { id, text, x, y } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1364,7 +1364,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawPosition { id, x, y } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1374,7 +1374,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawStyle { id, style } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1389,7 +1389,7 @@ impl BackendState {
                     height,
                     colour,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1399,7 +1399,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawProportional { id, proportional } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1409,7 +1409,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawShadow { id, shadow, colour } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1423,7 +1423,7 @@ impl BackendState {
                     outline,
                     colour,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1439,7 +1439,7 @@ impl BackendState {
                     width,
                     height,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1449,7 +1449,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawAlignment { id, alignment } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1459,7 +1459,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextdrawString { id, text } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1475,7 +1475,7 @@ impl BackendState {
                     colour1,
                     colour2,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
