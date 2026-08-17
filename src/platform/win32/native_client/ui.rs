@@ -5,6 +5,7 @@ use super::{
     profile::NativeClientProfile,
 };
 use crate::runtime::{ChatEntrySnapshot, DirectClientError};
+use std::mem;
 
 impl NativeClientProfile {
     /// Copies one bounded chat-history entry from the guarded chat singleton.
@@ -129,6 +130,52 @@ impl NativeClientProfile {
                 .checked_add(self.spec.ui.input.enabled_offset.get())
                 .ok_or(DirectClientError::NotReady)?,
         )
+    }
+
+    /// Copies the bounded command names stored by the guarded chat input.
+    pub(crate) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
+        let layout = self.spec.ui.input;
+        let required = layout
+            .command_count_offset
+            .get()
+            .checked_add(mem::size_of::<i32>())
+            .ok_or(DirectClientError::NotReady)?;
+        let input = self
+            .singleton(layout.singleton_rva, required)
+            .ok_or(DirectClientError::NotReady)?;
+        let count = unsafe {
+            read_unaligned::<i32>(
+                (input as usize)
+                    .checked_add(layout.command_count_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|count| (0..=layout.max_commands.get() as i32).contains(count))
+        .ok_or(DirectClientError::NotReady)? as usize;
+        let names = (input as usize)
+            .checked_add(layout.command_name_offset.get())
+            .ok_or(DirectClientError::NotReady)?;
+        let names_length = count
+            .checked_mul(layout.command_name_capacity.get())
+            .ok_or(DirectClientError::NotReady)?;
+        if names_length != 0 && !super::memory::readable_range(names as *const u8, names_length) {
+            return Err(DirectClientError::NotReady);
+        }
+        (0..count)
+            .map(|index| {
+                let address = names
+                    .checked_add(
+                        index
+                            .checked_mul(layout.command_name_capacity.get())
+                            .ok_or(DirectClientError::NotReady)?,
+                    )
+                    .ok_or(DirectClientError::NotReady)?;
+                unsafe {
+                    bounded_c_string(address as *const u8, layout.command_name_capacity.get())
+                }
+                .ok_or(DirectClientError::NotReady)
+            })
+            .collect()
     }
 }
 

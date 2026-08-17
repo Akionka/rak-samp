@@ -472,16 +472,6 @@ impl NativeProfile {
         }
     }
 
-    /// Reads copied native chat-command names available on this profile.
-    pub(super) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.chat_input_commands(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.chat_input_commands()
-            }
-        }
-    }
-
     /// Reads copied chat-input text available on this profile.
     pub(super) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
         match self {

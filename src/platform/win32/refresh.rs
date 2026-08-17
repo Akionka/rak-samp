@@ -519,7 +519,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_commands(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_chat_input_commands(&self, profile: NativeClientProfile) {
         match profile.chat_input_commands() {
             Ok(commands) => {
                 let Ok(mut snapshot) = self.local_chat_input_commands.try_lock() else {
