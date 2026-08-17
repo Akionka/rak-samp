@@ -1046,17 +1046,13 @@ impl BackendState {
                     .connection_profile()
                     .filter(|profile| profile.dialog_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|_| {
-                        self.scalar_profile()
-                            .ok_or(CommandError::NativeFailure)
-                            .and_then(|profile| {
-                                profile
-                                    .show_dialog(request)
-                                    .map_err(|_| CommandError::NativeFailure)
-                            })
+                    .and_then(|profile| {
+                        profile
+                            .show_dialog(request)
+                            .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::CloseDialog(button) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1150,30 +1146,22 @@ impl BackendState {
                     .connection_profile()
                     .filter(|profile| profile.chat_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|_| {
-                        self.scalar_profile()
-                            .ok_or(CommandError::NativeFailure)
-                            .and_then(|profile| {
-                                profile
-                                    .show_chat_message(request)
-                                    .map_err(|_| CommandError::NativeFailure)
-                            })
+                    .and_then(|profile| {
+                        profile
+                            .show_chat_message(request)
+                            .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::AddDeathMessage(request) => self
                     .connection_profile()
                     .filter(|profile| profile.death_window_is_ready())
                     .ok_or(CommandError::NativeFailure)
-                    .and_then(|_| {
-                        self.scalar_profile()
-                            .ok_or(CommandError::NativeFailure)
-                            .and_then(|profile| {
-                                profile
-                                    .show_death_message(request)
-                                    .map_err(|_| CommandError::NativeFailure)
-                            })
+                    .and_then(|profile| {
+                        profile
+                            .show_death_message(request)
+                            .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::SetCursorMode(mode) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1181,7 +1169,7 @@ impl BackendState {
                             .map_err(|_| CommandError::NativeFailure)
                     }),
                 GameCommand::ToggleCursor(show) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile

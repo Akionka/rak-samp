@@ -7,13 +7,261 @@ use super::{
     },
     profile::{ListItemTextLayout, NativeClientProfile, PoolGetterAbi},
 };
-use crate::runtime::{ChatEntrySnapshot, DirectClientError, LocalDialogSnapshot, LocalDialogStyle};
+use crate::runtime::{
+    ChatEntrySnapshot, DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest,
+    LocalDialogRequest, LocalDialogSnapshot, LocalDialogStyle,
+};
 use std::{ffi::c_void, mem};
 
 type R1DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 type ClassicDxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
+type R1DialogShowFn = unsafe extern "thiscall" fn(
+    *mut c_void,
+    i32,
+    i32,
+    *const i8,
+    *const i8,
+    *const i8,
+    *const i8,
+    i32,
+);
+type ClassicDialogShowFn = unsafe extern "thiscall" fn(
+    *mut c_void,
+    i32,
+    i32,
+    *const i8,
+    *const i8,
+    *const i8,
+    *const i8,
+    i32,
+);
+type R1DialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
+type ClassicDialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
+type R1ChatAddEntryFn =
+    unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
+type ClassicChatAddEntryFn =
+    unsafe extern "thiscall" fn(*mut c_void, i32, *const i8, *const i8, u32, u32);
+type R1DeathWindowAddMessageFn =
+    unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
+type ClassicDeathWindowAddMessageFn =
+    unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
+type R1GameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
+type ClassicGameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, i32);
+type R1GameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
+type ClassicGameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
 
 impl NativeClientProfile {
+    fn ui_target(self, rva: super::profile::NativeRva) -> Result<usize, DirectClientError> {
+        self.module_base
+            .checked_add(rva.get())
+            .filter(|target| readable_range(*target as *const u8, 1))
+            .ok_or(DirectClientError::NotReady)
+    }
+
+    pub(crate) fn show_dialog(self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
+        if request.title.contains(&0)
+            || request.text.contains(&0)
+            || request.button1.contains(&0)
+            || request.button2.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let mut title = request.title;
+        let mut text = request.text;
+        let mut button1 = request.button1;
+        let mut button2 = request.button2;
+        title.push(0);
+        text.push(0);
+        button1.push(0);
+        button2.push(0);
+        let target = self.ui_target(self.spec.ui.dialog.show_rva)?;
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let show: R1DialogShowFn = mem::transmute(target);
+                    show(
+                        dialog,
+                        i32::from(request.id),
+                        request.style.as_raw() as i32,
+                        title.as_ptr().cast(),
+                        text.as_ptr().cast(),
+                        button1.as_ptr().cast(),
+                        button2.as_ptr().cast(),
+                        0,
+                    );
+                }
+                PoolGetterAbi::Classic => {
+                    let show: ClassicDialogShowFn = mem::transmute(target);
+                    show(
+                        dialog,
+                        i32::from(request.id),
+                        request.style.as_raw() as i32,
+                        title.as_ptr().cast(),
+                        text.as_ptr().cast(),
+                        button1.as_ptr().cast(),
+                        button2.as_ptr().cast(),
+                        0,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn close_dialog(self, button: u8) -> Result<(), DirectClientError> {
+        if button > 1 {
+            return Err(DirectClientError::NotReady);
+        }
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let target = self.ui_target(self.spec.ui.dialog.close_rva)?;
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let close: R1DialogCloseFn = mem::transmute(target);
+                    close(dialog, button);
+                }
+                PoolGetterAbi::Classic => {
+                    let close: ClassicDialogCloseFn = mem::transmute(target);
+                    close(dialog, button);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn show_chat_message(
+        self,
+        request: LocalChatMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        if request.text.contains(&0) || request.prefix.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        let chat = self.chat().ok_or(DirectClientError::NotReady)?;
+        let target = self.ui_target(self.spec.ui.chat.add_entry_rva)?;
+        let mut text = request.text;
+        let mut prefix = request.prefix;
+        text.push(0);
+        prefix.push(0);
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let add: R1ChatAddEntryFn = mem::transmute(target);
+                    add(
+                        chat,
+                        request.style.as_raw(),
+                        text.as_ptr().cast(),
+                        prefix.as_ptr().cast(),
+                        request.text_colour,
+                        request.prefix_colour,
+                    );
+                }
+                PoolGetterAbi::Classic => {
+                    let add: ClassicChatAddEntryFn = mem::transmute(target);
+                    add(
+                        chat,
+                        request.style.as_raw(),
+                        text.as_ptr().cast(),
+                        prefix.as_ptr().cast(),
+                        request.text_colour,
+                        request.prefix_colour,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn show_death_message(
+        self,
+        request: LocalDeathMessageRequest,
+    ) -> Result<(), DirectClientError> {
+        if request.killer.contains(&0) || request.victim.contains(&0) {
+            return Err(DirectClientError::NotReady);
+        }
+        let death_window = self.death_window().ok_or(DirectClientError::NotReady)?;
+        let target = self.ui_target(
+            self.spec
+                .ui
+                .death_window
+                .add_message_rva
+                .ok_or(DirectClientError::NotReady)?,
+        )?;
+        let mut killer = request.killer;
+        let mut victim = request.victim;
+        killer.push(0);
+        victim.push(0);
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let add: R1DeathWindowAddMessageFn = mem::transmute(target);
+                    add(
+                        death_window,
+                        killer.as_ptr().cast(),
+                        victim.as_ptr().cast(),
+                        request.killer_colour,
+                        request.victim_colour,
+                        request.weapon,
+                    );
+                }
+                PoolGetterAbi::Classic => {
+                    let add: ClassicDeathWindowAddMessageFn = mem::transmute(target);
+                    add(
+                        death_window,
+                        killer.as_ptr().cast(),
+                        victim.as_ptr().cast(),
+                        request.killer_colour,
+                        request.victim_colour,
+                        request.weapon,
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn set_cursor_mode(self, mode: i32) -> Result<(), DirectClientError> {
+        if !matches!(mode, 0..=4) {
+            return Err(DirectClientError::NotReady);
+        }
+        let game = self.game().ok_or(DirectClientError::NotReady)?;
+        let target = self.ui_target(self.spec.ui.game.set_cursor_mode_rva)?;
+        unsafe {
+            match self.spec.strategies.pool_getter_abi {
+                PoolGetterAbi::R1 => {
+                    let set_mode: R1GameSetCursorModeFn = mem::transmute(target);
+                    set_mode(game, mode, i32::from(mode != 0));
+                }
+                PoolGetterAbi::Classic => {
+                    let set_mode: ClassicGameSetCursorModeFn = mem::transmute(target);
+                    set_mode(game, mode, i32::from(mode != 0));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub(crate) fn toggle_cursor(self, show: bool) -> Result<(), DirectClientError> {
+        self.set_cursor_mode(if show { 3 } else { 0 })?;
+        if !show {
+            let game = self.game().ok_or(DirectClientError::NotReady)?;
+            let target = self.ui_target(self.spec.ui.game.process_input_enabling_rva)?;
+            unsafe {
+                match self.spec.strategies.pool_getter_abi {
+                    PoolGetterAbi::R1 => {
+                        let process: R1GameProcessInputEnablingFn = mem::transmute(target);
+                        process(game);
+                    }
+                    PoolGetterAbi::Classic => {
+                        let process: ClassicGameProcessInputEnablingFn = mem::transmute(target);
+                        process(game);
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Replaces one bounded chat-history entry on the game thread.
     pub(crate) fn set_chat_entry(
         self,

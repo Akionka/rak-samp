@@ -65,49 +65,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn show_chat_message(
-        self,
-        request: crate::runtime::LocalChatMessageRequest,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.show_chat_message(request),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.show_chat_message(request)
-            }
-        }
-    }
-    pub(super) fn show_death_message(
-        self,
-        request: crate::runtime::LocalDeathMessageRequest,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.show_death_message(request),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.show_death_message(request)
-            }
-        }
-    }
-    pub(super) fn show_dialog(
-        self,
-        request: crate::runtime::LocalDialogRequest,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.show_dialog(request),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.show_dialog(request)
-            }
-        }
-    }
-
-    pub(super) fn close_dialog(self, button: u8) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.close_dialog(button),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.close_dialog(button)
-            }
-        }
-    }
-
     pub(super) fn dialog_response_on_close(
         self,
         dialog: *mut std::ffi::c_void,
@@ -126,24 +83,6 @@ impl NativeProfile {
             Self::R1(profile) => profile.set_dialog_editbox_text(text),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.set_dialog_editbox_text(text)
-            }
-        }
-    }
-
-    pub(super) fn set_cursor_mode(self, mode: i32) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_cursor_mode(mode),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_cursor_mode(mode)
-            }
-        }
-    }
-
-    pub(super) fn toggle_cursor(self, show: bool) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.toggle_cursor(show),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.toggle_cursor(show)
             }
         }
     }
