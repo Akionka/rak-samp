@@ -1,7 +1,10 @@
 //! Guarded UI cache reads shared by immutable client profiles.
 
 use super::{
-    memory::{bounded_c_string, read_i32_bool, read_pointer, read_unaligned, readable_range},
+    memory::{
+        bounded_c_string, read_i32_bool, read_pointer, read_unaligned, readable_range,
+        writable_range, write_unaligned,
+    },
     profile::{ListItemTextLayout, NativeClientProfile, PoolGetterAbi},
 };
 use crate::runtime::{ChatEntrySnapshot, DirectClientError, LocalDialogSnapshot, LocalDialogStyle};
@@ -11,6 +14,144 @@ type R1DxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const
 type ClassicDxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *const u8;
 
 impl NativeClientProfile {
+    /// Replaces one bounded chat-history entry on the game thread.
+    pub(crate) fn set_chat_entry(
+        self,
+        id: u16,
+        text: &[u8],
+        prefix: &[u8],
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<(), DirectClientError> {
+        let layout = self.spec.ui.chat;
+        if usize::from(id) >= layout.max_entries.get()
+            || text.len() >= layout.text_capacity.get()
+            || prefix.len() >= layout.prefix_capacity.get()
+            || text.contains(&0)
+            || prefix.contains(&0)
+        {
+            return Err(DirectClientError::NotReady);
+        }
+        let required = layout
+            .entries_offset
+            .get()
+            .checked_add(
+                (usize::from(id) + 1)
+                    .checked_mul(layout.entry_size.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+            .ok_or(DirectClientError::NotReady)?;
+        let chat = self
+            .singleton(layout.singleton_rva, required)
+            .ok_or(DirectClientError::NotReady)?;
+        let entry = (chat as usize)
+            .checked_add(layout.entries_offset.get())
+            .and_then(|address| {
+                address.checked_add(usize::from(id).checked_mul(layout.entry_size.get())?)
+            })
+            .ok_or(DirectClientError::NotReady)?;
+        if !writable_range(entry as *const u8, layout.entry_size.get()) {
+            return Err(DirectClientError::NotReady);
+        }
+        let prefix_address = entry
+            .checked_add(layout.prefix_offset.get())
+            .ok_or(DirectClientError::NotReady)?;
+        let text_address = entry
+            .checked_add(layout.text_offset.get())
+            .ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            std::ptr::write_bytes(prefix_address as *mut u8, 0, layout.prefix_capacity.get());
+            std::ptr::write_bytes(text_address as *mut u8, 0, layout.text_capacity.get());
+            std::ptr::copy_nonoverlapping(prefix.as_ptr(), prefix_address as *mut u8, prefix.len());
+            std::ptr::copy_nonoverlapping(text.as_ptr(), text_address as *mut u8, text.len());
+        }
+        if !unsafe {
+            write_unaligned(
+                entry
+                    .checked_add(layout.text_colour_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                text_colour,
+            ) && write_unaligned(
+                entry
+                    .checked_add(layout.prefix_colour_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                prefix_colour,
+            )
+        } {
+            return Err(DirectClientError::NotReady);
+        }
+        Ok(())
+    }
+
+    pub(crate) fn set_chat_display_mode(self, mode: i32) -> Result<(), DirectClientError> {
+        if !matches!(mode, 0..=2) {
+            return Err(DirectClientError::NotReady);
+        }
+        let chat = self.chat().ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            write_unaligned(
+                (chat as usize)
+                    .checked_add(self.spec.ui.chat.display_mode_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                mode,
+            )
+            .then_some(())
+            .ok_or(DirectClientError::NotReady)
+        }
+    }
+
+    pub(crate) fn set_scoreboard_open(self, open: bool) -> Result<(), DirectClientError> {
+        let scoreboard = self.scoreboard().ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            write_unaligned(
+                (scoreboard as usize)
+                    .checked_add(self.spec.ui.scoreboard.enabled_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                i32::from(open),
+            )
+            .then_some(())
+            .ok_or(DirectClientError::NotReady)
+        }
+    }
+
+    pub(crate) fn set_dialog_client_side(self, client_side: bool) -> Result<(), DirectClientError> {
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            write_unaligned(
+                (dialog as usize)
+                    .checked_add(self.spec.ui.dialog.server_side_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                i32::from(!client_side),
+            )
+            .then_some(())
+            .ok_or(DirectClientError::NotReady)
+        }
+    }
+
+    pub(crate) fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
+        let layout = self.spec.ui.dialog;
+        let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
+        let listbox = unsafe {
+            read_pointer(
+                (dialog as usize)
+                    .checked_add(layout.listbox_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|pointer| !pointer.is_null())
+        .ok_or(DirectClientError::NotReady)?;
+        unsafe {
+            write_unaligned(
+                (listbox as usize)
+                    .checked_add(layout.listbox.selected_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+                selected,
+            )
+            .then_some(())
+            .ok_or(DirectClientError::NotReady)
+        }
+    }
+
     /// Copies one bounded chat-history entry from the guarded chat singleton.
     pub(crate) fn chat_entry(self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
         let layout = self.spec.ui.chat;

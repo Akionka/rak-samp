@@ -121,24 +121,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_dialog_selected_item(selected),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_dialog_selected_item(selected)
-            }
-        }
-    }
-
-    pub(super) fn set_dialog_client_side(self, client_side: bool) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_dialog_client_side(client_side),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_dialog_client_side(client_side)
-            }
-        }
-    }
-
     pub(super) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_dialog_editbox_text(text),
@@ -166,15 +148,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn set_scoreboard_open(self, open: bool) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_scoreboard_open(open),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_scoreboard_open(open)
-            }
-        }
-    }
-
     pub(super) fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_chat_input_enabled(enabled),
@@ -198,33 +171,6 @@ impl NativeProfile {
             Self::R1(profile) => profile.process_chat_input(text),
             Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
                 profile.process_chat_input(text)
-            }
-        }
-    }
-
-    pub(super) fn set_chat_display_mode(self, mode: i32) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.set_chat_display_mode(mode),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_chat_display_mode(mode)
-            }
-        }
-    }
-
-    pub(super) fn set_chat_entry(
-        self,
-        id: u16,
-        text: &[u8],
-        prefix: &[u8],
-        text_colour: u32,
-        prefix_colour: u32,
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => {
-                profile.set_chat_entry(id, text, prefix, text_colour, prefix_colour)
-            }
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.set_chat_entry(id, text, prefix, text_colour, prefix_colour)
             }
         }
     }
