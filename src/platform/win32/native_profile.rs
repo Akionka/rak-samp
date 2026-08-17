@@ -121,15 +121,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn dialog_state(
-        self,
-    ) -> Result<Option<crate::runtime::LocalDialogSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.dialog_state(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.dialog_state(),
-        }
-    }
-
     pub(super) fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
         match self {
             Self::R1(profile) => profile.set_dialog_selected_item(selected),
@@ -469,14 +460,6 @@ impl NativeProfile {
             Self::R3(p) | Self::R5(p) | Self::Dl(p) => {
                 p.set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
             }
-        }
-    }
-
-    /// Reads copied chat-input text available on this profile.
-    pub(super) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.chat_input_text(),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => profile.chat_input_text(),
         }
     }
 }

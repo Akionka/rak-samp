@@ -469,7 +469,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_dialog_state(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_dialog_state(&self, profile: NativeClientProfile) {
         match profile.dialog_state() {
             Ok(snapshot) => {
                 let Ok(mut cached) = self.local_dialog_snapshot.try_lock() else {
@@ -500,7 +500,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_local_chat_input_text(&self, profile: NativeProfile) {
+    pub(super) fn refresh_local_chat_input_text(&self, profile: NativeClientProfile) {
         match profile.chat_input_text() {
             Ok(text) => {
                 let Ok(mut snapshot) = self.local_chat_input_text.try_lock() else {

@@ -957,8 +957,10 @@ impl BackendState {
             self.refresh_local_cursor_mode(connection_profile);
             self.refresh_local_scoreboard_open(connection_profile);
             self.refresh_local_dialog_active(connection_profile);
+            self.refresh_local_dialog_state(connection_profile);
             self.refresh_local_chat_input_active(connection_profile);
             self.refresh_local_chat_input_commands(connection_profile);
+            self.refresh_local_chat_input_text(connection_profile);
             self.refresh_chat_entries(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
@@ -969,8 +971,6 @@ impl BackendState {
             self.player_count_ready.store(false, Ordering::Release);
             self.player_max_id_ready.store(false, Ordering::Release);
         }
-        self.refresh_local_dialog_state(profile);
-        self.refresh_local_chat_input_text(profile);
         self.refresh_animation_catalog(profile);
         if let Some(connection_profile) = self.connection_profile() {
             self.refresh_raw_pool_addresses(connection_profile);
