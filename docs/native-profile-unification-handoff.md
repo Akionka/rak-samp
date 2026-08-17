@@ -648,13 +648,15 @@ Evidence/commits: `c03ecfe` (`refactor(native-client): share ui cache reads`),
 
 ### 14. Text labels
 
-- [ ] Migrate label existence and snapshots.
-- [ ] Migrate label creation, mutation, and deletion.
-- [ ] Preserve the shared ARGB-to-native conversion.
-- [ ] Add layout, colour, capacity, and lifecycle tests for all profiles.
-- [ ] Remove superseded label implementations.
+- [x] Migrate label existence and snapshots.
+- [x] Migrate label creation, mutation, and deletion.
+- [x] Preserve the shared ARGB-to-native conversion.
+- [x] Add layout, colour, capacity, and lifecycle tests for all profiles.
+- [x] Remove superseded label runtime dispatch implementations.
 
-Evidence/commit: _pending_
+Evidence/commit: `0bc9dfd` (`refactor(native-client): share text label operations`);
+`cargo clippy --workspace -- -D warnings` and `cargo test -p
+samp-client-sdk-host --lib -- --test-threads=1` (198 passed).
 
 ### 15. Textdraws
 
