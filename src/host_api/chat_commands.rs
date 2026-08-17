@@ -1,7 +1,7 @@
 //! Owned local chat-command registrations and their game-thread lifecycle.
 
 use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
-use crate::{command::CommandError, platform::r1_client::memory::bounded_c_string};
+use crate::{command::CommandError, platform::bounded_c_string};
 use sdk_abi::{
     SampClientSdkChatCommandCallbackV1, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSubscription,

@@ -10,7 +10,7 @@ mod gangzones;
 mod handles;
 mod hooks;
 mod native_bitstream;
-mod native_client;
+pub(crate) mod native_client;
 mod objects;
 mod packets;
 mod players;
