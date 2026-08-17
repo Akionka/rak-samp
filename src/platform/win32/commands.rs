@@ -1089,7 +1089,7 @@ impl BackendState {
                     name,
                 } => {
                     let result = self
-                        .scalar_profile()
+                        .connection_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile
@@ -1107,7 +1107,7 @@ impl BackendState {
                 }
                 GameCommand::UnregisterChatCommand { subscription, name } => {
                     let result = self
-                        .scalar_profile()
+                        .connection_profile()
                         .ok_or(CommandError::NativeFailure)
                         .and_then(|profile| {
                             profile

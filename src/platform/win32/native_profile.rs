@@ -65,41 +65,6 @@ impl NativeProfile {
         }
     }
 
-    pub(super) fn dialog_response_on_close(
-        self,
-        dialog: *mut std::ffi::c_void,
-        button: u8,
-    ) -> Result<Option<crate::runtime::LocalDialogResponseSnapshot>, DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.dialog_response_on_close(dialog, button),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.dialog_response_on_close(dialog, button)
-            }
-        }
-    }
-
-    pub(super) fn register_chat_command(
-        self,
-        name: &[u8],
-        callback: unsafe extern "cdecl" fn(*const i8),
-    ) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.register_chat_command(name, callback),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.register_chat_command(name, callback)
-            }
-        }
-    }
-
-    pub(super) fn unregister_chat_command(self, name: &[u8]) -> Result<(), DirectClientError> {
-        match self {
-            Self::R1(profile) => profile.unregister_chat_command(name),
-            Self::R3(profile) | Self::R5(profile) | Self::Dl(profile) => {
-                profile.unregister_chat_command(name)
-            }
-        }
-    }
-
     pub(super) fn text_label_exists(self, id: u16) -> Result<bool, DirectClientError> {
         match self {
             Self::R1(profile) => profile.text_label_exists(id),
