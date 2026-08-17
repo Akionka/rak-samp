@@ -6,9 +6,9 @@
 #![allow(dead_code)] // Legacy sync oracle retained until fixture parity tests move.
 //! singleton access and every unverified pool family remain unavailable.
 
-use super::{
-    argb_to_native_rgba,
-    native_client::memory::{
+use super::native_client::{
+    colours::{ArgbColour, NativeRgbaColour},
+    memory::{
         bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
         writable_range,
     },
@@ -1832,7 +1832,7 @@ impl ClassicClientProfile {
                 pool,
                 id,
                 text.as_ptr(),
-                argb_to_native_rgba(colour),
+                Into::<NativeRgbaColour>::into(ArgbColour::new(colour)).get(),
                 position.into(),
                 draw_distance,
                 u8::from(behind_walls),
@@ -3937,6 +3937,7 @@ mod tests {
 
     #[test]
     fn converts_public_argb_to_r3_native_rgba() {
-        assert_eq!(argb_to_native_rgba(0xFF6FCF97), 0x6FCF97FF);
+        let native: NativeRgbaColour = ArgbColour::new(0xFF6FCF97).into();
+        assert_eq!(native.get(), 0x6FCF97FF);
     }
 }

@@ -125,10 +125,6 @@ const MAX_SAMP_PICKUPS: usize = 4096;
 const MAX_SAMP_GANGZONES: usize = 1024;
 const R1_CONNECTED_GAME_STATE: i32 = 14;
 
-const fn argb_to_native_rgba(colour: u32) -> u32 {
-    colour.rotate_left(8)
-}
-
 /// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
 /// module base and is supported only for the fixed GTA executable selected by
 /// the host's R1/GTA configuration.
@@ -962,6 +958,8 @@ impl BackendState {
             self.refresh_local_chat_input_commands(connection_profile);
             self.refresh_local_chat_input_text(connection_profile);
             self.refresh_chat_entries(connection_profile);
+            self.refresh_text_label_exists(connection_profile);
+            self.refresh_text_labels(connection_profile);
         }
         self.refresh_local_player_snapshot(connection_profile);
         if let Some(connection_profile) = connection_profile {
@@ -975,8 +973,6 @@ impl BackendState {
         if let Some(connection_profile) = self.connection_profile() {
             self.refresh_raw_pool_addresses(connection_profile);
         }
-        self.refresh_text_label_exists(profile);
-        self.refresh_text_labels(profile);
         self.refresh_textdraw_exists(profile);
         self.refresh_textdraws(profile);
         self.cache_generation.fetch_add(1, Ordering::Release);

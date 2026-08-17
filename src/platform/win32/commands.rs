@@ -1266,7 +1266,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::DeleteTextLabel(id) => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1285,7 +1285,7 @@ impl BackendState {
                     attached_player_id,
                     attached_vehicle_id,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         profile
@@ -1310,7 +1310,7 @@ impl BackendState {
                     attached_player_id,
                     attached_vehicle_id,
                 } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         let id = profile
@@ -1337,7 +1337,7 @@ impl BackendState {
                         Ok(())
                     }),
                 GameCommand::SetTextLabelText { id, text } => self
-                    .scalar_profile()
+                    .connection_profile()
                     .ok_or(CommandError::NativeFailure)
                     .and_then(|profile| {
                         let label = profile

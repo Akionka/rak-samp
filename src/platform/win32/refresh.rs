@@ -184,7 +184,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_text_label_exists(&self, profile: NativeProfile) {
+    pub(super) fn refresh_text_label_exists(&self, profile: NativeClientProfile) {
         for id in self.take_text_label_exists_requests() {
             let Ok(exists) = profile.text_label_exists(id) else {
                 continue;
@@ -198,7 +198,7 @@ impl BackendState {
         }
     }
 
-    pub(super) fn refresh_text_labels(&self, profile: NativeProfile) {
+    pub(super) fn refresh_text_labels(&self, profile: NativeClientProfile) {
         for id in self.take_text_label_requests() {
             let Ok(snapshot) = profile.text_label(id) else {
                 continue;
