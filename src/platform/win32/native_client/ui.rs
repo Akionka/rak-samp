@@ -1160,6 +1160,50 @@ mod tests {
                 profile.chat_entry(u16::MAX),
                 Err(DirectClientError::NotReady)
             );
+            assert_eq!(
+                profile.set_chat_entry(0, b"text\0", b"prefix", 0, 0),
+                Err(DirectClientError::NotReady)
+            );
+            assert_eq!(
+                profile.set_chat_display_mode(3),
+                Err(DirectClientError::NotReady)
+            );
         }
+    }
+
+    #[test]
+    fn ui_specs_keep_verified_profile_behavior_boundaries() {
+        let r1 =
+            NativeClientProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
+                .expect("the R1 identity must select");
+        let r3 = NativeClientProfile::select(
+            0x10000,
+            SampVersion::R3_1,
+            SampVersion::R3_1.entry_point(),
+        )
+        .expect("the R3 identity must select");
+        let r5 = NativeClientProfile::select(
+            0x10000,
+            SampVersion::R5_1,
+            SampVersion::R5_1.entry_point(),
+        )
+        .expect("the R5 identity must select");
+        let dl =
+            NativeClientProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+                .expect("the DL identity must select");
+
+        assert_eq!(
+            r1.spec.strategies.list_item_text_layout,
+            ListItemTextLayout::DxutComboBoxItem
+        );
+        for profile in [r3, r5, dl] {
+            assert_eq!(
+                profile.spec.strategies.list_item_text_layout,
+                ListItemTextLayout::DirectPointer
+            );
+        }
+        assert_eq!(r3.spec.ui.input.edit_box_set_text_rva, None);
+        assert_eq!(r3.spec.ui.input.edit_box_get_text_rva, None);
+        assert_eq!(dl.spec.ui.dialog.show_rva.get(), 0x6FA50);
     }
 }
