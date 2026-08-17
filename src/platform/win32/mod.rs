@@ -179,25 +179,16 @@ struct BackendContext {
     version: SampVersion,
     addresses: AddressSet,
     native_client_profile: Option<NativeClientProfile>,
-    #[cfg(test)]
-    native_profile: Option<NativeClientProfile>,
 }
 
 impl BackendContext {
     /// Returns the selected immutable profile for cached direct operations.
     fn scalar_profile(&self) -> Option<NativeClientProfile> {
-        self.connection_profile()
+        self.native_client_profile
     }
 
     fn connection_profile(&self) -> Option<NativeClientProfile> {
-        #[cfg(test)]
-        {
-            self.native_client_profile.or(self.native_profile)
-        }
-        #[cfg(not(test))]
-        {
-            self.native_client_profile
-        }
+        self.native_client_profile
     }
 }
 
@@ -615,8 +606,6 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             version,
             addresses,
             native_client_profile: selected_profile,
-            #[cfg(test)]
-            native_profile: None,
         },
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
