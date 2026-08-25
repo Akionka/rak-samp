@@ -236,8 +236,7 @@ impl NativeClientProfile {
                     .ok_or(DirectClientError::NotReady)?,
             )
         }
-        .map(NativeRgbaColour::new)
-        .map(ArgbColour::from)
+        .map(ArgbColour::new)
         .map(ArgbColour::get)
         .ok_or(DirectClientError::NotReady)?;
         let position = Vector3 {

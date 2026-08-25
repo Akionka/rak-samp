@@ -310,6 +310,15 @@ impl NativeClientProfile {
         let net_game = self
             .net_game_with_range(minimum_net_game)
             .ok_or(DirectClientError::NotReady)?;
+        let _pools = unsafe {
+            read_pointer(
+                (net_game as usize)
+                    .checked_add(self.spec.net_game.pools_offset.get())
+                    .ok_or(DirectClientError::NotReady)?,
+            )
+        }
+        .filter(|pointer| !pointer.is_null() && readable_range(*pointer, 1))
+        .ok_or(DirectClientError::NotReady)?;
         let target = self
             .module_base
             .checked_add(getter_rva)
@@ -377,6 +386,7 @@ impl NativeClientProfile {
 mod tests {
     use super::*;
     use crate::SampVersion;
+    use std::ptr;
 
     #[test]
     fn entity_operations_reject_every_profile_limit() {
@@ -414,5 +424,37 @@ mod tests {
             profile.object_exists(2100),
             Err(DirectClientError::NotReady)
         );
+    }
+
+    #[test]
+    fn pool_getters_do_not_run_before_r3_initializes_its_pool_root() {
+        let bootstrap = NativeClientProfile::select(
+            0x10000,
+            SampVersion::R3_1,
+            SampVersion::R3_1.entry_point(),
+        )
+        .expect("the R3 identity must select");
+        let mut module =
+            vec![0_u8; bootstrap.spec.net_game.singleton_rva.get() + mem::size_of::<usize>()];
+        let mut net_game =
+            vec![0_u8; bootstrap.spec.net_game.pools_offset.get() + mem::size_of::<usize>()];
+        unsafe {
+            ptr::write_unaligned(
+                module
+                    .as_mut_ptr()
+                    .add(bootstrap.spec.net_game.singleton_rva.get())
+                    .cast::<usize>(),
+                net_game.as_mut_ptr() as usize,
+            );
+        }
+        let profile = NativeClientProfile::select(
+            module.as_ptr() as usize,
+            SampVersion::R3_1,
+            SampVersion::R3_1.entry_point(),
+        )
+        .expect("the R3 identity must select");
+
+        assert_eq!(profile.player_pool(), Err(DirectClientError::NotReady));
+        assert_eq!(profile.vehicle_pool(), Err(DirectClientError::NotReady));
     }
 }

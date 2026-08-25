@@ -55,6 +55,23 @@ reconnect, or hook-restoration checklists.
 | R5-1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent R5 layouts, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
 | DL R1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent DL layouts, its 2100-object pool, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
 
+## R3-1 full profile pass (2026-08-25)
+
+The full R3-1 profile probe passed on the pinned client image with
+`status=0x3FFFFFFF` and `failure=0`. The run completed the UI, player, pool,
+entity-handle, text-label, textdraw, sync, vehicle, disconnect, reconnect, and
+post-reconnect packet/RPC checks. It observed one fixture NPC, restored the
+public connected state `14`, and confirmed that the local player was spawned
+after reconnect.
+
+Before the passing run, the pinned binary and local native references verified
+`CDXUTEditBox::SetText` at RVA `0x84E70`, `CDXUTEditBox::GetText` at RVA
+`0x84F40`, the `CDeathWindow` singleton at RVA `0x26E8D0`, and
+`CDeathWindow::AddMessage` at RVA `0x69F40`. The installed R3-1 `samp.dll`
+SHA-256 remained
+`9C9B2CC31A4CED6967420B1880C096B5C4E7630E227AA379BE4019C21B6FDDC1`.
+This full pass supersedes the partial R3 observations below.
+
 ## R3-1 network smoke observation (2026-08-12)
 
 The pinned R3-1 `samp.dll` was installed only in

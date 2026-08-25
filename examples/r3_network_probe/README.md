@@ -72,7 +72,7 @@ addresses are outside this probe because that API remains intentionally R1-only.
    ```text
    status=0x3FFFFFFF
    failure=0
-   game_state=6
+   game_state=15
    address_hex=3132372E302E302E31
    hostname_hex=53412D4D50
    port=7777

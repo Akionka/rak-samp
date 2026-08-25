@@ -4,7 +4,7 @@
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct ArgbColour(u32);
 
-/// A colour stored by SA-MP native text-label records.
+/// A colour passed to SA-MP native text-label create methods.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct NativeRgbaColour(u32);
 

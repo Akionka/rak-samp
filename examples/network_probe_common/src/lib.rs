@@ -228,11 +228,14 @@ const STATUS_FILE: &str = profile_value!(
     "samp-client-sdk-dl-network-probe.status"
 );
 const PROFILE_ENTRY_POINT_RVA: u32 = profile_value!(0x0CBC90, 0x31DF13, 0x0CC4D0, 0x0FDB60);
-const PROFILE_CONNECTED_STATE: i32 = profile_value!(5, 14, 5, 5);
+/// State observed after the first incoming RPC, before the local player is spawned.
+const PROFILE_INITIAL_GAME_STATE: i32 = profile_value!(5, 14, 15, 5);
+/// State required after a reconnect has spawned the local player.
+const PROFILE_CONNECTED_STATE: i32 = profile_value!(5, 14, 14, 5);
 const PROFILE_SERVER_HOSTNAME: &[u8] = profile_value!(
     b"SDK R5 loopback probe",
     b"SDK R1 loopback probe",
-    b"SDK R3 loopback probe",
+    b"SA-MP",
     b"SDK DL loopback probe"
 );
 const PROFILE_CLIENT_VERSION: SampClientSdkClientVersion = profile_value!(
@@ -321,7 +324,7 @@ pub const STATUS_CHAT_INPUT_CACHE: u32 = 1 << 8;
 pub const STATUS_DIALOG_ACTIVE_CACHE: u32 = 1 << 9;
 /// The loopback dialog-request command completed on the game thread.
 pub const STATUS_DIALOG_REQUEST_RECEIPT: u32 = 1 << 10;
-/// The R5 cached chat-input text matched the operator-entered marker.
+/// The cached chat-input text matched the operator-entered marker.
 pub const STATUS_CHAT_INPUT_TEXT_CACHE: u32 = 1 << 11;
 /// The non-blocking RPC 93 listener was registered.
 pub const STATUS_REPLY_LISTENER_REGISTERED: u32 = 1 << 2;
@@ -1107,7 +1110,7 @@ fn verify_cached_cnetgame_scalars(samp: Samp) -> Result<(), SampClientSdkResult>
         match (samp.game_state(), samp.server().info()) {
             (Ok(game_state), Ok(info)) => {
                 record_scalar_observation(game_state, &info);
-                if game_state == PROFILE_CONNECTED_STATE
+                if game_state == PROFILE_INITIAL_GAME_STATE
                     && info.address == b"127.0.0.1"
                     && info.hostname == PROFILE_SERVER_HOSTNAME
                     && info.port == 7777
@@ -2515,12 +2518,14 @@ mod tests {
             (
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
+                PROFILE_INITIAL_GAME_STATE,
                 PROFILE_CONNECTED_STATE,
                 PROFILE_SERVER_HOSTNAME
             ),
             (
                 SampClientSdkClientVersion::R1,
                 0x31DF13,
+                14,
                 14,
                 b"SDK R1 loopback probe".as_slice()
             )
@@ -2530,14 +2535,16 @@ mod tests {
             (
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
+                PROFILE_INITIAL_GAME_STATE,
                 PROFILE_CONNECTED_STATE,
                 PROFILE_SERVER_HOSTNAME
             ),
             (
                 SampClientSdkClientVersion::R3_1,
                 0x0CC4D0,
-                5,
-                b"SDK R3 loopback probe".as_slice()
+                15,
+                14,
+                b"SA-MP".as_slice()
             )
         );
         #[cfg(feature = "dl-probe")]
@@ -2545,12 +2552,14 @@ mod tests {
             (
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
+                PROFILE_INITIAL_GAME_STATE,
                 PROFILE_CONNECTED_STATE,
                 PROFILE_SERVER_HOSTNAME
             ),
             (
                 SampClientSdkClientVersion::Dl,
                 0x0FDB60,
+                5,
                 5,
                 b"SDK DL loopback probe".as_slice()
             )
@@ -2560,12 +2569,14 @@ mod tests {
             (
                 PROFILE_CLIENT_VERSION,
                 PROFILE_ENTRY_POINT_RVA,
+                PROFILE_INITIAL_GAME_STATE,
                 PROFILE_CONNECTED_STATE,
                 PROFILE_SERVER_HOSTNAME
             ),
             (
                 SampClientSdkClientVersion::R5_1,
                 0x0CBC90,
+                5,
                 5,
                 b"SDK R5 loopback probe".as_slice()
             )

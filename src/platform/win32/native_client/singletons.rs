@@ -117,7 +117,7 @@ mod tests {
     }
 
     #[test]
-    fn r3_death_window_stays_unavailable() {
+    fn r3_death_window_requires_a_readable_singleton() {
         let profile = NativeClientProfile::select(
             0x10000,
             SampVersion::R3_1,

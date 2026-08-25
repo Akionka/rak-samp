@@ -1202,8 +1202,22 @@ mod tests {
                 ListItemTextLayout::DirectPointer
             );
         }
-        assert_eq!(r3.spec.ui.input.edit_box_set_text_rva, None);
-        assert_eq!(r3.spec.ui.input.edit_box_get_text_rva, None);
+        assert_eq!(
+            r3.spec
+                .ui
+                .input
+                .edit_box_set_text_rva
+                .map(|value| value.get()),
+            Some(0x84E70)
+        );
+        assert_eq!(
+            r3.spec
+                .ui
+                .input
+                .edit_box_get_text_rva
+                .map(|value| value.get()),
+            Some(0x84F40)
+        );
         assert_eq!(dl.spec.ui.dialog.show_rva.get(), 0x6FA50);
     }
 }

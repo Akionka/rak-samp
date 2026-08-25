@@ -24,8 +24,8 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
         singleton_rva: rva(0x26E8DC),
         rak_client_offset: Some(offset(0x2C)),
         get_state_rva: None,
-        get_player_pool_rva: rva(0x1170),
-        get_vehicle_pool_rva: rva(0x1180),
+        get_player_pool_rva: rva(0x1160),
+        get_vehicle_pool_rva: rva(0x1170),
         shutdown_for_restart_rva: rva(0xA1E0),
         host_address_offset: offset(0x30),
         hostname_offset: offset(0x131),
@@ -67,7 +67,7 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
         vehicle: VehiclePoolLayout {
             not_empty_offset: offset(0x3074),
             game_objects_offset: offset(0x4FB4),
-            does_exist_rva: rva(0x1150),
+            does_exist_rva: rva(0x1140),
         },
         object: ObjectPoolLayout {
             not_empty_offset: offset(4),
@@ -282,8 +282,8 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
             get_command_handler_rva: rva(0x68FA0),
             add_command_rva: rva(0x69000),
             process_rva: rva(0x69260),
-            edit_box_set_text_rva: None,
-            edit_box_get_text_rva: None,
+            edit_box_set_text_rva: Some(rva(0x84E70)),
+            edit_box_get_text_rva: Some(rva(0x84F40)),
             enabled_offset: offset(0x14E0),
             edit_box_offset: offset(8),
             command_proc_offset: offset(0xC),
@@ -315,8 +315,8 @@ pub(crate) const R3_SPEC: ProfileSpec = ProfileSpec {
             readable_size: size(0x44),
         },
         death_window: DeathWindowSpec {
-            singleton_rva: None,
-            add_message_rva: None,
+            singleton_rva: Some(rva(0x26E8D0)),
+            add_message_rva: Some(rva(0x69F40)),
         },
         game: GameSpec {
             singleton_rva: rva(0x26E8F4),
@@ -412,14 +412,48 @@ mod tests {
         assert_eq!(R3_SPEC.identity.entry_point, 0x0CC4D0);
         assert_eq!(R3_SPEC.net_game.singleton_rva.get(), 0x26E8DC);
         assert_eq!(R3_SPEC.net_game.get_state_rva, None);
+        assert_eq!(R3_SPEC.net_game.get_player_pool_rva.get(), 0x1160);
+        assert_eq!(R3_SPEC.net_game.get_vehicle_pool_rva.get(), 0x1170);
         assert_eq!(R3_SPEC.pools.player.local_id_offset.get(), 0x2F1C);
         assert_eq!(
             R3_SPEC.players.local.ped_offset.map(|value| value.get()),
             Some(0)
         );
         assert_eq!(R3_SPEC.players.local_rvas.get_ped, None);
-        assert_eq!(R3_SPEC.ui.input.edit_box_set_text_rva, None);
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .input
+                .edit_box_set_text_rva
+                .map(|value| value.get()),
+            Some(0x84E70)
+        );
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .input
+                .edit_box_get_text_rva
+                .map(|value| value.get()),
+            Some(0x84F40)
+        );
         assert_eq!(R3_SPEC.textdraws.text_setter_rva.get(), 0xB26D0);
+        assert_eq!(R3_SPEC.pools.vehicle.does_exist_rva.get(), 0x1140);
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .death_window
+                .singleton_rva
+                .map(|value| value.get()),
+            Some(0x26E8D0)
+        );
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .death_window
+                .add_message_rva
+                .map(|value| value.get()),
+            Some(0x69F40)
+        );
         assert_eq!(R3_SPEC.strategies.game_state_codec, GameStateCodec::Classic);
         assert_eq!(
             R3_SPEC.strategies.booleans.pool_occupancy,
