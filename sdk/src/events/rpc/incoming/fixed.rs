@@ -8,73 +8,8 @@ use crate::{
     },
 };
 
-/// The `onServerMessage` descriptor.
-pub const SERVER_MESSAGE: Rpc<ServerMessage> =
-    Rpc::new(93, decode_server_message, encode_server_message);
-/// The `onDisplayGameText` descriptor.
-pub const DISPLAY_GAME_TEXT: Rpc<GameText> = Rpc::new(73, decode_game_text, encode_game_text);
 /// The `onShowDialog` descriptor.
 pub const SHOW_DIALOG: Rpc<ShowDialog> = Rpc::new_bits(61, decode_show_dialog, encode_show_dialog);
-/// The `onSetPlayerPos` descriptor.
-pub const SET_PLAYER_POS: Rpc<Vector3> = Rpc::new(12, decode_vector3, encode_vector3);
-/// The `onSetPlayerPosFindZ` descriptor.
-pub const SET_PLAYER_POS_FIND_Z: Rpc<Vector3> = Rpc::new(13, decode_vector3, encode_vector3);
-/// The `onSetPlayerHealth` descriptor.
-pub const SET_PLAYER_HEALTH: Rpc<f32> = Rpc::new(14, decode_f32, encode_f32);
-/// The `onSetPlayerArmour` descriptor.
-pub const SET_PLAYER_ARMOUR: Rpc<f32> = Rpc::new(66, decode_f32, encode_f32);
-/// The `onSetPlayerFacingAngle` descriptor.
-pub const SET_PLAYER_FACING_ANGLE: Rpc<f32> = Rpc::new(19, decode_f32, encode_f32);
-/// The `onTogglePlayerControllable` descriptor.
-pub const TOGGLE_PLAYER_CONTROLLABLE: Rpc<bool> = Rpc::new(15, decode_bool8, encode_bool8);
-/// The `onPlaySound` descriptor.
-pub const PLAY_SOUND: Rpc<PlaySound> = Rpc::new(16, decode_play_sound, encode_play_sound);
-/// The `onSetCheckpoint` descriptor.
-pub const SET_CHECKPOINT: Rpc<Checkpoint> = Rpc::new(107, decode_checkpoint, encode_checkpoint);
-/// The `onChatMessage` descriptor.
-pub const CHAT_MESSAGE: Rpc<ChatMessage> = Rpc::new(101, decode_chat_message, encode_chat_message);
-/// The `onPlayerChatBubble` descriptor.
-pub const CHAT_BUBBLE: Rpc<ChatBubble> = Rpc::new(59, decode_chat_bubble, encode_chat_bubble);
-/// The `onPlayerJoin` descriptor.
-pub const PLAYER_JOIN: Rpc<PlayerJoin> = Rpc::new(137, decode_player_join, encode_player_join);
-/// The `onPlayerQuit` descriptor.
-pub const PLAYER_QUIT: Rpc<PlayerQuit> = Rpc::new(138, decode_player_quit, encode_player_quit);
-/// The `onSetPlayerName` descriptor.
-pub const SET_PLAYER_NAME: Rpc<PlayerName> = Rpc::new(11, decode_player_name, encode_player_name);
-/// The `onSetPlayerTime` descriptor.
-pub const SET_PLAYER_TIME: Rpc<PlayerTime> = Rpc::new(29, decode_player_time, encode_player_time);
-/// The `onSetWorldBounds` descriptor.
-pub const SET_WORLD_BOUNDS: Rpc<WorldBounds> =
-    Rpc::new(17, decode_world_bounds, encode_world_bounds);
-/// The `onGivePlayerMoney` descriptor.
-pub const GIVE_PLAYER_MONEY: Rpc<i32> = Rpc::new(18, decode_i32, encode_i32);
-/// The `onGivePlayerWeapon` descriptor.
-pub const GIVE_PLAYER_WEAPON: Rpc<PlayerWeapon> =
-    Rpc::new(22, decode_player_weapon, encode_player_weapon);
-/// The `onSetWorldTime` descriptor.
-pub const SET_WORLD_TIME: Rpc<u8> = Rpc::new(94, decode_u8, encode_u8);
-/// The `onSetWeather` descriptor.
-pub const SET_WEATHER: Rpc<u8> = Rpc::new(152, decode_u8, encode_u8);
-/// The `onSetPlayerSkin` descriptor.
-pub const SET_PLAYER_SKIN: Rpc<PlayerSkin> = Rpc::new(153, decode_player_skin, encode_player_skin);
-/// The `onSetInterior` descriptor.
-pub const SET_INTERIOR: Rpc<u8> = Rpc::new(156, decode_u8, encode_u8);
-/// The `onSetPlayerArmedWeapon` descriptor.
-pub const SET_PLAYER_ARMED_WEAPON: Rpc<i32> = Rpc::new(67, decode_i32, encode_i32);
-/// The `onSetPlayerWantedLevel` descriptor.
-pub const SET_PLAYER_WANTED_LEVEL: Rpc<u8> = Rpc::new(133, decode_u8, encode_u8);
-/// The `onSetPlayerTeam` descriptor.
-pub const SET_PLAYER_TEAM: Rpc<PlayerTeam> = Rpc::new(69, decode_player_team, encode_player_team);
-/// The `onPutPlayerInVehicle` descriptor.
-pub const PUT_PLAYER_IN_VEHICLE: Rpc<PutPlayerInVehicle> = Rpc::new(
-    70,
-    decode_put_player_in_vehicle,
-    encode_put_player_in_vehicle,
-);
-/// The `onPlayerStreamOut` descriptor.
-pub const PLAYER_STREAM_OUT: Rpc<u16> = Rpc::new(163, decode_u16, encode_u16);
-/// The `onVehicleStreamOut` descriptor.
-pub const VEHICLE_STREAM_OUT: Rpc<u16> = Rpc::new(165, decode_u16, encode_u16);
 /// The `onSetVehiclePosition` descriptor.
 pub const SET_VEHICLE_POSITION: Rpc<VehiclePosition> =
     Rpc::new(159, decode_vehicle_position, encode_vehicle_position);
@@ -294,36 +229,6 @@ pub const FORCE_CLASS_SELECTION: Rpc<()> = Rpc::new(74, decode_empty, encode_emp
 /// The `onSetCameraBehind` descriptor.
 pub const SET_CAMERA_BEHIND: Rpc<()> = Rpc::new(162, decode_empty, encode_empty);
 
-fn decode_server_message(event: &mut Event<'_>) -> Result<ServerMessage, EventError> {
-    Ok(ServerMessage {
-        color: event.read_u32()?,
-        text: event.read_string32(MAX_STRING32_BYTES)?,
-    })
-}
-
-fn encode_server_message(value: ServerMessage) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.color);
-    writer.string32(&value.text)?;
-    Ok(writer.finish())
-}
-
-fn decode_game_text(event: &mut Event<'_>) -> Result<GameText, EventError> {
-    Ok(GameText {
-        style: event.read_u32()? as i32,
-        time_ms: event.read_u32()? as i32,
-        text: event.read_string32(MAX_STRING32_BYTES)?,
-    })
-}
-
-fn encode_game_text(value: GameText) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.style as u32);
-    writer.u32(value.time_ms as u32);
-    writer.string32(&value.text)?;
-    Ok(writer.finish())
-}
-
 fn decode_show_dialog(event: &mut Event<'_>) -> Result<ShowDialog, EventError> {
     Ok(ShowDialog {
         dialog_id: event.read_u16()?,
@@ -376,127 +281,6 @@ pub(super) fn decode_bool8(event: &mut Event<'_>) -> Result<bool, EventError> {
 
 fn encode_bool8(value: bool) -> Result<Vec<u8>, EventError> {
     Ok(vec![u8::from(value)])
-}
-
-fn decode_play_sound(event: &mut Event<'_>) -> Result<PlaySound, EventError> {
-    Ok(PlaySound {
-        sound_id: event.read_u32()? as i32,
-        position: decode_vector3(event)?,
-    })
-}
-
-fn encode_play_sound(value: PlaySound) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.sound_id as u32);
-    writer.vector3(value.position);
-    Ok(writer.finish())
-}
-
-fn decode_checkpoint(event: &mut Event<'_>) -> Result<Checkpoint, EventError> {
-    Ok(Checkpoint {
-        position: decode_vector3(event)?,
-        radius: event.read_f32()?,
-    })
-}
-
-fn encode_checkpoint(value: Checkpoint) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.vector3(value.position);
-    writer.f32(value.radius);
-    Ok(writer.finish())
-}
-
-fn decode_chat_message(event: &mut Event<'_>) -> Result<ChatMessage, EventError> {
-    Ok(ChatMessage {
-        player_id: event.read_u16()?,
-        text: event.read_string8()?,
-    })
-}
-
-fn encode_chat_message(value: ChatMessage) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.string8(&value.text)?;
-    Ok(writer.finish())
-}
-
-fn decode_chat_bubble(event: &mut Event<'_>) -> Result<ChatBubble, EventError> {
-    Ok(ChatBubble {
-        player_id: event.read_u16()?,
-        color: event.read_u32()?,
-        draw_distance: event.read_f32()?,
-        duration_ms: event.read_u32()? as i32,
-        text: event.read_string8()?,
-    })
-}
-
-fn encode_chat_bubble(value: ChatBubble) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u32(value.color);
-    writer.f32(value.draw_distance);
-    writer.u32(value.duration_ms as u32);
-    writer.string8(&value.text)?;
-    Ok(writer.finish())
-}
-
-fn decode_player_join(event: &mut Event<'_>) -> Result<PlayerJoin, EventError> {
-    Ok(PlayerJoin {
-        player_id: event.read_u16()?,
-        color: event.read_u32()?,
-        is_npc: event.read_u8()? != 0,
-        nickname: event.read_string8()?,
-    })
-}
-
-fn encode_player_join(value: PlayerJoin) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u32(value.color);
-    writer.u8(u8::from(value.is_npc));
-    writer.string8(&value.nickname)?;
-    Ok(writer.finish())
-}
-
-fn decode_player_quit(event: &mut Event<'_>) -> Result<PlayerQuit, EventError> {
-    Ok(PlayerQuit {
-        player_id: event.read_u16()?,
-        reason: event.read_u8()?,
-    })
-}
-
-fn encode_player_quit(value: PlayerQuit) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u8(value.reason);
-    Ok(writer.finish())
-}
-
-fn decode_player_name(event: &mut Event<'_>) -> Result<PlayerName, EventError> {
-    Ok(PlayerName {
-        player_id: event.read_u16()?,
-        name: event.read_string8()?,
-        success: event.read_u8()? != 0,
-    })
-}
-
-fn encode_player_name(value: PlayerName) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.string8(&value.name)?;
-    writer.u8(u8::from(value.success));
-    Ok(writer.finish())
-}
-
-fn decode_player_time(event: &mut Event<'_>) -> Result<PlayerTime, EventError> {
-    Ok(PlayerTime {
-        hour: event.read_u8()?,
-        minute: event.read_u8()?,
-    })
-}
-
-fn encode_player_time(value: PlayerTime) -> Result<Vec<u8>, EventError> {
-    Ok(vec![value.hour, value.minute])
 }
 
 fn decode_race_checkpoint(event: &mut Event<'_>) -> Result<RaceCheckpoint, EventError> {
@@ -1148,24 +932,6 @@ fn encode_actor_health(value: ActorHealth) -> Result<Vec<u8>, EventError> {
     Ok(writer.finish())
 }
 
-fn decode_world_bounds(event: &mut Event<'_>) -> Result<WorldBounds, EventError> {
-    Ok(WorldBounds {
-        max_x: event.read_f32()?,
-        min_x: event.read_f32()?,
-        max_y: event.read_f32()?,
-        min_y: event.read_f32()?,
-    })
-}
-
-fn encode_world_bounds(value: WorldBounds) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.f32(value.max_x);
-    writer.f32(value.min_x);
-    writer.f32(value.max_y);
-    writer.f32(value.min_y);
-    Ok(writer.finish())
-}
-
 pub(super) fn decode_i32(event: &mut Event<'_>) -> Result<i32, EventError> {
     Ok(event.read_u32()? as i32)
 }
@@ -1174,68 +940,12 @@ fn encode_i32(value: i32) -> Result<Vec<u8>, EventError> {
     Ok(value.to_le_bytes().to_vec())
 }
 
-fn decode_player_weapon(event: &mut Event<'_>) -> Result<PlayerWeapon, EventError> {
-    Ok(PlayerWeapon {
-        weapon_id: decode_i32(event)?,
-        ammo: decode_i32(event)?,
-    })
-}
-
-fn encode_player_weapon(value: PlayerWeapon) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.weapon_id as u32);
-    writer.u32(value.ammo as u32);
-    Ok(writer.finish())
-}
-
 fn decode_u8(event: &mut Event<'_>) -> Result<u8, EventError> {
     event.read_u8()
 }
 
 fn encode_u8(value: u8) -> Result<Vec<u8>, EventError> {
     Ok(vec![value])
-}
-
-fn decode_player_team(event: &mut Event<'_>) -> Result<PlayerTeam, EventError> {
-    Ok(PlayerTeam {
-        player_id: event.read_u16()?,
-        team_id: event.read_u8()?,
-    })
-}
-
-fn encode_player_team(value: PlayerTeam) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u8(value.team_id);
-    Ok(writer.finish())
-}
-
-fn decode_player_skin(event: &mut Event<'_>) -> Result<PlayerSkin, EventError> {
-    Ok(PlayerSkin {
-        player_id: decode_i32(event)?,
-        skin_id: decode_i32(event)?,
-    })
-}
-
-fn encode_player_skin(value: PlayerSkin) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(value.player_id as u32);
-    writer.u32(value.skin_id as u32);
-    Ok(writer.finish())
-}
-
-fn decode_put_player_in_vehicle(event: &mut Event<'_>) -> Result<PutPlayerInVehicle, EventError> {
-    Ok(PutPlayerInVehicle {
-        vehicle_id: event.read_u16()?,
-        seat_id: event.read_u8()?,
-    })
-}
-
-fn encode_put_player_in_vehicle(value: PutPlayerInVehicle) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.u8(value.seat_id);
-    Ok(writer.finish())
 }
 
 pub(super) fn decode_u16(event: &mut Event<'_>) -> Result<u16, EventError> {

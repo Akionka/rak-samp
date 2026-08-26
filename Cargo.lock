@@ -176,6 +176,7 @@ name = "samp-client-sdk-sample-plugin"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 

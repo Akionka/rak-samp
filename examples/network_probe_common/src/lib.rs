@@ -13,11 +13,12 @@ use samp_client_sdk::{
     SampClientSdkClientVersion, SampClientSdkDirection, SampClientSdkHookAction,
     SampClientSdkHostStatus, SampClientSdkResult, SendRateKind, SpecialAction, SubscriptionSet,
     TextdrawId, Vector3, VehicleId,
-    events::{RpcAction, packet::outgoing, rpc::incoming},
+    events::{RpcAction, packet::outgoing},
     raw,
 };
 #[cfg(feature = "r1-probe")]
 use samp_protocol::BitStream;
+use samp_protocol::rpc::incoming::SERVER_MESSAGE;
 use std::{
     ffi::c_void,
     fs, ptr,
@@ -575,9 +576,9 @@ fn initialize() {
     STATUS.fetch_or(STATUS_RUNTIME_IDENTITY, Ordering::AcqRel);
     publish_status();
 
-    let reply_subscription = match samp.net().on_typed_rpc(
+    let reply_subscription = match samp.net().on_protocol_rpc(
         SampClientSdkDirection::Incoming,
-        incoming::SERVER_MESSAGE,
+        SERVER_MESSAGE,
         |message| {
             if message.text == INCOMING_MARKER {
                 STATUS.fetch_or(STATUS_REPLY_OBSERVED, Ordering::AcqRel);

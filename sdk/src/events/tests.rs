@@ -543,18 +543,20 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
 
 #[test]
 fn set_player_skin_uses_rpc_153_and_two_i32_values() {
-    assert_eq!(incoming::SET_PLAYER_SKIN.id(), 153);
-    let RpcEncoder::Bytes(encode) = incoming::SET_PLAYER_SKIN.encode else {
-        panic!("SetPlayerSkin must use a byte-aligned encoder");
+    use samp_protocol::{
+        WireDescriptor,
+        rpc::incoming::{PlayerSkin, SetPlayerSkin},
     };
-    let bytes = encode(incoming::PlayerSkin {
+
+    assert_eq!(SetPlayerSkin::ID, 153);
+    let bits = SetPlayerSkin::encode_bits(&PlayerSkin {
         player_id: 0,
         skin_id: 411,
     })
     .expect("valid i32 skin payload");
 
-    assert_eq!(bytes, [0, 0, 0, 0, 0x9B, 0x01, 0, 0]);
-    assert_eq!(EncodedPayload::from_bytes(bytes).unwrap().len_bits(), 64);
+    assert_eq!(bits.as_bytes(), [0, 0, 0, 0, 0x9B, 0x01, 0, 0]);
+    assert_eq!(bits.len_bits(), 64);
 }
 
 #[test]

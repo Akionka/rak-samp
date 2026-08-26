@@ -10,20 +10,6 @@ use crate::events::core::handle;
 use crate::events::{EventError, RpcAction, Vector3};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction};
 
-/// Handles `onServerMessage` from an incoming raw RPC callback.
-///
-/// # Safety
-///
-/// See [`crate::events::handle`].
-#[allow(dead_code)]
-pub(crate) unsafe fn on_server_message(
-    api: HostApi,
-    raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(ServerMessage) -> RpcAction<ServerMessage>,
-) -> Result<SampClientSdkHookAction, EventError> {
-    unsafe { handle(api, raw, SERVER_MESSAGE, handler) }
-}
-
 macro_rules! rpc_helper {
     ($name:ident, $value:ty, $rpc:ident, $event_name:literal) => {
         #[doc = concat!("Handles MoonLoader's `", $event_name, "` from an incoming raw RPC callback.")]
@@ -42,72 +28,7 @@ macro_rules! rpc_helper {
     };
 }
 
-rpc_helper!(
-    on_display_game_text,
-    GameText,
-    DISPLAY_GAME_TEXT,
-    "onDisplayGameText"
-);
 rpc_helper!(on_show_dialog, ShowDialog, SHOW_DIALOG, "onShowDialog");
-rpc_helper!(on_set_player_pos, Vector3, SET_PLAYER_POS, "onSetPlayerPos");
-rpc_helper!(
-    on_set_player_pos_find_z,
-    Vector3,
-    SET_PLAYER_POS_FIND_Z,
-    "onSetPlayerPosFindZ"
-);
-rpc_helper!(
-    on_set_player_health,
-    f32,
-    SET_PLAYER_HEALTH,
-    "onSetPlayerHealth"
-);
-rpc_helper!(
-    on_set_player_armour,
-    f32,
-    SET_PLAYER_ARMOUR,
-    "onSetPlayerArmour"
-);
-rpc_helper!(
-    on_set_player_facing_angle,
-    f32,
-    SET_PLAYER_FACING_ANGLE,
-    "onSetPlayerFacingAngle"
-);
-rpc_helper!(
-    on_toggle_player_controllable,
-    bool,
-    TOGGLE_PLAYER_CONTROLLABLE,
-    "onTogglePlayerControllable"
-);
-rpc_helper!(on_play_sound, PlaySound, PLAY_SOUND, "onPlaySound");
-rpc_helper!(
-    on_set_checkpoint,
-    Checkpoint,
-    SET_CHECKPOINT,
-    "onSetCheckpoint"
-);
-rpc_helper!(on_chat_message, ChatMessage, CHAT_MESSAGE, "onChatMessage");
-rpc_helper!(
-    on_player_chat_bubble,
-    ChatBubble,
-    CHAT_BUBBLE,
-    "onPlayerChatBubble"
-);
-rpc_helper!(on_player_join, PlayerJoin, PLAYER_JOIN, "onPlayerJoin");
-rpc_helper!(on_player_quit, PlayerQuit, PLAYER_QUIT, "onPlayerQuit");
-rpc_helper!(
-    on_set_player_name,
-    PlayerName,
-    SET_PLAYER_NAME,
-    "onSetPlayerName"
-);
-rpc_helper!(
-    on_set_player_time,
-    PlayerTime,
-    SET_PLAYER_TIME,
-    "onSetPlayerTime"
-);
 rpc_helper!(on_cancel_edit, (), CANCEL_EDIT, "onCancelEdit");
 rpc_helper!(
     on_set_toggle_clock,
@@ -465,69 +386,6 @@ rpc_helper!(
     u16,
     SET_PLAYER_OBJECT_NO_CAMERA_COL,
     "onSetPlayerObjectNoCameraCol"
-);
-rpc_helper!(
-    on_set_world_bounds,
-    WorldBounds,
-    SET_WORLD_BOUNDS,
-    "onSetWorldBounds"
-);
-rpc_helper!(
-    on_give_player_money,
-    i32,
-    GIVE_PLAYER_MONEY,
-    "onGivePlayerMoney"
-);
-rpc_helper!(
-    on_give_player_weapon,
-    PlayerWeapon,
-    GIVE_PLAYER_WEAPON,
-    "onGivePlayerWeapon"
-);
-rpc_helper!(on_set_world_time, u8, SET_WORLD_TIME, "onSetWorldTime");
-rpc_helper!(on_set_weather, u8, SET_WEATHER, "onSetWeather");
-rpc_helper!(
-    on_set_player_skin,
-    PlayerSkin,
-    SET_PLAYER_SKIN,
-    "onSetPlayerSkin"
-);
-rpc_helper!(on_set_interior, u8, SET_INTERIOR, "onSetInterior");
-rpc_helper!(
-    on_set_player_armed_weapon,
-    i32,
-    SET_PLAYER_ARMED_WEAPON,
-    "onSetPlayerArmedWeapon"
-);
-rpc_helper!(
-    on_set_player_wanted_level,
-    u8,
-    SET_PLAYER_WANTED_LEVEL,
-    "onSetPlayerWantedLevel"
-);
-rpc_helper!(
-    on_set_player_team,
-    PlayerTeam,
-    SET_PLAYER_TEAM,
-    "onSetPlayerTeam"
-);
-rpc_helper!(
-    on_put_player_in_vehicle,
-    PutPlayerInVehicle,
-    PUT_PLAYER_IN_VEHICLE,
-    "onPutPlayerInVehicle"
-);
-rpc_helper!(
-    on_player_stream_out,
-    u16,
-    PLAYER_STREAM_OUT,
-    "onPlayerStreamOut"
-);
-rpc_helper!(
-    on_vehicle_stream_out,
-    u16,
-    VEHICLE_STREAM_OUT,
-    "onVehicleStreamOut"
 );
 rpc_helper!(
     on_set_vehicle_position,

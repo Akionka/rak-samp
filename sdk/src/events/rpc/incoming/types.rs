@@ -1,20 +1,5 @@
 use crate::events::{Vector2, Vector3};
 
-/// MoonLoader's `onServerMessage` payload (RPC 93).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ServerMessage {
-    pub color: u32,
-    pub text: Vec<u8>,
-}
-
-/// MoonLoader's `onDisplayGameText` payload (RPC 73).
-#[derive(Clone, Debug, PartialEq)]
-pub struct GameText {
-    pub style: i32,
-    pub time_ms: i32,
-    pub text: Vec<u8>,
-}
-
 /// MoonLoader's `onShowDialog` payload (RPC 61).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ShowDialog {
@@ -24,101 +9,6 @@ pub struct ShowDialog {
     pub button1: Vec<u8>,
     pub button2: Vec<u8>,
     pub text: Vec<u8>,
-}
-
-/// MoonLoader's `onPlaySound` payload (RPC 16).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlaySound {
-    pub sound_id: i32,
-    pub position: Vector3,
-}
-
-/// MoonLoader's `onSetCheckpoint` payload (RPC 107).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Checkpoint {
-    pub position: Vector3,
-    pub radius: f32,
-}
-
-/// MoonLoader's `onChatMessage` payload (RPC 101).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ChatMessage {
-    pub player_id: u16,
-    pub text: Vec<u8>,
-}
-
-/// MoonLoader's `onPlayerChatBubble` payload (RPC 59).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ChatBubble {
-    pub player_id: u16,
-    pub color: u32,
-    pub draw_distance: f32,
-    pub duration_ms: i32,
-    pub text: Vec<u8>,
-}
-
-/// MoonLoader's `onPlayerJoin` payload (RPC 137).
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlayerJoin {
-    pub player_id: u16,
-    pub color: u32,
-    pub is_npc: bool,
-    pub nickname: Vec<u8>,
-}
-
-/// MoonLoader's `onPlayerQuit` payload (RPC 138).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerQuit {
-    pub player_id: u16,
-    pub reason: u8,
-}
-
-/// MoonLoader's `onSetPlayerName` payload (RPC 11).
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlayerName {
-    pub player_id: u16,
-    pub name: Vec<u8>,
-    pub success: bool,
-}
-
-/// MoonLoader's `onSetPlayerTime` payload (RPC 29).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerTime {
-    pub hour: u8,
-    pub minute: u8,
-}
-
-/// MoonLoader's `onSetWorldBounds` payload (RPC 17).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct WorldBounds {
-    pub max_x: f32,
-    pub min_x: f32,
-    pub max_y: f32,
-    pub min_y: f32,
-}
-
-/// MoonLoader's `onGivePlayerWeapon` payload (RPC 22).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerWeapon {
-    pub weapon_id: i32,
-    pub ammo: i32,
-}
-
-/// MoonLoader's `onSetPlayerTeam` payload (RPC 69).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerTeam {
-    pub player_id: u16,
-    pub team_id: u8,
-}
-
-/// MoonLoader's `onSetPlayerSkin` payload (RPC 153).
-///
-/// Both fields are signed 32-bit values on the wire. They are kept as-is so custom or
-/// otherwise unknown skin IDs can be observed or replaced without lossy validation.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerSkin {
-    pub player_id: i32,
-    pub skin_id: i32,
 }
 
 /// MoonLoader's `onSetRaceCheckpoint` payload (RPC 38).
@@ -406,13 +296,6 @@ pub struct ActorPosition {
 pub struct ActorHealth {
     pub actor_id: u16,
     pub health: f32,
-}
-
-/// MoonLoader's `onPutPlayerInVehicle` payload (RPC 70).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PutPlayerInVehicle {
-    pub vehicle_id: u16,
-    pub seat_id: u8,
 }
 
 /// MoonLoader's `onSetVehiclePosition` payload (RPC 159).

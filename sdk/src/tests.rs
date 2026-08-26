@@ -1673,6 +1673,76 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
 }
 
 #[test]
+fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
+    use samp_protocol::{
+        WireDescriptor,
+        rpc::incoming::{SERVER_MESSAGE, ServerMessage, ServerMessageRpc},
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let api = test_support::test_api();
+    let subscription = api
+        .on_protocol_rpc(
+            SampClientSdkDirection::Incoming,
+            SERVER_MESSAGE,
+            |message| match message.text.as_slice() {
+                b"continue" => RpcAction::Continue,
+                b"block" => RpcAction::Block,
+                b"replace" => RpcAction::Replace(ServerMessage {
+                    color: message.color,
+                    text: b"changed".to_vec(),
+                }),
+                _ => unreachable!("test payload must select a callback action"),
+            },
+        )
+        .expect("test registration must succeed");
+
+    for (text, expected) in [
+        (b"continue".as_slice(), SampClientSdkHookAction::Continue),
+        (b"block".as_slice(), SampClientSdkHookAction::Block),
+    ] {
+        let bits = ServerMessageRpc::encode_bits(&ServerMessage {
+            color: 0x1122_3344,
+            text: text.to_vec(),
+        })
+        .expect("test payload must encode");
+        let (bytes, bit_len) = bits.into_parts();
+        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+            .expect("test payload must fit its storage");
+        assert_eq!(
+            test_support::invoke_registered_callback_with_payload(93, payload),
+            Some(expected)
+        );
+    }
+
+    let bits = ServerMessageRpc::encode_bits(&ServerMessage {
+        color: 0x1122_3344,
+        text: b"replace".to_vec(),
+    })
+    .expect("test payload must encode");
+    let (bytes, bit_len) = bits.into_parts();
+    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+        .expect("test payload must fit its storage");
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(93, payload),
+        Some((
+            SampClientSdkHookAction::Continue,
+            vec![
+                0x44, 0x33, 0x22, 0x11, 7, 0, 0, 0, b'c', b'h', b'a', b'n', b'g', b'e', b'd'
+            ],
+            120,
+        ))
+    );
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
 fn register_handlers_collects_every_supported_handler_form() {
     let _serial = REGISTRATION_TEST_LOCK
         .lock()
