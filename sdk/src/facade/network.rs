@@ -76,12 +76,15 @@ impl Net {
 
     /// Queues one bounded SA-MP chat or slash-command RPC.
     pub fn send_chat(self, text: &[u8]) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        let descriptor = if text.first() == Some(&b'/') {
-            crate::events::rpc::outgoing::chat::SEND_COMMAND
+        if text.first() == Some(&b'/') {
+            self.api.submit_protocol_rpc(
+                samp_protocol::rpc::outgoing::chat::SEND_COMMAND,
+                text.to_vec(),
+            )
         } else {
-            crate::events::rpc::outgoing::chat::SEND_CHAT
-        };
-        self.api.submit_typed_rpc(descriptor, text.to_vec())
+            self.api
+                .submit_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, text.to_vec())
+        }
     }
 
     /// Queues the server-bound request-spawn RPC.
@@ -599,6 +602,21 @@ impl Net {
         F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
     {
         self.api.on_typed_rpc(direction, rpc, handler)
+    }
+
+    /// Registers an RPC callback that decodes one Protocol-owned descriptor.
+    pub fn on_protocol_rpc<D, F>(
+        self,
+        direction: SampClientSdkDirection,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::WireDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.api.on_protocol_rpc(direction, descriptor, handler)
     }
 }
 

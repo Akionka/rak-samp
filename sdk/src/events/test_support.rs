@@ -103,6 +103,25 @@ pub(crate) fn invoke_registered_callback_with_payload(
     })
 }
 
+pub(crate) fn invoke_registered_callback_with_replacement(
+    id: u8,
+    payload: EncodedPayload,
+) -> Option<(SampClientSdkHookAction, Vec<u8>, usize)> {
+    let callback = *REGISTRATION
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .callbacks
+        .first()?;
+    let mut event = TestEvent::new(id, payload);
+    let action = unsafe {
+        (callback.callback)(
+            callback.user_data as *mut ::core::ffi::c_void,
+            (&mut event as *mut TestEvent).cast::<SampClientSdkEventV1>(),
+        )
+    };
+    Some((action, event.bytes, event.bit_len))
+}
+
 extern "system" fn test_status() -> crate::SampClientSdkHostStatus {
     crate::SampClientSdkHostStatus::Ready
 }

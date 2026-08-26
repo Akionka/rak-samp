@@ -223,12 +223,14 @@ impl HostApi {
     /// native helper. It is real network traffic, not a local chat display
     /// action.
     pub fn send_chat(self, text: &[u8]) -> SampClientSdkResult {
-        let descriptor = if text.first() == Some(&b'/') {
-            events::rpc::outgoing::chat::SEND_COMMAND
+        if text.first() == Some(&b'/') {
+            self.send_protocol_rpc(
+                samp_protocol::rpc::outgoing::chat::SEND_COMMAND,
+                text.to_vec(),
+            )
         } else {
-            events::rpc::outgoing::chat::SEND_CHAT
-        };
-        self.send_typed_rpc(descriptor, text.to_vec())
+            self.send_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, text.to_vec())
+        }
     }
 
     /// Sends SA-MP's empty request-spawn RPC (129).
@@ -449,6 +451,14 @@ impl HostApi {
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
     }
 
+    fn send_protocol_rpc<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
+    where
+        D: samp_protocol::WireDescriptor,
+    {
+        self.submit_protocol_rpc(descriptor, value)
+            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
+    }
+
     fn send_damage(
         self,
         player_id: u16,
@@ -479,6 +489,28 @@ impl HostApi {
         };
         self.submit_rpc(
             descriptor.id(),
+            payload.as_bytes(),
+            payload.len_bits(),
+            SampClientSdkSendOptions::default(),
+        )
+    }
+
+    pub(crate) fn submit_protocol_rpc<D>(
+        self,
+        _descriptor: D,
+        value: D::Value,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult>
+    where
+        D: samp_protocol::WireDescriptor,
+    {
+        if D::KIND != samp_protocol::WireKind::Rpc {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let Ok(payload) = D::encode_bits(&value) else {
+            return Err(SampClientSdkResult::InvalidArgument);
+        };
+        self.submit_rpc(
+            D::ID,
             payload.as_bytes(),
             payload.len_bits(),
             SampClientSdkSendOptions::default(),

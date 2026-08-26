@@ -1267,7 +1267,7 @@ fn owned_bit_stream_send_helpers_preserve_exact_partial_bit_lengths() {
 }
 
 #[test]
-fn send_chat_uses_the_typed_bounded_rpc_101_payload() {
+fn send_chat_uses_the_protocol_bounded_rpc_101_payload() {
     let api = test_support::test_api();
     assert_eq!(api.send_chat(b"hi"), SampClientSdkResult::Ok);
     assert_eq!(api.send_chat(b"/hi"), SampClientSdkResult::Ok);
@@ -1610,6 +1610,62 @@ fn typed_callback_decodes_matching_descriptor_and_fails_open() {
         Some(SampClientSdkHookAction::Continue)
     );
     assert_eq!(calls.load(Ordering::Acquire), 1);
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
+fn protocol_chat_callback_preserves_continue_block_and_replacement() {
+    use samp_protocol::WireDescriptor;
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let api = test_support::test_api();
+    let subscription = api
+        .on_protocol_rpc(
+            SampClientSdkDirection::Outgoing,
+            samp_protocol::rpc::outgoing::chat::SEND_CHAT,
+            |text| match text.as_slice() {
+                b"continue" => RpcAction::Continue,
+                b"block" => RpcAction::Block,
+                b"replace" => RpcAction::Replace(b"changed".to_vec()),
+                _ => unreachable!("test payload must select a callback action"),
+            },
+        )
+        .expect("test registration must succeed");
+
+    for (value, expected) in [
+        (b"continue".as_slice(), SampClientSdkHookAction::Continue),
+        (b"block".as_slice(), SampClientSdkHookAction::Block),
+    ] {
+        let bits = samp_protocol::rpc::outgoing::chat::SendChat::encode_bits(&value.to_vec())
+            .expect("test payload must encode");
+        let (bytes, bit_len) = bits.into_parts();
+        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+            .expect("test payload must fit its storage");
+        assert_eq!(
+            test_support::invoke_registered_callback_with_payload(101, payload),
+            Some(expected)
+        );
+    }
+
+    let bits = samp_protocol::rpc::outgoing::chat::SendChat::encode_bits(&b"replace".to_vec())
+        .expect("test payload must encode");
+    let (bytes, bit_len) = bits.into_parts();
+    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+        .expect("test payload must fit its storage");
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(101, payload),
+        Some((
+            SampClientSdkHookAction::Continue,
+            vec![7, b'c', b'h', b'a', b'n', b'g', b'e', b'd'],
+            64,
+        ))
+    );
 
     subscription
         .unregister_and_wait()

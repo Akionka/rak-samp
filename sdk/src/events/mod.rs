@@ -8,6 +8,7 @@ mod core;
 pub mod packet;
 pub mod rpc;
 
+pub(crate) use core::handle_protocol;
 pub use core::{
     EncodedPayload, Event, EventError, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES, Packet, Rpc,
     RpcAction, Vector2, Vector3,

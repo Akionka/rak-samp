@@ -19,6 +19,8 @@ pub enum DecodeError<E> {
     },
     /// A byte-aligned descriptor received a non-byte-aligned payload.
     NonByteAligned { bit_len: usize },
+    /// A length-prefixed field exceeded its Protocol-defined byte limit.
+    LengthExceedsLimit { length: usize, limit: usize },
 }
 
 impl<E: fmt::Display> fmt::Display for DecodeError<E> {
@@ -46,6 +48,12 @@ impl<E: fmt::Display> fmt::Display for DecodeError<E> {
             Self::NonByteAligned { bit_len } => {
                 write!(formatter, "a {bit_len}-bit payload is not byte-aligned")
             }
+            Self::LengthExceedsLimit { length, limit } => {
+                write!(
+                    formatter,
+                    "a {length}-byte field exceeds the {limit}-byte limit"
+                )
+            }
         }
     }
 }
@@ -57,7 +65,8 @@ impl<E: std::error::Error + 'static> std::error::Error for DecodeError<E> {
             Self::OutOfBounds { .. }
             | Self::InvalidBitLength { .. }
             | Self::UnexpectedTrailingBits { .. }
-            | Self::NonByteAligned { .. } => None,
+            | Self::NonByteAligned { .. }
+            | Self::LengthExceedsLimit { .. } => None,
         }
     }
 }
@@ -76,6 +85,8 @@ pub enum EncodeError<E> {
     InvalidBitLength { bit_len: usize, byte_len: usize },
     /// The encoded payload used more bytes than its bit length requires.
     NonMinimalStorage { bit_len: usize, byte_len: usize },
+    /// A length-prefixed field exceeded its Protocol-defined byte limit.
+    LengthExceedsLimit { length: usize, limit: usize },
 }
 
 impl<E: fmt::Display> fmt::Display for EncodeError<E> {
@@ -97,6 +108,12 @@ impl<E: fmt::Display> fmt::Display for EncodeError<E> {
                 formatter,
                 "a {bit_len}-bit payload must not use {byte_len} bytes of storage"
             ),
+            Self::LengthExceedsLimit { length, limit } => {
+                write!(
+                    formatter,
+                    "a {length}-byte field exceeds the {limit}-byte limit"
+                )
+            }
         }
     }
 }
@@ -107,7 +124,8 @@ impl<E: std::error::Error + 'static> std::error::Error for EncodeError<E> {
             Self::Source(error) => Some(error),
             Self::PayloadTooLarge { .. }
             | Self::InvalidBitLength { .. }
-            | Self::NonMinimalStorage { .. } => None,
+            | Self::NonMinimalStorage { .. }
+            | Self::LengthExceedsLimit { .. } => None,
         }
     }
 }

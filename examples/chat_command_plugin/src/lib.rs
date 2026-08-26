@@ -5,10 +5,9 @@ compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Window
 
 use samp_client_sdk::{
     ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkDirection,
-    SampClientSdkResult, SubscriptionSet,
-    events::{RpcAction, rpc::outgoing},
-    register_handlers,
+    SampClientSdkResult, SubscriptionSet, events::RpcAction,
 };
+use samp_protocol::rpc::outgoing::chat::SEND_COMMAND;
 use std::{
     ffi::c_void,
     sync::{
@@ -122,25 +121,24 @@ fn initialize() {
         return;
     }
     let net = samp.net();
-    let subscriptions = match register_handlers!(net;
-        typed_rpc(
-            SampClientSdkDirection::Outgoing,
-            outgoing::chat::SEND_COMMAND,
-            move |command| {
-                if is_samp_client_sdk_command(&command) {
-                    run_example(samp);
-                    RpcAction::Block
-                } else {
-                    RpcAction::Continue
-                }
+    let subscriptions = match net.on_protocol_rpc(
+        SampClientSdkDirection::Outgoing,
+        SEND_COMMAND,
+        move |command| {
+            if is_samp_client_sdk_command(&command) {
+                run_example(samp);
+                RpcAction::Block
+            } else {
+                RpcAction::Continue
             }
-        ),
+        },
     ) {
-        Ok(subscriptions) => subscriptions,
-        Err(error) => {
-            if let Err(error) = error.into_subscriptions().unregister_and_wait() {
-                state.subscriptions = error.into_subscriptions();
-            }
+        Ok(subscription) => {
+            let mut subscriptions = SubscriptionSet::new();
+            subscriptions.push(subscription);
+            subscriptions
+        }
+        Err(_) => {
             return;
         }
     };

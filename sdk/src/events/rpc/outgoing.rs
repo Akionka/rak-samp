@@ -1,6 +1,5 @@
 //! Outgoing client-to-server RPC helpers.
 
-pub mod chat;
 pub mod connection;
 pub mod damage;
 pub mod object;

@@ -7,6 +7,7 @@ mod bitstream;
 mod catalog;
 mod encoded_bits;
 mod error;
+pub mod rpc;
 mod wire;
 
 pub use bitstream::{BitRead, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};

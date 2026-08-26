@@ -102,6 +102,18 @@ impl fmt::Display for EventError {
 
 impl std::error::Error for EventError {}
 
+/// A Protocol codec failure while adapting a callback-local event.
+///
+/// Transport failures retain their original [`EventError`] in `Source`; malformed wire data
+/// remains a Protocol-owned error.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) enum ProtocolEventError {
+    /// The Protocol descriptor could not decode the callback payload.
+    Decode(samp_protocol::DecodeError<EventError>),
+    /// The Protocol descriptor could not encode a callback replacement.
+    Encode(samp_protocol::EncodeError<EventError>),
+}
+
 /// A callback-local view over an opaque host event.
 ///
 /// [`crate::HostApi::on_packet`] and [`crate::HostApi::on_rpc`] supply this to safe handlers. It
@@ -457,6 +469,21 @@ impl PayloadWriter {
     }
 }
 
+impl samp_protocol::BitWrite for PayloadWriter {
+    type Error = EventError;
+
+    fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
+        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
+            return Err(EventError::InvalidBitLength {
+                bit_len,
+                byte_len: bytes.len(),
+            });
+        }
+        self.bits(bytes, bit_len);
+        Ok(())
+    }
+}
+
 /// A complete callback replacement with an exact bit length.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct EncodedPayload {
@@ -601,6 +628,41 @@ impl<T> Rpc<T> {
                 event.replace_bits(payload.as_bytes(), payload.len_bits())?;
                 Ok(SampClientSdkHookAction::Continue)
             }
+        }
+    }
+}
+
+/// Handles one Protocol RPC descriptor from a raw callback event.
+///
+/// The callback payload stays borrowed by [`Event`] during decoding. Replacements are separately
+/// serialized into owned bytes before the atomic ABI replacement call.
+pub(crate) fn handle_protocol<D>(
+    event: &mut Event<'_>,
+    handler: impl FnOnce(D::Value) -> RpcAction<D::Value>,
+) -> Result<SampClientSdkHookAction, ProtocolEventError>
+where
+    D: samp_protocol::WireDescriptor,
+{
+    if event.id() != D::ID {
+        return Ok(SampClientSdkHookAction::Continue);
+    }
+    event
+        .reset_read()
+        .map_err(|error| ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error)))?;
+    let value = D::decode_from(event).map_err(ProtocolEventError::Decode)?;
+    match handler(value) {
+        RpcAction::Continue => Ok(SampClientSdkHookAction::Continue),
+        RpcAction::Block => Ok(SampClientSdkHookAction::Block),
+        RpcAction::Replace(value) => {
+            let mut writer = PayloadWriter::new();
+            D::encode_to(&mut writer, &value).map_err(ProtocolEventError::Encode)?;
+            let payload = writer.finish_bits();
+            event
+                .replace_bits(payload.as_bytes(), payload.len_bits())
+                .map_err(|error| {
+                    ProtocolEventError::Encode(samp_protocol::EncodeError::Source(error))
+                })?;
+            Ok(SampClientSdkHookAction::Continue)
         }
     }
 }

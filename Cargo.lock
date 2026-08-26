@@ -110,6 +110,7 @@ name = "samp-client-sdk-chat-command-example"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
