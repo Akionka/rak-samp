@@ -1328,31 +1328,31 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
         SampClientSdkResult::Ok
     );
 
+    let protocol_zero = samp_protocol::rpc::incoming::Vector3 {
+        x: 0.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    let attached = samp_protocol::rpc::outgoing::common::EditAttachedObject {
+        response: 0,
+        index: 0,
+        model_id: 0,
+        bone: 0,
+        position: protocol_zero,
+        rotation: protocol_zero,
+        scale: protocol_zero,
+        color1: 0,
+        color2: 0,
+    };
+    assert_eq!(
+        api.send_edit_attached_object(attached),
+        SampClientSdkResult::Ok
+    );
     let zero = events::Vector3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,
     };
-    let attached = events::rpc::outgoing::object::EditAttachedObject {
-        response: 0,
-        index: 0,
-        model_id: 0,
-        bone: 0,
-        position: zero,
-        rotation: zero,
-        scale: zero,
-        color1: 0,
-        color2: 0,
-    };
-    let attached_payload = events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT
-        .encode(api, attached)
-        .expect("zero attached-object edit must encode");
-    assert_eq!(attached_payload.len_bits(), 480);
-    assert_eq!(attached_payload.as_bytes(), &[0; 60]);
-    assert_eq!(
-        api.send_edit_attached_object(attached),
-        SampClientSdkResult::Ok
-    );
     assert_eq!(
         api.send_edit_object(events::rpc::outgoing::object::EditObject {
             player_object: false,
@@ -1664,6 +1664,80 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
             SampClientSdkHookAction::Continue,
             vec![7, b'c', b'h', b'a', b'n', b'g', b'e', b'd'],
             64,
+        ))
+    );
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
+fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() {
+    use samp_protocol::{
+        WireDescriptor,
+        rpc::outgoing::common::{DialogResponse, SEND_DIALOG_RESPONSE, SendDialogResponse},
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let api = test_support::test_api();
+    let subscription = api
+        .on_protocol_rpc(
+            SampClientSdkDirection::Outgoing,
+            SEND_DIALOG_RESPONSE,
+            |response| match response.input.as_slice() {
+                b"continue" => RpcAction::Continue,
+                b"block" => RpcAction::Block,
+                b"replace" => RpcAction::Replace(DialogResponse {
+                    input: b"changed".to_vec(),
+                    ..response
+                }),
+                _ => unreachable!("test payload must select a callback action"),
+            },
+        )
+        .expect("test registration must succeed");
+
+    for (input, expected) in [
+        (b"continue".as_slice(), SampClientSdkHookAction::Continue),
+        (b"block".as_slice(), SampClientSdkHookAction::Block),
+    ] {
+        let bits = SendDialogResponse::encode_bits(&DialogResponse {
+            dialog_id: 0x1234,
+            button: 1,
+            list_item: 0x5678,
+            input: input.to_vec(),
+        })
+        .expect("test payload must encode");
+        let (bytes, bit_len) = bits.into_parts();
+        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+            .expect("test payload must fit its storage");
+        assert_eq!(
+            test_support::invoke_registered_callback_with_payload(62, payload),
+            Some(expected)
+        );
+    }
+
+    let bits = SendDialogResponse::encode_bits(&DialogResponse {
+        dialog_id: 0x1234,
+        button: 1,
+        list_item: 0x5678,
+        input: b"replace".to_vec(),
+    })
+    .expect("test payload must encode");
+    let (bytes, bit_len) = bits.into_parts();
+    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+        .expect("test payload must fit its storage");
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(62, payload),
+        Some((
+            SampClientSdkHookAction::Continue,
+            vec![
+                0x34, 0x12, 1, 0x78, 0x56, 7, b'c', b'h', b'a', b'n', b'g', b'e', b'd'
+            ],
+            104,
         ))
     );
 

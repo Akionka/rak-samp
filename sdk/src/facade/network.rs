@@ -89,10 +89,8 @@ impl Net {
 
     /// Queues the server-bound request-spawn RPC.
     pub fn send_request_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::session::SEND_REQUEST_SPAWN,
-            (),
-        )
+        self.api
+            .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_REQUEST_SPAWN, ())
     }
 
     /// Queues the protocol-level request-class RPC without changing local class state.
@@ -100,8 +98,8 @@ impl Net {
         self,
         class_id: i32,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::session::SEND_REQUEST_CLASS,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_REQUEST_CLASS,
             class_id,
         )
     }
@@ -111,8 +109,8 @@ impl Net {
         self,
         interior_id: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_INTERIOR_CHANGE,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_INTERIOR_CHANGE,
             interior_id,
         )
     }
@@ -120,7 +118,7 @@ impl Net {
     /// Queues the protocol-level spawn RPC without invoking native spawn code.
     pub fn send_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::session::SEND_SPAWN, ())
+            .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_SPAWN, ())
     }
 
     /// Queues the protocol-level enter-vehicle RPC without changing the local ped.
@@ -129,9 +127,9 @@ impl Net {
         vehicle_id: u16,
         passenger: bool,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::vehicle::SEND_ENTER_VEHICLE,
-            crate::events::rpc::outgoing::vehicle::EnterVehicle {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_ENTER_VEHICLE,
+            samp_protocol::rpc::outgoing::common::EnterVehicle {
                 vehicle_id,
                 passenger,
             },
@@ -143,8 +141,8 @@ impl Net {
         self,
         vehicle_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::vehicle::SEND_EXIT_VEHICLE,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EXIT_VEHICLE,
             vehicle_id,
         )
     }
@@ -157,9 +155,9 @@ impl Net {
         list_item: u16,
         input: &[u8],
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::ui::SEND_DIALOG_RESPONSE,
-            crate::events::rpc::outgoing::ui::DialogResponse {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DIALOG_RESPONSE,
+            samp_protocol::rpc::outgoing::common::DialogResponse {
                 dialog_id,
                 button,
                 list_item,
@@ -174,9 +172,9 @@ impl Net {
         player_id: u16,
         source: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::ui::SEND_CLICK_PLAYER,
-            crate::events::rpc::outgoing::ui::ClickPlayer { player_id, source },
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_PLAYER,
+            samp_protocol::rpc::outgoing::common::ClickPlayer { player_id, source },
         )
     }
 
@@ -185,8 +183,8 @@ impl Net {
         self,
         textdraw_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::ui::SEND_CLICK_TEXT_DRAW,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_TEXT_DRAW,
             textdraw_id,
         )
     }
@@ -197,9 +195,9 @@ impl Net {
         player_id: u16,
         reason: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_DEATH_NOTIFICATION,
-            crate::events::rpc::outgoing::DeathNotification {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DEATH_NOTIFICATION,
+            samp_protocol::rpc::outgoing::common::DeathNotification {
                 reason,
                 killer_id: player_id,
             },
@@ -209,13 +207,13 @@ impl Net {
     /// Queues the empty server-bound menu-quit RPC.
     pub fn send_menu_quit(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::ui::SEND_QUIT_MENU, ())
+            .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_QUIT_MENU, ())
     }
 
     /// Queues a server-bound menu-row selection.
     pub fn send_menu_select_row(self, row: u8) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::ui::SEND_MENU_SELECT, row)
+            .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_MENU_SELECT, row)
     }
 
     /// Queues a server-bound pickup notification.
@@ -223,8 +221,8 @@ impl Net {
         self,
         pickup_id: i32,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::SEND_PICKED_UP_PICKUP,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_PICKED_UP_PICKUP,
             pickup_id,
         )
     }
@@ -234,8 +232,8 @@ impl Net {
         self,
         vehicle_id: u16,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::vehicle::SEND_VEHICLE_DESTROYED,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DESTROYED,
             vehicle_id,
         )
     }
@@ -249,9 +247,9 @@ impl Net {
         lights: u8,
         tires: u8,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::damage::SEND_VEHICLE_DAMAGED,
-            crate::events::rpc::outgoing::damage::VehicleDamage {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DAMAGED,
+            samp_protocol::rpc::outgoing::common::VehicleDamage {
                 vehicle_id,
                 panel_damage,
                 door_damage,
@@ -269,9 +267,9 @@ impl Net {
         param1: i32,
         param2: i32,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::vehicle::SEND_VEHICLE_TUNING,
-            crate::events::rpc::outgoing::vehicle::VehicleTuning {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_TUNING,
+            samp_protocol::rpc::outgoing::common::VehicleTuning {
                 vehicle_id: id,
                 param1,
                 param2,
@@ -305,10 +303,10 @@ impl Net {
     /// Queues a complete attached-object edit action.
     pub fn send_edit_attached_object(
         self,
-        edit: crate::events::rpc::outgoing::object::EditAttachedObject,
+        edit: samp_protocol::rpc::outgoing::common::EditAttachedObject,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT,
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EDIT_ATTACHED_OBJECT,
             edit,
         )
     }

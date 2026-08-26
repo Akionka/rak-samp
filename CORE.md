@@ -7,9 +7,9 @@
   aliases.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, typed Wire descriptors with
-  explicit trailing policies, Packet/RPC name catalogs, outgoing chat and
-  slash-command codecs, and the first fixed incoming RPC batch from server
-  messages through vehicle stream-out.
+  explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
+  slash-command, and profile-neutral byte-aligned RPC codecs, and the first
+  fixed incoming RPC batch from server messages through vehicle stream-out.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces

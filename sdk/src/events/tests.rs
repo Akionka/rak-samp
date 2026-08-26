@@ -1,7 +1,7 @@
 use super::*;
 use super::{
     core::RpcEncoder,
-    rpc::{incoming, outgoing},
+    rpc::incoming,
     test_support::{TestEvent, assert_replacement_round_trip, test_api},
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
@@ -705,32 +705,6 @@ fn fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
         ),
         [0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF]
     );
-}
-
-#[test]
-fn remaining_outgoing_rpc_helpers_use_their_protocol_ids() {
-    let descriptors = [
-        (outgoing::connection::SEND_CLIENT_JOIN.id(), 25),
-        (outgoing::object::SEND_ENTER_EDIT_OBJECT.id(), 27),
-        (outgoing::SEND_MONEY_INCREASE.id(), 31),
-        (outgoing::connection::SEND_NPC_JOIN.id(), 54),
-        (outgoing::vehicle::SEND_VEHICLE_TUNING.id(), 96),
-        (outgoing::SEND_PICKED_UP_WEAPON.id(), 97),
-        (outgoing::session::SEND_SERVER_STATISTICS_REQUEST.id(), 102),
-        (outgoing::session::SEND_CLIENT_CHECK_RESPONSE.id(), 103),
-        (outgoing::damage::SEND_VEHICLE_DAMAGED.id(), 106),
-        (outgoing::damage::SEND_DAMAGE.id(), 115),
-        (outgoing::object::SEND_EDIT_ATTACHED_OBJECT.id(), 116),
-        (outgoing::object::SEND_EDIT_OBJECT.id(), 117),
-        (outgoing::SEND_PICKED_UP_PICKUP.id(), 131),
-        (outgoing::ui::SEND_QUIT_MENU.id(), 140),
-        (outgoing::SEND_CAMERA_TARGET_UPDATE.id(), 168),
-        (outgoing::damage::SEND_GIVE_ACTOR_DAMAGE.id(), 177),
-    ];
-
-    for (actual, expected) in descriptors {
-        assert_eq!(actual, expected);
-    }
 }
 
 #[test]

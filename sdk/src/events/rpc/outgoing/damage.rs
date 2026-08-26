@@ -1,20 +1,10 @@
-//! Outgoing vehicle, player, and actor damage RPC codecs.
+//! Exact-bit outgoing player and actor damage RPC codecs.
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
     events::{EncodedPayload, Event, EventError, Rpc, RpcAction},
 };
-
-/// MoonLoader's `onSendVehicleDamaged` payload (RPC 106).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct VehicleDamage {
-    pub vehicle_id: u16,
-    pub panel_damage: i32,
-    pub door_damage: i32,
-    pub lights: u8,
-    pub tires: u8,
-}
 
 /// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
 ///
@@ -41,20 +31,10 @@ pub struct ActorDamage {
     pub body_part: i32,
 }
 
-pub const SEND_VEHICLE_DAMAGED: Rpc<VehicleDamage> =
-    Rpc::new(106, decode_vehicle_damage, encode_vehicle_damage);
 pub const SEND_DAMAGE: Rpc<Damage> = Rpc::new_bits(115, decode_damage, encode_damage);
 pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
     Rpc::new_bits(177, decode_actor_damage, encode_actor_damage);
 
-#[allow(dead_code)]
-pub(crate) unsafe fn on_send_vehicle_damaged(
-    api: HostApi,
-    raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(VehicleDamage) -> RpcAction<VehicleDamage>,
-) -> Result<SampClientSdkHookAction, EventError> {
-    unsafe { handle(api, raw, SEND_VEHICLE_DAMAGED, handler) }
-}
 #[allow(dead_code)]
 pub(crate) unsafe fn on_send_give_actor_damage(
     api: HostApi,
@@ -63,6 +43,7 @@ pub(crate) unsafe fn on_send_give_actor_damage(
 ) -> Result<SampClientSdkHookAction, EventError> {
     unsafe { handle(api, raw, SEND_GIVE_ACTOR_DAMAGE, handler) }
 }
+
 #[allow(dead_code)]
 pub(crate) unsafe fn on_send_give_damage(
     api: HostApi,
@@ -79,6 +60,7 @@ pub(crate) unsafe fn on_send_give_damage(
         })
     }
 }
+
 #[allow(dead_code)]
 pub(crate) unsafe fn on_send_take_damage(
     api: HostApi,
@@ -96,24 +78,6 @@ pub(crate) unsafe fn on_send_take_damage(
     }
 }
 
-fn decode_vehicle_damage(event: &mut Event<'_>) -> Result<VehicleDamage, EventError> {
-    Ok(VehicleDamage {
-        vehicle_id: event.read_u16()?,
-        panel_damage: event.read_u32()? as i32,
-        door_damage: event.read_u32()? as i32,
-        lights: event.read_u8()?,
-        tires: event.read_u8()?,
-    })
-}
-fn encode_vehicle_damage(value: VehicleDamage) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.u32(value.panel_damage as u32);
-    writer.u32(value.door_damage as u32);
-    writer.u8(value.lights);
-    writer.u8(value.tires);
-    Ok(writer.finish())
-}
 fn decode_damage(event: &mut Event<'_>) -> Result<Damage, EventError> {
     Ok(Damage {
         take: event.read_bits(1)?[0] & 0x80 != 0,
@@ -123,9 +87,11 @@ fn decode_damage(event: &mut Event<'_>) -> Result<Damage, EventError> {
         body_part: event.read_u32()? as i32,
     })
 }
+
 fn encode_damage(_api: HostApi, value: Damage) -> Result<EncodedPayload, EventError> {
     encode_damage_payload(value)
 }
+
 pub fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError> {
     let mut writer = PayloadWriter::new();
     writer.bit(value.take);
@@ -135,6 +101,7 @@ pub fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError
     writer.u32(value.body_part as u32);
     Ok(writer.finish_bits())
 }
+
 fn decode_actor_damage(event: &mut Event<'_>) -> Result<ActorDamage, EventError> {
     Ok(ActorDamage {
         unused: event.read_bits(1)?[0] & 0x80 != 0,
@@ -144,6 +111,7 @@ fn decode_actor_damage(event: &mut Event<'_>) -> Result<ActorDamage, EventError>
         body_part: event.read_u32()? as i32,
     })
 }
+
 fn encode_actor_damage(_api: HostApi, value: ActorDamage) -> Result<EncodedPayload, EventError> {
     let mut writer = PayloadWriter::new();
     writer.bit(value.unused);

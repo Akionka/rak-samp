@@ -239,7 +239,7 @@ impl HostApi {
     /// `sampSendRequestSpawn`; it does not call native local-player methods or
     /// mutate client state.
     pub fn send_request_spawn(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::session::SEND_REQUEST_SPAWN, ())
+        self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_REQUEST_SPAWN, ())
     }
 
     /// Sends SA-MP's request-class RPC (128).
@@ -248,7 +248,10 @@ impl HostApi {
     /// `sampRequestClass`, but does not invoke the native local-player method
     /// or update any local class-selection state.
     pub fn send_request_class(self, class_id: i32) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::session::SEND_REQUEST_CLASS, class_id)
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_REQUEST_CLASS,
+            class_id,
+        )
     }
 
     /// Sends SA-MP's interior-change RPC (118).
@@ -256,7 +259,10 @@ impl HostApi {
     /// This is protocol-only. It does not change the GTA interior or mutate
     /// SA-MP's native local-player state.
     pub fn send_interior_change(self, interior_id: u8) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_INTERIOR_CHANGE, interior_id)
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_INTERIOR_CHANGE,
+            interior_id,
+        )
     }
 
     /// Sends SA-MP's empty spawn RPC (52).
@@ -264,7 +270,7 @@ impl HostApi {
     /// This is protocol-only. It does not call the native local-player spawn
     /// method or change local spawn state.
     pub fn send_spawn(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::session::SEND_SPAWN, ())
+        self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_SPAWN, ())
     }
 
     /// Sends SA-MP's enter-vehicle RPC (26).
@@ -272,9 +278,9 @@ impl HostApi {
     /// This is protocol-only. It does not put the local GTA ped in a vehicle
     /// or otherwise alter native local-player state.
     pub fn send_enter_vehicle(self, vehicle_id: u16, passenger: bool) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::vehicle::SEND_ENTER_VEHICLE,
-            events::rpc::outgoing::vehicle::EnterVehicle {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_ENTER_VEHICLE,
+            samp_protocol::rpc::outgoing::common::EnterVehicle {
                 vehicle_id,
                 passenger,
             },
@@ -286,8 +292,8 @@ impl HostApi {
     /// This is protocol-only. It does not make the local GTA ped leave a
     /// vehicle or otherwise alter native local-player state.
     pub fn send_exit_vehicle(self, vehicle_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::vehicle::SEND_EXIT_VEHICLE,
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EXIT_VEHICLE,
             vehicle_id,
         )
     }
@@ -300,9 +306,9 @@ impl HostApi {
         list_item: u16,
         input: &[u8],
     ) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::ui::SEND_DIALOG_RESPONSE,
-            events::rpc::outgoing::ui::DialogResponse {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DIALOG_RESPONSE,
+            samp_protocol::rpc::outgoing::common::DialogResponse {
                 dialog_id,
                 button,
                 list_item,
@@ -313,22 +319,25 @@ impl HostApi {
 
     /// Sends a server-bound player-click action (RPC 23).
     pub fn send_click_player(self, player_id: u16, source: u8) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::ui::SEND_CLICK_PLAYER,
-            events::rpc::outgoing::ui::ClickPlayer { player_id, source },
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_PLAYER,
+            samp_protocol::rpc::outgoing::common::ClickPlayer { player_id, source },
         )
     }
 
     /// Sends a server-bound textdraw-click action (RPC 83).
     pub fn send_click_textdraw(self, textdraw_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_CLICK_TEXT_DRAW, textdraw_id)
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_TEXT_DRAW,
+            textdraw_id,
+        )
     }
 
     /// Sends a server-bound death notification naming another player (RPC 53).
     pub fn send_death_by_player(self, player_id: u16, reason: u8) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::SEND_DEATH_NOTIFICATION,
-            events::rpc::outgoing::DeathNotification {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DEATH_NOTIFICATION,
+            samp_protocol::rpc::outgoing::common::DeathNotification {
                 reason,
                 killer_id: player_id,
             },
@@ -337,23 +346,26 @@ impl HostApi {
 
     /// Sends the empty menu-quit RPC (140).
     pub fn send_menu_quit(self) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_QUIT_MENU, ())
+        self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_QUIT_MENU, ())
     }
 
     /// Sends a server-bound menu-row selection (RPC 132).
     pub fn send_menu_select_row(self, row: u8) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::ui::SEND_MENU_SELECT, row)
+        self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_MENU_SELECT, row)
     }
 
     /// Sends a server-bound pickup notification (RPC 131).
     pub fn send_picked_up_pickup(self, pickup_id: i32) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::SEND_PICKED_UP_PICKUP, pickup_id)
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_PICKED_UP_PICKUP,
+            pickup_id,
+        )
     }
 
     /// Sends a server-bound vehicle-destroyed notification (RPC 136).
     pub fn send_vehicle_destroyed(self, vehicle_id: u16) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::vehicle::SEND_VEHICLE_DESTROYED,
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DESTROYED,
             vehicle_id,
         )
     }
@@ -367,9 +379,9 @@ impl HostApi {
         lights: u8,
         tires: u8,
     ) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::damage::SEND_VEHICLE_DAMAGED,
-            events::rpc::outgoing::damage::VehicleDamage {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DAMAGED,
+            samp_protocol::rpc::outgoing::common::VehicleDamage {
                 vehicle_id,
                 panel_damage,
                 door_damage,
@@ -390,9 +402,9 @@ impl HostApi {
         param1: i32,
         param2: i32,
     ) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::vehicle::SEND_VEHICLE_TUNING,
-            events::rpc::outgoing::vehicle::VehicleTuning {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_TUNING,
+            samp_protocol::rpc::outgoing::common::VehicleTuning {
                 vehicle_id: id,
                 param1,
                 param2,
@@ -430,10 +442,10 @@ impl HostApi {
     /// here could create malformed or accidentally lossy traffic.
     pub fn send_edit_attached_object(
         self,
-        edit: events::rpc::outgoing::object::EditAttachedObject,
+        edit: samp_protocol::rpc::outgoing::common::EditAttachedObject,
     ) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::object::SEND_EDIT_ATTACHED_OBJECT,
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EDIT_ATTACHED_OBJECT,
             edit,
         )
     }
