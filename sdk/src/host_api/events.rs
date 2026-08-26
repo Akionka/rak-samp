@@ -221,6 +221,30 @@ impl HostApi {
         })
     }
 
+    /// Registers a Packet callback that decodes one Protocol-owned descriptor.
+    ///
+    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
+    /// retain their host status, while malformed payloads remain Protocol decode failures.
+    pub fn on_protocol_packet<D, F>(
+        self,
+        direction: SampClientSdkDirection,
+        _descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::WireDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        if D::KIND != samp_protocol::WireKind::Packet {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        self.on_packet_id(direction, D::ID, move |event| {
+            events::handle_protocol::<D>(event, &handler)
+                .unwrap_or(SampClientSdkHookAction::Continue)
+        })
+    }
+
     fn register_listener<F>(
         self,
         direction: SampClientSdkDirection,

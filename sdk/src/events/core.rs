@@ -429,18 +429,6 @@ impl PayloadWriter {
         Ok(())
     }
 
-    pub(super) fn string32(&mut self, value: &[u8]) -> Result<(), EventError> {
-        if value.len() > MAX_STRING32_BYTES {
-            return Err(EventError::ValueOutOfRange {
-                value: value.len(),
-                maximum: MAX_STRING32_BYTES,
-            });
-        }
-        self.u32(value.len() as u32);
-        self.bytes(value);
-        Ok(())
-    }
-
     pub(super) fn vector3(&mut self, value: Vector3) {
         self.f32(value.x);
         self.f32(value.y);
@@ -632,7 +620,7 @@ impl<T> Rpc<T> {
     }
 }
 
-/// Handles one Protocol RPC descriptor from a raw callback event.
+/// Handles one Protocol Packet or RPC descriptor from a raw callback event.
 ///
 /// The callback payload stays borrowed by [`Event`] during decoding. Replacements are separately
 /// serialized into owned bytes before the atomic ABI replacement call.

@@ -17,42 +17,66 @@ impl HostApi {
 
     /// Sends a bounded server-bound RCON command packet (201).
     pub fn send_rcon_command(self, command: &[u8]) -> SampClientSdkResult {
-        self.send_typed_packet(
-            events::packet::outgoing::SEND_RCON_COMMAND,
+        self.send_protocol_packet(
+            samp_protocol::packet::common::SEND_RCON_COMMAND,
             command.to_vec(),
         )
     }
     /// Sends a complete local aim-sync packet (203).
-    pub fn send_aim_sync(self, sync: events::packet::AimSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_AIM_SYNC, sync)
+    pub fn send_aim_sync(
+        self,
+        sync: samp_protocol::packet::common::AimSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_AIM_SYNC, sync)
     }
     /// Sends a complete local bullet-sync packet (206).
-    pub fn send_bullet_sync(self, sync: events::packet::BulletSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_BULLET_SYNC, sync)
+    pub fn send_bullet_sync(
+        self,
+        sync: samp_protocol::packet::common::BulletSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_BULLET_SYNC, sync)
     }
     /// Sends a complete local vehicle-sync packet (200).
-    pub fn send_vehicle_sync(self, sync: events::packet::VehicleSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_VEHICLE_SYNC, sync)
+    pub fn send_vehicle_sync(
+        self,
+        sync: samp_protocol::packet::common::VehicleSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_VEHICLE_SYNC, sync)
     }
     /// Sends a complete local on-foot player-sync packet (207).
-    pub fn send_player_sync(self, sync: events::packet::PlayerSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_PLAYER_SYNC, sync)
+    pub fn send_player_sync(
+        self,
+        sync: samp_protocol::packet::common::PlayerSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, sync)
     }
     /// Sends a complete local spectator-sync packet (212).
-    pub fn send_spectator_sync(self, sync: events::packet::SpectatorSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_SPECTATOR_SYNC, sync)
+    pub fn send_spectator_sync(
+        self,
+        sync: samp_protocol::packet::common::SpectatorSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_SPECTATOR_SYNC, sync)
     }
     /// Sends a complete local trailer-sync packet (210).
-    pub fn send_trailer_sync(self, sync: events::packet::TrailerSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_TRAILER_SYNC, sync)
+    pub fn send_trailer_sync(
+        self,
+        sync: samp_protocol::packet::common::TrailerSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_TRAILER_SYNC, sync)
     }
     /// Sends a complete local passenger-sync packet (211).
-    pub fn send_passenger_sync(self, sync: events::packet::PassengerSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_PASSENGER_SYNC, sync)
+    pub fn send_passenger_sync(
+        self,
+        sync: samp_protocol::packet::common::PassengerSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_PASSENGER_SYNC, sync)
     }
     /// Sends a complete local unoccupied-vehicle sync packet (209).
-    pub fn send_unoccupied_sync(self, sync: events::packet::UnoccupiedSync) -> SampClientSdkResult {
-        self.send_typed_packet(events::packet::outgoing::SEND_UNOCCUPIED_SYNC, sync)
+    pub fn send_unoccupied_sync(
+        self,
+        sync: samp_protocol::packet::common::UnoccupiedSync,
+    ) -> SampClientSdkResult {
+        self.send_protocol_packet(samp_protocol::packet::common::SEND_UNOCCUPIED_SYNC, sync)
     }
     /// Sends a packet through SA-MP's original RakClient method.
     ///
@@ -471,6 +495,14 @@ impl HostApi {
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
     }
 
+    fn send_protocol_packet<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
+    where
+        D: samp_protocol::WireDescriptor,
+    {
+        self.submit_protocol_packet(descriptor, value)
+            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
+    }
+
     fn send_damage(
         self,
         player_id: u16,
@@ -529,24 +561,25 @@ impl HostApi {
         )
     }
 
-    pub(crate) fn submit_typed_packet<T>(
+    pub(crate) fn submit_protocol_packet<D>(
         self,
-        descriptor: events::Packet<T>,
-        value: T,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        let Ok(payload) = descriptor.encode(self, value) else {
+        _descriptor: D,
+        value: D::Value,
+    ) -> Result<CommandReceipt<()>, SampClientSdkResult>
+    where
+        D: samp_protocol::WireDescriptor,
+    {
+        if D::KIND != samp_protocol::WireKind::Packet {
+            return Err(SampClientSdkResult::InvalidArgument);
+        }
+        let Ok(payload) = D::encode_bits(&value) else {
             return Err(SampClientSdkResult::InvalidArgument);
         };
         self.submit_packet(
-            descriptor.id(),
+            D::ID,
             payload.as_bytes(),
             payload.len_bits(),
             SampClientSdkSendOptions::default(),
         )
-    }
-
-    fn send_typed_packet<T>(self, descriptor: events::Packet<T>, value: T) -> SampClientSdkResult {
-        self.submit_typed_packet(descriptor, value)
-            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
     }
 }

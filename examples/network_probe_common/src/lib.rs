@@ -12,13 +12,18 @@ use samp_client_sdk::{
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogStyle, ObjectId, PlayerId, Samp,
     SampClientSdkClientVersion, SampClientSdkDirection, SampClientSdkHookAction,
     SampClientSdkHostStatus, SampClientSdkResult, SendRateKind, SpecialAction, SubscriptionSet,
-    TextdrawId, Vector3, VehicleId,
-    events::{RpcAction, packet::outgoing},
-    raw,
+    TextdrawId, Vector3, VehicleId, events::RpcAction, raw,
 };
 #[cfg(feature = "r1-probe")]
 use samp_protocol::BitStream;
-use samp_protocol::rpc::incoming::SERVER_MESSAGE;
+use samp_protocol::{
+    WireDescriptor,
+    packet::common::{
+        SendAimSync, SendPassengerSync, SendPlayerSync, SendStatsUpdate, SendTrailerSync,
+        SendUnoccupiedSync, SendVehicleSync, SendWeaponsUpdate,
+    },
+    rpc::incoming::SERVER_MESSAGE,
+};
 use std::{
     ffi::c_void,
     fs, ptr,
@@ -613,46 +618,26 @@ fn initialize() {
         return;
     }
     for (packet_id, observed_bit, count_index) in [
+        (SendAimSync::ID, SYNC_PACKET_AIM, SYNC_INDEX_AIM),
+        (SendPlayerSync::ID, SYNC_PACKET_ONFOOT, SYNC_INDEX_ONFOOT),
+        (SendStatsUpdate::ID, SYNC_PACKET_STATS, SYNC_INDEX_STATS),
         (
-            outgoing::SEND_AIM_SYNC.id(),
-            SYNC_PACKET_AIM,
-            SYNC_INDEX_AIM,
-        ),
-        (
-            outgoing::SEND_PLAYER_SYNC.id(),
-            SYNC_PACKET_ONFOOT,
-            SYNC_INDEX_ONFOOT,
-        ),
-        (
-            outgoing::SEND_STATS_UPDATE.id(),
-            SYNC_PACKET_STATS,
-            SYNC_INDEX_STATS,
-        ),
-        (
-            outgoing::SEND_WEAPONS_UPDATE.id(),
+            SendWeaponsUpdate::ID,
             SYNC_PACKET_WEAPONS,
             SYNC_INDEX_WEAPONS,
         ),
+        (SendVehicleSync::ID, SYNC_PACKET_VEHICLE, SYNC_INDEX_VEHICLE),
         (
-            outgoing::SEND_VEHICLE_SYNC.id(),
-            SYNC_PACKET_VEHICLE,
-            SYNC_INDEX_VEHICLE,
-        ),
-        (
-            outgoing::SEND_PASSENGER_SYNC.id(),
+            SendPassengerSync::ID,
             SYNC_PACKET_PASSENGER,
             SYNC_INDEX_PASSENGER,
         ),
         (
-            outgoing::SEND_UNOCCUPIED_SYNC.id(),
+            SendUnoccupiedSync::ID,
             SYNC_PACKET_UNOCCUPIED,
             SYNC_INDEX_UNOCCUPIED,
         ),
-        (
-            outgoing::SEND_TRAILER_SYNC.id(),
-            SYNC_PACKET_TRAILER,
-            SYNC_INDEX_TRAILER,
-        ),
+        (SendTrailerSync::ID, SYNC_PACKET_TRAILER, SYNC_INDEX_TRAILER),
     ] {
         let subscription =
             match samp

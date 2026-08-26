@@ -1373,13 +1373,13 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
 #[test]
 fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
     let api = test_support::test_api();
-    let zero = events::Vector3 {
+    let zero = samp_protocol::packet::common::Vector3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,
     };
     assert_eq!(
-        api.send_aim_sync(events::packet::AimSync {
+        api.send_aim_sync(samp_protocol::packet::common::AimSync {
             camera_mode: 0,
             camera_front: zero,
             camera_position: zero,
@@ -1390,7 +1390,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_bullet_sync(events::packet::BulletSync {
+        api.send_bullet_sync(samp_protocol::packet::common::BulletSync {
             target_type: 0,
             target_id: 0,
             origin: zero,
@@ -1401,7 +1401,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_vehicle_sync(events::packet::VehicleSync {
+        api.send_vehicle_sync(samp_protocol::packet::common::VehicleSync {
             vehicle_id: 0,
             left_right_keys: 0,
             up_down_keys: 0,
@@ -1421,7 +1421,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_player_sync(events::packet::PlayerSync {
+        api.send_player_sync(samp_protocol::packet::common::PlayerSync {
             left_right_keys: 0,
             up_down_keys: 0,
             key_data: 0,
@@ -1440,7 +1440,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_spectator_sync(events::packet::SpectatorSync {
+        api.send_spectator_sync(samp_protocol::packet::common::SpectatorSync {
             left_right_keys: 0,
             up_down_keys: 0,
             key_data: 0,
@@ -1449,7 +1449,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_trailer_sync(events::packet::TrailerSync {
+        api.send_trailer_sync(samp_protocol::packet::common::TrailerSync {
             trailer_id: 0,
             position: zero,
             quaternion: [0.0; 4],
@@ -1459,7 +1459,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_passenger_sync(events::packet::PassengerSync {
+        api.send_passenger_sync(samp_protocol::packet::common::PassengerSync {
             vehicle_id: 0,
             seat_driveby_cuffed: 0,
             weapon_and_special_key: 0,
@@ -1473,7 +1473,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
         SampClientSdkResult::Ok
     );
     assert_eq!(
-        api.send_unoccupied_sync(events::packet::UnoccupiedSync {
+        api.send_unoccupied_sync(samp_protocol::packet::common::UnoccupiedSync {
             vehicle_id: 0,
             seat_id: 0,
             roll: zero,
@@ -1747,6 +1747,78 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
 }
 
 #[test]
+fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
+    use samp_protocol::{
+        WireDescriptor,
+        packet::common::{CONNECTION_ACCEPTED, ConnectionAccepted, ConnectionAcceptedPacket},
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let api = test_support::test_api();
+    let subscription = api
+        .on_protocol_packet(
+            SampClientSdkDirection::Incoming,
+            CONNECTION_ACCEPTED,
+            |connection| match connection.challenge {
+                1 => RpcAction::Continue,
+                2 => RpcAction::Block,
+                3 => RpcAction::Replace(ConnectionAccepted {
+                    challenge: 42,
+                    ..connection
+                }),
+                _ => unreachable!("test payload must select a callback action"),
+            },
+        )
+        .expect("test registration must succeed");
+
+    for (challenge, expected) in [
+        (1, SampClientSdkHookAction::Continue),
+        (2, SampClientSdkHookAction::Block),
+    ] {
+        let bits = ConnectionAcceptedPacket::encode_bits(&ConnectionAccepted {
+            ip: -1,
+            port: 1,
+            player_id: 2,
+            challenge,
+        })
+        .expect("test payload must encode");
+        let (bytes, bit_len) = bits.into_parts();
+        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+            .expect("test payload must fit its storage");
+        assert_eq!(
+            test_support::invoke_registered_callback_with_payload(34, payload),
+            Some(expected)
+        );
+    }
+
+    let bits = ConnectionAcceptedPacket::encode_bits(&ConnectionAccepted {
+        ip: -1,
+        port: 1,
+        player_id: 2,
+        challenge: 3,
+    })
+    .expect("test payload must encode");
+    let (bytes, bit_len) = bits.into_parts();
+    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
+        .expect("test payload must fit its storage");
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(34, payload),
+        Some((
+            SampClientSdkHookAction::Continue,
+            vec![0xFF, 0xFF, 0xFF, 0xFF, 1, 0, 2, 0, 42, 0, 0, 0,],
+            96,
+        ))
+    );
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
 fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     use samp_protocol::{
         WireDescriptor,
@@ -1830,7 +1902,7 @@ fn register_handlers_collects_every_supported_handler_form() {
         rpc_id(SampClientSdkDirection::Outgoing, 2, |_| SampClientSdkHookAction::Continue),
         typed_packet(
             SampClientSdkDirection::Incoming,
-            packet::incoming::CONNECTION_ACCEPTED,
+            packet::incoming::PLAYER_SYNC,
             |_| RpcAction::Continue
         ),
         typed_rpc(

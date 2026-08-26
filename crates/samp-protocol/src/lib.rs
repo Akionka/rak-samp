@@ -7,6 +7,7 @@ mod bitstream;
 mod catalog;
 mod encoded_bits;
 mod error;
+pub mod packet;
 pub mod rpc;
 mod wire;
 

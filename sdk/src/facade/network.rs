@@ -325,8 +325,8 @@ impl Net {
         self,
         command: &[u8],
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_packet(
-            crate::events::packet::outgoing::SEND_RCON_COMMAND,
+        self.api.submit_protocol_packet(
+            samp_protocol::packet::common::SEND_RCON_COMMAND,
             command.to_vec(),
         )
     }
@@ -334,73 +334,73 @@ impl Net {
     /// Queues a complete local aim-sync packet.
     pub fn send_aim_sync(
         self,
-        sync: crate::events::packet::AimSync,
+        sync: samp_protocol::packet::common::AimSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_AIM_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_AIM_SYNC, sync)
     }
 
     /// Queues a complete local bullet-sync packet.
     pub fn send_bullet_sync(
         self,
-        sync: crate::events::packet::BulletSync,
+        sync: samp_protocol::packet::common::BulletSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_BULLET_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_BULLET_SYNC, sync)
     }
 
     /// Queues a complete local vehicle-sync packet.
     pub fn send_vehicle_sync(
         self,
-        sync: crate::events::packet::VehicleSync,
+        sync: samp_protocol::packet::common::VehicleSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_VEHICLE_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_VEHICLE_SYNC, sync)
     }
 
     /// Queues a complete local on-foot player-sync packet.
     pub fn send_player_sync(
         self,
-        sync: crate::events::packet::PlayerSync,
+        sync: samp_protocol::packet::common::PlayerSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_PLAYER_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, sync)
     }
 
     /// Queues a complete local spectator-sync packet.
     pub fn send_spectator_sync(
         self,
-        sync: crate::events::packet::SpectatorSync,
+        sync: samp_protocol::packet::common::SpectatorSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_SPECTATOR_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_SPECTATOR_SYNC, sync)
     }
 
     /// Queues a complete local trailer-sync packet.
     pub fn send_trailer_sync(
         self,
-        sync: crate::events::packet::TrailerSync,
+        sync: samp_protocol::packet::common::TrailerSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_TRAILER_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_TRAILER_SYNC, sync)
     }
 
     /// Queues a complete local passenger-sync packet.
     pub fn send_passenger_sync(
         self,
-        sync: crate::events::packet::PassengerSync,
+        sync: samp_protocol::packet::common::PassengerSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_PASSENGER_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_PASSENGER_SYNC, sync)
     }
 
     /// Queues a complete local unoccupied-vehicle sync packet.
     pub fn send_unoccupied_sync(
         self,
-        sync: crate::events::packet::UnoccupiedSync,
+        sync: samp_protocol::packet::common::UnoccupiedSync,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.api
-            .submit_typed_packet(crate::events::packet::outgoing::SEND_UNOCCUPIED_SYNC, sync)
+            .submit_protocol_packet(samp_protocol::packet::common::SEND_UNOCCUPIED_SYNC, sync)
     }
 
     pub fn send_packet(
@@ -615,6 +615,21 @@ impl Net {
         F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_protocol_rpc(direction, descriptor, handler)
+    }
+
+    /// Registers a Packet callback that decodes one Protocol-owned descriptor.
+    pub fn on_protocol_packet<D, F>(
+        self,
+        direction: SampClientSdkDirection,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::WireDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.api.on_protocol_packet(direction, descriptor, handler)
     }
 }
 
