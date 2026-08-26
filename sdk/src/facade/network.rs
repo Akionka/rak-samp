@@ -576,60 +576,108 @@ impl Net {
         self.api.on_rpc_id(direction, id, handler)
     }
 
-    pub fn on_typed_packet<T, F>(
+    pub fn on_incoming_typed_packet<T, F>(
         self,
-        direction: SampClientSdkDirection,
-        packet: crate::events::Packet<T>,
+        packet: crate::events::IncomingPacket<T>,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
         F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
     {
-        self.api.on_typed_packet(direction, packet, handler)
+        self.api.on_incoming_typed_packet(packet, handler)
     }
 
-    pub fn on_typed_rpc<T, F>(
+    pub fn on_outgoing_typed_packet<T, F>(
         self,
-        direction: SampClientSdkDirection,
-        rpc: crate::events::Rpc<T>,
+        packet: crate::events::OutgoingPacket<T>,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
         F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
     {
-        self.api.on_typed_rpc(direction, rpc, handler)
+        self.api.on_outgoing_typed_packet(packet, handler)
     }
 
-    /// Registers an RPC callback that decodes one Protocol-owned descriptor.
-    pub fn on_protocol_rpc<D, F>(
+    pub fn on_incoming_typed_rpc<T, F>(
         self,
-        direction: SampClientSdkDirection,
+        rpc: crate::events::IncomingRpc<T>,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        T: 'static,
+        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.api.on_incoming_typed_rpc(rpc, handler)
+    }
+
+    pub fn on_outgoing_typed_rpc<T, F>(
+        self,
+        rpc: crate::events::OutgoingRpc<T>,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        T: 'static,
+        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.api.on_outgoing_typed_rpc(rpc, handler)
+    }
+
+    /// Registers an incoming RPC callback that decodes one Protocol-owned descriptor.
+    pub fn on_incoming_protocol_rpc<D, F>(
+        self,
         descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor + 'static,
+        D: samp_protocol::IncomingRpcDescriptor + 'static,
         D::Value: 'static,
         F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
     {
-        self.api.on_protocol_rpc(direction, descriptor, handler)
+        self.api.on_incoming_protocol_rpc(descriptor, handler)
     }
 
-    /// Registers a Packet callback that decodes one Protocol-owned descriptor.
-    pub fn on_protocol_packet<D, F>(
+    /// Registers an outgoing RPC callback that decodes one Protocol-owned descriptor.
+    pub fn on_outgoing_protocol_rpc<D, F>(
         self,
-        direction: SampClientSdkDirection,
         descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor + 'static,
+        D: samp_protocol::OutgoingRpcDescriptor + 'static,
         D::Value: 'static,
         F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
     {
-        self.api.on_protocol_packet(direction, descriptor, handler)
+        self.api.on_outgoing_protocol_rpc(descriptor, handler)
+    }
+
+    /// Registers an incoming Packet callback that decodes one Protocol-owned descriptor.
+    pub fn on_incoming_protocol_packet<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::IncomingPacketDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.api.on_incoming_protocol_packet(descriptor, handler)
+    }
+
+    /// Registers an outgoing Packet callback that decodes one Protocol-owned descriptor.
+    pub fn on_outgoing_protocol_packet<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::OutgoingPacketDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.api.on_outgoing_protocol_packet(descriptor, handler)
     }
 }
 

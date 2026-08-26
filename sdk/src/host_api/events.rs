@@ -156,90 +156,167 @@ impl HostApi {
         })
     }
 
-    /// Registers a packet callback that decodes one typed packet descriptor.
+    /// Registers an incoming packet callback that decodes one typed descriptor.
     ///
     /// Nonmatching packet IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_packet`] when decode failures need plugin-specific reporting.
-    pub fn on_typed_packet<T, F>(
+    pub fn on_incoming_typed_packet<T, F>(
         self,
-        direction: SampClientSdkDirection,
-        packet: events::Packet<T>,
+        packet: events::IncomingPacket<T>,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
         F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
     {
-        self.on_packet_id(direction, packet.id(), move |event| {
-            packet
-                .handle(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
-        })
+        self.on_packet_id(
+            SampClientSdkDirection::Incoming,
+            packet.id(),
+            move |event| {
+                packet
+                    .handle(event, &handler)
+                    .unwrap_or(SampClientSdkHookAction::Continue)
+            },
+        )
     }
 
-    /// Registers an RPC callback that decodes one typed RPC descriptor.
+    /// Registers an outgoing packet callback that decodes one typed descriptor.
+    ///
+    /// Nonmatching packet IDs and decode errors continue without calling `handler`. Use
+    /// [`Self::on_packet`] when decode failures need plugin-specific reporting.
+    pub fn on_outgoing_typed_packet<T, F>(
+        self,
+        packet: events::OutgoingPacket<T>,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        T: 'static,
+        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.on_packet_id(
+            SampClientSdkDirection::Outgoing,
+            packet.id(),
+            move |event| {
+                packet
+                    .handle(event, &handler)
+                    .unwrap_or(SampClientSdkHookAction::Continue)
+            },
+        )
+    }
+
+    /// Registers an incoming RPC callback that decodes one typed descriptor.
     ///
     /// Nonmatching RPC IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_rpc`] when decode failures need plugin-specific reporting.
-    pub fn on_typed_rpc<T, F>(
+    pub fn on_incoming_typed_rpc<T, F>(
         self,
-        direction: SampClientSdkDirection,
-        rpc: events::Rpc<T>,
+        rpc: events::IncomingRpc<T>,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
         F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
     {
-        self.on_rpc_id(direction, rpc.id(), move |event| {
+        self.on_rpc_id(SampClientSdkDirection::Incoming, rpc.id(), move |event| {
             rpc.handle(event, &handler)
                 .unwrap_or(SampClientSdkHookAction::Continue)
         })
     }
 
-    /// Registers an RPC callback that decodes one Protocol-owned descriptor.
+    /// Registers an outgoing RPC callback that decodes one typed descriptor.
+    ///
+    /// Nonmatching RPC IDs and decode errors continue without calling `handler`. Use
+    /// [`Self::on_rpc`] when decode failures need plugin-specific reporting.
+    pub fn on_outgoing_typed_rpc<T, F>(
+        self,
+        rpc: events::OutgoingRpc<T>,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        T: 'static,
+        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+    {
+        self.on_rpc_id(SampClientSdkDirection::Outgoing, rpc.id(), move |event| {
+            rpc.handle(event, &handler)
+                .unwrap_or(SampClientSdkHookAction::Continue)
+        })
+    }
+
+    /// Registers an incoming RPC callback that decodes one Protocol-owned descriptor.
     ///
     /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
     /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_protocol_rpc<D, F>(
+    pub fn on_incoming_protocol_rpc<D, F>(
         self,
-        direction: SampClientSdkDirection,
         _descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor + 'static,
+        D: samp_protocol::IncomingRpcDescriptor + 'static,
         D::Value: 'static,
         F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
     {
-        if D::KIND != samp_protocol::WireKind::Rpc {
-            return Err(SampClientSdkResult::InvalidArgument);
-        }
-        self.on_rpc_id(direction, D::ID, move |event| {
+        self.on_rpc_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)
                 .unwrap_or(SampClientSdkHookAction::Continue)
         })
     }
 
-    /// Registers a Packet callback that decodes one Protocol-owned descriptor.
+    /// Registers an outgoing RPC callback that decodes one Protocol-owned descriptor.
     ///
     /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
     /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_protocol_packet<D, F>(
+    pub fn on_outgoing_protocol_rpc<D, F>(
         self,
-        direction: SampClientSdkDirection,
         _descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor + 'static,
+        D: samp_protocol::OutgoingRpcDescriptor + 'static,
         D::Value: 'static,
         F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
     {
-        if D::KIND != samp_protocol::WireKind::Packet {
-            return Err(SampClientSdkResult::InvalidArgument);
-        }
-        self.on_packet_id(direction, D::ID, move |event| {
+        self.on_rpc_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
+            events::handle_protocol::<D>(event, &handler)
+                .unwrap_or(SampClientSdkHookAction::Continue)
+        })
+    }
+
+    /// Registers an incoming Packet callback that decodes one Protocol-owned descriptor.
+    ///
+    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
+    /// retain their host status, while malformed payloads remain Protocol decode failures.
+    pub fn on_incoming_protocol_packet<D, F>(
+        self,
+        _descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::IncomingPacketDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.on_packet_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
+            events::handle_protocol::<D>(event, &handler)
+                .unwrap_or(SampClientSdkHookAction::Continue)
+        })
+    }
+
+    /// Registers an outgoing Packet callback that decodes one Protocol-owned descriptor.
+    ///
+    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
+    /// retain their host status, while malformed payloads remain Protocol decode failures.
+    pub fn on_outgoing_protocol_packet<D, F>(
+        self,
+        _descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, SampClientSdkResult>
+    where
+        D: samp_protocol::OutgoingPacketDescriptor + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+    {
+        self.on_packet_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)
                 .unwrap_or(SampClientSdkHookAction::Continue)
         })

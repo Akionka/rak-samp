@@ -4,8 +4,8 @@
 compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Windows x86 targets");
 
 use samp_client_sdk::{
-    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkDirection,
-    SampClientSdkResult, SubscriptionSet, events::RpcAction,
+    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkResult, SubscriptionSet,
+    events::RpcAction,
 };
 use samp_protocol::rpc::outgoing::chat::SEND_COMMAND;
 use std::{
@@ -121,18 +121,14 @@ fn initialize() {
         return;
     }
     let net = samp.net();
-    let subscriptions = match net.on_protocol_rpc(
-        SampClientSdkDirection::Outgoing,
-        SEND_COMMAND,
-        move |command| {
-            if is_samp_client_sdk_command(&command) {
-                run_example(samp);
-                RpcAction::Block
-            } else {
-                RpcAction::Continue
-            }
-        },
-    ) {
+    let subscriptions = match net.on_outgoing_protocol_rpc(SEND_COMMAND, move |command| {
+        if is_samp_client_sdk_command(&command) {
+            run_example(samp);
+            RpcAction::Block
+        } else {
+            RpcAction::Continue
+        }
+    }) {
         Ok(subscription) => {
             let mut subscriptions = SubscriptionSet::new();
             subscriptions.push(subscription);

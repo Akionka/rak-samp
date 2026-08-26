@@ -116,6 +116,57 @@ pub trait WireDescriptor {
     }
 }
 
+mod sealed {
+    pub trait IncomingPacketDescriptor {}
+    pub trait OutgoingPacketDescriptor {}
+    pub trait IncomingRpcDescriptor {}
+    pub trait OutgoingRpcDescriptor {}
+}
+
+/// Marks a descriptor that may decode an incoming RakNet Packet callback.
+///
+/// ```compile_fail
+/// use samp_protocol::{IncomingPacketDescriptor, packet::common::SEND_AIM_SYNC};
+///
+/// fn register<D: IncomingPacketDescriptor>(_: D) {}
+///
+/// register(SEND_AIM_SYNC);
+/// ```
+pub trait IncomingPacketDescriptor: WireDescriptor + sealed::IncomingPacketDescriptor {}
+
+/// Marks a descriptor that may decode an outgoing RakNet Packet callback or encode a send.
+///
+/// ```compile_fail
+/// use samp_protocol::{OutgoingPacketDescriptor, packet::common::AUTHENTICATION_REQUEST};
+///
+/// fn register<D: OutgoingPacketDescriptor>(_: D) {}
+///
+/// register(AUTHENTICATION_REQUEST);
+/// ```
+pub trait OutgoingPacketDescriptor: WireDescriptor + sealed::OutgoingPacketDescriptor {}
+
+/// Marks a descriptor that may decode an incoming SA-MP RPC callback.
+///
+/// ```compile_fail
+/// use samp_protocol::{IncomingRpcDescriptor, rpc::outgoing::chat::SEND_CHAT};
+///
+/// fn register<D: IncomingRpcDescriptor>(_: D) {}
+///
+/// register(SEND_CHAT);
+/// ```
+pub trait IncomingRpcDescriptor: WireDescriptor + sealed::IncomingRpcDescriptor {}
+
+/// Marks a descriptor that may decode an outgoing SA-MP RPC callback or encode a send.
+///
+/// ```compile_fail
+/// use samp_protocol::{OutgoingRpcDescriptor, rpc::incoming::SERVER_MESSAGE};
+///
+/// fn register<D: OutgoingRpcDescriptor>(_: D) {}
+///
+/// register(SERVER_MESSAGE);
+/// ```
+pub trait OutgoingRpcDescriptor: WireDescriptor + sealed::OutgoingRpcDescriptor {}
+
 /// A concrete zero-sized typed RakNet Packet descriptor.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Packet<const ID: u8, C>(PhantomData<C>);
@@ -137,6 +188,56 @@ impl<const ID: u8, C: WireCodec> WireDescriptor for Packet<ID, C> {
     const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
 }
 
+/// A concrete zero-sized typed incoming RakNet Packet descriptor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct IncomingPacket<const ID: u8, C>(PhantomData<C>);
+
+impl<const ID: u8, C> IncomingPacket<ID, C> {
+    /// Creates this zero-sized descriptor.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<const ID: u8, C: WireCodec> WireDescriptor for IncomingPacket<ID, C> {
+    type Value = C::Value;
+    type Codec = C;
+
+    const ID: u8 = ID;
+    const KIND: WireKind = WireKind::Packet;
+    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+}
+
+impl<const ID: u8, C: WireCodec> sealed::IncomingPacketDescriptor for IncomingPacket<ID, C> {}
+
+impl<const ID: u8, C: WireCodec> IncomingPacketDescriptor for IncomingPacket<ID, C> {}
+
+/// A concrete zero-sized typed outgoing RakNet Packet descriptor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct OutgoingPacket<const ID: u8, C>(PhantomData<C>);
+
+impl<const ID: u8, C> OutgoingPacket<ID, C> {
+    /// Creates this zero-sized descriptor.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<const ID: u8, C: WireCodec> WireDescriptor for OutgoingPacket<ID, C> {
+    type Value = C::Value;
+    type Codec = C;
+
+    const ID: u8 = ID;
+    const KIND: WireKind = WireKind::Packet;
+    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+}
+
+impl<const ID: u8, C: WireCodec> sealed::OutgoingPacketDescriptor for OutgoingPacket<ID, C> {}
+
+impl<const ID: u8, C: WireCodec> OutgoingPacketDescriptor for OutgoingPacket<ID, C> {}
+
 /// A concrete zero-sized typed SA-MP RPC descriptor.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct Rpc<const ID: u8, C>(PhantomData<C>);
@@ -157,6 +258,56 @@ impl<const ID: u8, C: WireCodec> WireDescriptor for Rpc<ID, C> {
     const KIND: WireKind = WireKind::Rpc;
     const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
 }
+
+/// A concrete zero-sized typed incoming SA-MP RPC descriptor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct IncomingRpc<const ID: u8, C>(PhantomData<C>);
+
+impl<const ID: u8, C> IncomingRpc<ID, C> {
+    /// Creates this zero-sized descriptor.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<const ID: u8, C: WireCodec> WireDescriptor for IncomingRpc<ID, C> {
+    type Value = C::Value;
+    type Codec = C;
+
+    const ID: u8 = ID;
+    const KIND: WireKind = WireKind::Rpc;
+    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+}
+
+impl<const ID: u8, C: WireCodec> sealed::IncomingRpcDescriptor for IncomingRpc<ID, C> {}
+
+impl<const ID: u8, C: WireCodec> IncomingRpcDescriptor for IncomingRpc<ID, C> {}
+
+/// A concrete zero-sized typed outgoing SA-MP RPC descriptor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct OutgoingRpc<const ID: u8, C>(PhantomData<C>);
+
+impl<const ID: u8, C> OutgoingRpc<ID, C> {
+    /// Creates this zero-sized descriptor.
+    #[must_use]
+    pub const fn new() -> Self {
+        Self(PhantomData)
+    }
+}
+
+impl<const ID: u8, C: WireCodec> WireDescriptor for OutgoingRpc<ID, C> {
+    type Value = C::Value;
+    type Codec = C;
+
+    const ID: u8 = ID;
+    const KIND: WireKind = WireKind::Rpc;
+    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+}
+
+impl<const ID: u8, C: WireCodec> sealed::OutgoingRpcDescriptor for OutgoingRpc<ID, C> {}
+
+impl<const ID: u8, C: WireCodec> OutgoingRpcDescriptor for OutgoingRpc<ID, C> {}
 
 fn encode_bits_error(error: EncodedBitsError) -> EncodeError<BitStreamError> {
     match error {

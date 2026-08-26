@@ -3,7 +3,7 @@ use super::core::{PayloadWriter, handle};
 ///
 /// Common byte-aligned Packet layouts live in `samp-protocol`. This module retains the R1 remote
 /// player, remote vehicle, and marker-sync layouts, whose exact-bit encoding is deferred.
-use super::{EncodedPayload, Event, EventError, Packet, RpcAction, Vector3};
+use super::{EncodedPayload, Event, EventError, IncomingPacket, RpcAction, Vector3};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction};
 
 /// R1 marker packets cannot contain more players than the protocol player-slot limit.

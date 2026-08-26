@@ -581,10 +581,9 @@ fn initialize() {
     STATUS.fetch_or(STATUS_RUNTIME_IDENTITY, Ordering::AcqRel);
     publish_status();
 
-    let reply_subscription = match samp.net().on_protocol_rpc(
-        SampClientSdkDirection::Incoming,
-        SERVER_MESSAGE,
-        |message| {
+    let reply_subscription = match samp
+        .net()
+        .on_incoming_protocol_rpc(SERVER_MESSAGE, |message| {
             if message.text == INCOMING_MARKER {
                 STATUS.fetch_or(STATUS_REPLY_OBSERVED, Ordering::AcqRel);
                 INCOMING_REPLY_COUNT.fetch_add(1, Ordering::AcqRel);
@@ -596,8 +595,7 @@ fn initialize() {
             // The visible normal-chat reply is the required human proof that
             // SA-MP's original incoming-RPC handler ran after this callback.
             RpcAction::Continue
-        },
-    ) {
+        }) {
         Ok(subscription) => subscription,
         Err(error) => {
             record_failure(error);

@@ -3,7 +3,7 @@
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp_client_sdk_sample_plugin supports only 32-bit Windows x86 targets");
 
-use samp_client_sdk::{Samp, SampClientSdkDirection, Subscription, events::RpcAction};
+use samp_client_sdk::{Samp, Subscription, events::RpcAction};
 use samp_protocol::rpc::incoming::SERVER_MESSAGE;
 use std::{
     ffi::c_void,
@@ -111,14 +111,12 @@ fn initialize() {
         return;
     }
 
-    let subscription = samp.net().on_protocol_rpc(
-        SampClientSdkDirection::Incoming,
-        SERVER_MESSAGE,
-        |_message| {
+    let subscription = samp
+        .net()
+        .on_incoming_protocol_rpc(SERVER_MESSAGE, |_message| {
             SERVER_MESSAGES.fetch_add(1, Ordering::Relaxed);
             RpcAction::Continue
-        },
-    );
+        });
     if let Ok(subscription) = subscription {
         state.subscription = Some(subscription);
     }

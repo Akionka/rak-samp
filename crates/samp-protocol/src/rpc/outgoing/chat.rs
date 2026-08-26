@@ -1,15 +1,15 @@
 //! Outgoing chat and slash-command RPC codecs.
 
-use crate::{BitRead, BitWrite, DecodeError, EncodeError, Rpc, TrailingPolicy, WireCodec};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, OutgoingRpc, TrailingPolicy, WireCodec};
 
 /// The `onSendChat` RPC ID.
-pub type SendChat = Rpc<101, String8>;
+pub type SendChat = OutgoingRpc<101, String8>;
 /// The `onSendChat` descriptor.
-pub const SEND_CHAT: SendChat = Rpc::new();
+pub const SEND_CHAT: SendChat = OutgoingRpc::new();
 /// The `onSendCommand` RPC ID.
-pub type SendCommand = Rpc<50, String32<4096>>;
+pub type SendCommand = OutgoingRpc<50, String32<4096>>;
 /// The `onSendCommand` descriptor.
-pub const SEND_COMMAND: SendCommand = Rpc::new();
+pub const SEND_COMMAND: SendCommand = OutgoingRpc::new();
 
 /// A byte string with an unsigned 8-bit byte-length prefix.
 pub struct String8;

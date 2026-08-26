@@ -3,84 +3,91 @@ use crate::events::core::PayloadWriter;
 use crate::{
     HostApi,
     events::{
-        EncodedPayload, Event, EventError, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES, Rpc,
+        EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES,
+        MAX_STRING32_BYTES,
     },
 };
 
 /// The R1 `onInitGame` descriptor.
-pub const INIT_GAME: Rpc<InitGame> = Rpc::new_bits(139, decode_init_game, encode_init_game);
+pub const INIT_GAME: IncomingRpc<InitGame> =
+    IncomingRpc::new_bits(139, decode_init_game, encode_init_game);
 /// The R1 `onRequestClassResponse` descriptor.
-pub const REQUEST_CLASS_RESPONSE: Rpc<RequestClassResponse> = Rpc::new_bits(
+pub const REQUEST_CLASS_RESPONSE: IncomingRpc<RequestClassResponse> = IncomingRpc::new_bits(
     128,
     decode_request_class_response,
     encode_request_class_response,
 );
 /// The R1 `onPlayerStreamIn` descriptor.
-pub const PLAYER_STREAM_IN: Rpc<PlayerStreamIn> =
-    Rpc::new_bits(32, decode_player_stream_in, encode_player_stream_in);
+pub const PLAYER_STREAM_IN: IncomingRpc<PlayerStreamIn> =
+    IncomingRpc::new_bits(32, decode_player_stream_in, encode_player_stream_in);
 /// The R1 `onCreate3DText` descriptor.
-pub const CREATE_3D_TEXT: Rpc<TextLabel3D> =
-    Rpc::new_bits(36, decode_text_label_3d, encode_text_label_3d);
+pub const CREATE_3D_TEXT: IncomingRpc<TextLabel3D> =
+    IncomingRpc::new_bits(36, decode_text_label_3d, encode_text_label_3d);
 /// The R1 `onCreateObject` descriptor.
-pub const CREATE_OBJECT: Rpc<Object> = Rpc::new_bits(44, decode_object, encode_object);
+pub const CREATE_OBJECT: IncomingRpc<Object> =
+    IncomingRpc::new_bits(44, decode_object, encode_object);
 /// The R1 `onSetSpawnInfo` descriptor.
-pub const SET_SPAWN_INFO: Rpc<SpawnInfo> = Rpc::new_bits(68, decode_spawn_info, encode_spawn_info);
+pub const SET_SPAWN_INFO: IncomingRpc<SpawnInfo> =
+    IncomingRpc::new_bits(68, decode_spawn_info, encode_spawn_info);
 /// The R1 `onInitMenu` descriptor.
-pub const INIT_MENU: Rpc<InitMenu> = Rpc::new_bits(76, decode_init_menu, encode_init_menu);
+pub const INIT_MENU: IncomingRpc<InitMenu> =
+    IncomingRpc::new_bits(76, decode_init_menu, encode_init_menu);
 /// The R1 `onInterpolateCamera` descriptor.
-pub const INTERPOLATE_CAMERA: Rpc<InterpolateCamera> =
-    Rpc::new_bits(82, decode_interpolate_camera, encode_interpolate_camera);
+pub const INTERPOLATE_CAMERA: IncomingRpc<InterpolateCamera> =
+    IncomingRpc::new_bits(82, decode_interpolate_camera, encode_interpolate_camera);
 /// The R1 `onToggleSelectTextDraw` descriptor.
-pub const TOGGLE_SELECT_TEXT_DRAW: Rpc<ToggleSelectTextDraw> = Rpc::new_bits(
+pub const TOGGLE_SELECT_TEXT_DRAW: IncomingRpc<ToggleSelectTextDraw> = IncomingRpc::new_bits(
     83,
     decode_toggle_select_text_draw,
     encode_toggle_select_text_draw,
 );
 /// The R1 object material descriptor. [`ObjectMaterial`] preserves either material variant.
-pub const SET_OBJECT_MATERIAL: Rpc<ObjectMaterialUpdate> = Rpc::new_bits(
+pub const SET_OBJECT_MATERIAL: IncomingRpc<ObjectMaterialUpdate> = IncomingRpc::new_bits(
     84,
     decode_object_material_update,
     encode_object_material_update,
 );
 /// The R1 `onApplyPlayerAnimation` descriptor.
-pub const APPLY_PLAYER_ANIMATION: Rpc<PlayerAnimation> =
-    Rpc::new_bits(86, decode_player_animation, encode_player_animation);
+pub const APPLY_PLAYER_ANIMATION: IncomingRpc<PlayerAnimation> =
+    IncomingRpc::new_bits(86, decode_player_animation, encode_player_animation);
 /// The R1 `onEnableStuntBonus` descriptor.
-pub const ENABLE_STUNT_BONUS: Rpc<bool> = Rpc::new_bits(104, decode_bit_bool, encode_bit_bool);
+pub const ENABLE_STUNT_BONUS: IncomingRpc<bool> =
+    IncomingRpc::new_bits(104, decode_bit_bool, encode_bit_bool);
 /// The R1 `onPlayCrimeReport` descriptor.
-pub const PLAY_CRIME_REPORT: Rpc<CrimeReport> =
-    Rpc::new_bits(112, decode_crime_report, encode_crime_report);
+pub const PLAY_CRIME_REPORT: IncomingRpc<CrimeReport> =
+    IncomingRpc::new_bits(112, decode_crime_report, encode_crime_report);
 /// The R1 `onSetPlayerAttachedObject` descriptor.
-pub const SET_PLAYER_ATTACHED_OBJECT: Rpc<PlayerAttachedObject> = Rpc::new_bits(
+pub const SET_PLAYER_ATTACHED_OBJECT: IncomingRpc<PlayerAttachedObject> = IncomingRpc::new_bits(
     113,
     decode_player_attached_object,
     encode_player_attached_object,
 );
 /// The R1 `onEnterEditObject` descriptor.
-pub const ENTER_EDIT_OBJECT: Rpc<EnterEditObject> =
-    Rpc::new_bits(117, decode_enter_edit_object, encode_enter_edit_object);
+pub const ENTER_EDIT_OBJECT: IncomingRpc<EnterEditObject> =
+    IncomingRpc::new_bits(117, decode_enter_edit_object, encode_enter_edit_object);
 /// The R1 `onTogglePlayerSpectating` descriptor.
-pub const TOGGLE_PLAYER_SPECTATING: Rpc<bool> = Rpc::new_bits(124, decode_bool32, encode_bool32);
+pub const TOGGLE_PLAYER_SPECTATING: IncomingRpc<bool> =
+    IncomingRpc::new_bits(124, decode_bool32, encode_bool32);
 /// The R1 `onShowTextDraw` descriptor.
-pub const SHOW_TEXT_DRAW: Rpc<ShowTextDraw> =
-    Rpc::new_bits(134, decode_show_text_draw, encode_show_text_draw);
+pub const SHOW_TEXT_DRAW: IncomingRpc<ShowTextDraw> =
+    IncomingRpc::new_bits(134, decode_show_text_draw, encode_show_text_draw);
 /// The R1 `onTextDrawHide` descriptor.
-pub const TEXT_DRAW_HIDE: Rpc<u16> = Rpc::new(135, decode_u16, encode_u16);
+pub const TEXT_DRAW_HIDE: IncomingRpc<u16> = IncomingRpc::new(135, decode_u16, encode_u16);
 /// The R1 `onInitGame` score/ping update descriptor.
-pub const UPDATE_SCORES_AND_PINGS: Rpc<ScoresAndPings> =
-    Rpc::new_bits(155, decode_scores_and_pings, encode_scores_and_pings);
+pub const UPDATE_SCORES_AND_PINGS: IncomingRpc<ScoresAndPings> =
+    IncomingRpc::new_bits(155, decode_scores_and_pings, encode_scores_and_pings);
 /// The R1 `onVehicleStreamIn` descriptor.
-pub const VEHICLE_STREAM_IN: Rpc<VehicleStreamIn> =
-    Rpc::new_bits(164, decode_vehicle_stream_in, encode_vehicle_stream_in);
+pub const VEHICLE_STREAM_IN: IncomingRpc<VehicleStreamIn> =
+    IncomingRpc::new_bits(164, decode_vehicle_stream_in, encode_vehicle_stream_in);
 /// The R1 `onDisableVehicleCollisions` descriptor.
-pub const DISABLE_VEHICLE_COLLISIONS: Rpc<bool> =
-    Rpc::new_bits(167, decode_bit_bool, encode_bit_bool);
+pub const DISABLE_VEHICLE_COLLISIONS: IncomingRpc<bool> =
+    IncomingRpc::new_bits(167, decode_bit_bool, encode_bit_bool);
 /// The R1 `onToggleCameraTargetNotifying` descriptor.
-pub const TOGGLE_CAMERA_TARGET_NOTIFYING: Rpc<bool> =
-    Rpc::new_bits(170, decode_bit_bool, encode_bit_bool);
+pub const TOGGLE_CAMERA_TARGET_NOTIFYING: IncomingRpc<bool> =
+    IncomingRpc::new_bits(170, decode_bit_bool, encode_bit_bool);
 /// The R1 `onApplyActorAnimation` descriptor.
-pub const APPLY_ACTOR_ANIMATION: Rpc<ActorAnimation> =
-    Rpc::new_bits(173, decode_actor_animation, encode_actor_animation);
+pub const APPLY_ACTOR_ANIMATION: IncomingRpc<ActorAnimation> =
+    IncomingRpc::new_bits(173, decode_actor_animation, encode_actor_animation);
 
 fn read_bit_bool(event: &mut Event<'_>) -> Result<bool, EventError> {
     Ok(event.read_bits(1)?[0] & 0x80 != 0)

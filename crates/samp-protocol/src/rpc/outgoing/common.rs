@@ -1,7 +1,7 @@
 //! Common byte-aligned outgoing SA-MP RPC codecs.
 
 use crate::rpc::incoming::Vector3;
-use crate::{BitRead, BitWrite, DecodeError, EncodeError, Rpc, TrailingPolicy, WireCodec};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, OutgoingRpc, TrailingPolicy, WireCodec};
 
 /// MoonLoader's `onSendDeathNotification` payload (RPC 53).
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -141,8 +141,8 @@ pub struct VehicleTuningCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = Rpc<$id, $codec>;
-        pub const $constant: $name = Rpc::new();
+        pub type $name = OutgoingRpc<$id, $codec>;
+        pub const $constant: $name = OutgoingRpc::new();
     };
 }
 

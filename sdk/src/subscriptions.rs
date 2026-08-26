@@ -360,9 +360,10 @@ impl std::error::Error for SubscriptionSetShutdownError {}
 
 /// Registers a batch of packet and RPC handlers into one [`SubscriptionSet`].
 ///
-/// The macro accepts `packet`, `rpc`, `packet_id`, `rpc_id`, `typed_packet`, and `typed_rpc`
-/// entries. If one registration fails, the error retains every earlier successful subscription so
-/// the caller can synchronize them before unloading the plugin.
+/// The macro accepts raw `packet`, `rpc`, `packet_id`, and `rpc_id` entries plus directional
+/// `incoming_typed_packet`, `outgoing_typed_packet`, `incoming_typed_rpc`, and
+/// `outgoing_typed_rpc` entries. If one registration fails, the error retains every earlier
+/// successful subscription so the caller can synchronize them before unloading the plugin.
 #[macro_export]
 macro_rules! register_handlers {
     ($api:expr; $($kind:ident($($argument:expr),*)),+ $(,)?) => {{
@@ -389,10 +390,16 @@ macro_rules! register_handlers {
     (@add $subscriptions:ident, $api:ident, rpc_id, $direction:expr, $id:expr, $handler:expr) => {
         $subscriptions.try_add($api.on_rpc_id($direction, $id, $handler))
     };
-    (@add $subscriptions:ident, $api:ident, typed_packet, $direction:expr, $descriptor:expr, $handler:expr) => {
-        $subscriptions.try_add($api.on_typed_packet($direction, $descriptor, $handler))
+    (@add $subscriptions:ident, $api:ident, incoming_typed_packet, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_incoming_typed_packet($descriptor, $handler))
     };
-    (@add $subscriptions:ident, $api:ident, typed_rpc, $direction:expr, $descriptor:expr, $handler:expr) => {
-        $subscriptions.try_add($api.on_typed_rpc($direction, $descriptor, $handler))
+    (@add $subscriptions:ident, $api:ident, outgoing_typed_packet, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_outgoing_typed_packet($descriptor, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, incoming_typed_rpc, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_incoming_typed_rpc($descriptor, $handler))
+    };
+    (@add $subscriptions:ident, $api:ident, outgoing_typed_rpc, $descriptor:expr, $handler:expr) => {
+        $subscriptions.try_add($api.on_outgoing_typed_rpc($descriptor, $handler))
     };
 }

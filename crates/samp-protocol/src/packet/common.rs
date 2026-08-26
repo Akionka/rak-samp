@@ -7,7 +7,10 @@
 
 use core::marker::PhantomData;
 
-use crate::{BitRead, BitWrite, DecodeError, EncodeError, Packet, TrailingPolicy, WireCodec};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, IncomingPacket, OutgoingPacket, TrailingPolicy,
+    WireCodec,
+};
 
 pub use crate::rpc::incoming::{MAX_STRING32_BYTES, Vector3};
 
@@ -185,93 +188,177 @@ pub struct SpectatorSyncCodec;
 pub struct RemoteCodec<C>(PhantomData<C>);
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = Packet<$id, $codec>;
-        pub const $constant: $name = Packet::new();
+    ($direction:ident, $name:ident, $constant:ident, $id:literal, $codec:ty) => {
+        pub type $name = $direction<$id, $codec>;
+        pub const $constant: $name = $direction::new();
     };
 }
 
-descriptor!(SendRconCommand, SEND_RCON_COMMAND, 201, String32);
 descriptor!(
+    OutgoingPacket,
+    SendRconCommand,
+    SEND_RCON_COMMAND,
+    201,
+    String32
+);
+descriptor!(
+    OutgoingPacket,
     SendAuthenticationResponse,
     SEND_AUTHENTICATION_RESPONSE,
     12,
     String8
 );
-descriptor!(SendStatsUpdate, SEND_STATS_UPDATE, 205, StatsUpdateCodec);
 descriptor!(
+    OutgoingPacket,
+    SendStatsUpdate,
+    SEND_STATS_UPDATE,
+    205,
+    StatsUpdateCodec
+);
+descriptor!(
+    OutgoingPacket,
     SendWeaponsUpdate,
     SEND_WEAPONS_UPDATE,
     204,
     WeaponsUpdateCodec
 );
-descriptor!(SendPlayerSync, SEND_PLAYER_SYNC, 207, PlayerSyncCodec);
-descriptor!(SendVehicleSync, SEND_VEHICLE_SYNC, 200, VehicleSyncCodec);
 descriptor!(
+    OutgoingPacket,
+    SendPlayerSync,
+    SEND_PLAYER_SYNC,
+    207,
+    PlayerSyncCodec
+);
+descriptor!(
+    OutgoingPacket,
+    SendVehicleSync,
+    SEND_VEHICLE_SYNC,
+    200,
+    VehicleSyncCodec
+);
+descriptor!(
+    OutgoingPacket,
     SendPassengerSync,
     SEND_PASSENGER_SYNC,
     211,
     PassengerSyncCodec
 );
-descriptor!(SendAimSync, SEND_AIM_SYNC, 203, AimSyncCodec);
 descriptor!(
+    OutgoingPacket,
+    SendAimSync,
+    SEND_AIM_SYNC,
+    203,
+    AimSyncCodec
+);
+descriptor!(
+    OutgoingPacket,
     SendUnoccupiedSync,
     SEND_UNOCCUPIED_SYNC,
     209,
     UnoccupiedSyncCodec
 );
-descriptor!(SendTrailerSync, SEND_TRAILER_SYNC, 210, TrailerSyncCodec);
-descriptor!(SendBulletSync, SEND_BULLET_SYNC, 206, BulletSyncCodec);
 descriptor!(
+    OutgoingPacket,
+    SendTrailerSync,
+    SEND_TRAILER_SYNC,
+    210,
+    TrailerSyncCodec
+);
+descriptor!(
+    OutgoingPacket,
+    SendBulletSync,
+    SEND_BULLET_SYNC,
+    206,
+    BulletSyncCodec
+);
+descriptor!(
+    OutgoingPacket,
     SendSpectatorSync,
     SEND_SPECTATOR_SYNC,
     212,
     SpectatorSyncCodec
 );
 
-descriptor!(AuthenticationRequest, AUTHENTICATION_REQUEST, 12, String8);
 descriptor!(
+    IncomingPacket,
+    AuthenticationRequest,
+    AUTHENTICATION_REQUEST,
+    12,
+    String8
+);
+descriptor!(
+    IncomingPacket,
     ConnectionAcceptedPacket,
     CONNECTION_ACCEPTED,
     34,
     ConnectionAcceptedCodec
 );
-descriptor!(ConnectionLost, CONNECTION_LOST, 33, Empty);
-descriptor!(ConnectionBanned, CONNECTION_BANNED, 36, Empty);
+descriptor!(IncomingPacket, ConnectionLost, CONNECTION_LOST, 33, Empty);
 descriptor!(
+    IncomingPacket,
+    ConnectionBanned,
+    CONNECTION_BANNED,
+    36,
+    Empty
+);
+descriptor!(
+    IncomingPacket,
     ConnectionAttemptFailed,
     CONNECTION_ATTEMPT_FAILED,
     29,
     Empty
 );
-descriptor!(ConnectionNoFreeSlot, CONNECTION_NO_FREE_SLOT, 31, Empty);
 descriptor!(
+    IncomingPacket,
+    ConnectionNoFreeSlot,
+    CONNECTION_NO_FREE_SLOT,
+    31,
+    Empty
+);
+descriptor!(
+    IncomingPacket,
     ConnectionPasswordInvalid,
     CONNECTION_PASSWORD_INVALID,
     37,
     Empty
 );
-descriptor!(ConnectionClosed, CONNECTION_CLOSED, 32, Empty);
-descriptor!(RemoteAimSync, AIM_SYNC, 203, RemoteCodec<AimSyncCodec>);
 descriptor!(
+    IncomingPacket,
+    ConnectionClosed,
+    CONNECTION_CLOSED,
+    32,
+    Empty
+);
+descriptor!(
+    IncomingPacket,
+    RemoteAimSync,
+    AIM_SYNC,
+    203,
+    RemoteCodec<AimSyncCodec>
+);
+descriptor!(
+    IncomingPacket,
     RemoteBulletSync,
     BULLET_SYNC,
     206,
     RemoteCodec<BulletSyncCodec>
 );
 descriptor!(
+    IncomingPacket,
     RemoteUnoccupiedSync,
     UNOCCUPIED_SYNC,
     209,
     RemoteCodec<UnoccupiedSyncCodec>
 );
 descriptor!(
+    IncomingPacket,
     RemoteTrailerSync,
     TRAILER_SYNC,
     210,
     RemoteCodec<TrailerSyncCodec>
 );
 descriptor!(
+    IncomingPacket,
     RemotePassengerSync,
     PASSENGER_SYNC,
     211,

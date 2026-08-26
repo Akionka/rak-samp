@@ -482,14 +482,18 @@ impl HostApi {
         self.send_typed_rpc(events::rpc::outgoing::object::SEND_EDIT_OBJECT, edit)
     }
 
-    fn send_typed_rpc<T>(self, descriptor: events::Rpc<T>, value: T) -> SampClientSdkResult {
+    fn send_typed_rpc<T>(
+        self,
+        descriptor: events::OutgoingRpc<T>,
+        value: T,
+    ) -> SampClientSdkResult {
         self.submit_typed_rpc(descriptor, value)
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
     }
 
     fn send_protocol_rpc<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
     where
-        D: samp_protocol::WireDescriptor,
+        D: samp_protocol::OutgoingRpcDescriptor,
     {
         self.submit_protocol_rpc(descriptor, value)
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
@@ -497,7 +501,7 @@ impl HostApi {
 
     fn send_protocol_packet<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
     where
-        D: samp_protocol::WireDescriptor,
+        D: samp_protocol::OutgoingPacketDescriptor,
     {
         self.submit_protocol_packet(descriptor, value)
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
@@ -525,7 +529,7 @@ impl HostApi {
 
     pub(crate) fn submit_typed_rpc<T>(
         self,
-        descriptor: events::Rpc<T>,
+        descriptor: events::OutgoingRpc<T>,
         value: T,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         let Ok(payload) = descriptor.encode(self, value) else {
@@ -545,11 +549,8 @@ impl HostApi {
         value: D::Value,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor,
+        D: samp_protocol::OutgoingRpcDescriptor,
     {
-        if D::KIND != samp_protocol::WireKind::Rpc {
-            return Err(SampClientSdkResult::InvalidArgument);
-        }
         let Ok(payload) = D::encode_bits(&value) else {
             return Err(SampClientSdkResult::InvalidArgument);
         };
@@ -567,11 +568,8 @@ impl HostApi {
         value: D::Value,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult>
     where
-        D: samp_protocol::WireDescriptor,
+        D: samp_protocol::OutgoingPacketDescriptor,
     {
-        if D::KIND != samp_protocol::WireKind::Packet {
-            return Err(SampClientSdkResult::InvalidArgument);
-        }
         let Ok(payload) = D::encode_bits(&value) else {
             return Err(SampClientSdkResult::InvalidArgument);
         };

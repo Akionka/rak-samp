@@ -1,4 +1,4 @@
-use super::{EncodedPayload, Event, Rpc, RpcAction, core::PayloadWriter};
+use super::{EncodedPayload, Event, RpcAction, core::PayloadWriter};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkResult};
 use ::core::{mem, ptr};
 use std::sync::Mutex;
@@ -1991,10 +1991,12 @@ unsafe extern "system" fn test_submit_register_chat_command(
     unsafe { test_submit_command(receipt, 41) }
 }
 
-pub(crate) fn assert_replacement_round_trip<T>(descriptor: Rpc<T>, value: T)
+pub(crate) fn assert_replacement_round_trip<T, D>(descriptor: D, value: T)
 where
+    D: super::TypedDescriptor<T>,
     T: Clone + ::core::fmt::Debug + PartialEq,
 {
+    let descriptor = super::TypedDescriptor::into_rpc(descriptor);
     let api = test_api();
     let id = descriptor.id();
     let encoded = descriptor

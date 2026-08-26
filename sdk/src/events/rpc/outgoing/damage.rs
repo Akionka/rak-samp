@@ -1,12 +1,12 @@
-//! Exact-bit outgoing player and actor damage RPC codecs.
+//! Exact-bit outgoing player and actor damage OutgoingRpc codecs.
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
-    events::{EncodedPayload, Event, EventError, Rpc, RpcAction},
+    events::{EncodedPayload, Event, EventError, OutgoingRpc, RpcAction},
 };
 
-/// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
+/// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (OutgoingRpc 115).
 ///
 /// `take` is a one-bit RakNet boolean. `false` identifies give-damage traffic and `true`
 /// identifies take-damage traffic.
@@ -19,7 +19,7 @@ pub struct Damage {
     pub take: bool,
 }
 
-/// MoonLoader's `onSendGiveActorDamage` payload (RPC 177).
+/// MoonLoader's `onSendGiveActorDamage` payload (OutgoingRpc 177).
 ///
 /// `unused` is a one-bit RakNet boolean retained for wire compatibility.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -31,9 +31,10 @@ pub struct ActorDamage {
     pub body_part: i32,
 }
 
-pub const SEND_DAMAGE: Rpc<Damage> = Rpc::new_bits(115, decode_damage, encode_damage);
-pub const SEND_GIVE_ACTOR_DAMAGE: Rpc<ActorDamage> =
-    Rpc::new_bits(177, decode_actor_damage, encode_actor_damage);
+pub const SEND_DAMAGE: OutgoingRpc<Damage> =
+    OutgoingRpc::new_bits(115, decode_damage, encode_damage);
+pub const SEND_GIVE_ACTOR_DAMAGE: OutgoingRpc<ActorDamage> =
+    OutgoingRpc::new_bits(177, decode_actor_damage, encode_actor_damage);
 
 #[allow(dead_code)]
 pub(crate) unsafe fn on_send_give_actor_damage(

@@ -1,12 +1,12 @@
-//! Exact-bit outgoing object-editing RPC codec.
+//! Exact-bit outgoing object-editing OutgoingRpc codec.
 
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
-    events::{EncodedPayload, Event, EventError, Rpc, RpcAction, Vector3},
+    events::{EncodedPayload, Event, EventError, OutgoingRpc, RpcAction, Vector3},
 };
 
-/// MoonLoader's `onSendEditObject` payload (RPC 117).
+/// MoonLoader's `onSendEditObject` payload (OutgoingRpc 117).
 ///
 /// `player_object` is a one-bit RakNet boolean; replacements preserve that exact-bit layout.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -19,8 +19,8 @@ pub struct EditObject {
 }
 
 /// The `onSendEditObject` descriptor.
-pub const SEND_EDIT_OBJECT: Rpc<EditObject> =
-    Rpc::new_bits(117, decode_edit_object, encode_edit_object);
+pub const SEND_EDIT_OBJECT: OutgoingRpc<EditObject> =
+    OutgoingRpc::new_bits(117, decode_edit_object, encode_edit_object);
 
 #[allow(dead_code)]
 pub(crate) unsafe fn on_send_edit_object(

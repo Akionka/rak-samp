@@ -4,7 +4,7 @@
 //! `SERVER_MESSAGE` through `VEHICLE_STREAM_OUT`. `SHOW_DIALOG` remains in the
 //! SDK because it needs the later Native encoded-string extension boundary.
 
-use crate::{BitRead, BitWrite, DecodeError, EncodeError, Rpc, TrailingPolicy, WireCodec};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec};
 
 /// Maximum bytes accepted by a 32-bit length-prefixed SA-MP text field.
 pub const MAX_STRING32_BYTES: usize = 4096;
@@ -157,8 +157,8 @@ pub struct PutPlayerInVehicleCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = Rpc<$id, $codec>;
-        pub const $constant: $name = Rpc::new();
+        pub type $name = IncomingRpc<$id, $codec>;
+        pub const $constant: $name = IncomingRpc::new();
     };
 }
 

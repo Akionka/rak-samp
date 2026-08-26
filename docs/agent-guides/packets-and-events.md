@@ -8,6 +8,9 @@
 - Keep callback-local replacement synchronous and serialize it before the
   atomic ABI replacement call.
 - Typed helpers must reuse the single host subscription.
+- Give every typed Packet/RPC descriptor one direction. Use separate descriptor
+  types when one ID has different incoming and outgoing layouts. Keep raw-ID
+  subscriptions as the explicit runtime-direction escape hatch.
 - Keep text with uncertain encoding as bytes.
 - Bound length-prefixed allocations.
 - Never retain callback-local events.

@@ -541,10 +541,10 @@ impl<T> Clone for Rpc<T> {
     }
 }
 
-/// A typed packet descriptor with its RakNet packet ID and read/write layout.
+/// A direction-neutral typed packet descriptor.
 ///
-/// Packets and RPCs share the callback ABI and replacement behavior. This alias makes packet
-/// helpers explicit at their call sites without creating another hook or subscription mechanism.
+/// This alias exists for low-level helper code. Public registration and send APIs accept the
+/// directional descriptor types below so that a descriptor cannot be used in the wrong direction.
 pub type Packet<T> = Rpc<T>;
 
 impl<T> Rpc<T> {
@@ -620,6 +620,82 @@ impl<T> Rpc<T> {
     }
 }
 
+macro_rules! directional_descriptor {
+    ($name:ident) => {
+        #[doc = concat!("A typed ", stringify!($name), " descriptor.")]
+        pub struct $name<T>(Rpc<T>);
+
+        impl<T> Copy for $name<T> {}
+
+        impl<T> Clone for $name<T> {
+            fn clone(&self) -> Self {
+                *self
+            }
+        }
+
+        impl<T> $name<T> {
+            /// Creates a descriptor for one ID with a byte-aligned payload.
+            pub const fn new(
+                id: u8,
+                decode: fn(&mut Event<'_>) -> Result<T, EventError>,
+                encode: fn(T) -> Result<Vec<u8>, EventError>,
+            ) -> Self {
+                Self(Rpc::new(id, decode, encode))
+            }
+
+            /// Creates a descriptor with an exact-bit payload.
+            pub const fn new_bits(
+                id: u8,
+                decode: fn(&mut Event<'_>) -> Result<T, EventError>,
+                encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
+            ) -> Self {
+                Self(Rpc::new_bits(id, decode, encode))
+            }
+
+            /// Returns this descriptor's packet or RPC ID.
+            #[must_use]
+            pub const fn id(self) -> u8 {
+                self.0.id()
+            }
+
+            /// Serializes one complete payload without mutating a callback event.
+            pub fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
+                self.0.encode(api, value)
+            }
+
+            /// Handles this descriptor when `event` has the matching ID.
+            pub fn handle(
+                self,
+                event: &mut Event<'_>,
+                handler: impl FnOnce(T) -> RpcAction<T>,
+            ) -> Result<SampClientSdkHookAction, EventError> {
+                self.0.handle(event, handler)
+            }
+        }
+
+        impl<T> TypedDescriptor<T> for $name<T> {
+            fn into_rpc(self) -> Rpc<T> {
+                self.0
+            }
+        }
+    };
+}
+
+directional_descriptor!(IncomingPacket);
+directional_descriptor!(OutgoingPacket);
+directional_descriptor!(IncomingRpc);
+directional_descriptor!(OutgoingRpc);
+
+pub(crate) trait TypedDescriptor<T> {
+    fn into_rpc(self) -> Rpc<T>;
+}
+
+impl<T> TypedDescriptor<T> for Rpc<T> {
+    fn into_rpc(self) -> Rpc<T> {
+        self
+    }
+}
+
 /// Handles one Protocol Packet or RPC descriptor from a raw callback event.
 ///
 /// The callback payload stays borrowed by [`Event`] during decoding. Replacements are separately
@@ -661,14 +737,17 @@ where
 ///
 /// `raw` must be the event pointer supplied to the currently executing callback. On an error,
 /// return [`SampClientSdkHookAction::Continue`] so malformed traffic remains fail-open.
-pub(crate) unsafe fn handle<T>(
+pub(crate) unsafe fn handle<T, D>(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
-    rpc: Rpc<T>,
+    descriptor: D,
     handler: impl FnOnce(T) -> RpcAction<T>,
-) -> Result<SampClientSdkHookAction, EventError> {
+) -> Result<SampClientSdkHookAction, EventError>
+where
+    D: TypedDescriptor<T>,
+{
     let mut event = unsafe { Event::from_callback(api, raw) }?;
-    rpc.handle(&mut event, handler)
+    descriptor.into_rpc().handle(&mut event, handler)
 }
 
 #[cfg(test)]

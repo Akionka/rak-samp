@@ -6,7 +6,11 @@ use super::{
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
 
-fn encode_bytes<T>(descriptor: Rpc<T>, value: T) -> Vec<u8> {
+fn encode_bytes<T, D>(descriptor: D, value: T) -> Vec<u8>
+where
+    D: TypedDescriptor<T>,
+{
+    let descriptor = descriptor.into_rpc();
     let RpcEncoder::Bytes(encode) = descriptor.encode else {
         panic!("test descriptor must use a byte-aligned encoder");
     };

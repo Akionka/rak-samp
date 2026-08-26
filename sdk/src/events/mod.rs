@@ -8,10 +8,12 @@ mod core;
 pub mod packet;
 pub mod rpc;
 
+#[cfg(test)]
+pub(crate) use core::TypedDescriptor;
 pub(crate) use core::handle_protocol;
 pub use core::{
-    EncodedPayload, Event, EventError, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES, Packet, Rpc,
-    RpcAction, Vector2, Vector3,
+    EncodedPayload, Event, EventError, IncomingPacket, IncomingRpc, MAX_ENCODED_STRING_BYTES,
+    MAX_STRING32_BYTES, OutgoingPacket, OutgoingRpc, Packet, Rpc, RpcAction, Vector2, Vector3,
 };
 
 #[cfg(test)]

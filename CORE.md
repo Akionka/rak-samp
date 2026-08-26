@@ -6,10 +6,11 @@
   plugins; its public paths follow cohesive modules rather than compatibility
   aliases.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
-  Protocol bitstreams, exact-bit payload values, typed Wire descriptors with
-  explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
+  Protocol bitstreams, exact-bit payload values, directional typed Wire
+  descriptors with explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
   slash-command, profile-neutral byte-aligned RPC codecs, and common
-  byte-aligned Packet codecs. It also owns the first fixed incoming RPC batch
+  byte-aligned Packet codecs. Directional marker traits make an invalid typed
+  subscription or send fail to compile. It also owns the first fixed incoming RPC batch
   from server messages through vehicle stream-out.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.

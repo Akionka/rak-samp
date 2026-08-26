@@ -1581,15 +1581,11 @@ fn typed_callback_decodes_matching_descriptor_and_fails_open() {
     let observed = Arc::clone(&calls);
     let api = test_support::test_api();
     let subscription = api
-        .on_typed_rpc(
-            SampClientSdkDirection::Incoming,
-            incoming::ENABLE_STUNT_BONUS,
-            move |enabled| {
-                assert!(enabled);
-                observed.fetch_add(1, Ordering::AcqRel);
-                RpcAction::Block
-            },
-        )
+        .on_incoming_typed_rpc(incoming::ENABLE_STUNT_BONUS, move |enabled| {
+            assert!(enabled);
+            observed.fetch_add(1, Ordering::AcqRel);
+            RpcAction::Block
+        })
         .expect("test registration must succeed");
 
     assert_eq!(
@@ -1625,17 +1621,15 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
         .unwrap_or_else(|error| error.into_inner());
     test_support::reset_registration();
     let api = test_support::test_api();
-    let subscription = api
-        .on_protocol_rpc(
-            SampClientSdkDirection::Outgoing,
-            samp_protocol::rpc::outgoing::chat::SEND_CHAT,
-            |text| match text.as_slice() {
+    let subscription =
+        api.on_outgoing_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, |text| {
+            match text.as_slice() {
                 b"continue" => RpcAction::Continue,
                 b"block" => RpcAction::Block,
                 b"replace" => RpcAction::Replace(b"changed".to_vec()),
                 _ => unreachable!("test payload must select a callback action"),
-            },
-        )
+            }
+        })
         .expect("test registration must succeed");
 
     for (value, expected) in [
@@ -1685,10 +1679,8 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
     test_support::reset_registration();
     let api = test_support::test_api();
     let subscription = api
-        .on_protocol_rpc(
-            SampClientSdkDirection::Outgoing,
-            SEND_DIALOG_RESPONSE,
-            |response| match response.input.as_slice() {
+        .on_outgoing_protocol_rpc(SEND_DIALOG_RESPONSE, |response| {
+            match response.input.as_slice() {
                 b"continue" => RpcAction::Continue,
                 b"block" => RpcAction::Block,
                 b"replace" => RpcAction::Replace(DialogResponse {
@@ -1696,8 +1688,8 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
                     ..response
                 }),
                 _ => unreachable!("test payload must select a callback action"),
-            },
-        )
+            }
+        })
         .expect("test registration must succeed");
 
     for (input, expected) in [
@@ -1759,10 +1751,8 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
     test_support::reset_registration();
     let api = test_support::test_api();
     let subscription = api
-        .on_protocol_packet(
-            SampClientSdkDirection::Incoming,
-            CONNECTION_ACCEPTED,
-            |connection| match connection.challenge {
+        .on_incoming_protocol_packet(CONNECTION_ACCEPTED, |connection| {
+            match connection.challenge {
                 1 => RpcAction::Continue,
                 2 => RpcAction::Block,
                 3 => RpcAction::Replace(ConnectionAccepted {
@@ -1770,8 +1760,8 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
                     ..connection
                 }),
                 _ => unreachable!("test payload must select a callback action"),
-            },
-        )
+            }
+        })
         .expect("test registration must succeed");
 
     for (challenge, expected) in [
@@ -1831,19 +1821,15 @@ fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     test_support::reset_registration();
     let api = test_support::test_api();
     let subscription = api
-        .on_protocol_rpc(
-            SampClientSdkDirection::Incoming,
-            SERVER_MESSAGE,
-            |message| match message.text.as_slice() {
-                b"continue" => RpcAction::Continue,
-                b"block" => RpcAction::Block,
-                b"replace" => RpcAction::Replace(ServerMessage {
-                    color: message.color,
-                    text: b"changed".to_vec(),
-                }),
-                _ => unreachable!("test payload must select a callback action"),
-            },
-        )
+        .on_incoming_protocol_rpc(SERVER_MESSAGE, |message| match message.text.as_slice() {
+            b"continue" => RpcAction::Continue,
+            b"block" => RpcAction::Block,
+            b"replace" => RpcAction::Replace(ServerMessage {
+                color: message.color,
+                text: b"changed".to_vec(),
+            }),
+            _ => unreachable!("test payload must select a callback action"),
+        })
         .expect("test registration must succeed");
 
     for (text, expected) in [
@@ -1900,13 +1886,11 @@ fn register_handlers_collects_every_supported_handler_form() {
         rpc(SampClientSdkDirection::Outgoing, |_| SampClientSdkHookAction::Continue),
         packet_id(SampClientSdkDirection::Incoming, 1, |_| SampClientSdkHookAction::Continue),
         rpc_id(SampClientSdkDirection::Outgoing, 2, |_| SampClientSdkHookAction::Continue),
-        typed_packet(
-            SampClientSdkDirection::Incoming,
+        incoming_typed_packet(
             packet::incoming::PLAYER_SYNC,
             |_| RpcAction::Continue
         ),
-        typed_rpc(
-            SampClientSdkDirection::Outgoing,
+        incoming_typed_rpc(
             incoming::ENABLE_STUNT_BONUS,
             |_| RpcAction::Continue
         ),
