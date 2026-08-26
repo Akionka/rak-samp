@@ -6,7 +6,8 @@
   plugins; its public paths follow cohesive modules rather than compatibility
   aliases.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
-  Protocol bitstreams, exact-bit payload values, and Packet/RPC name catalogs.
+  Protocol bitstreams, exact-bit payload values, typed Wire descriptors with
+  explicit trailing policies, and Packet/RPC name catalogs.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces

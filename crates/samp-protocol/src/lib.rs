@@ -7,8 +7,10 @@ mod bitstream;
 mod catalog;
 mod encoded_bits;
 mod error;
+mod wire;
 
 pub use bitstream::{BitRead, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};
 pub use catalog::{packet_name, rpc_name};
 pub use encoded_bits::{EncodedBits, EncodedBitsError};
 pub use error::{DecodeError, EncodeError};
+pub use wire::{Packet, Rpc, TrailingPolicy, WireCodec, WireDescriptor, WireKind};

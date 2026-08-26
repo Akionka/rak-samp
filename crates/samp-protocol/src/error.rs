@@ -12,6 +12,13 @@ pub enum DecodeError<E> {
     },
     /// A bit length did not fit in the supplied byte buffer.
     InvalidBitLength { bit_len: usize, byte_len: usize },
+    /// The decoder found trailing bits that the descriptor does not permit.
+    UnexpectedTrailingBits {
+        remaining_bits: usize,
+        allowed_bits: usize,
+    },
+    /// A byte-aligned descriptor received a non-byte-aligned payload.
+    NonByteAligned { bit_len: usize },
 }
 
 impl<E: fmt::Display> fmt::Display for DecodeError<E> {
@@ -29,6 +36,16 @@ impl<E: fmt::Display> fmt::Display for DecodeError<E> {
                 formatter,
                 "bit length {bit_len} does not fit in a {byte_len}-byte buffer"
             ),
+            Self::UnexpectedTrailingBits {
+                remaining_bits,
+                allowed_bits,
+            } => write!(
+                formatter,
+                "{remaining_bits} trailing bits exceed the {allowed_bits}-bit limit"
+            ),
+            Self::NonByteAligned { bit_len } => {
+                write!(formatter, "a {bit_len}-bit payload is not byte-aligned")
+            }
         }
     }
 }
@@ -37,7 +54,10 @@ impl<E: std::error::Error + 'static> std::error::Error for DecodeError<E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Source(error) => Some(error),
-            Self::OutOfBounds { .. } | Self::InvalidBitLength { .. } => None,
+            Self::OutOfBounds { .. }
+            | Self::InvalidBitLength { .. }
+            | Self::UnexpectedTrailingBits { .. }
+            | Self::NonByteAligned { .. } => None,
         }
     }
 }
@@ -54,6 +74,8 @@ pub enum EncodeError<E> {
     },
     /// A bit length did not fit in the supplied byte buffer.
     InvalidBitLength { bit_len: usize, byte_len: usize },
+    /// The encoded payload used more bytes than its bit length requires.
+    NonMinimalStorage { bit_len: usize, byte_len: usize },
 }
 
 impl<E: fmt::Display> fmt::Display for EncodeError<E> {
@@ -71,6 +93,10 @@ impl<E: fmt::Display> fmt::Display for EncodeError<E> {
                 formatter,
                 "bit length {bit_len} does not fit in a {byte_len}-byte buffer"
             ),
+            Self::NonMinimalStorage { bit_len, byte_len } => write!(
+                formatter,
+                "a {bit_len}-bit payload must not use {byte_len} bytes of storage"
+            ),
         }
     }
 }
@@ -79,7 +105,9 @@ impl<E: std::error::Error + 'static> std::error::Error for EncodeError<E> {
     fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Self::Source(error) => Some(error),
-            Self::PayloadTooLarge { .. } | Self::InvalidBitLength { .. } => None,
+            Self::PayloadTooLarge { .. }
+            | Self::InvalidBitLength { .. }
+            | Self::NonMinimalStorage { .. } => None,
         }
     }
 }
