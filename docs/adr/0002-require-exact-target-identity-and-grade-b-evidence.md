@@ -1,0 +1,3 @@
+# Require exact target identity and Grade B native evidence
+
+A production Native profile identifies an exact executable or module build by a stable hash, not only by a product version label. Grade B evidence is sufficient for production native contracts; Grade C and unknown facts remain unsupported or experimental. The Evidence register is authoritative, and a smoke report upgrades only the individual facts that it explicitly verifies. Profile specifications must not inherit facts from another build without separate evidence for both builds. This accepts corroborated reverse-engineering evidence while preventing constants from being applied to an unverified binary variant.

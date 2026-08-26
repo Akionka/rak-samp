@@ -1,0 +1,3 @@
+# Drain callbacks before reclaiming plugin context
+
+Dropping a Subscription disables future callback starts without blocking the caller, then defers plugin-context reclamation until all callbacks already in flight have drained. Each registration supplies a plugin-owned context pointer and a plugin function that releases it with the correct allocator. The Host invokes that function exactly once through a reclamation queue; `unregister_and_wait` completes only after release. Permanent leaks are allowed only as a fail-safe during process teardown. DLL unload still requires explicit synchronous drain while the plugin code and allocator remain resident.

@@ -1937,33 +1937,132 @@ docs(architecture): freeze baseline for gta/samp modkit migration
 ### Tasks
 
 - [ ] Create `crates/samp-protocol/Cargo.toml`.
-- [ ] Move/copy the owned `BitStream` implementation from `sdk/src/raknet.rs`.
-- [ ] Preserve all existing bitstream tests before deleting the old implementation.
-- [ ] Identify pure packet/RPC types and codecs in `sdk/src/events/**`.
-- [ ] Move pure encode/decode code into `samp-protocol`.
-- [ ] Leave callback transport/Event wrappers temporarily in `sdk`.
-- [ ] Re-export protocol types from the legacy `samp-client-sdk` so current plugin source still compiles where practical.
-- [ ] Remove Windows x86 compile restriction from `samp-protocol`.
+- [ ] Make the owned SDK `BitStream` the starting Protocol bitstream and move
+  its exact current behavior and tests into `samp-protocol`.
+- [ ] Keep the Host transport stream, its Native capacity/alignment semantics,
+  and its tests separate during Phase 1. Do not delete or consolidate it.
+- [ ] Define minimal transport-neutral `BitRead`/`BitWrite` contracts in
+  `samp-protocol`; implement them for the Protocol bitstream and through an SDK
+  callback Event adapter.
+- [ ] Give `BitRead`/`BitWrite` associated source-error types. Protocol semantic
+  failures use protocol-owned `DecodeError<E>`/`EncodeError<E>` wrappers, while
+  SDK Event adapters preserve exact Host/FFI statuses in `E`. Do not use a
+  side-channel error cell or collapse Host failures into wire errors.
+- [ ] Expose explicitly named left-aligned raw-bit operations in the traits.
+  Preserve the SDK-derived Protocol bitstream's existing right-aligned inherent
+  partial-read behavior and adapt it explicitly at the trait boundary.
+- [ ] Move protocol values, packet/RPC IDs/catalogs, and pure codecs behind
+  those contracts. Keep event filtering, cursor reset, callback actions,
+  replacement calls, and Host error mapping in the SDK adapter.
+- [ ] Make each Protocol-owned Wire descriptor define its message ID, codec,
+  and one explicit trailing policy: exact bits, exact bytes, or terminal
+  alignment padding. Preserve marker sync's acceptance of fewer than eight
+  terminal padding bits and rejection of a complete extra byte.
+- [ ] Represent each Wire descriptor as a concrete zero-sized type implementing
+  a generic `WireDescriptor` contract with associated value type, `u8` ID,
+  Packet/RPC kind, trailing policy, and generic `BitRead`/`BitWrite` codec
+  methods. Do not erase source errors, duplicate descriptors per transport, or
+  require runtime descriptor trait objects.
+- [ ] Keep SDK callback descriptors as adapters over Wire descriptors. Callback
+  lifetime, handler invocation, registration order, panic isolation,
+  replacement, and `Continue`/`Block` remain SDK/Host concerns.
+- [ ] Define an injected encoded-string codec contract for dialog text, 3D
+  text-label text, and material text. The SDK adapter supplies the Host-backed
+  implementation; protocol tests supply deterministic test implementations.
+- [ ] Express Native compressed-string access as `EncodedStringRead: BitRead`
+  and `EncodedStringWrite: BitWrite` extension contracts required only by the
+  three affected codecs. Preserve embedded-NUL rejection, logical byte limits,
+  terminator exclusion, exact cursor advancement, left-aligned encoded bits,
+  and distinct Host source errors.
+- [ ] Make Wire descriptor encoding return a cursor-free owned `EncodedBits`
+  value containing bytes plus exact `bit_len`. Use `BitWrite` internally; do
+  not return a readable stream merely to submit or replace a payload.
+- [ ] Give `EncodedBits` one canonical representation: minimum byte storage,
+  exact bounded `bit_len`, zero unused low bits, and valid empty payloads. Its
+  bit constructor rejects insufficient or non-minimal storage, rejects payloads
+  above the Protocol limit, and masks unused low bits rather than rejecting
+  their input values.
+- [ ] Move pure R1 wire codecs into an explicit `samp_protocol::r1` namespace.
+  Do not infer or implement R3/R5/DL parity in this phase.
+- [ ] Move the existing non-exhaustive Packet and RPC name catalogs as separate
+  pure `u8 -> Option<&'static str>` mappings. Do not replace unknown raw IDs
+  with exhaustive enums or merge the two ID namespaces.
+- [ ] Keep callback transport/Event wrappers in `samp-client-sdk` and Native
+  envelopes/compressor/hooks in the Host.
+- [ ] Do not re-export `samp-protocol` from the legacy `samp-client-sdk`.
+  Workspace consumers that use Protocol types depend on the Protocol crate
+  directly. Decide any re-exports from the future `samp` facade in Phase 7.
+- [ ] Ensure `samp-protocol` has no Windows x86 compile restriction and no
+  dependency on Host, SDK FFI, Native profiles, or Windows hook crates.
+- [ ] Add an Ubuntu CI job that tests and lints only `samp-protocol` with the
+  explicit `x86_64-unknown-linux-gnu` target. Do not change Cargo's target
+  directory or make the Windows-only Host/SDK part of that job.
 - [ ] Add independent tests that instantiate codecs without `HostApi`.
 - [ ] Preserve exact vectors and exact bit-length assertions.
+
+### Required extraction slices
+
+Each slice must leave the workspace green and remove the superseded SDK codec
+implementation only after its adapter and vectors pass:
+
+1. Protocol foundation: owned bitstream, bit traits, error domains,
+   cursor-free `EncodedBits`, Packet/RPC name catalogs, independent tests, and
+   non-Windows CI verification.
+2. Outgoing chat/command tracer: bounded strings, Wire descriptors, SDK send
+   adapter, callback decode/replacement, and exact payload tests.
+3. Common byte-aligned packet/RPC codecs and their SDK adapters.
+4. R1 exact-bit codecs, sync vectors, and terminal-padding behavior.
+5. The three encoded-string codecs through the injected codec contract.
 
 ### Do not do in this phase
 
 - Do not change RakClient hooks.
+- Do not replace or redesign the Host transport stream.
+- Do not move Native RakNet envelopes or string-compressor calls into
+  `samp-protocol`.
 - Do not change send/emulation behavior.
 - Do not rename every public event type.
 - Do not redesign protocol representations unless needed to remove host dependency.
 
 ### Acceptance criteria
 
-- Legacy plugin examples compile.
+- Workspace plugin examples compile after their dependencies/imports are
+  updated; preserving old import paths is not required.
+- No legacy SDK import path or re-export is retained solely for external source
+  compatibility; the project has no current external consumers.
 - Existing packet/RPC behavior tests pass.
-- `samp-protocol` tests run without host/native initialization.
+- `samp-protocol` tests run without Host/Native initialization and on at least
+  one non-Windows CI target without changing Cargo's target directory.
+- The non-Windows job tests and lints only the Protocol crate with an explicit
+  Linux target; it does not silently use the repository's Windows x86 default.
+- Protocol decode/encode errors preserve wire details, while SDK adapters
+  preserve distinct Host/FFI statuses without copying callback payloads.
+- Encoded descriptor output has no read cursor and preserves exact left-aligned
+  bytes plus `bit_len`; Native compressed-string adapters preserve limits,
+  NUL/terminator rules, cursor advancement, and Host failure identity.
+- `EncodedBits` tests cover empty payloads, byte-aligned payloads, non-minimal
+  rejection, insufficient storage, payload limits, and unused-low-bit masking.
+- Packet and RPC name catalogs remain separate and non-exhaustive; unknown
+  `u8` IDs remain representable.
+- Wire descriptor tests cover exact-bit, exact-byte, and terminal-alignment
+  policies, including marker sync's malformed full-extra-byte case.
+- The same zero-sized Wire descriptor codecs work with both the owned Protocol
+  bitstream and SDK Event adapters without payload copies or duplicated
+  transport-specific metadata.
+- Protocol and Host bitstream test suites preserve their respective partial-bit
+  alignment, capacity, cursor, error, and exact-bit semantics.
+- Native compressor, envelope, hook, callback lifetime, registration order,
+  and `Continue`/`Block` behavior remain outside the Protocol crate and
+  unchanged.
 
-### Suggested commit
+### Suggested series
 
 ```text
-refactor(protocol): extract platform-independent samp protocol crate
+refactor(protocol): add platform-independent bitstream foundation
+refactor(protocol): extract chat and command tracer slice
+refactor(protocol): extract common byte-aligned codecs
+refactor(protocol): extract r1 exact-bit codecs
+refactor(protocol): inject encoded-string codec boundary
 ```
 
 ---

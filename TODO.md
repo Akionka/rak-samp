@@ -533,7 +533,8 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   remote-data accessor to `0x10F0`; `0x10D0` returns the outer player-info
   record.
 - [ ] Keep the existing R1 direct profile active until its replacement passes
-  the R1 layout and in-game smoke tests unchanged.
+  the R1 layout and in-game smoke tests unchanged. Follow
+  [the R1 native-profile unification handoff](docs/r1-native-profile-unification-handoff.md).
 
 | Artifact evidence | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |

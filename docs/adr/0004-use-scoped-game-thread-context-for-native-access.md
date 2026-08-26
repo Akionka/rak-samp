@@ -1,0 +1,3 @@
+# Use a scoped Game-thread context for native access
+
+Safe callback-local native access uses a `GameContext<'scope>` that the Host issues only after runtime validation of the current Game thread. The context proves thread confinement, not a universal engine phase; each native operation records its own Native execution constraint. Reads and permitted mutations may execute synchronously through the context, while off-thread callers queue owned work and receive owned results. Owned snapshots are compound values, and persistent caches are optional measured optimizations rather than synchronization primitives.
