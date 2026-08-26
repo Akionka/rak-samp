@@ -12,7 +12,7 @@ use samp_client_sdk::{
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogStyle, ObjectId, PlayerId, Samp,
     SampClientSdkClientVersion, SampClientSdkDirection, SampClientSdkHookAction,
     SampClientSdkHostStatus, SampClientSdkResult, SendRateKind, SpecialAction, SubscriptionSet,
-    TextdrawId, Vector3, VehicleId, events::RpcAction, raw,
+    TextdrawId, Vector3, VehicleId, events::ProtocolAction, raw,
 };
 #[cfg(feature = "r1-probe")]
 use samp_protocol::BitStream;
@@ -594,7 +594,7 @@ fn initialize() {
             record_vehicle_phase(&message.text);
             // The visible normal-chat reply is the required human proof that
             // SA-MP's original incoming-RPC handler ran after this callback.
-            RpcAction::Continue
+            ProtocolAction::Continue
         }) {
         Ok(subscription) => subscription,
         Err(error) => {

@@ -1,5 +1,5 @@
 use super::*;
-use crate::events::{RpcAction, packet, rpc::incoming, test_support};
+use crate::events::{ProtocolAction, packet, rpc::incoming, test_support};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -1584,7 +1584,7 @@ fn typed_callback_decodes_matching_descriptor_and_fails_open() {
         .on_incoming_typed_rpc(incoming::ENABLE_STUNT_BONUS, move |enabled| {
             assert!(enabled);
             observed.fetch_add(1, Ordering::AcqRel);
-            RpcAction::Block
+            ProtocolAction::Block
         })
         .expect("test registration must succeed");
 
@@ -1624,9 +1624,9 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
     let subscription =
         api.on_outgoing_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, |text| {
             match text.as_slice() {
-                b"continue" => RpcAction::Continue,
-                b"block" => RpcAction::Block,
-                b"replace" => RpcAction::Replace(b"changed".to_vec()),
+                b"continue" => ProtocolAction::Continue,
+                b"block" => ProtocolAction::Block,
+                b"replace" => ProtocolAction::Replace(b"changed".to_vec()),
                 _ => unreachable!("test payload must select a callback action"),
             }
         })
@@ -1681,9 +1681,9 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
     let subscription = api
         .on_outgoing_protocol_rpc(SEND_DIALOG_RESPONSE, |response| {
             match response.input.as_slice() {
-                b"continue" => RpcAction::Continue,
-                b"block" => RpcAction::Block,
-                b"replace" => RpcAction::Replace(DialogResponse {
+                b"continue" => ProtocolAction::Continue,
+                b"block" => ProtocolAction::Block,
+                b"replace" => ProtocolAction::Replace(DialogResponse {
                     input: b"changed".to_vec(),
                     ..response
                 }),
@@ -1753,9 +1753,9 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
     let subscription = api
         .on_incoming_protocol_packet(CONNECTION_ACCEPTED, |connection| {
             match connection.challenge {
-                1 => RpcAction::Continue,
-                2 => RpcAction::Block,
-                3 => RpcAction::Replace(ConnectionAccepted {
+                1 => ProtocolAction::Continue,
+                2 => ProtocolAction::Block,
+                3 => ProtocolAction::Replace(ConnectionAccepted {
                     challenge: 42,
                     ..connection
                 }),
@@ -1822,9 +1822,9 @@ fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     let api = test_support::test_api();
     let subscription = api
         .on_incoming_protocol_rpc(SERVER_MESSAGE, |message| match message.text.as_slice() {
-            b"continue" => RpcAction::Continue,
-            b"block" => RpcAction::Block,
-            b"replace" => RpcAction::Replace(ServerMessage {
+            b"continue" => ProtocolAction::Continue,
+            b"block" => ProtocolAction::Block,
+            b"replace" => ProtocolAction::Replace(ServerMessage {
                 color: message.color,
                 text: b"changed".to_vec(),
             }),
@@ -1888,11 +1888,11 @@ fn register_handlers_collects_every_supported_handler_form() {
         rpc_id(SampClientSdkDirection::Outgoing, 2, |_| SampClientSdkHookAction::Continue),
         incoming_typed_packet(
             packet::incoming::PLAYER_SYNC,
-            |_| RpcAction::Continue
+            |_| ProtocolAction::Continue
         ),
         incoming_typed_rpc(
             incoming::ENABLE_STUNT_BONUS,
-            |_| RpcAction::Continue
+            |_| ProtocolAction::Continue
         ),
     )
     .expect("all test registrations must succeed");

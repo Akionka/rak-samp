@@ -583,7 +583,7 @@ impl Net {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.api.on_incoming_typed_packet(packet, handler)
     }
@@ -595,7 +595,7 @@ impl Net {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.api.on_outgoing_typed_packet(packet, handler)
     }
@@ -607,7 +607,7 @@ impl Net {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.api.on_incoming_typed_rpc(rpc, handler)
     }
@@ -619,7 +619,7 @@ impl Net {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> crate::events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.api.on_outgoing_typed_rpc(rpc, handler)
     }
@@ -633,7 +633,7 @@ impl Net {
     where
         D: samp_protocol::IncomingRpcDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_incoming_protocol_rpc(descriptor, handler)
     }
@@ -647,7 +647,7 @@ impl Net {
     where
         D: samp_protocol::OutgoingRpcDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_outgoing_protocol_rpc(descriptor, handler)
     }
@@ -661,7 +661,7 @@ impl Net {
     where
         D: samp_protocol::IncomingPacketDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_incoming_protocol_packet(descriptor, handler)
     }
@@ -675,7 +675,7 @@ impl Net {
     where
         D: samp_protocol::OutgoingPacketDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_outgoing_protocol_packet(descriptor, handler)
     }

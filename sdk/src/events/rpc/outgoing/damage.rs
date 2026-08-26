@@ -3,7 +3,7 @@
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
-    events::{EncodedPayload, Event, EventError, OutgoingRpc, RpcAction},
+    events::{EncodedPayload, Event, EventError, OutgoingRpc, ProtocolAction},
 };
 
 /// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (OutgoingRpc 115).
@@ -40,7 +40,7 @@ pub const SEND_GIVE_ACTOR_DAMAGE: OutgoingRpc<ActorDamage> =
 pub(crate) unsafe fn on_send_give_actor_damage(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(ActorDamage) -> RpcAction<ActorDamage>,
+    handler: impl FnOnce(ActorDamage) -> ProtocolAction<ActorDamage>,
 ) -> Result<SampClientSdkHookAction, EventError> {
     unsafe { handle(api, raw, SEND_GIVE_ACTOR_DAMAGE, handler) }
 }
@@ -49,12 +49,12 @@ pub(crate) unsafe fn on_send_give_actor_damage(
 pub(crate) unsafe fn on_send_give_damage(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
+    handler: impl FnOnce(Damage) -> ProtocolAction<Damage>,
 ) -> Result<SampClientSdkHookAction, EventError> {
     unsafe {
         handle(api, raw, SEND_DAMAGE, |value| {
             if value.take {
-                RpcAction::Continue
+                ProtocolAction::Continue
             } else {
                 handler(value)
             }
@@ -66,14 +66,14 @@ pub(crate) unsafe fn on_send_give_damage(
 pub(crate) unsafe fn on_send_take_damage(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(Damage) -> RpcAction<Damage>,
+    handler: impl FnOnce(Damage) -> ProtocolAction<Damage>,
 ) -> Result<SampClientSdkHookAction, EventError> {
     unsafe {
         handle(api, raw, SEND_DAMAGE, |value| {
             if value.take {
                 handler(value)
             } else {
-                RpcAction::Continue
+                ProtocolAction::Continue
             }
         })
     }

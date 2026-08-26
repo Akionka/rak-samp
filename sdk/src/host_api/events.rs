@@ -167,7 +167,7 @@ impl HostApi {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.on_packet_id(
             SampClientSdkDirection::Incoming,
@@ -191,7 +191,7 @@ impl HostApi {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.on_packet_id(
             SampClientSdkDirection::Outgoing,
@@ -215,7 +215,7 @@ impl HostApi {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Incoming, rpc.id(), move |event| {
             rpc.handle(event, &handler)
@@ -234,7 +234,7 @@ impl HostApi {
     ) -> Result<Subscription, SampClientSdkResult>
     where
         T: 'static,
-        F: Fn(T) -> events::RpcAction<T> + Send + Sync + 'static,
+        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Outgoing, rpc.id(), move |event| {
             rpc.handle(event, &handler)
@@ -254,7 +254,7 @@ impl HostApi {
     where
         D: samp_protocol::IncomingRpcDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)
@@ -274,7 +274,7 @@ impl HostApi {
     where
         D: samp_protocol::OutgoingRpcDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)
@@ -294,7 +294,7 @@ impl HostApi {
     where
         D: samp_protocol::IncomingPacketDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_packet_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)
@@ -314,7 +314,7 @@ impl HostApi {
     where
         D: samp_protocol::OutgoingPacketDescriptor + 'static,
         D::Value: 'static,
-        F: Fn(D::Value) -> events::RpcAction<D::Value> + Send + Sync + 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_packet_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
             events::handle_protocol::<D>(event, &handler)

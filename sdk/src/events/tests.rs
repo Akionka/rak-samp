@@ -513,7 +513,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
         packet::incoming::MARKERS_SYNC
             .handle(&mut event, |decoded| {
                 assert_eq!(decoded, value);
-                RpcAction::Replace(decoded)
+                ProtocolAction::Replace(decoded)
             })
             .expect("terminal alignment padding must be accepted"),
         SampClientSdkHookAction::Continue

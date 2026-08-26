@@ -27,7 +27,7 @@ macro_rules! packet_helper {
         pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut SampClientSdkEventV1,
-            handler: impl FnOnce($value) -> RpcAction<$value>,
+            handler: impl FnOnce($value) -> ProtocolAction<$value>,
         ) -> Result<SampClientSdkHookAction, EventError> {
             unsafe { handle(api, raw, $IncomingPacket, handler) }
         }

@@ -1,9 +1,10 @@
-//! Typed SA-MP RPC helpers modeled after MoonLoader's `samp.events`.
+//! Typed SA-MP Packet and RPC helpers modeled after MoonLoader's `samp.events`.
 //!
-//! Register one raw incoming or outgoing RPC callback through [`crate::HostApi`], then invoke a
-//! named helper from that callback. A helper ignores every other RPC ID, decodes its own payload,
-//! and converts [`RpcAction`] back to the host ABI action. `Replace` clears and serializes the
-//! complete RPC payload, just as returning a value table does in `samp.events`.
+//! Register one raw incoming or outgoing Packet or RPC callback through
+//! [`crate::HostApi`], then invoke a named helper from that callback. A helper ignores every
+//! other Packet or RPC ID, decodes its own payload, and converts [`ProtocolAction`] back to the
+//! host ABI action. `Replace` clears and serializes the complete Packet or RPC payload, just as
+//! returning a value table does in `samp.events`.
 //!
 //! Text fields deliberately use `Vec<u8>`: SA-MP text is not guaranteed to be UTF-8. Use
 //! [`std::str::from_utf8`] only when the server's encoding is known.
@@ -34,14 +35,14 @@ pub struct Vector2 {
     pub y: f32,
 }
 
-/// The typed decision returned by an RPC helper callback.
+/// The typed decision returned by a Packet or RPC helper callback.
 #[derive(Clone, Debug, PartialEq)]
-pub enum RpcAction<T> {
-    /// Preserve the original RPC payload.
+pub enum ProtocolAction<T> {
+    /// Preserve the original Packet or RPC payload.
     Continue,
-    /// Do not pass the RPC to SA-MP.
+    /// Do not pass the Packet or RPC to SA-MP.
     Block,
-    /// Replace the complete RPC payload with this typed value.
+    /// Replace the complete Packet or RPC payload with this typed value.
     Replace(T),
 }
 
@@ -595,7 +596,7 @@ impl<T> Rpc<T> {
     pub fn handle(
         self,
         event: &mut Event<'_>,
-        handler: impl FnOnce(T) -> RpcAction<T>,
+        handler: impl FnOnce(T) -> ProtocolAction<T>,
     ) -> Result<SampClientSdkHookAction, EventError> {
         if event.id() != self.id {
             return Ok(SampClientSdkHookAction::Continue);
@@ -609,9 +610,9 @@ impl<T> Rpc<T> {
             });
         }
         match handler(value) {
-            RpcAction::Continue => Ok(SampClientSdkHookAction::Continue),
-            RpcAction::Block => Ok(SampClientSdkHookAction::Block),
-            RpcAction::Replace(value) => {
+            ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
+            ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
+            ProtocolAction::Replace(value) => {
                 let payload = self.encode(event.api, value)?;
                 event.replace_bits(payload.as_bytes(), payload.len_bits())?;
                 Ok(SampClientSdkHookAction::Continue)
@@ -667,7 +668,7 @@ macro_rules! directional_descriptor {
             pub fn handle(
                 self,
                 event: &mut Event<'_>,
-                handler: impl FnOnce(T) -> RpcAction<T>,
+                handler: impl FnOnce(T) -> ProtocolAction<T>,
             ) -> Result<SampClientSdkHookAction, EventError> {
                 self.0.handle(event, handler)
             }
@@ -702,7 +703,7 @@ impl<T> TypedDescriptor<T> for Rpc<T> {
 /// serialized into owned bytes before the atomic ABI replacement call.
 pub(crate) fn handle_protocol<D>(
     event: &mut Event<'_>,
-    handler: impl FnOnce(D::Value) -> RpcAction<D::Value>,
+    handler: impl FnOnce(D::Value) -> ProtocolAction<D::Value>,
 ) -> Result<SampClientSdkHookAction, ProtocolEventError>
 where
     D: samp_protocol::WireDescriptor,
@@ -715,9 +716,9 @@ where
         .map_err(|error| ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error)))?;
     let value = D::decode_from(event).map_err(ProtocolEventError::Decode)?;
     match handler(value) {
-        RpcAction::Continue => Ok(SampClientSdkHookAction::Continue),
-        RpcAction::Block => Ok(SampClientSdkHookAction::Block),
-        RpcAction::Replace(value) => {
+        ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
+        ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
+        ProtocolAction::Replace(value) => {
             let mut writer = PayloadWriter::new();
             D::encode_to(&mut writer, &value).map_err(ProtocolEventError::Encode)?;
             let payload = writer.finish_bits();
@@ -741,7 +742,7 @@ pub(crate) unsafe fn handle<T, D>(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
     descriptor: D,
-    handler: impl FnOnce(T) -> RpcAction<T>,
+    handler: impl FnOnce(T) -> ProtocolAction<T>,
 ) -> Result<SampClientSdkHookAction, EventError>
 where
     D: TypedDescriptor<T>,

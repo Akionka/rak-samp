@@ -7,7 +7,7 @@ pub use r1::*;
 pub use types::*;
 
 use crate::events::core::handle;
-use crate::events::{EventError, RpcAction, Vector3};
+use crate::events::{EventError, ProtocolAction, Vector3};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction};
 
 macro_rules! rpc_helper {
@@ -21,7 +21,7 @@ macro_rules! rpc_helper {
         pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut SampClientSdkEventV1,
-            handler: impl FnOnce($value) -> RpcAction<$value>,
+            handler: impl FnOnce($value) -> ProtocolAction<$value>,
         ) -> Result<SampClientSdkHookAction, EventError> {
             unsafe { handle(api, raw, $rpc, handler) }
         }

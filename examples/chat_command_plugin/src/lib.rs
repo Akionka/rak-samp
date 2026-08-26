@@ -5,7 +5,7 @@ compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Window
 
 use samp_client_sdk::{
     ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkResult, SubscriptionSet,
-    events::RpcAction,
+    events::ProtocolAction,
 };
 use samp_protocol::rpc::outgoing::chat::SEND_COMMAND;
 use std::{
@@ -124,9 +124,9 @@ fn initialize() {
     let subscriptions = match net.on_outgoing_protocol_rpc(SEND_COMMAND, move |command| {
         if is_samp_client_sdk_command(&command) {
             run_example(samp);
-            RpcAction::Block
+            ProtocolAction::Block
         } else {
-            RpcAction::Continue
+            ProtocolAction::Continue
         }
     }) {
         Ok(subscription) => {

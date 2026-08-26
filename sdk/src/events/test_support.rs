@@ -1,4 +1,4 @@
-use super::{EncodedPayload, Event, RpcAction, core::PayloadWriter};
+use super::{EncodedPayload, Event, ProtocolAction, core::PayloadWriter};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkResult};
 use ::core::{mem, ptr};
 use std::sync::Mutex;
@@ -2014,7 +2014,7 @@ where
         descriptor
             .handle(&mut event, |decoded| {
                 assert_eq!(decoded, value);
-                RpcAction::Replace(decoded)
+                ProtocolAction::Replace(decoded)
             })
             .expect("typed replacement must succeed"),
         SampClientSdkHookAction::Continue

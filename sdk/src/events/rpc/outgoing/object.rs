@@ -3,7 +3,7 @@
 use crate::events::core::{PayloadWriter, handle};
 use crate::{
     HostApi, SampClientSdkEventV1, SampClientSdkHookAction,
-    events::{EncodedPayload, Event, EventError, OutgoingRpc, RpcAction, Vector3},
+    events::{EncodedPayload, Event, EventError, OutgoingRpc, ProtocolAction, Vector3},
 };
 
 /// MoonLoader's `onSendEditObject` payload (OutgoingRpc 117).
@@ -26,7 +26,7 @@ pub const SEND_EDIT_OBJECT: OutgoingRpc<EditObject> =
 pub(crate) unsafe fn on_send_edit_object(
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
-    handler: impl FnOnce(EditObject) -> RpcAction<EditObject>,
+    handler: impl FnOnce(EditObject) -> ProtocolAction<EditObject>,
 ) -> Result<SampClientSdkHookAction, EventError> {
     unsafe { handle(api, raw, SEND_EDIT_OBJECT, handler) }
 }
