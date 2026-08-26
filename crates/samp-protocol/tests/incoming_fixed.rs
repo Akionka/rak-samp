@@ -1,13 +1,23 @@
 use samp_protocol::rpc::incoming::{
-    CHAT_BUBBLE, CHAT_MESSAGE, ChatBubble, ChatMessage, Checkpoint, DISPLAY_GAME_TEXT,
-    GIVE_PLAYER_MONEY, GIVE_PLAYER_WEAPON, GameText, PLAY_SOUND, PLAYER_JOIN, PLAYER_QUIT,
-    PLAYER_STREAM_OUT, PUT_PLAYER_IN_VEHICLE, PlaySound, PlayerJoin, PlayerName, PlayerQuit,
-    PlayerSkin, PlayerTeam, PlayerTime, PlayerWeapon, PutPlayerInVehicle, SERVER_MESSAGE,
-    SET_CHECKPOINT, SET_INTERIOR, SET_PLAYER_ARMED_WEAPON, SET_PLAYER_ARMOUR,
-    SET_PLAYER_FACING_ANGLE, SET_PLAYER_HEALTH, SET_PLAYER_NAME, SET_PLAYER_POS,
-    SET_PLAYER_POS_FIND_Z, SET_PLAYER_SKIN, SET_PLAYER_TEAM, SET_PLAYER_TIME,
-    SET_PLAYER_WANTED_LEVEL, SET_WEATHER, SET_WORLD_BOUNDS, SET_WORLD_TIME, ServerMessage,
-    TOGGLE_PLAYER_CONTROLLABLE, VEHICLE_STREAM_OUT, Vector3, WorldBounds,
+    ATTACH_OBJECT_TO_PLAYER, AttachObjectToPlayer, AudioStream, CANCEL_EDIT, CHAT_BUBBLE,
+    CHAT_MESSAGE, CREATE_EXPLOSION, ChatBubble, ChatMessage, Checkpoint, DESTROY_OBJECT,
+    DESTROY_PICKUP, DISPLAY_GAME_TEXT, Explosion, GIVE_PLAYER_MONEY, GIVE_PLAYER_WEAPON, GameText,
+    HIDE_MENU, LINK_VEHICLE_TO_INTERIOR, MapIcon, ObjectPosition, ObjectRotation,
+    PLAY_AUDIO_STREAM, PLAY_SOUND, PLAYER_DEATH_NOTIFICATION, PLAYER_JOIN, PLAYER_QUIT,
+    PLAYER_STREAM_OUT, PUT_PLAYER_IN_VEHICLE, PlaySound, PlayerColor, PlayerDeathNotification,
+    PlayerJoin, PlayerName, PlayerNameTag, PlayerQuit, PlayerSkill, PlayerSkin, PlayerTeam,
+    PlayerTime, PlayerWeapon, PutPlayerInVehicle, REMOVE_3D_TEXT_LABEL, REMOVE_BUILDING,
+    REMOVE_VEHICLE_COMPONENT, REQUEST_SPAWN_RESPONSE, RESET_PLAYER_MONEY, RESET_PLAYER_WEAPONS,
+    RaceCheckpoint, RemoveBuilding, SERVER_MESSAGE, SET_CHECKPOINT, SET_INTERIOR, SET_MAP_ICON,
+    SET_OBJECT_POSITION, SET_OBJECT_ROTATION, SET_PLAYER_ARMED_WEAPON, SET_PLAYER_ARMOUR,
+    SET_PLAYER_COLOR, SET_PLAYER_DRUNK, SET_PLAYER_FACING_ANGLE, SET_PLAYER_HEALTH,
+    SET_PLAYER_NAME, SET_PLAYER_POS, SET_PLAYER_POS_FIND_Z, SET_PLAYER_SKILL_LEVEL,
+    SET_PLAYER_SKIN, SET_PLAYER_TEAM, SET_PLAYER_TIME, SET_PLAYER_WANTED_LEVEL,
+    SET_RACE_CHECKPOINT, SET_SHOP_NAME, SET_TOGGLE_CLOCK, SET_VEHICLE_ANGLE, SET_VEHICLE_HEALTH,
+    SET_VEHICLE_POSITION, SET_WEATHER, SET_WORLD_BOUNDS, SET_WORLD_TIME, SHOW_MENU,
+    SHOW_PLAYER_NAME_TAG, ServerMessage, TOGGLE_PLAYER_CONTROLLABLE, UPDATE_GLOBAL_TIMER,
+    VEHICLE_STREAM_OUT, Vector3, VehicleAngle, VehicleComponent, VehicleHealth, VehicleInterior,
+    VehiclePosition, WorldBounds,
 };
 use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
 
@@ -80,6 +90,54 @@ fn fixed_incoming_rpc_inventory_has_29_unique_entries() {
         [
             93, 73, 12, 13, 14, 66, 19, 15, 16, 107, 101, 59, 137, 138, 11, 29, 17, 18, 22, 94,
             152, 153, 156, 67, 133, 69, 70, 163, 165,
+        ]
+    );
+
+    let mut unique = ids;
+    unique.sort_unstable();
+    assert!(unique.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
+#[test]
+fn second_fixed_incoming_rpc_inventory_has_30_unique_entries() {
+    let ids = [
+        id(SET_VEHICLE_POSITION),
+        id(SET_VEHICLE_ANGLE),
+        id(SET_VEHICLE_HEALTH),
+        id(RESET_PLAYER_MONEY),
+        id(RESET_PLAYER_WEAPONS),
+        id(CANCEL_EDIT),
+        id(SET_TOGGLE_CLOCK),
+        id(SET_PLAYER_DRUNK),
+        id(SET_RACE_CHECKPOINT),
+        id(PLAY_AUDIO_STREAM),
+        id(SET_OBJECT_POSITION),
+        id(SET_OBJECT_ROTATION),
+        id(DESTROY_OBJECT),
+        id(PLAYER_DEATH_NOTIFICATION),
+        id(SET_MAP_ICON),
+        id(REMOVE_VEHICLE_COMPONENT),
+        id(REMOVE_3D_TEXT_LABEL),
+        id(UPDATE_GLOBAL_TIMER),
+        id(DESTROY_PICKUP),
+        id(LINK_VEHICLE_TO_INTERIOR),
+        id(SET_PLAYER_COLOR),
+        id(REQUEST_SPAWN_RESPONSE),
+        id(SET_SHOP_NAME),
+        id(SET_PLAYER_SKILL_LEVEL),
+        id(REMOVE_BUILDING),
+        id(ATTACH_OBJECT_TO_PLAYER),
+        id(SHOW_MENU),
+        id(HIDE_MENU),
+        id(CREATE_EXPLOSION),
+        id(SHOW_PLAYER_NAME_TAG),
+    ];
+
+    assert_eq!(
+        ids,
+        [
+            159, 160, 147, 20, 21, 28, 30, 35, 38, 41, 45, 46, 47, 55, 56, 57, 58, 60, 63, 65, 72,
+            129, 33, 34, 43, 75, 77, 78, 79, 80,
         ]
     );
 
@@ -267,6 +325,287 @@ fn fixed_incoming_rpcs_preserve_exact_vectors() {
     );
     assert_vector(PLAYER_STREAM_OUT, &0xBEEF, &[0xEF, 0xBE]);
     assert_vector(VEHICLE_STREAM_OUT, &0x1234, &[0x34, 0x12]);
+}
+
+#[test]
+fn second_fixed_incoming_rpcs_preserve_exact_vectors() {
+    assert_vector(
+        SET_VEHICLE_POSITION,
+        &VehiclePosition {
+            vehicle_id: 0x1234,
+            position: Vector3 {
+                x: 1.0,
+                y: -2.0,
+                z: 0.5,
+            },
+        },
+        &[0x34, 0x12, 0, 0, 0x80, 0x3F, 0, 0, 0, 0xC0, 0, 0, 0, 0x3F],
+    );
+    assert_vector(
+        SET_VEHICLE_ANGLE,
+        &VehicleAngle {
+            vehicle_id: 0xABCD,
+            angle: 180.0,
+        },
+        &[0xCD, 0xAB, 0, 0, 0x34, 0x43],
+    );
+    assert_vector(
+        SET_VEHICLE_HEALTH,
+        &VehicleHealth {
+            vehicle_id: 0x1234,
+            health: 1.5,
+        },
+        &[0x34, 0x12, 0, 0, 0xC0, 0x3F],
+    );
+    assert_vector(RESET_PLAYER_MONEY, &(), &[]);
+    assert_vector(RESET_PLAYER_WEAPONS, &(), &[]);
+    assert_vector(CANCEL_EDIT, &(), &[]);
+    assert_vector(SET_TOGGLE_CLOCK, &true, &[1]);
+    assert_vector(SET_PLAYER_DRUNK, &-2, &[0xFE, 0xFF, 0xFF, 0xFF]);
+    assert_vector(
+        SET_RACE_CHECKPOINT,
+        &RaceCheckpoint {
+            checkpoint_type: 2,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            next_position: Vector3 {
+                x: -1.0,
+                y: -2.0,
+                z: -3.0,
+            },
+            size: 4.5,
+        },
+        &[
+            2, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80, 0xBF, 0, 0, 0, 0xC0,
+            0, 0, 0x40, 0xC0, 0, 0, 0x90, 0x40,
+        ],
+    );
+    assert_vector(
+        PLAY_AUDIO_STREAM,
+        &AudioStream {
+            url: b"url".to_vec(),
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            radius: 50.0,
+            use_position: true,
+        },
+        &[
+            3, b'u', b'r', b'l', 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x48,
+            0x42, 1,
+        ],
+    );
+    assert_vector(
+        SET_OBJECT_POSITION,
+        &ObjectPosition {
+            object_id: 0x1234,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        },
+        &[
+            0x34, 0x12, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40,
+        ],
+    );
+    assert_vector(
+        SET_OBJECT_ROTATION,
+        &ObjectRotation {
+            object_id: 0x1234,
+            rotation: Vector3 {
+                x: -1.0,
+                y: -2.0,
+                z: -3.0,
+            },
+        },
+        &[
+            0x34, 0x12, 0, 0, 0x80, 0xBF, 0, 0, 0, 0xC0, 0, 0, 0x40, 0xC0,
+        ],
+    );
+    assert_vector(DESTROY_OBJECT, &0xBEEF, &[0xEF, 0xBE]);
+    assert_vector(
+        PLAYER_DEATH_NOTIFICATION,
+        &PlayerDeathNotification {
+            killer_id: 2,
+            killed_id: 7,
+            reason: 53,
+        },
+        &[2, 0, 7, 0, 53],
+    );
+    assert_vector(
+        SET_MAP_ICON,
+        &MapIcon {
+            icon_id: 5,
+            position: Vector3 {
+                x: 1.0,
+                y: -2.0,
+                z: 0.5,
+            },
+            icon_type: 3,
+            color: -1,
+            style: 1,
+        },
+        &[
+            5, 0, 0, 0x80, 0x3F, 0, 0, 0, 0xC0, 0, 0, 0, 0x3F, 3, 0xFF, 0xFF, 0xFF, 0xFF, 1,
+        ],
+    );
+    assert_vector(
+        REMOVE_VEHICLE_COMPONENT,
+        &VehicleComponent {
+            vehicle_id: 0x1234,
+            component_id: 0x5678,
+        },
+        &[0x34, 0x12, 0x78, 0x56],
+    );
+    assert_vector(REMOVE_3D_TEXT_LABEL, &0x1234, &[0x34, 0x12]);
+    assert_vector(UPDATE_GLOBAL_TIMER, &-1, &[0xFF, 0xFF, 0xFF, 0xFF]);
+    assert_vector(DESTROY_PICKUP, &-3, &[0xFD, 0xFF, 0xFF, 0xFF]);
+    assert_vector(
+        LINK_VEHICLE_TO_INTERIOR,
+        &VehicleInterior {
+            vehicle_id: 0x1234,
+            interior_id: 7,
+        },
+        &[0x34, 0x12, 7],
+    );
+    assert_vector(
+        SET_PLAYER_COLOR,
+        &PlayerColor {
+            player_id: 0x1234,
+            color: 0x1122_3344,
+        },
+        &[0x34, 0x12, 0x44, 0x33, 0x22, 0x11],
+    );
+    assert_vector(REQUEST_SPAWN_RESPONSE, &false, &[0]);
+    assert_vector(SET_SHOP_NAME, &[0xA5; 32], &[0xA5; 32]);
+    assert_vector(
+        SET_PLAYER_SKILL_LEVEL,
+        &PlayerSkill {
+            player_id: 0x1234,
+            skill: -2,
+            level: 0x5678,
+        },
+        &[0x34, 0x12, 0xFE, 0xFF, 0xFF, 0xFF, 0x78, 0x56],
+    );
+    assert_vector(
+        REMOVE_BUILDING,
+        &RemoveBuilding {
+            model_id: -100,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            radius: 4.5,
+        },
+        &[
+            0x9C, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x90,
+            0x40,
+        ],
+    );
+    assert_vector(
+        ATTACH_OBJECT_TO_PLAYER,
+        &AttachObjectToPlayer {
+            object_id: 1,
+            player_id: 2,
+            offsets: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            rotation: Vector3 {
+                x: -1.0,
+                y: -2.0,
+                z: -3.0,
+            },
+        },
+        &[
+            1, 0, 2, 0, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80, 0xBF, 0, 0,
+            0, 0xC0, 0, 0, 0x40, 0xC0,
+        ],
+    );
+    assert_vector(SHOW_MENU, &5, &[5]);
+    assert_vector(HIDE_MENU, &6, &[6]);
+    assert_vector(
+        CREATE_EXPLOSION,
+        &Explosion {
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            style: -2,
+            radius: 4.5,
+        },
+        &[
+            0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0xFE, 0xFF, 0xFF, 0xFF, 0, 0, 0x90,
+            0x40,
+        ],
+    );
+    assert_vector(
+        SHOW_PLAYER_NAME_TAG,
+        &PlayerNameTag {
+            player_id: 0x1234,
+            show: true,
+        },
+        &[0x34, 0x12, 1],
+    );
+}
+
+#[test]
+fn second_fixed_incoming_rpcs_reject_invalid_lengths_and_trailing_bits() {
+    assert_eq!(
+        encode(
+            PLAY_AUDIO_STREAM,
+            &AudioStream {
+                url: vec![b'x'; 256],
+                position: Vector3 {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0,
+                },
+                radius: 0.0,
+                use_position: false,
+            },
+        ),
+        Err(EncodeError::LengthExceedsLimit {
+            length: 256,
+            limit: 255,
+        })
+    );
+
+    let truncated_shop_name = EncodedBits::from_bits([0; 31], 248).unwrap();
+    assert_eq!(
+        decode(SET_SHOP_NAME, &truncated_shop_name),
+        Err(DecodeError::OutOfBounds {
+            requested_bits: 256,
+            available_bits: 248,
+        })
+    );
+
+    let empty_with_trailing_byte = EncodedBits::from_bits([0], 8).unwrap();
+    assert_eq!(
+        decode(RESET_PLAYER_MONEY, &empty_with_trailing_byte),
+        Err(DecodeError::UnexpectedTrailingBits {
+            remaining_bits: 8,
+            allowed_bits: 0,
+        })
+    );
+
+    let non_byte_aligned = EncodedBits::from_bits([0; 33], 257).unwrap();
+    assert_eq!(
+        decode(SET_SHOP_NAME, &non_byte_aligned),
+        Err(DecodeError::NonByteAligned { bit_len: 257 })
+    );
+
+    let nonzero_bool = EncodedBits::from_bits([2], 8).unwrap();
+    assert_eq!(decode(REQUEST_SPAWN_RESPONSE, &nonzero_bool), Ok(true));
 }
 
 #[test]

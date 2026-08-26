@@ -2022,3 +2022,33 @@ where
     assert_eq!(raw.bit_len, encoded.bit_len);
     assert_eq!(raw.bytes, encoded.bytes);
 }
+
+pub(crate) fn assert_protocol_replacement_round_trip<D>(_descriptor: D, value: D::Value)
+where
+    D: samp_protocol::WireDescriptor,
+    D::Value: Clone + ::core::fmt::Debug + PartialEq,
+{
+    let api = test_api();
+    let encoded = D::encode_bits(&value).expect("test payload must encode");
+    let payload = EncodedPayload::from_bits(encoded.as_bytes().to_vec(), encoded.len_bits())
+        .expect("encoded protocol payload must fit the callback event");
+    let mut raw = TestEvent::new(D::ID, payload);
+    let mut event = unsafe {
+        Event::from_callback(
+            api,
+            (&mut raw as *mut TestEvent).cast::<SampClientSdkEventV1>(),
+        )
+    }
+    .expect("test event is not null");
+
+    assert_eq!(
+        super::handle_protocol::<D>(&mut event, |decoded| {
+            assert_eq!(decoded, value);
+            ProtocolAction::Replace(decoded)
+        })
+        .expect("Protocol replacement must succeed"),
+        SampClientSdkHookAction::Continue
+    );
+    assert_eq!(raw.bit_len, encoded.len_bits());
+    assert_eq!(raw.bytes, encoded.as_bytes());
+}

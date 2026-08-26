@@ -2,9 +2,12 @@ use super::*;
 use super::{
     core::RpcEncoder,
     rpc::incoming,
-    test_support::{TestEvent, assert_replacement_round_trip, test_api},
+    test_support::{
+        TestEvent, assert_protocol_replacement_round_trip, assert_replacement_round_trip, test_api,
+    },
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
+use samp_protocol::rpc::incoming as protocol_incoming;
 
 fn encode_bytes<T, D>(descriptor: D, value: T) -> Vec<u8>
 where
@@ -44,6 +47,209 @@ fn test_animation() -> incoming::Animation {
         freeze: false,
         time: -1,
     }
+}
+
+#[test]
+fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
+    use protocol_incoming::Vector3;
+
+    fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
+    where
+        D: samp_protocol::WireDescriptor,
+        D::Value: Clone + ::core::fmt::Debug + PartialEq,
+    {
+        assert_protocol_replacement_round_trip(descriptor, value);
+    }
+
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_POSITION,
+        protocol_incoming::VehiclePosition {
+            vehicle_id: 1,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_ANGLE,
+        protocol_incoming::VehicleAngle {
+            vehicle_id: 2,
+            angle: 90.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_HEALTH,
+        protocol_incoming::VehicleHealth {
+            vehicle_id: 3,
+            health: 750.0,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::RESET_PLAYER_MONEY, ());
+    assert_replacement_round_trip(protocol_incoming::RESET_PLAYER_WEAPONS, ());
+    assert_replacement_round_trip(protocol_incoming::CANCEL_EDIT, ());
+    assert_replacement_round_trip(protocol_incoming::SET_TOGGLE_CLOCK, true);
+    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK, -2);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_RACE_CHECKPOINT,
+        protocol_incoming::RaceCheckpoint {
+            checkpoint_type: 1,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            next_position: Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            size: 7.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::PLAY_AUDIO_STREAM,
+        protocol_incoming::AudioStream {
+            url: b"https://example.invalid/audio".to_vec(),
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            radius: 50.0,
+            use_position: true,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_OBJECT_POSITION,
+        protocol_incoming::ObjectPosition {
+            object_id: 4,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_OBJECT_ROTATION,
+        protocol_incoming::ObjectRotation {
+            object_id: 5,
+            rotation: Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::DESTROY_OBJECT, 6);
+    assert_replacement_round_trip(
+        protocol_incoming::PLAYER_DEATH_NOTIFICATION,
+        protocol_incoming::PlayerDeathNotification {
+            killer_id: 7,
+            killed_id: 8,
+            reason: 9,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_MAP_ICON,
+        protocol_incoming::MapIcon {
+            icon_id: 1,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            icon_type: 2,
+            color: -1,
+            style: 3,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::REMOVE_VEHICLE_COMPONENT,
+        protocol_incoming::VehicleComponent {
+            vehicle_id: 10,
+            component_id: 11,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::REMOVE_3D_TEXT_LABEL, 12);
+    assert_replacement_round_trip(protocol_incoming::UPDATE_GLOBAL_TIMER, 13);
+    assert_replacement_round_trip(protocol_incoming::DESTROY_PICKUP, -14);
+    assert_replacement_round_trip(
+        protocol_incoming::LINK_VEHICLE_TO_INTERIOR,
+        protocol_incoming::VehicleInterior {
+            vehicle_id: 15,
+            interior_id: 16,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_PLAYER_COLOR,
+        protocol_incoming::PlayerColor {
+            player_id: 17,
+            color: -1,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::REQUEST_SPAWN_RESPONSE, false);
+    assert_replacement_round_trip(protocol_incoming::SET_SHOP_NAME, [b'S'; 32]);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_PLAYER_SKILL_LEVEL,
+        protocol_incoming::PlayerSkill {
+            player_id: 18,
+            skill: 19,
+            level: 20,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::REMOVE_BUILDING,
+        protocol_incoming::RemoveBuilding {
+            model_id: 21,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            radius: 4.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::ATTACH_OBJECT_TO_PLAYER,
+        protocol_incoming::AttachObjectToPlayer {
+            object_id: 22,
+            player_id: 23,
+            offsets: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            rotation: Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::SHOW_MENU, 24);
+    assert_replacement_round_trip(protocol_incoming::HIDE_MENU, 25);
+    assert_replacement_round_trip(
+        protocol_incoming::CREATE_EXPLOSION,
+        protocol_incoming::Explosion {
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            style: 26,
+            radius: 27.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SHOW_PLAYER_NAME_TAG,
+        protocol_incoming::PlayerNameTag {
+            player_id: 28,
+            show: true,
+        },
+    );
 }
 
 #[test]
@@ -564,32 +770,6 @@ fn set_player_skin_uses_rpc_153_and_two_i32_values() {
 }
 
 #[test]
-fn fixed_layout_incoming_rpc_helpers_use_their_protocol_ids() {
-    let descriptors = [
-        (incoming::CANCEL_EDIT.id(), 28),
-        (incoming::SET_TOGGLE_CLOCK.id(), 30),
-        (incoming::SET_PLAYER_DRUNK.id(), 35),
-        (incoming::SET_RACE_CHECKPOINT.id(), 38),
-        (incoming::PLAY_AUDIO_STREAM.id(), 41),
-        (incoming::SET_OBJECT_POSITION.id(), 45),
-        (incoming::SET_OBJECT_ROTATION.id(), 46),
-        (incoming::DESTROY_OBJECT.id(), 47),
-        (incoming::PLAYER_DEATH_NOTIFICATION.id(), 55),
-        (incoming::SET_MAP_ICON.id(), 56),
-        (incoming::REMOVE_VEHICLE_COMPONENT.id(), 57),
-        (incoming::REMOVE_3D_TEXT_LABEL.id(), 58),
-        (incoming::UPDATE_GLOBAL_TIMER.id(), 60),
-        (incoming::DESTROY_PICKUP.id(), 63),
-        (incoming::LINK_VEHICLE_TO_INTERIOR.id(), 65),
-        (incoming::SET_PLAYER_COLOR.id(), 72),
-    ];
-
-    for (actual, expected) in descriptors {
-        assert_eq!(actual, expected);
-    }
-}
-
-#[test]
 fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
     let descriptors = [
         (incoming::INIT_GAME.id(), 139),
@@ -622,98 +802,7 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
 }
 
 #[test]
-fn fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
-    let race_checkpoint = encode_bytes(
-        incoming::SET_RACE_CHECKPOINT,
-        incoming::RaceCheckpoint {
-            checkpoint_type: 2,
-            position: Vector3 {
-                x: 1.0,
-                y: 2.0,
-                z: 3.0,
-            },
-            next_position: Vector3 {
-                x: 4.0,
-                y: 5.0,
-                z: 6.0,
-            },
-            size: 7.0,
-        },
-    );
-    assert_eq!(
-        race_checkpoint,
-        [
-            2, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80, 0x40, 0, 0, 0xA0,
-            0x40, 0, 0, 0xC0, 0x40, 0, 0, 0xE0, 0x40,
-        ]
-    );
-
-    let audio_stream = encode_bytes(
-        incoming::PLAY_AUDIO_STREAM,
-        incoming::AudioStream {
-            url: b"x.y".to_vec(),
-            position: Vector3 {
-                x: 1.0,
-                y: 2.0,
-                z: 3.0,
-            },
-            radius: 4.0,
-            use_position: true,
-        },
-    );
-    assert_eq!(
-        audio_stream,
-        [
-            3, b'x', b'.', b'y', 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80,
-            0x40, 1,
-        ]
-    );
-
-    assert_eq!(
-        encode_bytes(
-            incoming::SET_MAP_ICON,
-            incoming::MapIcon {
-                icon_id: 7,
-                position: Vector3 {
-                    x: 1.0,
-                    y: 2.0,
-                    z: 3.0,
-                },
-                icon_type: 4,
-                color: -1,
-                style: 2,
-            },
-        ),
-        [
-            7, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 4, 0xFF, 0xFF, 0xFF, 0xFF, 2,
-        ]
-    );
-    assert_eq!(
-        encode_bytes(
-            incoming::PLAYER_DEATH_NOTIFICATION,
-            incoming::PlayerDeathNotification {
-                killer_id: 0x1234,
-                killed_id: 0x5678,
-                reason: 9,
-            },
-        ),
-        [0x34, 0x12, 0x78, 0x56, 9]
-    );
-    assert_eq!(
-        encode_bytes(
-            incoming::SET_PLAYER_COLOR,
-            incoming::PlayerColor {
-                player_id: 0x1234,
-                color: -1,
-            },
-        ),
-        [0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF]
-    );
-}
-
-#[test]
 fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
-    assert_eq!(incoming::SET_SHOP_NAME.id(), 33);
     assert_eq!(incoming::CREATE_GANG_ZONE.id(), 108);
     assert_eq!(incoming::SET_VEHICLE_PARAMS_EX.id(), 24);
     assert_eq!(incoming::CREATE_ACTOR.id(), 171);
