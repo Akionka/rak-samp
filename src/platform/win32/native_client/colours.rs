@@ -48,7 +48,7 @@ mod tests {
     fn colour_domains_round_trip_without_double_rotation() {
         let public = ArgbColour::new(0xFF6F_CF97);
         let native: NativeRgbaColour = public.into();
-        assert_eq!(native.get(), 0x6F_CF97_FF);
+        assert_eq!(native.get(), 0x6FCF_97FF);
         let round_trip: ArgbColour = native.into();
         assert_eq!(round_trip, public);
     }

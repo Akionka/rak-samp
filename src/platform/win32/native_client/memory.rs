@@ -160,7 +160,7 @@ mod tests {
     fn bounded_strings_copy_only_terminated_native_data() {
         assert_eq!(unsafe { bounded_c_string(ptr::null(), 1) }, None);
         assert_eq!(
-            unsafe { bounded_c_string(b"abc\0".as_ptr(), 4) },
+            unsafe { bounded_c_string(c"abc".as_ptr().cast(), 4) },
             Some(b"abc".to_vec())
         );
         assert_eq!(
@@ -168,7 +168,7 @@ mod tests {
             Some(b"ab".to_vec())
         );
         assert_eq!(unsafe { bounded_c_string(b"abc".as_ptr(), 3) }, None);
-        assert_eq!(unsafe { bounded_c_string(b"\0".as_ptr(), 0) }, None);
+        assert_eq!(unsafe { bounded_c_string(c"".as_ptr().cast(), 0) }, None);
     }
 
     #[test]
