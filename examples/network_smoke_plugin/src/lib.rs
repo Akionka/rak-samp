@@ -9,8 +9,9 @@ compile_error!("samp_client_sdk_network_smoke_plugin supports only 32-bit Window
 
 use samp_client_sdk::{
     CommandReceipt, Samp, SampClientSdkDirection, SampClientSdkHookAction, SampClientSdkResult,
-    SubscriptionSet, raknet::BitStream,
+    SubscriptionSet,
 };
+use samp_protocol::BitStream;
 use std::{
     ffi::c_void,
     fs,

@@ -2,7 +2,7 @@
 name = "samp-client-sdk"
 version = "0.1.0-alpha.4"
 edition = "2024"
-rust-version = "1.87"
+rust-version = "1.98"
 license = "MIT"
 description = "Rust SDK for SA-MP client ASI plugins"
 repository = "https://github.com/Akionka/samp-client-sdk"
@@ -18,6 +18,9 @@ targets = ["i686-pc-windows-msvc"]
 
 [lib]
 name = "samp_client_sdk"
+
+[dependencies]
+samp-protocol = { path = "../crates/samp-protocol" }
 
 [target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
 windows-sys = { version = "0.61", features = [

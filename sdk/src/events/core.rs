@@ -321,6 +321,18 @@ impl<'callback> Event<'callback> {
     }
 }
 
+impl<'callback> samp_protocol::BitRead for Event<'callback> {
+    type Error = EventError;
+
+    fn remaining_bits(&self) -> usize {
+        self.remaining_bits()
+    }
+
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+        self.read_bits(bit_len)
+    }
+}
+
 pub(super) struct PayloadWriter {
     bytes: Vec<u8>,
     bit_len: usize,

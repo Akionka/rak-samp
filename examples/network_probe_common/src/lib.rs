@@ -7,8 +7,6 @@
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp-client-sdk network probes support only 32-bit Windows x86 targets");
 
-#[cfg(feature = "r1-probe")]
-use samp_client_sdk::raknet::BitStream;
 use samp_client_sdk::{
     CommandReceipt, GangzoneId, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
     LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogStyle, ObjectId, PlayerId, Samp,
@@ -18,6 +16,8 @@ use samp_client_sdk::{
     events::{RpcAction, packet::outgoing, rpc::incoming},
     raw,
 };
+#[cfg(feature = "r1-probe")]
+use samp_protocol::BitStream;
 use std::{
     ffi::c_void,
     fs, ptr,

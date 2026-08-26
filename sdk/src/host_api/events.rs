@@ -46,7 +46,7 @@ impl HostApi {
     /// the stream cursor is unchanged.
     pub fn decode_string(
         self,
-        stream: &mut crate::raknet::BitStream,
+        stream: &mut samp_protocol::BitStream,
     ) -> Result<Vec<u8>, SampClientSdkResult> {
         let mut output = vec![0_u8; MAX_RAKNET_DECODED_STRING_BYTES + 1];
         let mut output_len = 0_usize;

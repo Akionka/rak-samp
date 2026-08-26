@@ -16,7 +16,6 @@ pub mod events;
 mod facade;
 mod host_api;
 pub mod limits;
-pub mod raknet;
 pub mod raw;
 mod resolve;
 mod subscriptions;

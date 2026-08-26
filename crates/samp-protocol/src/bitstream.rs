@@ -1,19 +1,13 @@
-//! Static RakNet and SA-MP identifier names.
-//!
-//! These helpers are a Rust-friendly equivalent of SF.lua's
-//! `raknetGetRpcName` and `raknetGetPacketName`. They are pure lookups: no
-//! host discovery, client pointer, or network operation is involved.
+use core::fmt;
 
-use crate::SampClientSdkEncodedString;
+/// Maximum meaningful bits accepted by one owned Protocol payload.
+pub const MAX_BIT_STREAM_BITS: usize = 16 * 1024 * 1024 * u8::BITS as usize;
 
-const MAX_BIT_STREAM_BITS: usize = 16 * 1024 * 1024 * u8::BITS as usize;
-
-/// A bounded, owned RakNet-compatible bit stream for plugin-side construction.
+/// A bounded, owned RakNet-compatible Protocol bitstream.
 ///
 /// Bits are stored most-significant-bit first in each byte. Numeric values use
-/// little-endian byte order, matching the supported Windows x86 client. This
-/// type owns only Rust memory; it never represents a native `RakNet::BitStream`
-/// pointer and is safe to keep on a plugin worker thread.
+/// little-endian byte order. This type owns Rust memory only; it never models
+/// a native `RakNet::BitStream` pointer.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct BitStream {
     bytes: Vec<u8>,
@@ -21,7 +15,7 @@ pub struct BitStream {
     read_offset: usize,
 }
 
-/// A checked bit-stream operation failed.
+/// A checked Protocol bitstream operation failed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BitStreamError {
     /// The requested range does not fit in the stream.
@@ -31,12 +25,63 @@ pub enum BitStreamError {
     },
     /// The supplied bit length does not fit in its byte buffer.
     InvalidBitLength { bit_len: usize, byte_len: usize },
-    /// The bounded plugin-side stream would grow beyond its safe limit.
+    /// The bounded Protocol payload would exceed its safe limit.
     PayloadTooLarge { requested_bits: usize },
 }
 
+impl fmt::Display for BitStreamError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::OutOfBounds {
+                requested_bits,
+                available_bits,
+            } => write!(
+                formatter,
+                "cannot access {requested_bits} bits; only {available_bits} bits are available"
+            ),
+            Self::InvalidBitLength { bit_len, byte_len } => write!(
+                formatter,
+                "bit length {bit_len} does not fit in a {byte_len}-byte buffer"
+            ),
+            Self::PayloadTooLarge { requested_bits } => write!(
+                formatter,
+                "payload of {requested_bits} bits exceeds the Protocol limit"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for BitStreamError {}
+
+/// Reads raw bits into a left-aligned, most-significant-bit-first byte buffer.
+///
+/// This contract is intentionally distinct from [`BitStream::read_bits`],
+/// whose partial final byte is right-aligned for SDK compatibility.
+pub trait BitRead {
+    /// The original error type returned by this transport.
+    type Error;
+
+    /// Returns the unread bit count.
+    fn remaining_bits(&self) -> usize;
+
+    /// Reads `bit_len` raw bits as left-aligned, MSB-first bytes.
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error>;
+}
+
+/// Writes raw, left-aligned, most-significant-bit-first bit buffers.
+///
+/// This contract is intentionally distinct from [`BitStream::write_bits`],
+/// whose partial final input byte is right-aligned for SDK compatibility.
+pub trait BitWrite {
+    /// The original error type returned by this transport.
+    type Error;
+
+    /// Appends `bit_len` left-aligned, MSB-first bits from `bytes`.
+    fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error>;
+}
+
 impl BitStream {
-    /// Creates an empty stream, corresponding to SF.lua's `raknetNewBitStream`.
+    /// Creates an empty bitstream.
     #[must_use]
     pub const fn new() -> Self {
         Self {
@@ -46,7 +91,7 @@ impl BitStream {
         }
     }
 
-    /// Creates a byte-aligned stream.
+    /// Creates a byte-aligned bitstream.
     pub fn from_bytes(bytes: impl Into<Vec<u8>>) -> Result<Self, BitStreamError> {
         let bytes = bytes.into();
         let bit_len =
@@ -59,7 +104,7 @@ impl BitStream {
         Self::from_bits(bytes, bit_len)
     }
 
-    /// Creates a stream from left-aligned meaningful bits in `bytes`.
+    /// Creates a bitstream from left-aligned meaningful bits in `bytes`.
     pub fn from_bits(bytes: impl Into<Vec<u8>>, bit_len: usize) -> Result<Self, BitStreamError> {
         let bytes = bytes.into();
         let available_bits = bytes.len().saturating_mul(u8::BITS as usize);
@@ -83,13 +128,13 @@ impl BitStream {
         Ok(stream)
     }
 
-    /// Returns the left-aligned storage used by the host send ABI.
+    /// Returns the left-aligned storage used for exact wire payloads.
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
-    /// Returns the number of meaningful bits (`raknetBitStreamGetNumberOfBitsUsed`).
+    /// Returns the number of meaningful bits.
     #[must_use]
     pub const fn len_bits(&self) -> usize {
         self.bit_len
@@ -101,13 +146,13 @@ impl BitStream {
         self.bit_len.div_ceil(u8::BITS as usize)
     }
 
-    /// Returns unread bits from the current read cursor.
+    /// Returns unread bits from the current cursor.
     #[must_use]
     pub const fn remaining_bits(&self) -> usize {
         self.bit_len.saturating_sub(self.read_offset)
     }
 
-    /// Returns the read cursor offset in bits.
+    /// Returns the checked read cursor offset in bits.
     #[must_use]
     pub const fn read_offset_bits(&self) -> usize {
         self.read_offset
@@ -125,28 +170,25 @@ impl BitStream {
         self.bit_len
     }
 
-    /// Returns the checked write cursor offset in bits.
+    /// Returns the write cursor offset in bits.
     #[must_use]
     pub const fn write_offset(&self) -> usize {
         self.write_offset_bits()
     }
 
-    /// Clears data and both cursors, corresponding to `raknetResetBitStream`.
+    /// Clears data and both cursors.
     pub fn reset(&mut self) {
         self.bytes.clear();
         self.bit_len = 0;
         self.read_offset = 0;
     }
 
-    /// Clears the owned stream and both cursors.
+    /// Clears the owned bitstream and both cursors.
     pub fn clear(&mut self) {
         self.reset();
     }
 
     /// Clears written data and resets the read cursor safely.
-    ///
-    /// Native `ResetWritePointer` can leave an invalid read cursor; this owned
-    /// representation deliberately cannot.
     pub fn reset_write_pointer(&mut self) {
         self.reset();
     }
@@ -156,7 +198,7 @@ impl BitStream {
         self.reset_write_pointer();
     }
 
-    /// Resets the read cursor, corresponding to `raknetBitStreamResetReadPointer`.
+    /// Resets the read cursor.
     pub fn reset_read_pointer(&mut self) {
         self.read_offset = 0;
     }
@@ -179,9 +221,6 @@ impl BitStream {
     }
 
     /// Truncates the stream to a checked write offset.
-    ///
-    /// Unlike the native raw-pointer function, this cannot advance into
-    /// uninitialized backing storage.
     pub fn set_write_offset(&mut self, offset_bits: usize) -> Result<(), BitStreamError> {
         if offset_bits > self.bit_len {
             return Err(BitStreamError::OutOfBounds {
@@ -229,8 +268,7 @@ impl BitStream {
         Ok(())
     }
 
-    /// Reads an exact number of bits. A partial final output byte is right-aligned,
-    /// matching SF.lua's `ReadBits(..., true)` behavior.
+    /// Reads exact bits with a right-aligned partial final byte.
     pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, BitStreamError> {
         let remaining_bits = self.remaining_bits();
         if bit_len > remaining_bits {
@@ -253,8 +291,7 @@ impl BitStream {
         Ok(output)
     }
 
-    /// Writes bits from `bytes`. A partial final byte must be right-aligned,
-    /// matching SF.lua's `WriteBits(..., true)` behavior.
+    /// Appends bits from right-aligned partial final input bytes.
     pub fn write_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), BitStreamError> {
         let available_bits = bytes.len().saturating_mul(u8::BITS as usize);
         if bit_len > available_bits {
@@ -387,14 +424,6 @@ impl BitStream {
         Ok(())
     }
 
-    /// Appends a string encoded by [`crate::HostApi::encode_string`].
-    pub fn write_encoded_string(
-        &mut self,
-        value: &SampClientSdkEncodedString,
-    ) -> Result<(), BitStreamError> {
-        self.write_left_aligned_bits(value.as_bytes(), value.len_bits())
-    }
-
     fn read_fixed<const N: usize>(&mut self) -> Result<[u8; N], BitStreamError> {
         let bytes = self.read_bytes(N)?;
         let mut output = [0; N];
@@ -464,310 +493,35 @@ impl BitStream {
     }
 }
 
-/// Returns the SF.lua SA-MP RPC label for `id`, if the catalog defines one.
-#[must_use]
-pub const fn rpc_name(id: u8) -> Option<&'static str> {
-    Some(match id {
-        11 => "SetPlayerName",
-        12 => "SetPlayerPos",
-        13 => "SetPlayerPosFindZ",
-        14 => "SetPlayerHealth",
-        15 => "TogglePlayerControllable",
-        16 => "PlaySound",
-        17 => "SetPlayerWorldBounds",
-        18 => "GivePlayerMoney",
-        19 => "SetPlayerFacingAngle",
-        20 => "ResetPlayerMoney",
-        21 => "ResetPlayerWeapons",
-        22 => "GivePlayerWeapon",
-        23 => "ClickPlayer",
-        24 => "SetVehicleParamsEx",
-        25 => "ClientJoin",
-        26 => "EnterVehicle",
-        27 => "EnterEditObject",
-        28 => "CancelEdit",
-        29 => "SetPlayerTime",
-        30 => "ToggleClock",
-        31 => "ScriptCash",
-        32 => "WorldPlayerAdd",
-        33 => "SetPlayerShopName",
-        34 => "SetPlayerSkillLevel",
-        35 => "SetPlayerDrunkLevel",
-        36 => "Create3DTextLabel",
-        37 => "DisableCheckpoint",
-        38 => "SetRaceCheckpoint",
-        39 => "DisableRaceCheckpoint",
-        40 => "GameModeRestart",
-        41 => "PlayAudioStream",
-        42 => "StopAudioStream",
-        43 => "RemoveBuildingForPlayer",
-        44 => "CreateObject",
-        45 => "SetObjectPos",
-        46 => "SetObjectRot",
-        47 => "DestroyObject",
-        50 => "ServerCommand",
-        52 => "Spawn",
-        53 => "Death",
-        54 => "NPCJoin",
-        55 => "DeathMessage",
-        56 => "SetPlayerMapIcon",
-        57 => "RemoveVehicleComponent",
-        58 => "Update3DTextLabel",
-        59 => "ChatBubble",
-        60 => "UpdateSystemTime",
-        61 => "ShowDialog",
-        62 => "DialogResponse",
-        63 => "DestroyPickup",
-        64 => "WeaponPickupDestroy",
-        65 => "LinkVehicleToInterior",
-        66 => "SetPlayerArmour",
-        67 => "SetPlayerArmedWeapon",
-        68 => "SetSpawnInfo",
-        69 => "SetPlayerTeam",
-        70 => "PutPlayerInVehicle",
-        71 => "RemovePlayerFromVehicle",
-        72 => "SetPlayerColor",
-        73 => "DisplayGameText",
-        74 => "ForceClassSelection",
-        75 => "AttachObjectToPlayer",
-        76 => "InitMenu",
-        77 => "ShowMenu",
-        78 => "HideMenu",
-        79 => "CreateExplosion",
-        80 => "ShowPlayerNameTagForPlayer",
-        81 => "AttachCameraToObject",
-        82 => "InterpolateCamera",
-        83 => "ClickTextDraw",
-        84 => "SetObjectMaterial",
-        85 => "GangZoneStopFlash",
-        86 => "ApplyAnimation",
-        87 => "ClearAnimations",
-        88 => "SetPlayerSpecialAction",
-        89 => "SetPlayerFightingStyle",
-        90 => "SetPlayerVelocity",
-        91 => "SetVehicleVelocity",
-        92 => "SetPlayerDrunkVisuals",
-        93 => "ClientMessage",
-        94 => "SetWorldTime",
-        95 => "CreatePickup",
-        96 => "SCMEvent",
-        98 => "SetVehicleTireStatus",
-        99 => "MoveObject",
-        101 => "Chat",
-        102 => "SrvNetStats",
-        103 => "ClientCheck",
-        104 => "EnableStuntBonusForPlayer",
-        105 => "TextDrawSetString",
-        106 => "DamageVehicle",
-        107 => "SetCheckpoint",
-        108 => "GangZoneCreate",
-        112 => "PlayCrimeReport",
-        113 => "SetPlayerAttachedObject",
-        115 => "GiveTakeDamage",
-        116 => "EditAttachedObject",
-        117 => "EditObject",
-        118 => "SetInteriorId",
-        119 => "MapMarker",
-        120 => "GangZoneDestroy",
-        121 => "GangZoneFlash",
-        122 => "StopObject",
-        123 => "SetNumberPlate",
-        124 => "TogglePlayerSpectating",
-        126 => "PlayerSpectatePlayer",
-        127 => "PlayerSpectateVehicle",
-        128 => "RequestClass",
-        129 => "RequestSpawn",
-        131 => "PickedUpPickup",
-        132 => "MenuSelect",
-        133 => "SetPlayerWantedLevel",
-        134 => "ShowTextDraw",
-        135 => "TextDrawHideForPlayer",
-        136 => "VehicleDestroyed",
-        137 => "ServerJoin",
-        138 => "ServerQuit",
-        139 => "InitGame",
-        140 => "MenuQuit",
-        144 => "RemovePlayerMapIcon",
-        145 => "SetPlayerAmmo",
-        146 => "SetPlayerGravity",
-        147 => "SetVehicleHealth",
-        148 => "AttachTrailerToVehicle",
-        149 => "DetachTrailerFromVehicle",
-        150 => "SetPlayerDrunkHandling",
-        151 => "DestroyPickups",
-        152 => "SetWeather",
-        153 => "SetPlayerSkin",
-        154 => "ExitVehicle",
-        155 => "UpdateScoresPingsIPs",
-        156 => "SetPlayerInterior",
-        157 => "SetPlayerCameraPos",
-        158 => "SetPlayerCameraLookAt",
-        159 => "SetVehiclePos",
-        160 => "SetVehicleZAngle",
-        161 => "SetVehicleParamsForPlayer",
-        162 => "SetCameraBehindPlayer",
-        163 => "WorldPlayerRemove",
-        164 => "WorldVehicleAdd",
-        165 => "WorldVehicleRemove",
-        166 => "WorldPlayerDeath",
-        _ => return None,
-    })
+impl BitRead for BitStream {
+    type Error = BitStreamError;
+
+    fn remaining_bits(&self) -> usize {
+        self.remaining_bits()
+    }
+
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        let mut output = vec![0; bit_len.div_ceil(u8::BITS as usize)];
+        for bit_offset in 0..bit_len {
+            if self.read_bool()? {
+                output[bit_offset / u8::BITS as usize] |= 0x80 >> (bit_offset % u8::BITS as usize);
+            }
+        }
+        Ok(output)
+    }
 }
 
-/// Returns the SF.lua RakNet packet label for `id`, if the catalog defines one.
-#[must_use]
-pub const fn packet_name(id: u8) -> Option<&'static str> {
-    Some(match id {
-        6 => "INTERNAL_PING",
-        7 => "PING",
-        8 => "PING_OPEN_CONNECTIONS",
-        9 => "CONNECTED_PONG",
-        10 => "REQUEST_STATIC_DATA",
-        11 => "CONNECTION_REQUEST",
-        12 => "AUTH_KEY",
-        14 => "BROADCAST_PINGS",
-        15 => "SECURED_CONNECTION_RESPONSE",
-        16 => "SECURED_CONNECTION_CONFIRMATION",
-        17 => "RPC_MAPPING",
-        19 => "SET_RANDOM_NUMBER_SEED",
-        20 => "RPC",
-        21 => "RPC_REPLY",
-        23 => "DETECT_LOST_CONNECTIONS",
-        24 => "OPEN_CONNECTION_REQUEST",
-        25 => "OPEN_CONNECTION_REPLY",
-        26 => "CONNECTION_COOKIE",
-        28 => "RSA_PUBLIC_KEY_MISMATCH",
-        29 => "CONNECTION_ATTEMPT_FAILED",
-        30 => "NEW_INCOMING_CONNECTION",
-        31 => "NO_FREE_INCOMING_CONNECTIONS",
-        32 => "DISCONNECTION_NOTIFICATION",
-        33 => "CONNECTION_LOST",
-        34 => "CONNECTION_REQUEST_ACCEPTED",
-        35 => "INITIALIZE_ENCRYPTION",
-        36 => "CONNECTION_BANNED",
-        37 => "INVALID_PASSWORD",
-        38 => "MODIFIED_PACKET",
-        39 => "PONG",
-        40 => "TIMESTAMP",
-        41 => "RECEIVED_STATIC_DATA",
-        42 => "REMOTE_DISCONNECTION_NOTIFICATION",
-        43 => "REMOTE_CONNECTION_LOST",
-        44 => "REMOTE_NEW_INCOMING_CONNECTION",
-        45 => "REMOTE_EXISTING_CONNECTION",
-        46 => "REMOTE_STATIC_DATA",
-        56 => "ADVERTISE_SYSTEM",
-        200 => "VEHICLE_SYNC",
-        201 => "RCON_COMMAND",
-        202 => "RCON_RESPONCE",
-        203 => "AIM_SYNC",
-        204 => "WEAPONS_UPDATE",
-        205 => "STATS_UPDATE",
-        206 => "BULLET_SYNC",
-        207 => "PLAYER_SYNC",
-        208 => "MARKERS_SYNC",
-        209 => "UNOCCUPIED_SYNC",
-        210 => "TRAILER_SYNC",
-        211 => "PASSENGER_SYNC",
-        212 => "SPECTATOR_SYNC",
-        _ => return None,
-    })
-}
+impl BitWrite for BitStream {
+    type Error = BitStreamError;
 
-#[cfg(test)]
-mod tests {
-    use super::{BitStream, BitStreamError, packet_name, rpc_name};
-
-    #[test]
-    fn rpc_names_match_the_sf_lua_catalog() {
-        assert_eq!(rpc_name(61), Some("ShowDialog"));
-        assert_eq!(rpc_name(62), Some("DialogResponse"));
-        assert_eq!(rpc_name(139), Some("InitGame"));
-        assert_eq!(rpc_name(0), None);
-    }
-
-    #[test]
-    fn packet_names_match_the_sf_lua_catalog() {
-        assert_eq!(packet_name(20), Some("RPC"));
-        assert_eq!(packet_name(207), Some("PLAYER_SYNC"));
-        assert_eq!(packet_name(255), None);
-    }
-
-    #[test]
-    fn bit_stream_round_trips_unaligned_values_and_right_aligned_partial_bits() {
-        let mut stream = BitStream::new();
-        stream.write_bool(true).unwrap();
-        stream.write_i8(-2).unwrap();
-        stream.write_i16(-0x1234).unwrap();
-        stream.write_i32(-123_456).unwrap();
-        stream.write_f32(1.5).unwrap();
-        stream.write_bits(&[0b0000_0101], 3).unwrap();
-
-        assert_eq!(stream.len_bits(), 1 + 8 + 16 + 32 + 32 + 3);
-        assert_eq!(stream.as_bytes().last(), Some(&0b1101_0000));
-        assert!(stream.read_bool().unwrap());
-        assert_eq!(stream.read_i8().unwrap(), -2);
-        assert_eq!(stream.read_i16().unwrap(), -0x1234);
-        assert_eq!(stream.read_i32().unwrap(), -123_456);
-        assert_eq!(stream.read_f32().unwrap(), 1.5);
-        assert_eq!(stream.read_bits(3).unwrap(), vec![0b0000_0101]);
-        assert_eq!(stream.remaining_bits(), 0);
-    }
-
-    #[test]
-    fn bit_stream_checks_cursors_and_never_exposes_uninitialized_bits() {
-        let mut stream = BitStream::from_bytes([0xAB, 0xCD]).unwrap();
-        stream.set_read_offset(4).unwrap();
-        assert_eq!(stream.read_bits(4).unwrap(), vec![0x0B]);
-        stream.ignore_bits(8).unwrap();
-        assert_eq!(
-            stream.read_bits(1),
-            Err(BitStreamError::OutOfBounds {
-                requested_bits: 1,
-                available_bits: 0,
-            })
-        );
-        stream.set_write_offset(12).unwrap();
-        assert_eq!(stream.as_bytes(), &[0xAB, 0xC0]);
-        assert_eq!(
-            stream.set_write_offset(13),
-            Err(BitStreamError::OutOfBounds {
-                requested_bits: 13,
-                available_bits: 12,
-            })
-        );
-    }
-
-    #[test]
-    fn bit_stream_unsigned_and_cursor_aliases_preserve_the_owned_wire_data() {
-        let mut stream = BitStream::new();
-        stream.write_u8(0xFE).unwrap();
-        stream.write_u16(0xFEDC).unwrap();
-        stream.write_u32(0xFEDC_BA98).unwrap();
-        assert_eq!(stream.write_offset_bits(), 56);
-
-        stream.reset_read();
-        assert_eq!(stream.read_u8(), Ok(0xFE));
-        assert_eq!(stream.read_u16(), Ok(0xFEDC));
-        assert_eq!(stream.read_u32(), Ok(0xFEDC_BA98));
-        assert_eq!(stream.remaining_bits(), 0);
-
-        stream.reset_write();
-        assert_eq!(stream.len_bits(), 0);
-        stream.write_string(b"owned").unwrap();
-        stream.clear();
-        assert_eq!(stream.len_bytes(), 0);
-    }
-
-    #[test]
-    fn bit_stream_appends_meaningful_bits_from_another_stream() {
-        let mut source = BitStream::new();
-        source.write_bits(&[0b0000_0110], 3).unwrap();
-        let mut destination = BitStream::new();
-        destination.write_bool(true).unwrap();
-        destination.write_stream(&source).unwrap();
-
-        assert_eq!(destination.len_bits(), 4);
-        assert_eq!(destination.as_bytes(), &[0b1110_0000]);
-        assert_eq!(destination.read_bits(4).unwrap(), vec![0b0000_1110]);
+    fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
+        self.write_left_aligned_bits(bytes, bit_len)
     }
 }

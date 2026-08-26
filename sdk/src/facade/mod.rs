@@ -571,7 +571,7 @@ mod tests {
                 .map(|value| value.len_bits()),
             Ok(32)
         );
-        let mut stream = crate::raknet::BitStream::from_bits([0b1010_0000], 3).unwrap();
+        let mut stream = samp_protocol::BitStream::from_bits([0b1010_0000], 3).unwrap();
         assert_eq!(
             samp.net().decode_string(&mut stream),
             Ok(b"fixture".to_vec())

@@ -101,6 +101,7 @@ dependencies = [
 name = "samp-client-sdk"
 version = "0.1.0-alpha.4"
 dependencies = [
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -117,6 +118,7 @@ name = "samp-client-sdk-dl-network-probe"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -137,6 +139,7 @@ name = "samp-client-sdk-network-smoke-plugin"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -145,6 +148,7 @@ name = "samp-client-sdk-r1-network-probe"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -153,6 +157,7 @@ name = "samp-client-sdk-r3-network-probe"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -161,6 +166,7 @@ name = "samp-client-sdk-r5-network-probe"
 version = "0.1.0"
 dependencies = [
  "samp-client-sdk",
+ "samp-protocol",
  "windows-sys",
 ]
 
@@ -171,6 +177,10 @@ dependencies = [
  "samp-client-sdk",
  "windows-sys",
 ]
+
+[[package]]
+name = "samp-protocol"
+version = "0.1.0-alpha.4"
 
 [[package]]
 name = "serde_core"

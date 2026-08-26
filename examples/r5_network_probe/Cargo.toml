@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 samp_client_sdk = { package = "samp-client-sdk", path = "../../sdk" }
+samp-protocol = { path = "../../crates/samp-protocol" }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

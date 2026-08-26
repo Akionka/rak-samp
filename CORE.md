@@ -5,6 +5,10 @@
 - `sdk/` is the public Rust package imported as `samp_client_sdk` by ASI
   plugins; its public paths follow cohesive modules rather than compatibility
   aliases.
+- `crates/samp-protocol/` is the platform-independent Rust package for owned
+  Protocol bitstreams, exact-bit payload values, and Packet/RPC name catalogs.
+  Plugins that need these values depend on it directly; the legacy SDK does
+  not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while the R1 bridge isolates approved

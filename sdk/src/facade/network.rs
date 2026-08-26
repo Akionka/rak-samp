@@ -59,19 +59,19 @@ impl Net {
 
     pub fn decode_string(
         self,
-        stream: &mut crate::raknet::BitStream,
+        stream: &mut samp_protocol::BitStream,
     ) -> Result<Vec<u8>, SampClientSdkResult> {
         self.api.decode_string(stream)
     }
 
     #[must_use]
     pub const fn rpc_name(self, id: u8) -> Option<&'static str> {
-        crate::raknet::rpc_name(id)
+        samp_protocol::rpc_name(id)
     }
 
     #[must_use]
     pub const fn packet_name(self, id: u8) -> Option<&'static str> {
-        crate::raknet::packet_name(id)
+        samp_protocol::packet_name(id)
     }
 
     /// Queues one bounded SA-MP chat or slash-command RPC.
@@ -445,7 +445,7 @@ impl Net {
     pub fn send_packet_stream(
         self,
         id: u8,
-        payload: &crate::raknet::BitStream,
+        payload: &samp_protocol::BitStream,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.send_packet(id, payload.as_bytes(), payload.len_bits())
     }
@@ -454,7 +454,7 @@ impl Net {
     pub fn send_packet_stream_with_options(
         self,
         id: u8,
-        payload: &crate::raknet::BitStream,
+        payload: &samp_protocol::BitStream,
         options: SampClientSdkSendOptions,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.send_packet_with_options(id, payload.as_bytes(), payload.len_bits(), options)
@@ -463,7 +463,7 @@ impl Net {
     pub fn send_rpc_stream(
         self,
         id: u8,
-        payload: &crate::raknet::BitStream,
+        payload: &samp_protocol::BitStream,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.send_rpc(id, payload.as_bytes(), payload.len_bits())
     }
@@ -472,7 +472,7 @@ impl Net {
     pub fn send_rpc_stream_with_options(
         self,
         id: u8,
-        payload: &crate::raknet::BitStream,
+        payload: &samp_protocol::BitStream,
         options: SampClientSdkSendOptions,
     ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
         self.send_rpc_with_options(id, payload.as_bytes(), payload.len_bits(), options)

@@ -2,7 +2,7 @@
 name = "samp-client-sdk-host"
 version = "0.1.0-alpha.4"
 edition = "2024"
-rust-version = "1.87"
+rust-version = "1.98"
 description = "Windows x86 SA-MP client bridge host for samp-client-sdk plugins"
 license = "MIT"
 readme = "README.md"
@@ -26,6 +26,7 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
+    "crates/samp-protocol",
     "sdk",
     "examples/chat_command_plugin",
     "examples/dl_network_probe",

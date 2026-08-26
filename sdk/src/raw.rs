@@ -157,7 +157,7 @@ pub unsafe fn rpc_callback(
         .and_then(|node| unsafe { r1_field(node, R1_RPC_NODE_CALLBACK_OFFSET) }))
 }
 
-/// Returns the address of an owned [`crate::raknet::BitStream`]'s byte storage.
+/// Returns the address of an owned [`samp_protocol::BitStream`]'s byte storage.
 ///
 /// This mirrors `raknetBitStreamGetDataPtr` for the SDK's owned, bounded
 /// stream representation. The address may be dangling when the stream has no
@@ -168,9 +168,9 @@ pub unsafe fn rpc_callback(
 /// The returned pointer is valid only while `stream` remains alive and is not
 /// mutably borrowed or changed in a way that can reallocate its backing
 /// storage. It must not outlive the stream or be used to read beyond
-/// [`crate::raknet::BitStream::len_bytes`].
+/// [`samp_protocol::BitStream::len_bytes`].
 #[must_use]
-pub unsafe fn bitstream_data(stream: &crate::raknet::BitStream) -> *const u8 {
+pub unsafe fn bitstream_data(stream: &samp_protocol::BitStream) -> *const u8 {
     stream.as_bytes().as_ptr()
 }
 
@@ -441,7 +441,7 @@ mod tests {
 
     #[test]
     fn bitstream_data_borrows_the_owned_stream_storage() {
-        let stream = crate::raknet::BitStream::from_bytes([0x12, 0x34]).unwrap();
+        let stream = samp_protocol::BitStream::from_bytes([0x12, 0x34]).unwrap();
         let data = unsafe { super::bitstream_data(&stream) };
         assert_eq!(data, stream.as_bytes().as_ptr());
         assert_eq!(

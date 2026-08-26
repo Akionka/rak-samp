@@ -1219,14 +1219,14 @@ fn samp_version_is_converted_from_the_scalar_abi_output() {
 #[test]
 fn decode_string_returns_owned_bytes_and_advances_the_owned_stream() {
     let api = test_support::test_api();
-    let mut stream =
-        raknet::BitStream::from_bits(vec![0b1010_0000], 3).expect("fixture bit stream is valid");
+    let mut stream = samp_protocol::BitStream::from_bits(vec![0b1010_0000], 3)
+        .expect("fixture bit stream is valid");
 
     assert_eq!(api.decode_string(&mut stream), Ok(b"fixture".to_vec()));
     assert_eq!(stream.read_offset_bits(), 3);
 
-    let mut rejected =
-        raknet::BitStream::from_bits(vec![0b0100_0000], 3).expect("fixture bit stream is valid");
+    let mut rejected = samp_protocol::BitStream::from_bits(vec![0b0100_0000], 3)
+        .expect("fixture bit stream is valid");
     rejected.set_read_offset(1).expect("cursor is valid");
     assert_eq!(
         api.decode_string(&mut rejected),
@@ -1252,7 +1252,7 @@ fn local_player_query_conveniences_reuse_the_safe_snapshot() {
 
 #[test]
 fn owned_bit_stream_send_helpers_preserve_exact_partial_bit_lengths() {
-    let mut stream = raknet::BitStream::new();
+    let mut stream = samp_protocol::BitStream::new();
     stream.write_bits(&[0b0000_0101], 3).unwrap();
 
     let api = test_support::test_api();

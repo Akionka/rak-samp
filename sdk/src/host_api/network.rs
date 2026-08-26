@@ -1,11 +1,11 @@
 //! Low-level packet/RPC send and incoming-emulation `HostApi` wrappers.
 
 use crate::events;
-use crate::raknet::BitStream;
 use crate::{
     CommandReceipt, HostApi, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSendOptions,
 };
+use samp_protocol::BitStream;
 
 impl HostApi {
     /// Returns whether incoming packet emulation can be submitted without waiting for the host
