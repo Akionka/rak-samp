@@ -60,10 +60,12 @@ job proves the platform boundary without changing Cargo's target directory.
   `TerminalAlignmentPadding`. The latter decoder accepts only the exact number
   of terminal bits needed to align this message's meaningful representation to
   the next byte boundary and never ignores a full trailing byte. Canonical
-  no-tail input is always valid. Requiring those padding bits to be zero needs
-  independent wire evidence; without that evidence, their exact-length content
-  remains unrestricted. If zero content is verified, the decoder reports
-  non-zero padding separately from structural length failures.
+  no-tail input is always valid. The [terminal-padding evidence record](../evidence/terminal-alignment-padding.md)
+  concludes that zero-valued tail bits are not independently verified for R1
+  `ID_MARKERS_SYNC`; exact-length content therefore remains unrestricted and
+  `NonZeroTerminalPadding` is not introduced. A future rule for zero content
+  needs independent wire evidence and must remain separate from structural
+  length failures.
 - Callback failure diagnostics distinguish `DecodeSource`, `DecodeMalformed`,
   `ReplacementEncode`, and `ReplacementHost` before mapping each failure to ABI
   `Continue`. Replacement encoding and descriptor framing validation complete
