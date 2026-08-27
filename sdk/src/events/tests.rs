@@ -253,6 +253,115 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
 }
 
 #[test]
+fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
+    use protocol_incoming::Vector3;
+
+    fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
+    where
+        D: samp_protocol::WireDescriptor,
+        D::Value: Clone + ::core::fmt::Debug + PartialEq,
+    {
+        assert_protocol_replacement_round_trip(descriptor, value);
+    }
+
+    assert_replacement_round_trip(
+        protocol_incoming::CLIENT_CHECK,
+        protocol_incoming::ClientCheck {
+            request_type: 1,
+            subject: -2,
+            offset: 3,
+            length: 4,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_PARAMS_EX,
+        protocol_incoming::VehicleParamsEx {
+            vehicle_id: 5,
+            params: [6; 8],
+            doors: [7; 4],
+            windows: [8; 4],
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::VEHICLE_TUNING_NOTIFICATION,
+        protocol_incoming::VehicleTuningNotification {
+            player_id: 9,
+            event: 10,
+            vehicle_id: 11,
+            param1: 12,
+            param2: 13,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::SET_VEHICLE_TIRES, (14, 15));
+    assert_replacement_round_trip(
+        protocol_incoming::VEHICLE_DAMAGE_STATUS_UPDATE,
+        protocol_incoming::VehicleDamageStatus {
+            vehicle_id: 16,
+            panel_damage: 17,
+            door_damage: 18,
+            lights: 19,
+            tires: 20,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::TOGGLE_WIDESCREEN, true);
+    assert_replacement_round_trip(protocol_incoming::DESTROY_ACTOR, 21);
+    assert_replacement_round_trip(protocol_incoming::DESTROY_WEAPON_PICKUP, 22);
+    assert_replacement_round_trip(protocol_incoming::EDIT_ATTACHED_OBJECT, -23);
+    assert_replacement_round_trip(protocol_incoming::ENTER_SELECT_OBJECT, ());
+    assert_replacement_round_trip(protocol_incoming::SERVER_STATISTICS_RESPONSE, ());
+    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK_VISUALS, -24);
+    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK_HANDLING, 25);
+    assert_replacement_round_trip(
+        protocol_incoming::CREATE_ACTOR,
+        protocol_incoming::Actor {
+            actor_id: 26,
+            skin_id: 27,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            rotation: 4.0,
+            health: 5.0,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::CLEAR_ACTOR_ANIMATION, 28);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_ACTOR_FACING_ANGLE,
+        protocol_incoming::ActorAngle {
+            actor_id: 29,
+            angle: 30.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_ACTOR_POSITION,
+        protocol_incoming::ActorPosition {
+            actor_id: 31,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_ACTOR_HEALTH,
+        protocol_incoming::ActorHealth {
+            actor_id: 32,
+            health: 33.0,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_OBJECT_NO_CAMERA_COL, 34);
+    assert_replacement_round_trip(protocol_incoming::DISABLE_CHECKPOINT, ());
+    assert_replacement_round_trip(protocol_incoming::DISABLE_RACE_CHECKPOINT, ());
+    assert_replacement_round_trip(protocol_incoming::GAMEMODE_RESTART, ());
+    assert_replacement_round_trip(protocol_incoming::STOP_AUDIO_STREAM, ());
+    assert_replacement_round_trip(protocol_incoming::REMOVE_PLAYER_FROM_VEHICLE, ());
+    assert_replacement_round_trip(protocol_incoming::FORCE_CLASS_SELECTION, ());
+    assert_replacement_round_trip(protocol_incoming::SET_CAMERA_BEHIND, ());
+}
+
+#[test]
 fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
     let value = incoming::PlayerStreamIn {
         player_id: 42,
@@ -804,8 +913,6 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
 #[test]
 fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
     assert_eq!(incoming::CREATE_GANG_ZONE.id(), 108);
-    assert_eq!(incoming::SET_VEHICLE_PARAMS_EX.id(), 24);
-    assert_eq!(incoming::CREATE_ACTOR.id(), 171);
 
     assert_eq!(
         encode_bytes(
@@ -820,38 +927,6 @@ fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
         [
             0x34, 0x12, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80, 0x40, 0xFF,
             0xFF, 0xFF, 0xFF,
-        ]
-    );
-    assert_eq!(
-        encode_bytes(
-            incoming::SET_VEHICLE_PARAMS_EX,
-            incoming::VehicleParamsEx {
-                vehicle_id: 1,
-                params: [2; 8],
-                doors: [3; 4],
-                windows: [4; 4],
-            },
-        ),
-        [1, 0, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4]
-    );
-    assert_eq!(
-        encode_bytes(
-            incoming::CREATE_ACTOR,
-            incoming::Actor {
-                actor_id: 7,
-                skin_id: 411,
-                position: Vector3 {
-                    x: 1.0,
-                    y: 2.0,
-                    z: 3.0,
-                },
-                rotation: 4.0,
-                health: 5.0,
-            },
-        ),
-        [
-            7, 0, 0x9B, 1, 0, 0, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80,
-            0x40, 0, 0, 0xA0, 0x40,
         ]
     );
 }

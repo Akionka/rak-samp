@@ -1,7 +1,7 @@
 use super::types::*;
 use crate::events::core::PayloadWriter;
 use crate::{
-    HostApi, SampClientSdkResult,
+    HostApi,
     events::{
         EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES,
         MAX_STRING32_BYTES, Vector2, Vector3,
@@ -93,77 +93,6 @@ pub const PLAYER_ENTER_VEHICLE: IncomingRpc<PlayerEnterVehicle> =
 /// The `onPlayerExitVehicle` descriptor.
 pub const PLAYER_EXIT_VEHICLE: IncomingRpc<PlayerExitVehicle> =
     IncomingRpc::new(154, decode_player_exit_vehicle, encode_player_exit_vehicle);
-/// The `onClientCheck` descriptor.
-pub const CLIENT_CHECK: IncomingRpc<ClientCheck> =
-    IncomingRpc::new(103, decode_client_check, encode_client_check);
-/// The `onSetVehicleParamsEx` descriptor.
-pub const SET_VEHICLE_PARAMS_EX: IncomingRpc<VehicleParamsEx> =
-    IncomingRpc::new(24, decode_vehicle_params_ex, encode_vehicle_params_ex);
-/// The `onVehicleTuningNotification` descriptor.
-pub const VEHICLE_TUNING_NOTIFICATION: IncomingRpc<VehicleTuningNotification> = IncomingRpc::new(
-    96,
-    decode_vehicle_tuning_notification,
-    encode_vehicle_tuning_notification,
-);
-/// The `onSetVehicleTires` descriptor.
-pub const SET_VEHICLE_TIRES: IncomingRpc<(u16, u8)> =
-    IncomingRpc::new(98, decode_u16_u8, encode_u16_u8);
-/// The `onVehicleDamageStatusUpdate` descriptor.
-pub const VEHICLE_DAMAGE_STATUS_UPDATE: IncomingRpc<VehicleDamageStatus> = IncomingRpc::new(
-    106,
-    decode_vehicle_damage_status,
-    encode_vehicle_damage_status,
-);
-/// The `onToggleWidescreen` descriptor.
-pub const TOGGLE_WIDESCREEN: IncomingRpc<bool> = IncomingRpc::new(111, decode_bool8, encode_bool8);
-/// The `onDestroyActor` descriptor.
-pub const DESTROY_ACTOR: IncomingRpc<u16> = IncomingRpc::new(172, decode_u16, encode_u16);
-/// The `onDestroyWeaponPickup` descriptor.
-pub const DESTROY_WEAPON_PICKUP: IncomingRpc<u8> = IncomingRpc::new(151, decode_u8, encode_u8);
-/// The `onEditAttachedObject` descriptor.
-pub const EDIT_ATTACHED_OBJECT: IncomingRpc<i32> = IncomingRpc::new(116, decode_i32, encode_i32);
-/// The `onEnterSelectObject` descriptor.
-pub const ENTER_SELECT_OBJECT: IncomingRpc<()> = IncomingRpc::new(27, decode_empty, encode_empty);
-/// The `onServerStatisticsResponse` descriptor.
-pub const SERVER_STATISTICS_RESPONSE: IncomingRpc<()> =
-    IncomingRpc::new(102, decode_empty, encode_empty);
-/// The `onSetPlayerDrunkVisuals` descriptor.
-pub const SET_PLAYER_DRUNK_VISUALS: IncomingRpc<i32> = IncomingRpc::new(92, decode_i32, encode_i32);
-/// The `onSetPlayerDrunkHandling` descriptor.
-pub const SET_PLAYER_DRUNK_HANDLING: IncomingRpc<i32> =
-    IncomingRpc::new(150, decode_i32, encode_i32);
-/// The `onCreateActor` descriptor.
-pub const CREATE_ACTOR: IncomingRpc<Actor> = IncomingRpc::new(171, decode_actor, encode_actor);
-/// The `onClearActorAnimation` descriptor.
-pub const CLEAR_ACTOR_ANIMATION: IncomingRpc<u16> = IncomingRpc::new(174, decode_u16, encode_u16);
-/// The `onSetActorFacingAngle` descriptor.
-pub const SET_ACTOR_FACING_ANGLE: IncomingRpc<ActorAngle> =
-    IncomingRpc::new(175, decode_actor_angle, encode_actor_angle);
-/// The `onSetActorPos` descriptor.
-pub const SET_ACTOR_POSITION: IncomingRpc<ActorPosition> =
-    IncomingRpc::new(176, decode_actor_position, encode_actor_position);
-/// The `onSetActorHealth` descriptor.
-pub const SET_ACTOR_HEALTH: IncomingRpc<ActorHealth> =
-    IncomingRpc::new(178, decode_actor_health, encode_actor_health);
-/// The `onSetPlayerObjectNoCameraCol` descriptor.
-pub const SET_PLAYER_OBJECT_NO_CAMERA_COL: IncomingRpc<u16> =
-    IncomingRpc::new(169, decode_u16, encode_u16);
-/// The `onDisableCheckpoint` descriptor.
-pub const DISABLE_CHECKPOINT: IncomingRpc<()> = IncomingRpc::new(37, decode_empty, encode_empty);
-/// The `onDisableRaceCheckpoint` descriptor.
-pub const DISABLE_RACE_CHECKPOINT: IncomingRpc<()> =
-    IncomingRpc::new(39, decode_empty, encode_empty);
-/// The `onGamemodeRestart` descriptor.
-pub const GAMEMODE_RESTART: IncomingRpc<()> = IncomingRpc::new(40, decode_empty, encode_empty);
-/// The `onStopAudioStream` descriptor.
-pub const STOP_AUDIO_STREAM: IncomingRpc<()> = IncomingRpc::new(42, decode_empty, encode_empty);
-/// The `onRemovePlayerFromVehicle` descriptor.
-pub const REMOVE_PLAYER_FROM_VEHICLE: IncomingRpc<()> =
-    IncomingRpc::new(71, decode_empty, encode_empty);
-/// The `onForceClassSelection` descriptor.
-pub const FORCE_CLASS_SELECTION: IncomingRpc<()> = IncomingRpc::new(74, decode_empty, encode_empty);
-/// The `onSetCameraBehind` descriptor.
-pub const SET_CAMERA_BEHIND: IncomingRpc<()> = IncomingRpc::new(162, decode_empty, encode_empty);
 
 fn decode_show_dialog(event: &mut Event<'_>) -> Result<ShowDialog, EventError> {
     Ok(ShowDialog {
@@ -213,10 +142,6 @@ fn encode_f32(value: f32) -> Result<Vec<u8>, EventError> {
 
 pub(super) fn decode_bool8(event: &mut Event<'_>) -> Result<bool, EventError> {
     Ok(event.read_u8()? != 0)
-}
-
-fn encode_bool8(value: bool) -> Result<Vec<u8>, EventError> {
-    Ok(vec![u8::from(value)])
 }
 
 fn decode_player_fighting_style(event: &mut Event<'_>) -> Result<PlayerFightingStyle, EventError> {
@@ -471,172 +396,8 @@ fn encode_player_exit_vehicle(value: PlayerExitVehicle) -> Result<Vec<u8>, Event
     Ok(writer.finish())
 }
 
-fn decode_client_check(event: &mut Event<'_>) -> Result<ClientCheck, EventError> {
-    Ok(ClientCheck {
-        request_type: event.read_u8()?,
-        subject: decode_i32(event)?,
-        offset: event.read_u16()?,
-        length: event.read_u16()?,
-    })
-}
-
-fn encode_client_check(value: ClientCheck) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u8(value.request_type);
-    writer.u32(value.subject as u32);
-    writer.u16(value.offset);
-    writer.u16(value.length);
-    Ok(writer.finish())
-}
-
-pub(super) fn read_array<const N: usize>(event: &mut Event<'_>) -> Result<[u8; N], EventError> {
-    event
-        .read_bytes(N)?
-        .try_into()
-        .map_err(|_| EventError::Host(SampClientSdkResult::NativeCallFailed))
-}
-
-fn decode_vehicle_params_ex(event: &mut Event<'_>) -> Result<VehicleParamsEx, EventError> {
-    Ok(VehicleParamsEx {
-        vehicle_id: event.read_u16()?,
-        params: read_array(event)?,
-        doors: read_array(event)?,
-        windows: read_array(event)?,
-    })
-}
-
-fn encode_vehicle_params_ex(value: VehicleParamsEx) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.bytes(&value.params);
-    writer.bytes(&value.doors);
-    writer.bytes(&value.windows);
-    Ok(writer.finish())
-}
-
-fn decode_vehicle_tuning_notification(
-    event: &mut Event<'_>,
-) -> Result<VehicleTuningNotification, EventError> {
-    Ok(VehicleTuningNotification {
-        player_id: event.read_u16()?,
-        event: decode_i32(event)?,
-        vehicle_id: decode_i32(event)?,
-        param1: decode_i32(event)?,
-        param2: decode_i32(event)?,
-    })
-}
-
-fn encode_vehicle_tuning_notification(
-    value: VehicleTuningNotification,
-) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u32(value.event as u32);
-    writer.u32(value.vehicle_id as u32);
-    writer.u32(value.param1 as u32);
-    writer.u32(value.param2 as u32);
-    Ok(writer.finish())
-}
-
-fn decode_u16_u8(event: &mut Event<'_>) -> Result<(u16, u8), EventError> {
-    Ok((event.read_u16()?, event.read_u8()?))
-}
-
-fn encode_u16_u8(value: (u16, u8)) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.0);
-    writer.u8(value.1);
-    Ok(writer.finish())
-}
-
-fn decode_vehicle_damage_status(event: &mut Event<'_>) -> Result<VehicleDamageStatus, EventError> {
-    Ok(VehicleDamageStatus {
-        vehicle_id: event.read_u16()?,
-        panel_damage: decode_i32(event)?,
-        door_damage: decode_i32(event)?,
-        lights: event.read_u8()?,
-        tires: event.read_u8()?,
-    })
-}
-
-fn encode_vehicle_damage_status(value: VehicleDamageStatus) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.vehicle_id);
-    writer.u32(value.panel_damage as u32);
-    writer.u32(value.door_damage as u32);
-    writer.u8(value.lights);
-    writer.u8(value.tires);
-    Ok(writer.finish())
-}
-
-fn decode_actor(event: &mut Event<'_>) -> Result<Actor, EventError> {
-    Ok(Actor {
-        actor_id: event.read_u16()?,
-        skin_id: decode_i32(event)?,
-        position: decode_vector3(event)?,
-        rotation: event.read_f32()?,
-        health: event.read_f32()?,
-    })
-}
-
-fn encode_actor(value: Actor) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.actor_id);
-    writer.u32(value.skin_id as u32);
-    writer.vector3(value.position);
-    writer.f32(value.rotation);
-    writer.f32(value.health);
-    Ok(writer.finish())
-}
-
-fn decode_actor_angle(event: &mut Event<'_>) -> Result<ActorAngle, EventError> {
-    Ok(ActorAngle {
-        actor_id: event.read_u16()?,
-        angle: event.read_f32()?,
-    })
-}
-
-fn encode_actor_angle(value: ActorAngle) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.actor_id);
-    writer.f32(value.angle);
-    Ok(writer.finish())
-}
-
-fn decode_actor_position(event: &mut Event<'_>) -> Result<ActorPosition, EventError> {
-    Ok(ActorPosition {
-        actor_id: event.read_u16()?,
-        position: decode_vector3(event)?,
-    })
-}
-
-fn encode_actor_position(value: ActorPosition) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.actor_id);
-    writer.vector3(value.position);
-    Ok(writer.finish())
-}
-
-fn decode_actor_health(event: &mut Event<'_>) -> Result<ActorHealth, EventError> {
-    Ok(ActorHealth {
-        actor_id: event.read_u16()?,
-        health: event.read_f32()?,
-    })
-}
-
-fn encode_actor_health(value: ActorHealth) -> Result<Vec<u8>, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.actor_id);
-    writer.f32(value.health);
-    Ok(writer.finish())
-}
-
 pub(super) fn decode_i32(event: &mut Event<'_>) -> Result<i32, EventError> {
     Ok(event.read_u32()? as i32)
-}
-
-fn encode_i32(value: i32) -> Result<Vec<u8>, EventError> {
-    Ok(value.to_le_bytes().to_vec())
 }
 
 fn decode_u8(event: &mut Event<'_>) -> Result<u8, EventError> {
@@ -653,12 +414,4 @@ pub(super) fn decode_u16(event: &mut Event<'_>) -> Result<u16, EventError> {
 
 pub(super) fn encode_u16(value: u16) -> Result<Vec<u8>, EventError> {
     Ok(value.to_le_bytes().to_vec())
-}
-
-fn decode_empty(_event: &mut Event<'_>) -> Result<(), EventError> {
-    Ok(())
-}
-
-fn encode_empty(_value: ()) -> Result<Vec<u8>, EventError> {
-    Ok(Vec::new())
 }

@@ -1,23 +1,31 @@
 use samp_protocol::rpc::incoming::{
-    ATTACH_OBJECT_TO_PLAYER, AttachObjectToPlayer, AudioStream, CANCEL_EDIT, CHAT_BUBBLE,
-    CHAT_MESSAGE, CREATE_EXPLOSION, ChatBubble, ChatMessage, Checkpoint, DESTROY_OBJECT,
-    DESTROY_PICKUP, DISPLAY_GAME_TEXT, Explosion, GIVE_PLAYER_MONEY, GIVE_PLAYER_WEAPON, GameText,
-    HIDE_MENU, LINK_VEHICLE_TO_INTERIOR, MapIcon, ObjectPosition, ObjectRotation,
+    ATTACH_OBJECT_TO_PLAYER, Actor, ActorAngle, ActorHealth, ActorPosition, AttachObjectToPlayer,
+    AudioStream, CANCEL_EDIT, CHAT_BUBBLE, CHAT_MESSAGE, CLEAR_ACTOR_ANIMATION, CLIENT_CHECK,
+    CREATE_ACTOR, CREATE_EXPLOSION, ChatBubble, ChatMessage, Checkpoint, ClientCheck,
+    DESTROY_ACTOR, DESTROY_OBJECT, DESTROY_PICKUP, DESTROY_WEAPON_PICKUP, DISABLE_CHECKPOINT,
+    DISABLE_RACE_CHECKPOINT, DISPLAY_GAME_TEXT, EDIT_ATTACHED_OBJECT, ENTER_SELECT_OBJECT,
+    Explosion, FORCE_CLASS_SELECTION, GAMEMODE_RESTART, GIVE_PLAYER_MONEY, GIVE_PLAYER_WEAPON,
+    GameText, HIDE_MENU, LINK_VEHICLE_TO_INTERIOR, MapIcon, ObjectPosition, ObjectRotation,
     PLAY_AUDIO_STREAM, PLAY_SOUND, PLAYER_DEATH_NOTIFICATION, PLAYER_JOIN, PLAYER_QUIT,
     PLAYER_STREAM_OUT, PUT_PLAYER_IN_VEHICLE, PlaySound, PlayerColor, PlayerDeathNotification,
     PlayerJoin, PlayerName, PlayerNameTag, PlayerQuit, PlayerSkill, PlayerSkin, PlayerTeam,
     PlayerTime, PlayerWeapon, PutPlayerInVehicle, REMOVE_3D_TEXT_LABEL, REMOVE_BUILDING,
-    REMOVE_VEHICLE_COMPONENT, REQUEST_SPAWN_RESPONSE, RESET_PLAYER_MONEY, RESET_PLAYER_WEAPONS,
-    RaceCheckpoint, RemoveBuilding, SERVER_MESSAGE, SET_CHECKPOINT, SET_INTERIOR, SET_MAP_ICON,
-    SET_OBJECT_POSITION, SET_OBJECT_ROTATION, SET_PLAYER_ARMED_WEAPON, SET_PLAYER_ARMOUR,
-    SET_PLAYER_COLOR, SET_PLAYER_DRUNK, SET_PLAYER_FACING_ANGLE, SET_PLAYER_HEALTH,
-    SET_PLAYER_NAME, SET_PLAYER_POS, SET_PLAYER_POS_FIND_Z, SET_PLAYER_SKILL_LEVEL,
-    SET_PLAYER_SKIN, SET_PLAYER_TEAM, SET_PLAYER_TIME, SET_PLAYER_WANTED_LEVEL,
-    SET_RACE_CHECKPOINT, SET_SHOP_NAME, SET_TOGGLE_CLOCK, SET_VEHICLE_ANGLE, SET_VEHICLE_HEALTH,
-    SET_VEHICLE_POSITION, SET_WEATHER, SET_WORLD_BOUNDS, SET_WORLD_TIME, SHOW_MENU,
-    SHOW_PLAYER_NAME_TAG, ServerMessage, TOGGLE_PLAYER_CONTROLLABLE, UPDATE_GLOBAL_TIMER,
-    VEHICLE_STREAM_OUT, Vector3, VehicleAngle, VehicleComponent, VehicleHealth, VehicleInterior,
-    VehiclePosition, WorldBounds,
+    REMOVE_PLAYER_FROM_VEHICLE, REMOVE_VEHICLE_COMPONENT, REQUEST_SPAWN_RESPONSE,
+    RESET_PLAYER_MONEY, RESET_PLAYER_WEAPONS, RaceCheckpoint, RemoveBuilding, SERVER_MESSAGE,
+    SERVER_STATISTICS_RESPONSE, SET_ACTOR_FACING_ANGLE, SET_ACTOR_HEALTH, SET_ACTOR_POSITION,
+    SET_CAMERA_BEHIND, SET_CHECKPOINT, SET_INTERIOR, SET_MAP_ICON, SET_OBJECT_POSITION,
+    SET_OBJECT_ROTATION, SET_PLAYER_ARMED_WEAPON, SET_PLAYER_ARMOUR, SET_PLAYER_COLOR,
+    SET_PLAYER_DRUNK, SET_PLAYER_DRUNK_HANDLING, SET_PLAYER_DRUNK_VISUALS, SET_PLAYER_FACING_ANGLE,
+    SET_PLAYER_HEALTH, SET_PLAYER_NAME, SET_PLAYER_OBJECT_NO_CAMERA_COL, SET_PLAYER_POS,
+    SET_PLAYER_POS_FIND_Z, SET_PLAYER_SKILL_LEVEL, SET_PLAYER_SKIN, SET_PLAYER_TEAM,
+    SET_PLAYER_TIME, SET_PLAYER_WANTED_LEVEL, SET_RACE_CHECKPOINT, SET_SHOP_NAME, SET_TOGGLE_CLOCK,
+    SET_VEHICLE_ANGLE, SET_VEHICLE_HEALTH, SET_VEHICLE_PARAMS_EX, SET_VEHICLE_POSITION,
+    SET_VEHICLE_TIRES, SET_WEATHER, SET_WORLD_BOUNDS, SET_WORLD_TIME, SHOW_MENU,
+    SHOW_PLAYER_NAME_TAG, STOP_AUDIO_STREAM, ServerMessage, TOGGLE_PLAYER_CONTROLLABLE,
+    TOGGLE_WIDESCREEN, UPDATE_GLOBAL_TIMER, VEHICLE_DAMAGE_STATUS_UPDATE, VEHICLE_STREAM_OUT,
+    VEHICLE_TUNING_NOTIFICATION, Vector3, VehicleAngle, VehicleComponent, VehicleDamageStatus,
+    VehicleHealth, VehicleInterior, VehicleParamsEx, VehiclePosition, VehicleTuningNotification,
+    WorldBounds,
 };
 use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
 
@@ -606,6 +614,295 @@ fn second_fixed_incoming_rpcs_reject_invalid_lengths_and_trailing_bits() {
 
     let nonzero_bool = EncodedBits::from_bits([2], 8).unwrap();
     assert_eq!(decode(REQUEST_SPAWN_RESPONSE, &nonzero_bool), Ok(true));
+}
+
+#[test]
+fn final_fixed_incoming_rpc_inventory_has_26_unique_entries() {
+    let ids = [
+        id(CLIENT_CHECK),
+        id(SET_VEHICLE_PARAMS_EX),
+        id(VEHICLE_TUNING_NOTIFICATION),
+        id(SET_VEHICLE_TIRES),
+        id(VEHICLE_DAMAGE_STATUS_UPDATE),
+        id(TOGGLE_WIDESCREEN),
+        id(DESTROY_ACTOR),
+        id(DESTROY_WEAPON_PICKUP),
+        id(EDIT_ATTACHED_OBJECT),
+        id(ENTER_SELECT_OBJECT),
+        id(SERVER_STATISTICS_RESPONSE),
+        id(SET_PLAYER_DRUNK_VISUALS),
+        id(SET_PLAYER_DRUNK_HANDLING),
+        id(CREATE_ACTOR),
+        id(CLEAR_ACTOR_ANIMATION),
+        id(SET_ACTOR_FACING_ANGLE),
+        id(SET_ACTOR_POSITION),
+        id(SET_ACTOR_HEALTH),
+        id(SET_PLAYER_OBJECT_NO_CAMERA_COL),
+        id(DISABLE_CHECKPOINT),
+        id(DISABLE_RACE_CHECKPOINT),
+        id(GAMEMODE_RESTART),
+        id(STOP_AUDIO_STREAM),
+        id(REMOVE_PLAYER_FROM_VEHICLE),
+        id(FORCE_CLASS_SELECTION),
+        id(SET_CAMERA_BEHIND),
+    ];
+
+    assert_eq!(
+        ids,
+        [
+            103, 24, 96, 98, 106, 111, 172, 151, 116, 27, 102, 92, 150, 171, 174, 175, 176, 178,
+            169, 37, 39, 40, 42, 71, 74, 162,
+        ]
+    );
+
+    let mut unique = ids;
+    unique.sort_unstable();
+    assert!(unique.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
+#[test]
+fn final_fixed_incoming_rpcs_preserve_exact_vectors() {
+    assert_vector(
+        CLIENT_CHECK,
+        &ClientCheck {
+            request_type: 7,
+            subject: -2,
+            offset: 0x1234,
+            length: 0x5678,
+        },
+        &[7, 0xFE, 0xFF, 0xFF, 0xFF, 0x34, 0x12, 0x78, 0x56],
+    );
+    assert_vector(
+        SET_VEHICLE_PARAMS_EX,
+        &VehicleParamsEx {
+            vehicle_id: 0x1234,
+            params: [0xA1; 8],
+            doors: [0xB2; 4],
+            windows: [0xC3; 4],
+        },
+        &[
+            0x34, 0x12, 0xA1, 0xA1, 0xA1, 0xA1, 0xA1, 0xA1, 0xA1, 0xA1, 0xB2, 0xB2, 0xB2, 0xB2,
+            0xC3, 0xC3, 0xC3, 0xC3,
+        ],
+    );
+    assert_vector(
+        VEHICLE_TUNING_NOTIFICATION,
+        &VehicleTuningNotification {
+            player_id: 0x1234,
+            event: -1,
+            vehicle_id: 2,
+            param1: -3,
+            param2: 4,
+        },
+        &[
+            0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF, 2, 0, 0, 0, 0xFD, 0xFF, 0xFF, 0xFF, 4, 0, 0, 0,
+        ],
+    );
+    assert_vector(SET_VEHICLE_TIRES, &(0x1234, 5), &[0x34, 0x12, 5]);
+    assert_vector(
+        VEHICLE_DAMAGE_STATUS_UPDATE,
+        &VehicleDamageStatus {
+            vehicle_id: 0x1234,
+            panel_damage: -1,
+            door_damage: 2,
+            lights: 3,
+            tires: 4,
+        },
+        &[0x34, 0x12, 0xFF, 0xFF, 0xFF, 0xFF, 2, 0, 0, 0, 3, 4],
+    );
+    assert_vector(TOGGLE_WIDESCREEN, &true, &[1]);
+    assert_vector(DESTROY_ACTOR, &0x1234, &[0x34, 0x12]);
+    assert_vector(DESTROY_WEAPON_PICKUP, &0x56, &[0x56]);
+    assert_vector(EDIT_ATTACHED_OBJECT, &-2, &[0xFE, 0xFF, 0xFF, 0xFF]);
+    assert_vector(ENTER_SELECT_OBJECT, &(), &[]);
+    assert_vector(SERVER_STATISTICS_RESPONSE, &(), &[]);
+    assert_vector(SET_PLAYER_DRUNK_VISUALS, &-3, &[0xFD, 0xFF, 0xFF, 0xFF]);
+    assert_vector(SET_PLAYER_DRUNK_HANDLING, &4, &[4, 0, 0, 0]);
+    assert_vector(
+        CREATE_ACTOR,
+        &Actor {
+            actor_id: 0x1234,
+            skin_id: -2,
+            position: Vector3 {
+                x: 1.0,
+                y: -2.0,
+                z: 0.5,
+            },
+            rotation: 90.0,
+            health: 100.0,
+        },
+        &[
+            0x34, 0x12, 0xFE, 0xFF, 0xFF, 0xFF, 0, 0, 0x80, 0x3F, 0, 0, 0, 0xC0, 0, 0, 0, 0x3F, 0,
+            0, 0xB4, 0x42, 0, 0, 0xC8, 0x42,
+        ],
+    );
+    assert_vector(CLEAR_ACTOR_ANIMATION, &0x1234, &[0x34, 0x12]);
+    assert_vector(
+        SET_ACTOR_FACING_ANGLE,
+        &ActorAngle {
+            actor_id: 0x1234,
+            angle: 180.0,
+        },
+        &[0x34, 0x12, 0, 0, 0x34, 0x43],
+    );
+    assert_vector(
+        SET_ACTOR_POSITION,
+        &ActorPosition {
+            actor_id: 0x1234,
+            position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+        },
+        &[
+            0x34, 0x12, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40,
+        ],
+    );
+    assert_vector(
+        SET_ACTOR_HEALTH,
+        &ActorHealth {
+            actor_id: 0x1234,
+            health: 1.5,
+        },
+        &[0x34, 0x12, 0, 0, 0xC0, 0x3F],
+    );
+    assert_vector(SET_PLAYER_OBJECT_NO_CAMERA_COL, &0x1234, &[0x34, 0x12]);
+    assert_vector(DISABLE_CHECKPOINT, &(), &[]);
+    assert_vector(DISABLE_RACE_CHECKPOINT, &(), &[]);
+    assert_vector(GAMEMODE_RESTART, &(), &[]);
+    assert_vector(STOP_AUDIO_STREAM, &(), &[]);
+    assert_vector(REMOVE_PLAYER_FROM_VEHICLE, &(), &[]);
+    assert_vector(FORCE_CLASS_SELECTION, &(), &[]);
+    assert_vector(SET_CAMERA_BEHIND, &(), &[]);
+
+    let nonzero_bool = EncodedBits::from_bits([2], 8).unwrap();
+    assert_eq!(decode(TOGGLE_WIDESCREEN, &nonzero_bool), Ok(true));
+}
+
+#[test]
+fn final_fixed_incoming_rpcs_reject_truncated_and_trailing_values() {
+    fn assert_rejects_malformed_value<D>(_descriptor: D, value: &D::Value)
+    where
+        D: WireDescriptor,
+        D::Value: Clone + core::fmt::Debug + PartialEq,
+    {
+        let encoded = D::encode_bits(value).expect("the fixed RPC value must encode");
+        if encoded.len_bits() > 0 {
+            let truncated_bytes = encoded.as_bytes()[..encoded.as_bytes().len() - 1].to_vec();
+            let truncated = EncodedBits::from_bits(truncated_bytes, encoded.len_bits() - 8)
+                .expect("the truncated fixed RPC payload must be valid bits");
+            assert!(D::decode_bits(&truncated).is_err());
+        }
+
+        let mut bytes = encoded.as_bytes().to_vec();
+        bytes.push(0);
+        let trailing = EncodedBits::from_bits(bytes, encoded.len_bits() + 8)
+            .expect("the trailing fixed RPC payload must be valid bits");
+        assert_eq!(
+            D::decode_bits(&trailing),
+            Err(DecodeError::UnexpectedTrailingBits {
+                remaining_bits: 8,
+                allowed_bits: 0,
+            })
+        );
+    }
+
+    assert_rejects_malformed_value(
+        CLIENT_CHECK,
+        &ClientCheck {
+            request_type: 0,
+            subject: 0,
+            offset: 0,
+            length: 0,
+        },
+    );
+    assert_rejects_malformed_value(
+        SET_VEHICLE_PARAMS_EX,
+        &VehicleParamsEx {
+            vehicle_id: 0,
+            params: [0; 8],
+            doors: [0; 4],
+            windows: [0; 4],
+        },
+    );
+    assert_rejects_malformed_value(
+        VEHICLE_TUNING_NOTIFICATION,
+        &VehicleTuningNotification {
+            player_id: 0,
+            event: 0,
+            vehicle_id: 0,
+            param1: 0,
+            param2: 0,
+        },
+    );
+    assert_rejects_malformed_value(SET_VEHICLE_TIRES, &(0, 0));
+    assert_rejects_malformed_value(
+        VEHICLE_DAMAGE_STATUS_UPDATE,
+        &VehicleDamageStatus {
+            vehicle_id: 0,
+            panel_damage: 0,
+            door_damage: 0,
+            lights: 0,
+            tires: 0,
+        },
+    );
+    assert_rejects_malformed_value(TOGGLE_WIDESCREEN, &false);
+    assert_rejects_malformed_value(DESTROY_ACTOR, &0);
+    assert_rejects_malformed_value(DESTROY_WEAPON_PICKUP, &0);
+    assert_rejects_malformed_value(EDIT_ATTACHED_OBJECT, &0);
+    assert_rejects_malformed_value(ENTER_SELECT_OBJECT, &());
+    assert_rejects_malformed_value(SERVER_STATISTICS_RESPONSE, &());
+    assert_rejects_malformed_value(SET_PLAYER_DRUNK_VISUALS, &0);
+    assert_rejects_malformed_value(SET_PLAYER_DRUNK_HANDLING, &0);
+    assert_rejects_malformed_value(
+        CREATE_ACTOR,
+        &Actor {
+            actor_id: 0,
+            skin_id: 0,
+            position: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+            rotation: 0.0,
+            health: 0.0,
+        },
+    );
+    assert_rejects_malformed_value(CLEAR_ACTOR_ANIMATION, &0);
+    assert_rejects_malformed_value(
+        SET_ACTOR_FACING_ANGLE,
+        &ActorAngle {
+            actor_id: 0,
+            angle: 0.0,
+        },
+    );
+    assert_rejects_malformed_value(
+        SET_ACTOR_POSITION,
+        &ActorPosition {
+            actor_id: 0,
+            position: Vector3 {
+                x: 0.0,
+                y: 0.0,
+                z: 0.0,
+            },
+        },
+    );
+    assert_rejects_malformed_value(
+        SET_ACTOR_HEALTH,
+        &ActorHealth {
+            actor_id: 0,
+            health: 0.0,
+        },
+    );
+    assert_rejects_malformed_value(SET_PLAYER_OBJECT_NO_CAMERA_COL, &0);
+    assert_rejects_malformed_value(DISABLE_CHECKPOINT, &());
+    assert_rejects_malformed_value(DISABLE_RACE_CHECKPOINT, &());
+    assert_rejects_malformed_value(GAMEMODE_RESTART, &());
+    assert_rejects_malformed_value(STOP_AUDIO_STREAM, &());
+    assert_rejects_malformed_value(REMOVE_PLAYER_FROM_VEHICLE, &());
+    assert_rejects_malformed_value(FORCE_CLASS_SELECTION, &());
+    assert_rejects_malformed_value(SET_CAMERA_BEHIND, &());
 }
 
 #[test]

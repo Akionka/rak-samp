@@ -1,12 +1,19 @@
 use super::{fixed::*, types::*};
 use crate::events::core::PayloadWriter;
 use crate::{
-    HostApi,
+    HostApi, SampClientSdkResult,
     events::{
         EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES,
         MAX_STRING32_BYTES,
     },
 };
+
+fn read_array<const N: usize>(event: &mut Event<'_>) -> Result<[u8; N], EventError> {
+    event
+        .read_bytes(N)?
+        .try_into()
+        .map_err(|_| EventError::Host(SampClientSdkResult::NativeCallFailed))
+}
 
 /// The R1 `onInitGame` descriptor.
 pub const INIT_GAME: IncomingRpc<InitGame> =

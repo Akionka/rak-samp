@@ -267,6 +267,75 @@ pub struct PlayerNameTag {
     pub show: bool,
 }
 
+/// MoonLoader's `onClientCheck` payload (RPC 103).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClientCheck {
+    pub request_type: u8,
+    pub subject: i32,
+    pub offset: u16,
+    pub length: u16,
+}
+
+/// MoonLoader's `onSetVehicleParamsEx` payload (RPC 24).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VehicleParamsEx {
+    pub vehicle_id: u16,
+    pub params: [u8; 8],
+    pub doors: [u8; 4],
+    pub windows: [u8; 4],
+}
+
+/// MoonLoader's `onVehicleTuningNotification` payload (RPC 96).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleTuningNotification {
+    pub player_id: u16,
+    pub event: i32,
+    pub vehicle_id: i32,
+    pub param1: i32,
+    pub param2: i32,
+}
+
+/// MoonLoader's `onVehicleDamageStatusUpdate` payload (RPC 106).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleDamageStatus {
+    pub vehicle_id: u16,
+    pub panel_damage: i32,
+    pub door_damage: i32,
+    pub lights: u8,
+    pub tires: u8,
+}
+
+/// MoonLoader's `onCreateActor` payload (RPC 171).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Actor {
+    pub actor_id: u16,
+    pub skin_id: i32,
+    pub position: Vector3,
+    pub rotation: f32,
+    pub health: f32,
+}
+
+/// MoonLoader's `onSetActorFacingAngle` payload (RPC 175).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActorAngle {
+    pub actor_id: u16,
+    pub angle: f32,
+}
+
+/// MoonLoader's `onSetActorPos` payload (RPC 176).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActorPosition {
+    pub actor_id: u16,
+    pub position: Vector3,
+}
+
+/// MoonLoader's `onSetActorHealth` payload (RPC 178).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActorHealth {
+    pub actor_id: u16,
+    pub health: f32,
+}
+
 pub struct Empty;
 pub struct U8;
 pub struct U16;
@@ -307,6 +376,15 @@ pub struct RemoveBuildingCodec;
 pub struct AttachObjectToPlayerCodec;
 pub struct ExplosionCodec;
 pub struct PlayerNameTagCodec;
+pub struct ClientCheckCodec;
+pub struct VehicleParamsExCodec;
+pub struct VehicleTuningNotificationCodec;
+pub struct U16U8Codec;
+pub struct VehicleDamageStatusCodec;
+pub struct ActorCodec;
+pub struct ActorAngleCodec;
+pub struct ActorPositionCodec;
+pub struct ActorHealthCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
@@ -439,6 +517,72 @@ descriptor!(
     80,
     PlayerNameTagCodec
 );
+descriptor!(ClientCheckRpc, CLIENT_CHECK, 103, ClientCheckCodec);
+descriptor!(
+    SetVehicleParamsEx,
+    SET_VEHICLE_PARAMS_EX,
+    24,
+    VehicleParamsExCodec
+);
+descriptor!(
+    VehicleTuningNotificationRpc,
+    VEHICLE_TUNING_NOTIFICATION,
+    96,
+    VehicleTuningNotificationCodec
+);
+descriptor!(SetVehicleTires, SET_VEHICLE_TIRES, 98, U16U8Codec);
+descriptor!(
+    VehicleDamageStatusUpdate,
+    VEHICLE_DAMAGE_STATUS_UPDATE,
+    106,
+    VehicleDamageStatusCodec
+);
+descriptor!(ToggleWidescreen, TOGGLE_WIDESCREEN, 111, Bool8);
+descriptor!(DestroyActor, DESTROY_ACTOR, 172, U16);
+descriptor!(DestroyWeaponPickup, DESTROY_WEAPON_PICKUP, 151, U8);
+descriptor!(EditAttachedObject, EDIT_ATTACHED_OBJECT, 116, I32);
+descriptor!(EnterSelectObject, ENTER_SELECT_OBJECT, 27, Empty);
+descriptor!(
+    ServerStatisticsResponse,
+    SERVER_STATISTICS_RESPONSE,
+    102,
+    Empty
+);
+descriptor!(SetPlayerDrunkVisuals, SET_PLAYER_DRUNK_VISUALS, 92, I32);
+descriptor!(SetPlayerDrunkHandling, SET_PLAYER_DRUNK_HANDLING, 150, I32);
+descriptor!(CreateActor, CREATE_ACTOR, 171, ActorCodec);
+descriptor!(ClearActorAnimation, CLEAR_ACTOR_ANIMATION, 174, U16);
+descriptor!(
+    SetActorFacingAngle,
+    SET_ACTOR_FACING_ANGLE,
+    175,
+    ActorAngleCodec
+);
+descriptor!(
+    SetActorPosition,
+    SET_ACTOR_POSITION,
+    176,
+    ActorPositionCodec
+);
+descriptor!(SetActorHealth, SET_ACTOR_HEALTH, 178, ActorHealthCodec);
+descriptor!(
+    SetPlayerObjectNoCameraCol,
+    SET_PLAYER_OBJECT_NO_CAMERA_COL,
+    169,
+    U16
+);
+descriptor!(DisableCheckpoint, DISABLE_CHECKPOINT, 37, Empty);
+descriptor!(DisableRaceCheckpoint, DISABLE_RACE_CHECKPOINT, 39, Empty);
+descriptor!(GamemodeRestart, GAMEMODE_RESTART, 40, Empty);
+descriptor!(StopAudioStream, STOP_AUDIO_STREAM, 42, Empty);
+descriptor!(
+    RemovePlayerFromVehicle,
+    REMOVE_PLAYER_FROM_VEHICLE,
+    71,
+    Empty
+);
+descriptor!(ForceClassSelection, FORCE_CLASS_SELECTION, 74, Empty);
+descriptor!(SetCameraBehind, SET_CAMERA_BEHIND, 162, Empty);
 
 macro_rules! fixed_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
@@ -644,6 +788,50 @@ fixed_codec!(
     PlayerNameTag,
     read_player_name_tag,
     write_player_name_tag
+);
+fixed_codec!(
+    ClientCheckCodec,
+    ClientCheck,
+    read_client_check,
+    write_client_check
+);
+fixed_codec!(
+    VehicleParamsExCodec,
+    VehicleParamsEx,
+    read_vehicle_params_ex,
+    write_vehicle_params_ex
+);
+fixed_codec!(
+    VehicleTuningNotificationCodec,
+    VehicleTuningNotification,
+    read_vehicle_tuning_notification,
+    write_vehicle_tuning_notification
+);
+fixed_codec!(U16U8Codec, (u16, u8), read_u16_u8, write_u16_u8);
+fixed_codec!(
+    VehicleDamageStatusCodec,
+    VehicleDamageStatus,
+    read_vehicle_damage_status,
+    write_vehicle_damage_status
+);
+fixed_codec!(ActorCodec, Actor, read_actor, write_actor);
+fixed_codec!(
+    ActorAngleCodec,
+    ActorAngle,
+    read_actor_angle,
+    write_actor_angle
+);
+fixed_codec!(
+    ActorPositionCodec,
+    ActorPosition,
+    read_actor_position,
+    write_actor_position
+);
+fixed_codec!(
+    ActorHealthCodec,
+    ActorHealth,
+    read_actor_health,
+    write_actor_health
 );
 
 fn read_server_message<R: BitRead>(reader: &mut R) -> Result<ServerMessage, DecodeError<R::Error>> {
@@ -1201,6 +1389,167 @@ fn write_player_name_tag<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     write_u16(writer, &value.player_id)?;
     write_bool8(writer, &value.show)
+}
+
+fn read_client_check<R: BitRead>(reader: &mut R) -> Result<ClientCheck, DecodeError<R::Error>> {
+    Ok(ClientCheck {
+        request_type: read_u8(reader)?,
+        subject: read_i32(reader)?,
+        offset: read_u16(reader)?,
+        length: read_u16(reader)?,
+    })
+}
+
+fn write_client_check<W: BitWrite>(
+    writer: &mut W,
+    value: &ClientCheck,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u8(writer, &value.request_type)?;
+    write_i32(writer, &value.subject)?;
+    write_u16(writer, &value.offset)?;
+    write_u16(writer, &value.length)
+}
+
+fn read_vehicle_params_ex<R: BitRead>(
+    reader: &mut R,
+) -> Result<VehicleParamsEx, DecodeError<R::Error>> {
+    Ok(VehicleParamsEx {
+        vehicle_id: read_u16(reader)?,
+        params: read_fixed(reader)?,
+        doors: read_fixed(reader)?,
+        windows: read_fixed(reader)?,
+    })
+}
+
+fn write_vehicle_params_ex<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleParamsEx,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.vehicle_id)?;
+    write_bytes(writer, &value.params)?;
+    write_bytes(writer, &value.doors)?;
+    write_bytes(writer, &value.windows)
+}
+
+fn read_vehicle_tuning_notification<R: BitRead>(
+    reader: &mut R,
+) -> Result<VehicleTuningNotification, DecodeError<R::Error>> {
+    Ok(VehicleTuningNotification {
+        player_id: read_u16(reader)?,
+        event: read_i32(reader)?,
+        vehicle_id: read_i32(reader)?,
+        param1: read_i32(reader)?,
+        param2: read_i32(reader)?,
+    })
+}
+
+fn write_vehicle_tuning_notification<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleTuningNotification,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.player_id)?;
+    write_i32(writer, &value.event)?;
+    write_i32(writer, &value.vehicle_id)?;
+    write_i32(writer, &value.param1)?;
+    write_i32(writer, &value.param2)
+}
+
+fn read_u16_u8<R: BitRead>(reader: &mut R) -> Result<(u16, u8), DecodeError<R::Error>> {
+    Ok((read_u16(reader)?, read_u8(reader)?))
+}
+
+fn write_u16_u8<W: BitWrite>(
+    writer: &mut W,
+    value: &(u16, u8),
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.0)?;
+    write_u8(writer, &value.1)
+}
+
+fn read_vehicle_damage_status<R: BitRead>(
+    reader: &mut R,
+) -> Result<VehicleDamageStatus, DecodeError<R::Error>> {
+    Ok(VehicleDamageStatus {
+        vehicle_id: read_u16(reader)?,
+        panel_damage: read_i32(reader)?,
+        door_damage: read_i32(reader)?,
+        lights: read_u8(reader)?,
+        tires: read_u8(reader)?,
+    })
+}
+
+fn write_vehicle_damage_status<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleDamageStatus,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.vehicle_id)?;
+    write_i32(writer, &value.panel_damage)?;
+    write_i32(writer, &value.door_damage)?;
+    write_u8(writer, &value.lights)?;
+    write_u8(writer, &value.tires)
+}
+
+fn read_actor<R: BitRead>(reader: &mut R) -> Result<Actor, DecodeError<R::Error>> {
+    Ok(Actor {
+        actor_id: read_u16(reader)?,
+        skin_id: read_i32(reader)?,
+        position: read_vector3(reader)?,
+        rotation: read_f32(reader)?,
+        health: read_f32(reader)?,
+    })
+}
+
+fn write_actor<W: BitWrite>(writer: &mut W, value: &Actor) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.actor_id)?;
+    write_i32(writer, &value.skin_id)?;
+    write_vector3(writer, &value.position)?;
+    write_f32(writer, &value.rotation)?;
+    write_f32(writer, &value.health)
+}
+
+fn read_actor_angle<R: BitRead>(reader: &mut R) -> Result<ActorAngle, DecodeError<R::Error>> {
+    Ok(ActorAngle {
+        actor_id: read_u16(reader)?,
+        angle: read_f32(reader)?,
+    })
+}
+
+fn write_actor_angle<W: BitWrite>(
+    writer: &mut W,
+    value: &ActorAngle,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.actor_id)?;
+    write_f32(writer, &value.angle)
+}
+
+fn read_actor_position<R: BitRead>(reader: &mut R) -> Result<ActorPosition, DecodeError<R::Error>> {
+    Ok(ActorPosition {
+        actor_id: read_u16(reader)?,
+        position: read_vector3(reader)?,
+    })
+}
+
+fn write_actor_position<W: BitWrite>(
+    writer: &mut W,
+    value: &ActorPosition,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.actor_id)?;
+    write_vector3(writer, &value.position)
+}
+
+fn read_actor_health<R: BitRead>(reader: &mut R) -> Result<ActorHealth, DecodeError<R::Error>> {
+    Ok(ActorHealth {
+        actor_id: read_u16(reader)?,
+        health: read_f32(reader)?,
+    })
+}
+
+fn write_actor_health<W: BitWrite>(
+    writer: &mut W,
+    value: &ActorHealth,
+) -> Result<(), EncodeError<W::Error>> {
+    write_u16(writer, &value.actor_id)?;
+    write_f32(writer, &value.health)
 }
 
 fn read_empty<R: BitRead>(_reader: &mut R) -> Result<(), DecodeError<R::Error>> {
