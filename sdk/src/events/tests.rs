@@ -6,7 +6,9 @@ use super::{
     },
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
-use samp_protocol::rpc::incoming as protocol_incoming;
+use samp_protocol::{
+    WireDescriptor, packet::r1 as protocol_packet, rpc::incoming as protocol_incoming,
+};
 
 fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }
@@ -874,40 +876,40 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
 
 #[test]
 fn r1_remote_sync_and_markers_decode_and_atomically_replace() {
-    assert_replacement_round_trip(
-        packet::incoming::PLAYER_SYNC,
-        packet::RemotePlayerSync {
+    assert_protocol_replacement_round_trip(
+        protocol_packet::PLAYER_SYNC,
+        protocol_packet::RemotePlayerSync {
             player_id: 1,
             left_right_keys: Some(2),
             up_down_keys: None,
             key_data: 3,
-            position: test_vector3(1.0, 2.0, 3.0),
+            position: test_protocol_vector3(1.0, 2.0, 3.0),
             quaternion: [-1.0, 0.0, 0.0, 0.0],
             health: 100,
             armour: 98,
             weapon: 24,
             special_action: 0,
-            move_speed: test_vector3(0.0, 0.0, 0.0),
-            surfing: Some(packet::RemotePlayerSurfing {
+            move_speed: test_protocol_vector3(0.0, 0.0, 0.0),
+            surfing: Some(protocol_packet::RemotePlayerSurfing {
                 vehicle_id: 4,
-                offsets: test_vector3(4.0, 5.0, 6.0),
+                offsets: test_protocol_vector3(4.0, 5.0, 6.0),
             }),
-            animation: Some(packet::RemotePlayerAnimation { id: 7, flags: 8 }),
+            animation: Some(protocol_packet::RemotePlayerAnimation { id: 7, flags: 8 }),
         },
     );
-    assert_replacement_round_trip(
-        packet::incoming::VEHICLE_SYNC,
-        packet::RemoteVehicleSync {
+    assert_protocol_replacement_round_trip(
+        protocol_packet::VEHICLE_SYNC,
+        protocol_packet::RemoteVehicleSync {
             player_id: 1,
             vehicle_id: 2,
             left_right_keys: 3,
             up_down_keys: 4,
             key_data: 5,
             quaternion: [1.0, 0.0, 0.0, 0.0],
-            position: test_vector3(1.0, 2.0, 3.0),
+            position: test_protocol_vector3(1.0, 2.0, 3.0),
             // R1's compressed-vector zero components decode to -1 / 65536 after the
             // writer's integer conversion; use the exact representable values here.
-            move_speed: test_vector3(1.0, -1.0 / 65_536.0, -1.0 / 65_536.0),
+            move_speed: test_protocol_vector3(1.0, -1.0 / 65_536.0, -1.0 / 65_536.0),
             vehicle_health: 900,
             player_health: 98,
             armour: 0,
@@ -918,17 +920,17 @@ fn r1_remote_sync_and_markers_decode_and_atomically_replace() {
             trailer_id: Some(6),
         },
     );
-    assert_replacement_round_trip(
-        packet::incoming::MARKERS_SYNC,
-        packet::MarkersSync {
+    assert_protocol_replacement_round_trip(
+        protocol_packet::MARKERS_SYNC,
+        protocol_packet::MarkersSync {
             markers: vec![
-                packet::Marker {
+                protocol_packet::Marker {
                     player_id: 1,
                     coordinates: None,
                 },
-                packet::Marker {
+                protocol_packet::Marker {
                     player_id: 2,
-                    coordinates: Some(packet::MarkerCoordinates { x: -1, y: -2, z: 3 }),
+                    coordinates: Some(protocol_packet::MarkerCoordinates { x: -1, y: -2, z: 3 }),
                 },
             ],
         },
@@ -967,23 +969,19 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
 
 #[test]
 fn marker_sync_keeps_negative_r1_coordinates_as_signed_i16_values() {
-    let payload = packet::incoming::MARKERS_SYNC
-        .encode(
-            test_api(),
-            packet::MarkersSync {
-                markers: vec![
-                    packet::Marker {
-                        player_id: 1,
-                        coordinates: None,
-                    },
-                    packet::Marker {
-                        player_id: 2,
-                        coordinates: Some(packet::MarkerCoordinates { x: -1, y: -2, z: 3 }),
-                    },
-                ],
+    let payload = protocol_packet::MarkersSyncPacket::encode_bits(&protocol_packet::MarkersSync {
+        markers: vec![
+            protocol_packet::Marker {
+                player_id: 1,
+                coordinates: None,
             },
-        )
-        .unwrap();
+            protocol_packet::Marker {
+                player_id: 2,
+                coordinates: Some(protocol_packet::MarkerCoordinates { x: -1, y: -2, z: 3 }),
+            },
+        ],
+    })
+    .unwrap();
     assert_eq!(payload.len_bits(), 114);
     assert_eq!(
         payload.as_bytes(),
@@ -996,14 +994,13 @@ fn marker_sync_keeps_negative_r1_coordinates_as_signed_i16_values() {
 #[test]
 fn marker_sync_accepts_terminal_byte_alignment_padding() {
     let api = test_api();
-    let value = packet::MarkersSync {
-        markers: vec![packet::Marker {
+    let value = protocol_packet::MarkersSync {
+        markers: vec![protocol_packet::Marker {
             player_id: 1,
             coordinates: None,
         }],
     };
-    let canonical = packet::incoming::MARKERS_SYNC
-        .encode(api, value.clone())
+    let canonical = protocol_packet::MarkersSyncPacket::encode_bits(&value)
         .expect("marker payload must encode");
     assert_eq!(canonical.len_bits(), 49);
 
@@ -1012,7 +1009,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     *bytes.last_mut().expect("marker payload has a final byte") |= 0x40;
     let padded = EncodedPayload::from_bits(bytes, 56)
         .expect("the rounded marker payload remains in its buffer");
-    let mut raw = TestEvent::new(packet::incoming::MARKERS_SYNC.id(), padded);
+    let mut raw = TestEvent::new(protocol_packet::MarkersSyncPacket::ID, padded);
     let mut event = unsafe {
         Event::from_callback(
             api,
@@ -1021,12 +1018,11 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     }
     .expect("test event is not null");
     assert_eq!(
-        packet::incoming::MARKERS_SYNC
-            .handle(&mut event, |decoded| {
-                assert_eq!(decoded, value);
-                ProtocolAction::Replace(decoded)
-            })
-            .expect("terminal alignment padding must be accepted"),
+        super::handle_protocol::<protocol_packet::MarkersSyncPacket>(&mut event, |decoded| {
+            assert_eq!(decoded, value);
+            ProtocolAction::Replace(decoded)
+        })
+        .expect("terminal alignment padding must be accepted"),
         SampClientSdkHookAction::Continue
     );
     assert_eq!(raw.bit_len, canonical.len_bits());
@@ -1035,7 +1031,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     let mut bytes = canonical.as_bytes().to_vec();
     bytes.push(0);
     let mut raw = TestEvent::new(
-        packet::incoming::MARKERS_SYNC.id(),
+        protocol_packet::MarkersSyncPacket::ID,
         EncodedPayload::from_bits(bytes, 57).expect("the malformed suffix fits"),
     );
     let mut event = unsafe {
@@ -1046,13 +1042,15 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     }
     .expect("test event is not null");
     assert!(matches!(
-        packet::incoming::MARKERS_SYNC.handle(&mut event, |_| panic!(
+        super::handle_protocol::<protocol_packet::MarkersSyncPacket>(&mut event, |_| panic!(
             "a full trailing byte must not dispatch"
         )),
-        Err(EventError::UnexpectedBitLength {
-            bit_len: 8,
-            expected: 0
-        })
+        Err(super::core::ProtocolEventError::Decode(
+            samp_protocol::DecodeError::UnexpectedTrailingBits {
+                remaining_bits: 8,
+                allowed_bits: 7,
+            }
+        ))
     ));
 }
 

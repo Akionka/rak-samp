@@ -1,49 +1,43 @@
-use super::*;
+use crate::events::core::{ProtocolEventError, handle_protocol};
+use crate::events::{Event, ProtocolAction};
+use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction};
 
-/// The compressed R1 remote-player sync descriptor.
-pub const PLAYER_SYNC: IncomingPacket<RemotePlayerSync> = IncomingPacket::new_bits(
-    PLAYER_SYNC_ID,
-    decode_remote_player_sync,
-    encode_remote_player_sync,
-);
-/// The compressed R1 remote-vehicle sync descriptor.
-pub const VEHICLE_SYNC: IncomingPacket<RemoteVehicleSync> = IncomingPacket::new_bits(
-    VEHICLE_SYNC_ID,
-    decode_remote_vehicle_sync,
-    encode_remote_vehicle_sync,
-);
-/// The variable-length R1 marker-sync descriptor.
-pub const MARKERS_SYNC: IncomingPacket<MarkersSync> =
-    IncomingPacket::new_bits(MARKERS_SYNC_ID, decode_markers_sync, encode_markers_sync);
-
-macro_rules! packet_helper {
-    ($name:ident, $value:ty, $IncomingPacket:ident, $event_name:literal) => {
-        #[doc = concat!("Handles MoonLoader's `", $event_name, "` from an incoming raw IncomingPacket callback.")]
+macro_rules! protocol_packet_helper {
+    ($name:ident, $descriptor:path, $value:ty, $event_name:literal) => {
+        #[doc = concat!("Handles MoonLoader's `", $event_name, "` from an incoming raw Packet callback.")]
         ///
         /// # Safety
         ///
-        /// See [`super::super::handle`].
+        /// See [`crate::events::handle`].
         #[allow(dead_code)]
         pub(crate) unsafe fn $name(
             api: HostApi,
             raw: *mut SampClientSdkEventV1,
             handler: impl FnOnce($value) -> ProtocolAction<$value>,
-        ) -> Result<SampClientSdkHookAction, EventError> {
-            unsafe { handle(api, raw, $IncomingPacket, handler) }
+        ) -> Result<SampClientSdkHookAction, ProtocolEventError> {
+            let mut event = unsafe { Event::from_callback(api, raw) }.map_err(|error| {
+                ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error))
+            })?;
+            handle_protocol::<$descriptor>(&mut event, handler)
         }
     };
 }
 
-packet_helper!(
+protocol_packet_helper!(
     on_player_sync,
-    RemotePlayerSync,
-    PLAYER_SYNC,
+    samp_protocol::packet::r1::RemotePlayerSyncPacket,
+    samp_protocol::packet::r1::RemotePlayerSync,
     "onPlayerSync"
 );
-packet_helper!(
+protocol_packet_helper!(
     on_vehicle_sync,
-    RemoteVehicleSync,
-    VEHICLE_SYNC,
+    samp_protocol::packet::r1::RemoteVehicleSyncPacket,
+    samp_protocol::packet::r1::RemoteVehicleSync,
     "onVehicleSync"
 );
-packet_helper!(on_markers_sync, MarkersSync, MARKERS_SYNC, "onMarkersSync");
+protocol_packet_helper!(
+    on_markers_sync,
+    samp_protocol::packet::r1::MarkersSyncPacket,
+    samp_protocol::packet::r1::MarkersSync,
+    "onMarkersSync"
+);

@@ -1,5 +1,5 @@
 use super::*;
-use crate::events::{EncodedPayload, ProtocolAction, packet, test_support};
+use crate::events::{EncodedPayload, ProtocolAction, test_support};
 use samp_protocol::rpc::incoming as protocol_incoming;
 use std::sync::{
     Arc, Mutex,
@@ -1894,8 +1894,8 @@ fn register_handlers_collects_every_supported_handler_form() {
         rpc(SampClientSdkDirection::Outgoing, |_| SampClientSdkHookAction::Continue),
         packet_id(SampClientSdkDirection::Incoming, 1, |_| SampClientSdkHookAction::Continue),
         rpc_id(SampClientSdkDirection::Outgoing, 2, |_| SampClientSdkHookAction::Continue),
-        incoming_typed_packet(
-            packet::incoming::PLAYER_SYNC,
+        incoming_protocol_packet(
+            samp_protocol::packet::r1::PLAYER_SYNC,
             |_| ProtocolAction::Continue
         ),
         incoming_protocol_rpc(

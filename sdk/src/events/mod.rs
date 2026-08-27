@@ -1,8 +1,8 @@
 //! Typed SA-MP RPC and packet helpers modeled after MoonLoader's `samp.events`.
 //!
 //! Register one raw callback through [`crate::HostApi`] and invoke a matching descriptor helper
-//! from it. Typed RPC catalogs live under [`rpc::incoming`] and [`rpc::outgoing`]; deferred
-//! R1 exact-bit Packet catalogs live under [`packet::incoming`].
+//! from it. Typed RPC catalogs live under [`rpc::incoming`] and [`rpc::outgoing`]; R1 exact-bit
+//! Packet catalogs live in [`samp_protocol::packet::r1`].
 
 mod core;
 pub mod packet;

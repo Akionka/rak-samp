@@ -2,8 +2,7 @@
 //!
 //! This module owns the local outgoing packets and non-R1 incoming packets whose
 //! layouts are shared across supported client profiles. R1 remote player, remote
-//! vehicle, and marker synchronization remain outside this module because they
-//! use exact-bit layouts.
+//! vehicle, and marker synchronization use the exact-bit layouts in [`super::r1`].
 
 use core::marker::PhantomData;
 
