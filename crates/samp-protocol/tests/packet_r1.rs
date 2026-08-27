@@ -1,9 +1,11 @@
 use samp_protocol::packet::r1::{
     MARKERS_SYNC, MAX_MARKERS, Marker, MarkerCoordinates, MarkersSync, MarkersSyncPacket,
-    PLAYER_SYNC, RemotePlayerAnimation, RemotePlayerSurfing, RemotePlayerSync, RemoteVehicleSync,
-    VEHICLE_SYNC, Vector3,
+    PLAYER_SYNC, RemotePlayerAnimation, RemotePlayerSurfing, RemotePlayerSync,
+    RemotePlayerSyncCodec, RemoteVehicleSync, VEHICLE_SYNC, Vector3,
 };
-use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
+use samp_protocol::{
+    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireCodec, WireDescriptor,
+};
 
 fn vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }
@@ -110,6 +112,36 @@ fn r1_sync_packets_preserve_exact_vectors() {
         ],
         114,
     );
+}
+
+#[test]
+fn r1_sync_packet_codec_preserves_values_from_an_unaligned_cursor() {
+    let value = RemotePlayerSync {
+        player_id: 1,
+        left_right_keys: Some(2),
+        up_down_keys: None,
+        key_data: 3,
+        position: vector3(1.0, 2.0, 3.0),
+        quaternion: [-1.0, 0.0, 0.0, 0.0],
+        health: 100,
+        armour: 98,
+        weapon: 24,
+        special_action: 0,
+        move_speed: vector3(0.0, 0.0, 0.0),
+        surfing: None,
+        animation: None,
+    };
+    let mut writer = BitStream::new();
+    BitWrite::write_left_aligned_bits(&mut writer, &[0b1010_0000], 3).unwrap();
+    RemotePlayerSyncCodec::encode(&mut writer, &value).unwrap();
+
+    let mut reader = BitStream::from_bits(writer.as_bytes(), writer.len_bits()).unwrap();
+    assert_eq!(
+        BitRead::read_left_aligned_bits(&mut reader, 3),
+        Ok(vec![0b1010_0000])
+    );
+    assert_eq!(RemotePlayerSyncCodec::decode(&mut reader), Ok(value));
+    assert_eq!(reader.remaining_bits(), 0);
 }
 
 #[test]
