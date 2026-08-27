@@ -1,10 +1,12 @@
 # Conventions and invariants
-- Rust naming/rustfmt; focused modules; explicit error propagation rather than `unwrap`/`expect` outside tests.
+- Rust naming/rustfmt; focused modules; explicit error propagation instead of `unwrap`/`expect` outside tests.
 - Use the `log` facade; initialization belongs in `src/logging.rs`; never log packet or RPC payloads.
-- Plugin ABI is C-compatible, bounded, versioned, and ALPHA compatibility breaks must be explicit. Never cross the DLL boundary with Rust references, trait objects, or allocations.
-- Patch/restore only host-owned RakClient vtable slots. Detours call originals through their captured backend state.
+- Plugin ABI is bounded, C-compatible, and versioned. Copy data through fixed storage/capacities/function pointers; never cross DLL boundaries with Rust references, trait objects, allocator-owned values, or borrowed native objects.
+- Public safe access goes through `Samp` and owned subsystem facades/snapshots. Keep `HostApi` internal; expose native addresses only as opaque values through the explicit unsafe `raw` API.
+- Select an exact verified SA-MP R1/R3-1/R5-1/DL-R1 profile before fixed-offset access; validate every pointer, range, capacity, and enum at each native operation boundary.
+- Patch/restore only host-owned RakClient vtable slots. Detours call originals through captured backend state.
 - Emulated incoming events traverse listeners exactly once; nested same-thread dispatch remains non-blocking.
-- Typed helpers reuse one host subscription, preserve uncertain text as bytes, bound length-prefixed allocations, serialize replacement payloads before atomic replacement calls, and never retain callback-local events.
-- Before runtime unload, unregister and wait from a worker thread only; never wait in `DllMain` or callbacks.
-- Behavior changes require unit tests beside modules with observable names. Native layout/wire changes require exact vectors and the C++ fixture; offset changes currently require fixture/live evidence.
-- Update both `CORE.md` and `ARCHITECTURE.md` whenever a feature or module changes.
+- Typed helpers reuse one host subscription, preserve uncertain text as bytes, bound length-prefixed allocations, serialize replacements before atomic ABI calls, and never retain callback-local events.
+- Before runtime unload, unregister and wait from a worker thread only; never wait in `DllMain`, callbacks, or the game tick, and never unload while callbacks can run.
+- Behavior changes require focused unit tests beside modules. Wire/native changes require exact vectors and independent C++ layout coverage; profile offsets require verified evidence.
+- Update `CORE.md` and `ARCHITECTURE.md` for feature/module changes; update usage/backlog docs when their concerns change.
