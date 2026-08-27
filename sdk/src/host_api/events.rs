@@ -288,7 +288,7 @@ impl HostApi {
     /// retain their host status, while malformed payloads remain Protocol decode failures.
     pub fn on_incoming_protocol_packet<D, F>(
         self,
-        _descriptor: D,
+        descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
@@ -296,11 +296,7 @@ impl HostApi {
         D::Value: 'static,
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_packet_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
-                events::report_typed_callback_failure(error.phase(), "incoming", "packet", D::ID)
-            })
-        })
+        self.on_incoming_typed_packet(descriptor, handler)
     }
 
     /// Registers an outgoing Packet callback that decodes one Protocol-owned descriptor.
@@ -309,7 +305,7 @@ impl HostApi {
     /// retain their host status, while malformed payloads remain Protocol decode failures.
     pub fn on_outgoing_protocol_packet<D, F>(
         self,
-        _descriptor: D,
+        descriptor: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
@@ -317,11 +313,7 @@ impl HostApi {
         D::Value: 'static,
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_packet_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
-                events::report_typed_callback_failure(error.phase(), "outgoing", "packet", D::ID)
-            })
-        })
+        self.on_outgoing_typed_packet(descriptor, handler)
     }
 
     fn register_listener<F>(

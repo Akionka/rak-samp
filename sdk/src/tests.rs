@@ -2220,6 +2220,49 @@ fn normal_typed_legacy_callback_preserves_all_actions() {
 }
 
 #[test]
+fn normal_typed_legacy_packet_callback_preserves_all_actions() {
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&calls);
+    let descriptor =
+        events::OutgoingPacket::new(204, |event| event.read_u8(), |value| Ok(vec![value]));
+    let subscription = Samp::from_api(test_support::test_api())
+        .net()
+        .on_outgoing_typed_packet(descriptor, move |value| {
+            match observed.fetch_add(1, Ordering::AcqRel) {
+                0 => ProtocolAction::Continue,
+                1 => ProtocolAction::Block,
+                2 => ProtocolAction::Replace(value + 1),
+                _ => unreachable!("test invokes exactly three actions"),
+            }
+        })
+        .expect("legacy typed Packet registration must succeed");
+    let payload = || EncodedPayload::from_bits(vec![7], 8).expect("test payload must be valid");
+
+    assert_eq!(test_support::registration_stats().registered_callbacks, 1);
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(204, payload()),
+        Some((SampClientSdkHookAction::Continue, vec![7], 8))
+    );
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(204, payload()),
+        Some((SampClientSdkHookAction::Block, vec![7], 8))
+    );
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(204, payload()),
+        Some((SampClientSdkHookAction::Continue, vec![8], 8))
+    );
+    assert_eq!(calls.load(Ordering::Acquire), 3);
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
 fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     use samp_protocol::{
         WireDescriptor,
@@ -2297,7 +2340,7 @@ fn register_handlers_collects_every_supported_handler_form() {
         rpc(SampClientSdkDirection::Outgoing, |_| SampClientSdkHookAction::Continue),
         packet_id(SampClientSdkDirection::Incoming, 1, |_| SampClientSdkHookAction::Continue),
         rpc_id(SampClientSdkDirection::Outgoing, 2, |_| SampClientSdkHookAction::Continue),
-        incoming_protocol_packet(
+        incoming_typed_packet(
             samp_protocol::packet::r1::PLAYER_SYNC,
             |_| ProtocolAction::Continue
         ),
