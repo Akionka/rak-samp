@@ -47,7 +47,8 @@ fn wire_length_prefixed_bytes_enforce_limits_before_reading_payloads() {
 
     BitWrite::write_left_aligned_bits(&mut writer, &[0b1010_0000], 3).unwrap();
     WireWriteExt::write_len_prefixed_bytes_u8(&mut writer, &[1, 2], 2).unwrap();
-    WireWriteExt::write_len_prefixed_bytes_u32_le(&mut writer, &[3, 4], 2).unwrap();
+    WireWriteExt::write_len_prefixed_bytes_u16_le(&mut writer, &[3, 4], 2).unwrap();
+    WireWriteExt::write_len_prefixed_bytes_u32_le(&mut writer, &[5, 6], 2).unwrap();
 
     let mut reader = BitStream::from_bits(writer.as_bytes(), writer.len_bits()).unwrap();
     BitRead::read_left_aligned_bits(&mut reader, 3).unwrap();
@@ -56,8 +57,12 @@ fn wire_length_prefixed_bytes_enforce_limits_before_reading_payloads() {
         Ok(vec![1, 2])
     );
     assert_eq!(
-        WireReadExt::read_len_prefixed_bytes_u32_le(&mut reader, 2),
+        WireReadExt::read_len_prefixed_bytes_u16_le(&mut reader, 2),
         Ok(vec![3, 4])
+    );
+    assert_eq!(
+        WireReadExt::read_len_prefixed_bytes_u32_le(&mut reader, 2),
+        Ok(vec![5, 6])
     );
 
     let mut oversized_prefix = BitStream::new();
@@ -81,11 +86,43 @@ fn wire_length_prefixed_bytes_enforce_limits_before_reading_payloads() {
             limit: 2,
         })
     );
+    let mut oversized_u16_prefix = BitStream::new();
+    WireWriteExt::write_u16_le(&mut oversized_u16_prefix, 3).unwrap();
+    let mut oversized_u16_prefix_reader = BitStream::from_bits(
+        oversized_u16_prefix.as_bytes(),
+        oversized_u16_prefix.len_bits(),
+    )
+    .unwrap();
+    assert_eq!(
+        WireReadExt::read_len_prefixed_bytes_u16_le(&mut oversized_u16_prefix_reader, 2),
+        Err(DecodeError::LengthExceedsLimit {
+            length: 3,
+            limit: 2,
+        })
+    );
+    assert_eq!(
+        WireWriteExt::write_len_prefixed_bytes_u16_le(&mut BitStream::new(), &[1, 2, 3], 2,),
+        Err(EncodeError::LengthExceedsLimit {
+            length: 3,
+            limit: 2,
+        })
+    );
     assert_eq!(
         WireWriteExt::write_len_prefixed_bytes_u8(&mut BitStream::new(), &vec![0; 256], 256),
         Err(EncodeError::LengthExceedsLimit {
             length: 256,
             limit: u8::MAX as usize,
+        })
+    );
+    assert_eq!(
+        WireWriteExt::write_len_prefixed_bytes_u16_le(
+            &mut BitStream::new(),
+            &vec![0; usize::from(u16::MAX) + 1],
+            usize::from(u16::MAX) + 1,
+        ),
+        Err(EncodeError::LengthExceedsLimit {
+            length: usize::from(u16::MAX) + 1,
+            limit: usize::from(u16::MAX),
         })
     );
 }
@@ -98,7 +135,7 @@ fn wire_primitives_keep_source_failures_separate_from_validation() {
         type Error = &'static str;
 
         fn remaining_bits(&self) -> usize {
-            u8::BITS as usize
+            u16::BITS as usize
         }
 
         fn read_left_aligned_bits(&mut self, _: usize) -> Result<Vec<u8>, Self::Error> {
@@ -122,6 +159,14 @@ fn wire_primitives_keep_source_failures_separate_from_validation() {
     );
     assert_eq!(
         WireWriteExt::write_u8(&mut RejectingWriter, 1),
+        Err(EncodeError::Source("write failed"))
+    );
+    assert_eq!(
+        WireReadExt::read_len_prefixed_bytes_u16_le(&mut RejectingReader, 1),
+        Err(DecodeError::Source("read failed"))
+    );
+    assert_eq!(
+        WireWriteExt::write_len_prefixed_bytes_u16_le(&mut RejectingWriter, &[1], 1),
         Err(EncodeError::Source("write failed"))
     );
     assert_eq!(MAX_STRING32_BYTES, 4096);

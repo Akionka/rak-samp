@@ -71,6 +71,15 @@ pub trait WireReadExt: BitRead {
         read_len_prefixed_bytes(self, byte_len, max_len)
     }
 
+    /// Reads an explicitly bounded byte sequence with a little-endian `u16` byte-count prefix.
+    fn read_len_prefixed_bytes_u16_le(
+        &mut self,
+        max_len: usize,
+    ) -> Result<Vec<u8>, DecodeError<Self::Error>> {
+        let byte_len = usize::from(WireReadExt::read_u16_le(self)?);
+        read_len_prefixed_bytes(self, byte_len, max_len)
+    }
+
     /// Reads an explicitly bounded byte sequence with a little-endian `u32` byte-count prefix.
     fn read_len_prefixed_bytes_u32_le(
         &mut self,
@@ -155,6 +164,21 @@ pub trait WireWriteExt: BitWrite {
     ) -> Result<(), EncodeError<Self::Error>> {
         validate_encoded_length(bytes.len(), max_len, usize::from(u8::MAX))?;
         WireWriteExt::write_u8(self, bytes.len() as u8)?;
+        WireWriteExt::write_bytes(self, bytes)
+    }
+
+    /// Writes an explicitly bounded byte sequence with a little-endian `u16` byte-count prefix.
+    fn write_len_prefixed_bytes_u16_le(
+        &mut self,
+        bytes: &[u8],
+        max_len: usize,
+    ) -> Result<(), EncodeError<Self::Error>> {
+        validate_encoded_length(bytes.len(), max_len, usize::from(u16::MAX))?;
+        let byte_len = u16::try_from(bytes.len()).map_err(|_| EncodeError::LengthExceedsLimit {
+            length: bytes.len(),
+            limit: usize::from(u16::MAX),
+        })?;
+        WireWriteExt::write_u16_le(self, byte_len)?;
         WireWriteExt::write_bytes(self, bytes)
     }
 

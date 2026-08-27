@@ -1560,43 +1560,43 @@ fn write_empty<W: BitWrite>(_writer: &mut W, _value: &()) -> Result<(), EncodeEr
 }
 
 fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
-    Ok(read_fixed::<R, 1>(reader)?[0])
+    WireReadExt::read_u8(reader)
 }
 
 fn write_u8<W: BitWrite>(writer: &mut W, value: &u8) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &[*value])
+    WireWriteExt::write_u8(writer, *value)
 }
 
 fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {
-    Ok(u16::from_le_bytes(read_fixed::<R, 2>(reader)?))
+    WireReadExt::read_u16_le(reader)
 }
 
 fn write_u16<W: BitWrite>(writer: &mut W, value: &u16) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_u16_le(writer, *value)
 }
 
 fn read_u32<R: BitRead>(reader: &mut R) -> Result<u32, DecodeError<R::Error>> {
-    Ok(u32::from_le_bytes(read_fixed::<R, 4>(reader)?))
+    WireReadExt::read_u32_le(reader)
 }
 
 fn write_u32<W: BitWrite>(writer: &mut W, value: &u32) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_u32_le(writer, *value)
 }
 
 fn read_i32<R: BitRead>(reader: &mut R) -> Result<i32, DecodeError<R::Error>> {
-    Ok(i32::from_le_bytes(read_fixed::<R, 4>(reader)?))
+    WireReadExt::read_i32_le(reader)
 }
 
 fn write_i32<W: BitWrite>(writer: &mut W, value: &i32) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_i32_le(writer, *value)
 }
 
 fn read_f32<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    Ok(f32::from_le_bytes(read_fixed::<R, 4>(reader)?))
+    WireReadExt::read_f32_le(reader)
 }
 
 fn write_f32<W: BitWrite>(writer: &mut W, value: &f32) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_f32_le(writer, *value)
 }
 
 fn read_bool8<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
@@ -1648,23 +1648,11 @@ fn read_fixed<R: BitRead, const LENGTH: usize>(
 }
 
 fn read_bytes<R: BitRead>(reader: &mut R, length: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let requested_bits = length * u8::BITS as usize;
-    let available_bits = reader.remaining_bits();
-    if requested_bits > available_bits {
-        return Err(DecodeError::OutOfBounds {
-            requested_bits,
-            available_bits,
-        });
-    }
-    reader
-        .read_left_aligned_bits(requested_bits)
-        .map_err(DecodeError::Source)
+    WireReadExt::read_bytes(reader, length)
 }
 
 fn write_bytes<W: BitWrite>(writer: &mut W, bytes: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    writer
-        .write_left_aligned_bits(bytes, bytes.len() * u8::BITS as usize)
-        .map_err(EncodeError::Source)
+    WireWriteExt::write_bytes(writer, bytes)
 }
 
 mod phase15;

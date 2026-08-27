@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 
 use crate::{
     BitRead, BitWrite, DecodeError, EncodeError, IncomingPacket, OutgoingPacket, TrailingPolicy,
-    WireCodec,
+    WireCodec, WireReadExt, WireWriteExt,
 };
 
 pub use crate::rpc::incoming::{MAX_STRING32_BYTES, Vector3};
@@ -795,52 +795,46 @@ fn write_spectator_sync<W: BitWrite>(
 }
 
 fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
-    Ok(read_fixed::<R, 1>(reader)?[0])
+    WireReadExt::read_u8(reader)
 }
 
 fn write_u8<W: BitWrite>(writer: &mut W, value: &u8) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &[*value])
+    WireWriteExt::write_u8(writer, *value)
 }
 
 fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {
-    Ok(u16::from_le_bytes(read_fixed(reader)?))
+    WireReadExt::read_u16_le(reader)
 }
 
 fn write_u16<W: BitWrite>(writer: &mut W, value: &u16) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_u16_le(writer, *value)
 }
 
 fn read_i32<R: BitRead>(reader: &mut R) -> Result<i32, DecodeError<R::Error>> {
-    Ok(i32::from_le_bytes(read_fixed(reader)?))
+    WireReadExt::read_i32_le(reader)
 }
 
 fn write_i32<W: BitWrite>(writer: &mut W, value: &i32) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_i32_le(writer, *value)
 }
 
 fn read_f32<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    Ok(f32::from_le_bytes(read_fixed(reader)?))
+    WireReadExt::read_f32_le(reader)
 }
 
 fn write_f32<W: BitWrite>(writer: &mut W, value: &f32) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
+    WireWriteExt::write_f32_le(writer, *value)
 }
 
 fn read_vector3<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    Ok(Vector3 {
-        x: read_f32(reader)?,
-        y: read_f32(reader)?,
-        z: read_f32(reader)?,
-    })
+    WireReadExt::read_vector3_le(reader)
 }
 
 fn write_vector3<W: BitWrite>(
     writer: &mut W,
     value: &Vector3,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_f32(writer, &value.x)?;
-    write_f32(writer, &value.y)?;
-    write_f32(writer, &value.z)
+    WireWriteExt::write_vector3_le(writer, value)
 }
 
 fn read_quaternion<R: BitRead>(reader: &mut R) -> Result<[f32; 4], DecodeError<R::Error>> {
@@ -863,41 +857,19 @@ fn write_quaternion<W: BitWrite>(
 }
 
 fn read_string8<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let length = usize::from(read_u8(reader)?);
-    read_bytes(reader, length)
+    WireReadExt::read_len_prefixed_bytes_u8(reader, usize::from(u8::MAX))
 }
 
 fn write_string8<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    if value.len() > u8::MAX as usize {
-        return Err(EncodeError::LengthExceedsLimit {
-            length: value.len(),
-            limit: u8::MAX as usize,
-        });
-    }
-    write_u8(writer, &(value.len() as u8))?;
-    write_bytes(writer, value)
+    WireWriteExt::write_len_prefixed_bytes_u8(writer, value, usize::from(u8::MAX))
 }
 
 fn read_string32<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let length = u32::from_le_bytes(read_fixed::<R, 4>(reader)?) as usize;
-    if length > MAX_STRING32_BYTES {
-        return Err(DecodeError::LengthExceedsLimit {
-            length,
-            limit: MAX_STRING32_BYTES,
-        });
-    }
-    read_bytes(reader, length)
+    WireReadExt::read_len_prefixed_bytes_u32_le(reader, MAX_STRING32_BYTES)
 }
 
 fn write_string32<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    if value.len() > MAX_STRING32_BYTES {
-        return Err(EncodeError::LengthExceedsLimit {
-            length: value.len(),
-            limit: MAX_STRING32_BYTES,
-        });
-    }
-    write_bytes(writer, &(value.len() as u32).to_le_bytes())?;
-    write_bytes(writer, value)
+    WireWriteExt::write_len_prefixed_bytes_u32_le(writer, value, MAX_STRING32_BYTES)
 }
 
 fn read_fixed<R: BitRead, const LENGTH: usize>(
@@ -914,21 +886,9 @@ fn read_fixed<R: BitRead, const LENGTH: usize>(
 }
 
 fn read_bytes<R: BitRead>(reader: &mut R, length: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let requested_bits = length * u8::BITS as usize;
-    let available_bits = reader.remaining_bits();
-    if requested_bits > available_bits {
-        return Err(DecodeError::OutOfBounds {
-            requested_bits,
-            available_bits,
-        });
-    }
-    reader
-        .read_left_aligned_bits(requested_bits)
-        .map_err(DecodeError::Source)
+    WireReadExt::read_bytes(reader, length)
 }
 
 fn write_bytes<W: BitWrite>(writer: &mut W, bytes: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    writer
-        .write_left_aligned_bits(bytes, bytes.len() * u8::BITS as usize)
-        .map_err(EncodeError::Source)
+    WireWriteExt::write_bytes(writer, bytes)
 }
