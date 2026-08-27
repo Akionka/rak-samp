@@ -1,6 +1,6 @@
 use samp_protocol::{
     BitRead, BitStream, BitStreamError, BitWrite, DecodeError, EncodeError, EncodedBits,
-    EncodedBitsError, packet_name, rpc_name,
+    EncodedBitsError, MAX_BIT_STREAM_BITS, packet_name, rpc_name,
 };
 
 #[test]
@@ -10,6 +10,31 @@ fn bit_stream_preserves_the_sdk_right_aligned_partial_read() {
 
     assert_eq!(stream.as_bytes(), &[0b1010_0000]);
     assert_eq!(stream.read_bits(3), Ok(vec![0b0000_0101]));
+}
+
+#[test]
+fn bit_stream_accepts_the_maximum_payload_and_rejects_overflow() {
+    let maximum_bytes = MAX_BIT_STREAM_BITS.div_ceil(u8::BITS as usize);
+
+    assert_eq!(
+        BitStream::from_bits(vec![0; maximum_bytes + 1], MAX_BIT_STREAM_BITS + 1,),
+        Err(BitStreamError::PayloadTooLarge {
+            requested_bits: MAX_BIT_STREAM_BITS + 1,
+        })
+    );
+
+    let mut stream = BitStream::from_bits(vec![0; maximum_bytes], MAX_BIT_STREAM_BITS)
+        .expect("the maximum Protocol payload must be accepted");
+
+    assert_eq!(stream.len_bits(), MAX_BIT_STREAM_BITS);
+    assert_eq!(stream.len_bytes(), maximum_bytes);
+    assert_eq!(
+        stream.write_bool(false),
+        Err(BitStreamError::PayloadTooLarge {
+            requested_bits: MAX_BIT_STREAM_BITS + 1,
+        })
+    );
+    assert_eq!(stream.len_bits(), MAX_BIT_STREAM_BITS);
 }
 
 #[test]
