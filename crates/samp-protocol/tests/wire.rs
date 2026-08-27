@@ -1,9 +1,14 @@
-use core::mem::size_of;
+use core::{any::type_name, mem::size_of};
 
 use samp_protocol::{
     BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, ExactBitsPolicy,
     ExactBytesPolicy, IncomingPacket, OutgoingRpc, Packet, Rpc, TerminalAlignmentPaddingPolicy,
     TrailingPolicy, WireCodec, WireDescriptor, WireKind,
+    packet::{common::SendAimSync, r1::RemotePlayerSyncPacket},
+    rpc::{
+        incoming::{ServerMessageRpc, fixed::AttachCameraToObject, r1::InitGameRpc},
+        outgoing::{chat::SendChat, common::SendDeathNotification},
+    },
 };
 
 struct ThreeBitValue;
@@ -55,6 +60,38 @@ type ThreeBitRpc = Rpc<61, ThreeBitValue, ExactBitsPolicy>;
 type ExactBytePacket = Packet<1, ThreeBitValue, ExactBytesPolicy>;
 type MarkerPacket = Packet<208, ThreeBitValue, TerminalAlignmentPaddingPolicy>;
 type OneBytePacket = Packet<2, OneByteValue, ExactBytesPolicy>;
+
+#[test]
+fn built_in_descriptors_have_nominal_public_identities() {
+    assert_eq!(
+        type_name::<SendAimSync>(),
+        "samp_protocol::packet::common::SendAimSync"
+    );
+    assert_eq!(
+        type_name::<RemotePlayerSyncPacket>(),
+        "samp_protocol::packet::r1::RemotePlayerSyncPacket"
+    );
+    assert_eq!(
+        type_name::<ServerMessageRpc>(),
+        "samp_protocol::rpc::incoming::fixed::ServerMessageRpc"
+    );
+    assert_eq!(
+        type_name::<AttachCameraToObject>(),
+        "samp_protocol::rpc::incoming::fixed::phase15::AttachCameraToObject"
+    );
+    assert_eq!(
+        type_name::<InitGameRpc>(),
+        "samp_protocol::rpc::incoming::r1::InitGameRpc"
+    );
+    assert_eq!(
+        type_name::<SendDeathNotification>(),
+        "samp_protocol::rpc::outgoing::common::SendDeathNotification"
+    );
+    assert_eq!(
+        type_name::<SendChat>(),
+        "samp_protocol::rpc::outgoing::chat::SendChat"
+    );
+}
 
 #[test]
 fn one_codec_composes_with_distinct_descriptor_id_direction_kind_and_policy() {

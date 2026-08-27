@@ -9,8 +9,8 @@
 //! extension boundary.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingRpc, WireCodec,
-    WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
+    WireWriteExt,
 };
 
 use crate::{limits::MAX_STRING32_BYTES, types::Vector3};
@@ -332,60 +332,217 @@ pub struct ActorHealth {
     pub health: f32,
 }
 
-pub struct Empty;
-pub struct U8;
-pub struct U16;
-pub struct I32;
-pub struct F32;
-pub struct Bool8;
-pub struct Vector3Codec;
-pub struct ServerMessageCodec;
-pub struct GameTextCodec;
-pub struct PlaySoundCodec;
-pub struct CheckpointCodec;
-pub struct ChatMessageCodec;
-pub struct ChatBubbleCodec;
-pub struct PlayerJoinCodec;
-pub struct PlayerQuitCodec;
-pub struct PlayerNameCodec;
-pub struct PlayerTimeCodec;
-pub struct WorldBoundsCodec;
-pub struct PlayerWeaponCodec;
-pub struct PlayerTeamCodec;
-pub struct PlayerSkinCodec;
-pub struct PutPlayerInVehicleCodec;
-pub struct VehiclePositionCodec;
-pub struct VehicleAngleCodec;
-pub struct VehicleHealthCodec;
-pub struct RaceCheckpointCodec;
-pub struct AudioStreamCodec;
-pub struct ObjectPositionCodec;
-pub struct ObjectRotationCodec;
-pub struct PlayerDeathNotificationCodec;
-pub struct MapIconCodec;
-pub struct VehicleComponentCodec;
-pub struct VehicleInteriorCodec;
-pub struct PlayerColorCodec;
-pub struct FixedString32Codec;
-pub struct PlayerSkillCodec;
-pub struct RemoveBuildingCodec;
-pub struct AttachObjectToPlayerCodec;
-pub struct ExplosionCodec;
-pub struct PlayerNameTagCodec;
-pub struct ClientCheckCodec;
-pub struct VehicleParamsExCodec;
-pub struct VehicleTuningNotificationCodec;
-pub struct U16U8Codec;
-pub struct VehicleDamageStatusCodec;
-pub struct ActorCodec;
-pub struct ActorAngleCodec;
-pub struct ActorPositionCodec;
-pub struct ActorHealthCodec;
+struct Empty;
+struct U8;
+struct U16;
+struct I32;
+struct F32;
+struct Bool8;
+struct Vector3Codec;
+struct ServerMessageCodec;
+struct GameTextCodec;
+struct PlaySoundCodec;
+struct CheckpointCodec;
+struct ChatMessageCodec;
+struct ChatBubbleCodec;
+struct PlayerJoinCodec;
+struct PlayerQuitCodec;
+struct PlayerNameCodec;
+struct PlayerTimeCodec;
+struct WorldBoundsCodec;
+struct PlayerWeaponCodec;
+struct PlayerTeamCodec;
+struct PlayerSkinCodec;
+struct PutPlayerInVehicleCodec;
+struct VehiclePositionCodec;
+struct VehicleAngleCodec;
+struct VehicleHealthCodec;
+struct RaceCheckpointCodec;
+struct AudioStreamCodec;
+struct ObjectPositionCodec;
+struct ObjectRotationCodec;
+struct PlayerDeathNotificationCodec;
+struct MapIconCodec;
+struct VehicleComponentCodec;
+struct VehicleInteriorCodec;
+struct PlayerColorCodec;
+struct FixedString32Codec;
+struct PlayerSkillCodec;
+struct RemoveBuildingCodec;
+struct AttachObjectToPlayerCodec;
+struct ExplosionCodec;
+struct PlayerNameTagCodec;
+struct ClientCheckCodec;
+struct VehicleParamsExCodec;
+struct VehicleTuningNotificationCodec;
+struct U16U8Codec;
+struct VehicleDamageStatusCodec;
+struct ActorCodec;
+struct ActorAngleCodec;
+struct ActorPositionCodec;
+struct ActorHealthCodec;
+
+macro_rules! descriptor_value {
+    (Empty) => {
+        ()
+    };
+    (U8) => {
+        u8
+    };
+    (U16) => {
+        u16
+    };
+    (I32) => {
+        i32
+    };
+    (F32) => {
+        f32
+    };
+    (Bool8) => {
+        bool
+    };
+    (Vector3Codec) => {
+        Vector3
+    };
+    (ServerMessageCodec) => {
+        ServerMessage
+    };
+    (GameTextCodec) => {
+        GameText
+    };
+    (PlaySoundCodec) => {
+        PlaySound
+    };
+    (CheckpointCodec) => {
+        Checkpoint
+    };
+    (ChatMessageCodec) => {
+        ChatMessage
+    };
+    (ChatBubbleCodec) => {
+        ChatBubble
+    };
+    (PlayerJoinCodec) => {
+        PlayerJoin
+    };
+    (PlayerQuitCodec) => {
+        PlayerQuit
+    };
+    (PlayerNameCodec) => {
+        PlayerName
+    };
+    (PlayerTimeCodec) => {
+        PlayerTime
+    };
+    (WorldBoundsCodec) => {
+        WorldBounds
+    };
+    (PlayerWeaponCodec) => {
+        PlayerWeapon
+    };
+    (PlayerTeamCodec) => {
+        PlayerTeam
+    };
+    (PlayerSkinCodec) => {
+        PlayerSkin
+    };
+    (PutPlayerInVehicleCodec) => {
+        PutPlayerInVehicle
+    };
+    (VehiclePositionCodec) => {
+        VehiclePosition
+    };
+    (VehicleAngleCodec) => {
+        VehicleAngle
+    };
+    (VehicleHealthCodec) => {
+        VehicleHealth
+    };
+    (RaceCheckpointCodec) => {
+        RaceCheckpoint
+    };
+    (AudioStreamCodec) => {
+        AudioStream
+    };
+    (ObjectPositionCodec) => {
+        ObjectPosition
+    };
+    (ObjectRotationCodec) => {
+        ObjectRotation
+    };
+    (PlayerDeathNotificationCodec) => {
+        PlayerDeathNotification
+    };
+    (MapIconCodec) => {
+        MapIcon
+    };
+    (VehicleComponentCodec) => {
+        VehicleComponent
+    };
+    (VehicleInteriorCodec) => {
+        VehicleInterior
+    };
+    (PlayerColorCodec) => {
+        PlayerColor
+    };
+    (FixedString32Codec) => {
+        [u8; 32]
+    };
+    (PlayerSkillCodec) => {
+        PlayerSkill
+    };
+    (RemoveBuildingCodec) => {
+        RemoveBuilding
+    };
+    (AttachObjectToPlayerCodec) => {
+        AttachObjectToPlayer
+    };
+    (ExplosionCodec) => {
+        Explosion
+    };
+    (PlayerNameTagCodec) => {
+        PlayerNameTag
+    };
+    (ClientCheckCodec) => {
+        ClientCheck
+    };
+    (VehicleParamsExCodec) => {
+        VehicleParamsEx
+    };
+    (VehicleTuningNotificationCodec) => {
+        VehicleTuningNotification
+    };
+    (U16U8Codec) => {
+        (u16, u8)
+    };
+    (VehicleDamageStatusCodec) => {
+        VehicleDamageStatus
+    };
+    (ActorCodec) => {
+        Actor
+    };
+    (ActorAngleCodec) => {
+        ActorAngle
+    };
+    (ActorPositionCodec) => {
+        ActorPosition
+    };
+    (ActorHealthCodec) => {
+        ActorHealth
+    };
+}
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec, ExactBytesPolicy>;
-        pub const $constant: $name = IncomingRpc::new();
+    ($name:ident, $constant:ident, $id:literal, $codec:ident) => {
+        crate::wire::nominal_descriptor!(
+            incoming rpc,
+            $name,
+            $constant,
+            $id,
+            $codec,
+            descriptor_value!($codec),
+            ExactBytesPolicy
+        );
     };
 }
 

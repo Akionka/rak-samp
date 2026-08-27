@@ -7,10 +7,13 @@
   aliases.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
-  `limits`, one canonical set of cursor-preserving Wire read/write primitives, directional typed Wire
-  descriptors with explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
-  slash-command, profile-neutral byte-aligned RPC codecs, common byte-aligned
-  Packet codecs, and R1 exact-bit remote synchronization Packet codecs. Directional marker traits make an invalid typed
+  `limits`, one canonical set of cursor-preserving Wire read/write primitives,
+  and nominal built-in Wire descriptors whose identity hides private codec
+  implementations. Public generic directional wrappers compose custom or
+  ad-hoc messages with explicit trailing policies. Packet/RPC name catalogs,
+  outgoing chat, slash-command, profile-neutral byte-aligned RPC codecs, common
+  byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet
+  codecs remain Protocol-owned. Directional marker traits make an invalid typed
   subscription or send fail to compile. It also owns four fixed incoming RPC batches:
   server messages through vehicle stream-out, vehicle position through player name tags, the
   26 descriptors from `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and the 29 descriptors from

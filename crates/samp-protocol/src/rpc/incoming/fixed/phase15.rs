@@ -1,8 +1,8 @@
 //! The fixed incoming RPC batch from camera attachment through vehicle exit.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingRpc, WireCodec,
-    WireReadExt, WireWriteExt, limits::MAX_STRING32_BYTES, types::Vector2, types::Vector3,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
+    WireWriteExt, limits::MAX_STRING32_BYTES, types::Vector2, types::Vector3,
 };
 
 /// MoonLoader's `onSetPlayerFightingStyle` payload (RPC 89).
@@ -112,26 +112,93 @@ pub struct PlayerExitVehicle {
     pub vehicle_id: u16,
 }
 
-pub struct PlayerFightingStyleCodec;
-pub struct VehicleVelocityCodec;
-pub struct PickupCodec;
-pub struct MoveObjectCodec;
-pub struct TextDrawStringCodec;
-pub struct GangZoneCodec;
-pub struct U16I32Codec;
-pub struct VehicleNumberPlateCodec;
-pub struct SpectateCodec;
-pub struct WeaponAmmoCodec;
-pub struct TrailerAttachmentCodec;
-pub struct CameraLookAtCodec;
-pub struct VehicleParamsCodec;
-pub struct PlayerEnterVehicleCodec;
-pub struct PlayerExitVehicleCodec;
+struct PlayerFightingStyleCodec;
+struct VehicleVelocityCodec;
+struct PickupCodec;
+struct MoveObjectCodec;
+struct TextDrawStringCodec;
+struct GangZoneCodec;
+struct U16I32Codec;
+struct VehicleNumberPlateCodec;
+struct SpectateCodec;
+struct WeaponAmmoCodec;
+struct TrailerAttachmentCodec;
+struct CameraLookAtCodec;
+struct VehicleParamsCodec;
+struct PlayerEnterVehicleCodec;
+struct PlayerExitVehicleCodec;
+
+macro_rules! descriptor_value {
+    (PlayerFightingStyleCodec) => {
+        PlayerFightingStyle
+    };
+    (VehicleVelocityCodec) => {
+        VehicleVelocity
+    };
+    (PickupCodec) => {
+        Pickup
+    };
+    (MoveObjectCodec) => {
+        MoveObject
+    };
+    (TextDrawStringCodec) => {
+        TextDrawString
+    };
+    (GangZoneCodec) => {
+        GangZone
+    };
+    (U16I32Codec) => {
+        (u16, i32)
+    };
+    (VehicleNumberPlateCodec) => {
+        VehicleNumberPlate
+    };
+    (SpectateCodec) => {
+        Spectate
+    };
+    (WeaponAmmoCodec) => {
+        WeaponAmmo
+    };
+    (TrailerAttachmentCodec) => {
+        TrailerAttachment
+    };
+    (CameraLookAtCodec) => {
+        CameraLookAt
+    };
+    (VehicleParamsCodec) => {
+        VehicleParams
+    };
+    (PlayerEnterVehicleCodec) => {
+        PlayerEnterVehicle
+    };
+    (PlayerExitVehicleCodec) => {
+        PlayerExitVehicle
+    };
+    (super::U8) => {
+        u8
+    };
+    (super::U16) => {
+        u16
+    };
+    (super::F32) => {
+        f32
+    };
+    (super::Vector3Codec) => {
+        Vector3
+    };
+}
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec, ExactBytesPolicy>;
-        pub const $constant: $name = IncomingRpc::new();
+    ($name:ident, $constant:ident, $id:literal, $($codec:tt)+) => {
+        crate::wire::nominal_descriptor!(
+            incoming rpc,
+            $name,
+            $constant,
+            $id,
+            $($codec)+,
+            descriptor_value!($($codec)+),
+            ExactBytesPolicy
+        );
     };
 }
 

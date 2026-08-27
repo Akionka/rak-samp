@@ -2,8 +2,8 @@
 
 use crate::types::Vector3;
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, OutgoingRpc, WireCodec,
-    WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
+    WireWriteExt,
 };
 
 /// MoonLoader's `onSendDeathNotification` payload (RPC 53).
@@ -123,29 +123,93 @@ pub struct VehicleTuning {
     pub event: i32,
 }
 
-pub struct Empty;
-pub struct U8;
-pub struct U16;
-pub struct I32;
-pub struct Vector3Codec;
-pub struct DeathNotificationCodec;
-pub struct MoneyIncreaseCodec;
-pub struct CameraTargetUpdateCodec;
-pub struct ClientJoinCodec;
-pub struct NpcJoinCodec;
-pub struct VehicleDamageCodec;
-pub struct EnterEditObjectCodec;
-pub struct EditAttachedObjectCodec;
-pub struct ClientCheckResponseCodec;
-pub struct DialogResponseCodec;
-pub struct ClickPlayerCodec;
-pub struct EnterVehicleCodec;
-pub struct VehicleTuningCodec;
+struct Empty;
+struct U8;
+struct U16;
+struct I32;
+struct Vector3Codec;
+struct DeathNotificationCodec;
+struct MoneyIncreaseCodec;
+struct CameraTargetUpdateCodec;
+struct ClientJoinCodec;
+struct NpcJoinCodec;
+struct VehicleDamageCodec;
+struct EnterEditObjectCodec;
+struct EditAttachedObjectCodec;
+struct ClientCheckResponseCodec;
+struct DialogResponseCodec;
+struct ClickPlayerCodec;
+struct EnterVehicleCodec;
+struct VehicleTuningCodec;
+
+macro_rules! descriptor_value {
+    (Empty) => {
+        ()
+    };
+    (U8) => {
+        u8
+    };
+    (U16) => {
+        u16
+    };
+    (I32) => {
+        i32
+    };
+    (Vector3Codec) => {
+        Vector3
+    };
+    (DeathNotificationCodec) => {
+        DeathNotification
+    };
+    (MoneyIncreaseCodec) => {
+        MoneyIncrease
+    };
+    (CameraTargetUpdateCodec) => {
+        CameraTargetUpdate
+    };
+    (ClientJoinCodec) => {
+        ClientJoin
+    };
+    (NpcJoinCodec) => {
+        NpcJoin
+    };
+    (VehicleDamageCodec) => {
+        VehicleDamage
+    };
+    (EnterEditObjectCodec) => {
+        EnterEditObject
+    };
+    (EditAttachedObjectCodec) => {
+        EditAttachedObject
+    };
+    (ClientCheckResponseCodec) => {
+        ClientCheckResponse
+    };
+    (DialogResponseCodec) => {
+        DialogResponse
+    };
+    (ClickPlayerCodec) => {
+        ClickPlayer
+    };
+    (EnterVehicleCodec) => {
+        EnterVehicle
+    };
+    (VehicleTuningCodec) => {
+        VehicleTuning
+    };
+}
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = OutgoingRpc<$id, $codec, ExactBytesPolicy>;
-        pub const $constant: $name = OutgoingRpc::new();
+    ($name:ident, $constant:ident, $id:literal, $codec:ident) => {
+        crate::wire::nominal_descriptor!(
+            outgoing rpc,
+            $name,
+            $constant,
+            $id,
+            $codec,
+            descriptor_value!($codec),
+            ExactBytesPolicy
+        );
     };
 }
 

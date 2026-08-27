@@ -2,8 +2,8 @@
 
 use crate::types::Vector3;
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, IncomingRpc, WireCodec,
-    WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, WireCodec, WireReadExt,
+    WireWriteExt,
 };
 
 /// The server can send at most one score/ping entry for each R1 player slot.
@@ -148,21 +148,61 @@ pub struct ScoresAndPings {
     pub entries: Vec<ScorePing>,
 }
 
-pub struct InitGameCodec;
-pub struct RequestClassResponseCodec;
-pub struct PlayerStreamInCodec;
-pub struct SpawnInfoCodec;
-pub struct PlayerAnimationCodec;
-pub struct EnableStuntBonusCodec;
-pub struct CrimeReportCodec;
-pub struct PlayerAttachedObjectCodec;
-pub struct TogglePlayerSpectatingCodec;
-pub struct ScoresAndPingsCodec;
+struct InitGameCodec;
+struct RequestClassResponseCodec;
+struct PlayerStreamInCodec;
+struct SpawnInfoCodec;
+struct PlayerAnimationCodec;
+struct EnableStuntBonusCodec;
+struct CrimeReportCodec;
+struct PlayerAttachedObjectCodec;
+struct TogglePlayerSpectatingCodec;
+struct ScoresAndPingsCodec;
+
+macro_rules! descriptor_value {
+    (InitGameCodec) => {
+        InitGame
+    };
+    (RequestClassResponseCodec) => {
+        RequestClassResponse
+    };
+    (PlayerStreamInCodec) => {
+        PlayerStreamIn
+    };
+    (SpawnInfoCodec) => {
+        SpawnInfo
+    };
+    (PlayerAnimationCodec) => {
+        PlayerAnimation
+    };
+    (EnableStuntBonusCodec) => {
+        bool
+    };
+    (CrimeReportCodec) => {
+        CrimeReport
+    };
+    (PlayerAttachedObjectCodec) => {
+        PlayerAttachedObject
+    };
+    (TogglePlayerSpectatingCodec) => {
+        bool
+    };
+    (ScoresAndPingsCodec) => {
+        ScoresAndPings
+    };
+}
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec, ExactBitsPolicy>;
-        pub const $constant: $name = IncomingRpc::new();
+    ($name:ident, $constant:ident, $id:literal, $codec:ident) => {
+        crate::wire::nominal_descriptor!(
+            incoming rpc,
+            $name,
+            $constant,
+            $id,
+            $codec,
+            descriptor_value!($codec),
+            ExactBitsPolicy
+        );
     };
 }
 

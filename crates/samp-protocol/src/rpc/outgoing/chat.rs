@@ -1,21 +1,39 @@
-//! Outgoing chat and slash-command RPC codecs.
+//! Outgoing chat and slash-command RPC descriptors.
+//!
+//! Built-ins are named without exposing their private codec implementation:
+//!
+//! ```
+//! use samp_protocol::{WireDescriptor, rpc::outgoing::chat::SendChat};
+//!
+//! assert_eq!(SendChat::ID, 101);
+//! ```
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, OutgoingRpc, WireCodec,
-    WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
+    WireWriteExt,
 };
 
-/// The `onSendChat` RPC ID.
-pub type SendChat = OutgoingRpc<101, String8, ExactBytesPolicy>;
-/// The `onSendChat` descriptor.
-pub const SEND_CHAT: SendChat = OutgoingRpc::new();
-/// The `onSendCommand` RPC ID.
-pub type SendCommand = OutgoingRpc<50, String32<4096>, ExactBytesPolicy>;
-/// The `onSendCommand` descriptor.
-pub const SEND_COMMAND: SendCommand = OutgoingRpc::new();
+crate::wire::nominal_descriptor!(
+    outgoing rpc,
+    SendChat,
+    SEND_CHAT,
+    101,
+    String8,
+    Vec<u8>,
+    ExactBytesPolicy
+);
+crate::wire::nominal_descriptor!(
+    outgoing rpc,
+    SendCommand,
+    SEND_COMMAND,
+    50,
+    String32<4096>,
+    Vec<u8>,
+    ExactBytesPolicy
+);
 
 /// A byte string with an unsigned 8-bit byte-length prefix.
-pub struct String8;
+struct String8;
 
 impl WireCodec for String8 {
     type Value = Vec<u8>;
@@ -33,7 +51,7 @@ impl WireCodec for String8 {
 }
 
 /// A byte string with an unsigned little-endian 32-bit byte-length prefix.
-pub struct String32<const LIMIT: usize>;
+struct String32<const LIMIT: usize>;
 
 impl<const LIMIT: usize> WireCodec for String32<LIMIT> {
     type Value = Vec<u8>;

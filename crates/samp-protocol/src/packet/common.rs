@@ -7,8 +7,8 @@
 use core::marker::PhantomData;
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingPacket, OutgoingPacket,
-    WireCodec, WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
+    WireWriteExt,
 };
 
 use crate::{limits::MAX_STRING32_BYTES, types::Vector3};
@@ -170,26 +170,66 @@ pub struct RemoteSync<T> {
     pub data: T,
 }
 
-pub struct Empty;
-pub struct String8;
-pub struct String32;
-pub struct StatsUpdateCodec;
-pub struct WeaponsUpdateCodec;
-pub struct ConnectionAcceptedCodec;
-pub struct PlayerSyncCodec;
-pub struct VehicleSyncCodec;
-pub struct PassengerSyncCodec;
-pub struct AimSyncCodec;
-pub struct UnoccupiedSyncCodec;
-pub struct TrailerSyncCodec;
-pub struct BulletSyncCodec;
-pub struct SpectatorSyncCodec;
-pub struct RemoteCodec<C>(PhantomData<C>);
+struct Empty;
+struct String8;
+struct String32;
+struct StatsUpdateCodec;
+struct WeaponsUpdateCodec;
+struct ConnectionAcceptedCodec;
+struct PlayerSyncCodec;
+struct VehicleSyncCodec;
+struct PassengerSyncCodec;
+struct AimSyncCodec;
+struct UnoccupiedSyncCodec;
+struct TrailerSyncCodec;
+struct BulletSyncCodec;
+struct SpectatorSyncCodec;
+struct RemoteCodec<C>(PhantomData<C>);
+
+macro_rules! descriptor_value {
+    (Empty) => { () };
+    (String8) => { Vec<u8> };
+    (String32) => { Vec<u8> };
+    (StatsUpdateCodec) => { StatsUpdate };
+    (WeaponsUpdateCodec) => { WeaponsUpdate };
+    (ConnectionAcceptedCodec) => { ConnectionAccepted };
+    (PlayerSyncCodec) => { PlayerSync };
+    (VehicleSyncCodec) => { VehicleSync };
+    (PassengerSyncCodec) => { PassengerSync };
+    (AimSyncCodec) => { AimSync };
+    (UnoccupiedSyncCodec) => { UnoccupiedSync };
+    (TrailerSyncCodec) => { TrailerSync };
+    (BulletSyncCodec) => { BulletSync };
+    (SpectatorSyncCodec) => { SpectatorSync };
+    (RemoteCodec<AimSyncCodec>) => { RemoteSync<AimSync> };
+    (RemoteCodec<BulletSyncCodec>) => { RemoteSync<BulletSync> };
+    (RemoteCodec<UnoccupiedSyncCodec>) => { RemoteSync<UnoccupiedSync> };
+    (RemoteCodec<TrailerSyncCodec>) => { RemoteSync<TrailerSync> };
+    (RemoteCodec<PassengerSyncCodec>) => { RemoteSync<PassengerSync> };
+}
 
 macro_rules! descriptor {
-    ($direction:ident, $name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = $direction<$id, $codec, ExactBytesPolicy>;
-        pub const $constant: $name = $direction::new();
+    (IncomingPacket, $name:ident, $constant:ident, $id:literal, $($codec:tt)+) => {
+        crate::wire::nominal_descriptor!(
+            incoming packet,
+            $name,
+            $constant,
+            $id,
+            $($codec)+,
+            descriptor_value!($($codec)+),
+            ExactBytesPolicy
+        );
+    };
+    (OutgoingPacket, $name:ident, $constant:ident, $id:literal, $($codec:tt)+) => {
+        crate::wire::nominal_descriptor!(
+            outgoing packet,
+            $name,
+            $constant,
+            $id,
+            $($codec)+,
+            descriptor_value!($($codec)+),
+            ExactBytesPolicy
+        );
     };
 }
 

@@ -1,10 +1,10 @@
 use samp_protocol::packet::r1::{
     MARKERS_SYNC, MAX_MARKERS, Marker, MarkerCoordinates, MarkersSync, MarkersSyncPacket,
     PLAYER_SYNC, RemotePlayerAnimation, RemotePlayerSurfing, RemotePlayerSync,
-    RemotePlayerSyncCodec, RemoteVehicleSync, VEHICLE_SYNC,
+    RemotePlayerSyncPacket, RemoteVehicleSync, VEHICLE_SYNC,
 };
 use samp_protocol::{
-    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireCodec, WireDescriptor,
+    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireDescriptor,
     types::Vector3,
 };
 
@@ -134,14 +134,14 @@ fn r1_sync_packet_codec_preserves_values_from_an_unaligned_cursor() {
     };
     let mut writer = BitStream::new();
     BitWrite::write_left_aligned_bits(&mut writer, &[0b1010_0000], 3).unwrap();
-    RemotePlayerSyncCodec::encode(&mut writer, &value).unwrap();
+    RemotePlayerSyncPacket::encode_to(&mut writer, &value).unwrap();
 
     let mut reader = BitStream::from_bits(writer.as_bytes(), writer.len_bits()).unwrap();
     assert_eq!(
         BitRead::read_left_aligned_bits(&mut reader, 3),
         Ok(vec![0b1010_0000])
     );
-    assert_eq!(RemotePlayerSyncCodec::decode(&mut reader), Ok(value));
+    assert_eq!(RemotePlayerSyncPacket::decode_from(&mut reader), Ok(value));
     assert_eq!(reader.remaining_bits(), 0);
 }
 

@@ -1,5 +1,5 @@
 use samp_protocol::{
-    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireCodec, WireDescriptor,
+    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireDescriptor,
 };
 use samp_protocol::{rpc::incoming::r1::*, types::Vector3};
 
@@ -237,14 +237,14 @@ fn r1_rpc_codec_preserves_values_from_an_unaligned_cursor() {
     let value = init_game();
     let mut writer = BitStream::new();
     BitWrite::write_left_aligned_bits(&mut writer, &[0b1010_0000], 3).unwrap();
-    InitGameCodec::encode(&mut writer, &value).unwrap();
+    InitGameRpc::encode_to(&mut writer, &value).unwrap();
 
     let mut reader = BitStream::from_bits(writer.as_bytes(), writer.len_bits()).unwrap();
     assert_eq!(
         BitRead::read_left_aligned_bits(&mut reader, 3),
         Ok(vec![0b1010_0000])
     );
-    assert_eq!(InitGameCodec::decode(&mut reader), Ok(value));
+    assert_eq!(InitGameRpc::decode_from(&mut reader), Ok(value));
     assert_eq!(reader.remaining_bits(), 0);
 }
 

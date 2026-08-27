@@ -5,8 +5,8 @@
 //! remains in [`super::common`].
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, IncomingPacket,
-    TerminalAlignmentPaddingPolicy, WireCodec, WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, TerminalAlignmentPaddingPolicy,
+    WireCodec, WireReadExt, WireWriteExt,
 };
 
 use crate::types::Vector3;
@@ -88,14 +88,21 @@ pub struct MarkersSync {
     pub markers: Vec<Marker>,
 }
 
-pub struct RemotePlayerSyncCodec;
-pub struct RemoteVehicleSyncCodec;
-pub struct MarkersSyncCodec;
+struct RemotePlayerSyncCodec;
+struct RemoteVehicleSyncCodec;
+struct MarkersSyncCodec;
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty, $policy:ty) => {
-        pub type $name = IncomingPacket<$id, $codec, $policy>;
-        pub const $constant: $name = IncomingPacket::new();
+    ($name:ident, $constant:ident, $id:literal, $codec:ty, $value:ty, $policy:ty) => {
+        crate::wire::nominal_descriptor!(
+            incoming packet,
+            $name,
+            $constant,
+            $id,
+            $codec,
+            $value,
+            $policy
+        );
     };
 }
 
@@ -104,6 +111,7 @@ descriptor!(
     PLAYER_SYNC,
     207,
     RemotePlayerSyncCodec,
+    RemotePlayerSync,
     ExactBitsPolicy
 );
 descriptor!(
@@ -111,6 +119,7 @@ descriptor!(
     VEHICLE_SYNC,
     200,
     RemoteVehicleSyncCodec,
+    RemoteVehicleSync,
     ExactBitsPolicy
 );
 descriptor!(
@@ -118,6 +127,7 @@ descriptor!(
     MARKERS_SYNC,
     208,
     MarkersSyncCodec,
+    MarkersSync,
     TerminalAlignmentPaddingPolicy
 );
 
