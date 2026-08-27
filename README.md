@@ -24,12 +24,12 @@ Copy the release `samp_client_sdk.asi` into the GTA directory. Close GTA before
 replacing an ASI. Lifecycle messages are written to `samp-client-sdk.log` in
 GTA's working directory.
 
-To build and deploy from source, install the `i686-pc-windows-msvc` Rust target
+To build and install from source, install the `i686-pc-windows-msvc` Rust target
 and Visual Studio C++ build tools, then run:
 
 ```powershell
 $env:GTA_DIR = 'D:\Games\GTA San Andreas'
-cargo make deploy
+cargo make install
 ```
 
 ## Plugins
@@ -98,22 +98,25 @@ RPC receiver.
 The [sample plugin](examples/sample_plugin) shows a minimal subscription. The
 [network smoke plugin](examples/network_smoke_plugin) is an opt-in isolated
 validation aid for the native codec and blocked exact-bit emulation paths. The
-[chat-command example](examples/chat_command_plugin) can be deployed with:
+[chat-command example](examples/chat_command_plugin) can be installed with:
 
 ```powershell
-cargo make deploy-chat-command-example
+cargo make install-chat-command-example
 ```
 
 ## Development
 
-Run these checks from the repository root:
+Run the complete local quality gate and release build from the repository root:
 
 ```powershell
-cargo fmt --all -- --check
-cargo test --workspace --all-targets --locked
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo build --workspace --release --locked
+cargo make quality
+cargo make build-release
 ```
+
+The quality gate runs formatting, workspace checks and tests, Clippy with
+warnings denied, and documentation. Its tasks are also available separately as
+`format-check`, `check`, `test`, `clippy`, and `doc`; use `format` to apply
+formatting.
 
 The C++ RakNet layout fixture remains part of the workspace checks. See
 [CORE.md](CORE.md) for invariants, [ARCHITECTURE.md](ARCHITECTURE.md) for

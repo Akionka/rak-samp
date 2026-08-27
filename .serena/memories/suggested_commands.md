@@ -1,10 +1,9 @@
 # Commands
-- Build all packages: `cargo build --workspace`; distribution: `cargo build --workspace --release`.
-- Test: `cargo test --workspace`.
-- Lint: `cargo clippy --workspace -- -D warnings`.
-- Format check/apply: `cargo fmt --check` / `cargo fmt`.
-- Deploy release host: `cargo make deploy`.
-- Deploy current validation setup: `cargo make deploy-validation`; include external unload manager: `cargo make deploy-validation-unload`.
-- Deploy chat-command example: `cargo make deploy-chat-command-example`.
-- Close GTA before deployment because Windows locks loaded ASIs.
-- Windows repository search/listing: prefer `rg PATTERN` and `rg --files`; use PowerShell `Get-Content`/ `Get-ChildItem` when needed.
+- Complete local quality gate: `cargo make quality`; it runs `format-check`, `check`, `test`, `clippy`, and `doc`.
+- Individual checks: `cargo make format-check`, `cargo make check`, `cargo make test`, `cargo make clippy`, and `cargo make doc`.
+- Apply formatting: `cargo make format`.
+- Build all workspace packages: `cargo make build-debug`; distribution: `cargo make build-release`.
+- Install the release host: `cargo make install`; debug host: `cargo make install-debug`; chat-command example: `cargo make install-chat-command-example`.
+- Install tasks require `GTA_DIR`. Close GTA before installation because Windows locks loaded ASI and PDB files.
+- `Makefile.toml` disables Cargo Make core tasks and workspace fan-out; its explicit tasks run once from the workspace root.
+- Windows repository search/listing: prefer `rg PATTERN` and `rg --files`; use PowerShell `Get-Content`/`Get-ChildItem` when needed.

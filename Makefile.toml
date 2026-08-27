@@ -1,80 +1,106 @@
+[config]
+default_to_workspace = false
+skip_core_tasks = true
+
 [env]
 GTA_DIR = { value = "", condition = { env_not_set = ["GTA_DIR"] } }
 
-CARGO_BUILD_TARGET = "i686-pc-windows-msvc"
-
-
-[tasks.build-asi]
-workspace = false
+[tasks.format]
+description = "Format all workspace crates"
 command = "cargo"
-args = ["build", "--release", "--locked"]
+args = ["fmt", "--all"]
 
-
-[tasks.build-asi-debug]
-workspace = false
+[tasks.format-check]
+description = "Check formatting without changing files"
 command = "cargo"
-args = ["build"]
+args = ["fmt", "--all", "--", "--check"]
 
+[tasks.check]
+description = "Check all workspace targets"
+command = "cargo"
+args = ["check", "--workspace", "--all-targets"]
 
-[tasks.build-chat-command-example]
-workspace = false
+[tasks.test]
+description = "Run all workspace tests"
+command = "cargo"
+args = ["test", "--workspace"]
+
+[tasks.clippy]
+description = "Lint all workspace targets and deny warnings"
+command = "cargo"
+args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+
+[tasks.doc]
+description = "Build public workspace documentation without dependencies"
 command = "cargo"
 args = [
-    "build",
-    "--release",
-    "--locked",
-    "-p",
-    "samp-client-sdk-chat-command-example",
+    "doc",
+    "--workspace",
+    "--exclude",
+    "samp-client-sdk-host",
+    "--no-deps",
 ]
 
+[tasks.quality]
+description = "Run the complete local quality gate"
+dependencies = ["format-check", "check", "test", "clippy", "doc"]
+
+[tasks.build-release]
+command = "cargo"
+args = ["build", "--workspace", "--release", "--locked"]
+
+[tasks.build-debug]
+command = "cargo"
+args = ["build", "--workspace", "--locked"]
 
 [tasks.require-gta-dir]
-command = "powershell"
-args = [
-    "-NoProfile",
-    "-Command",
-    "if ([string]::IsNullOrWhiteSpace($env:GTA_DIR)) { throw 'GTA_DIR is not set. In PowerShell, run: $env:GTA_DIR = ''D:\\path\\to\\GTA''' }",
-]
+private = true
+script_runner = "@duckscript"
+script = '''
+gta_dir = get_env GTA_DIR
+gta_dir = trim ${gta_dir}
 
+if is_empty ${gta_dir}
+    trigger_error "GTA_DIR is not set. Set it to your GTA installation directory."
+end
+'''
 
-[tasks.deploy]
-workspace = false
-dependencies = ["require-gta-dir", "build-asi"]
+[tasks.install]
+dependencies = ["require-gta-dir", "build-release"]
 command = "powershell"
 args = [
     "-NoProfile",
     "-Command",
     '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'release'
+    $ErrorActionPreference = "Stop"
+    $profileDir = Join-Path $env:CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY 'release'
     Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
     ''',
 ]
 
-
-[tasks.deploy-chat-command-example]
-workspace = false
-dependencies = ["require-gta-dir", "build-asi", "build-chat-command-example"]
+[tasks.install-chat-command-example]
+dependencies = ["require-gta-dir", "build-release"]
 command = "powershell"
 args = [
     "-NoProfile",
     "-Command",
     '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'release'
+    $ErrorActionPreference = "Stop"
+    $profileDir = Join-Path $env:CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY 'release'
     Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
     Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk_chat_command_example.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk_chat_command_example.asi')
     ''',
 ]
 
-
-[tasks.deploy-debug]
-workspace = false
-dependencies = ["require-gta-dir", "build-asi-debug"]
+[tasks.install-debug]
+dependencies = ["require-gta-dir", "build-debug"]
 command = "powershell"
 args = [
     "-NoProfile",
     "-Command",
     '''
-    $profileDir = Join-Path (Join-Path $env:CARGO_MAKE_CRATE_TARGET_DIRECTORY $env:CARGO_BUILD_TARGET) 'debug'
+    $ErrorActionPreference = "Stop"
+    $profileDir = Join-Path $env:CARGO_MAKE_CRATE_CUSTOM_TRIPLE_TARGET_DIRECTORY 'debug'
     $pdb = Join-Path $profileDir 'samp_client_sdk.pdb'
     Copy-Item -Force (Join-Path $profileDir 'samp_client_sdk.dll') (Join-Path $env:GTA_DIR 'samp_client_sdk.asi')
     if (Test-Path $pdb) { Copy-Item -Force $pdb (Join-Path $env:GTA_DIR 'samp_client_sdk.pdb') }
