@@ -6,6 +6,7 @@
 
 use crate::{
     BitRead, BitWrite, DecodeError, EncodeError, IncomingPacket, TrailingPolicy, WireCodec,
+    WireReadExt, WireWriteExt,
 };
 
 pub use super::common::Vector3;
@@ -276,11 +277,12 @@ impl WireCodec for MarkersSyncCodec {
     const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::TerminalAlignmentPadding;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let count =
-            usize::try_from(read_i32(reader)?).map_err(|_| DecodeError::LengthExceedsLimit {
+        let count = usize::try_from(WireReadExt::read_i32_le(reader)?).map_err(|_| {
+            DecodeError::LengthExceedsLimit {
                 length: usize::MAX,
                 limit: MAX_MARKERS,
-            })?;
+            }
+        })?;
         if count > MAX_MARKERS {
             return Err(DecodeError::LengthExceedsLimit {
                 length: count,
@@ -289,13 +291,13 @@ impl WireCodec for MarkersSyncCodec {
         }
         let mut markers = Vec::with_capacity(count);
         for _ in 0..count {
-            let player_id = read_u16(reader)?;
+            let player_id = WireReadExt::read_u16_le(reader)?;
             let coordinates = read_bit_bool(reader)?
                 .then(|| {
                     Ok(MarkerCoordinates {
-                        x: read_i16(reader)?,
-                        y: read_i16(reader)?,
-                        z: read_i16(reader)?,
+                        x: WireReadExt::read_i16_le(reader)?,
+                        y: WireReadExt::read_i16_le(reader)?,
+                        z: WireReadExt::read_i16_le(reader)?,
                     })
                 })
                 .transpose()?;
@@ -317,14 +319,14 @@ impl WireCodec for MarkersSyncCodec {
                 limit: MAX_MARKERS,
             });
         }
-        write_i32(writer, value.markers.len() as i32)?;
+        WireWriteExt::write_i32_le(writer, value.markers.len() as i32)?;
         for marker in &value.markers {
-            write_u16(writer, marker.player_id)?;
+            WireWriteExt::write_u16_le(writer, marker.player_id)?;
             write_bit_bool(writer, marker.coordinates.is_some())?;
             if let Some(coordinates) = marker.coordinates {
-                write_i16(writer, coordinates.x)?;
-                write_i16(writer, coordinates.y)?;
-                write_i16(writer, coordinates.z)?;
+                WireWriteExt::write_i16_le(writer, coordinates.x)?;
+                WireWriteExt::write_i16_le(writer, coordinates.y)?;
+                WireWriteExt::write_i16_le(writer, coordinates.z)?;
             }
         }
         Ok(())
@@ -459,14 +461,6 @@ fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
 
 fn write_u8<W: BitWrite>(writer: &mut W, value: u8) -> Result<(), EncodeError<W::Error>> {
     write_bytes(writer, &[value])
-}
-
-fn read_i16<R: BitRead>(reader: &mut R) -> Result<i16, DecodeError<R::Error>> {
-    Ok(i16::from_le_bytes(read_fixed(reader)?))
-}
-
-fn write_i16<W: BitWrite>(writer: &mut W, value: i16) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, &value.to_le_bytes())
 }
 
 fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {

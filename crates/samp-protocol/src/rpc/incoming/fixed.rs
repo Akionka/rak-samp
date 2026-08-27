@@ -8,25 +8,15 @@
 //! remains in the SDK because it needs the later Native encoded-string
 //! extension boundary.
 
-use crate::{BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec,
+    WireReadExt, WireWriteExt,
+};
 
-/// Maximum bytes accepted by a 32-bit length-prefixed SA-MP text field.
-pub const MAX_STRING32_BYTES: usize = 4096;
-
-/// A three-dimensional SA-MP coordinate or velocity.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-/// A two-dimensional SA-MP coordinate.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Vector2 {
-    pub x: f32,
-    pub y: f32,
-}
+pub use crate::{
+    limits::MAX_STRING32_BYTES,
+    types::{Vector2, Vector3},
+};
 
 /// MoonLoader's `onServerMessage` payload (RPC 93).
 #[derive(Clone, Debug, PartialEq)]
@@ -1618,58 +1608,30 @@ fn write_bool8<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeEr
 }
 
 fn read_vector3<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    Ok(Vector3 {
-        x: read_f32(reader)?,
-        y: read_f32(reader)?,
-        z: read_f32(reader)?,
-    })
+    WireReadExt::read_vector3_le(reader)
 }
 
 fn write_vector3<W: BitWrite>(
     writer: &mut W,
     value: &Vector3,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_f32(writer, &value.x)?;
-    write_f32(writer, &value.y)?;
-    write_f32(writer, &value.z)
+    WireWriteExt::write_vector3_le(writer, value)
 }
 
 fn read_string8<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let length = usize::from(read_u8(reader)?);
-    read_bytes(reader, length)
+    WireReadExt::read_len_prefixed_bytes_u8(reader, usize::from(u8::MAX))
 }
 
 fn write_string8<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    if value.len() > u8::MAX as usize {
-        return Err(EncodeError::LengthExceedsLimit {
-            length: value.len(),
-            limit: u8::MAX as usize,
-        });
-    }
-    write_u8(writer, &(value.len() as u8))?;
-    write_bytes(writer, value)
+    WireWriteExt::write_len_prefixed_bytes_u8(writer, value, usize::from(u8::MAX))
 }
 
 fn read_string32<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let length = read_u32(reader)? as usize;
-    if length > MAX_STRING32_BYTES {
-        return Err(DecodeError::LengthExceedsLimit {
-            length,
-            limit: MAX_STRING32_BYTES,
-        });
-    }
-    read_bytes(reader, length)
+    WireReadExt::read_len_prefixed_bytes_u32_le(reader, MAX_STRING32_BYTES)
 }
 
 fn write_string32<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    if value.len() > MAX_STRING32_BYTES {
-        return Err(EncodeError::LengthExceedsLimit {
-            length: value.len(),
-            limit: MAX_STRING32_BYTES,
-        });
-    }
-    write_u32(writer, &(value.len() as u32))?;
-    write_bytes(writer, value)
+    WireWriteExt::write_len_prefixed_bytes_u32_le(writer, value, MAX_STRING32_BYTES)
 }
 
 fn read_fixed<R: BitRead, const LENGTH: usize>(

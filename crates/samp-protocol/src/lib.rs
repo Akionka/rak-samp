@@ -7,9 +7,12 @@ mod bitstream;
 mod catalog;
 mod encoded_bits;
 mod error;
+pub mod limits;
 pub mod packet;
 pub mod rpc;
+pub mod types;
 mod wire;
+mod wire_io;
 
 pub use bitstream::{BitRead, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};
 pub use catalog::{packet_name, rpc_name};
@@ -20,3 +23,4 @@ pub use wire::{
     OutgoingPacketDescriptor, OutgoingRpc, OutgoingRpcDescriptor, Packet, Rpc, TrailingPolicy,
     WireCodec, WireDescriptor, WireKind,
 };
+pub use wire_io::{WireReadExt, WireWriteExt};
