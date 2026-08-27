@@ -17,86 +17,8 @@ pub const MAX_MENU_ROWS: usize = 12;
 pub const MAX_MENU_COLUMNS: usize = 2;
 /// SA-MP objects expose at most sixteen material slots.
 pub const MAX_OBJECT_MATERIALS: usize = 16;
-/// The server can send at most one score/ping entry for each R1 player slot.
-pub const MAX_SCORE_PING_ENTRIES: usize = 1_000;
 /// R1's material-text codec accepts at most 2,047 payload bytes.
 pub const MAX_OBJECT_MATERIAL_TEXT_BYTES: usize = 2_047;
-
-/// Settings supplied by `onInitGame` (RPC 139).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct GameSettings {
-    pub zone_names: bool,
-    pub use_cj_walk: bool,
-    pub allow_weapons: bool,
-    pub limit_global_chat_radius: bool,
-    pub global_chat_radius: f32,
-    pub stunt_bonus: bool,
-    pub nametag_draw_distance: f32,
-    pub disable_enter_exits: bool,
-    pub nametag_los: bool,
-    pub tire_popping: bool,
-    pub classes_available: i32,
-    pub show_player_tags: bool,
-    pub player_markers_mode: i32,
-    pub world_time: u8,
-    pub world_weather: u8,
-    pub gravity: f32,
-    pub lan_mode: bool,
-    pub death_money_drop: i32,
-    pub instagib: bool,
-    pub normal_onfoot_send_rate: i32,
-    pub normal_incar_send_rate: i32,
-    pub normal_firing_send_rate: i32,
-    pub send_multiplier: i32,
-    pub lag_compensation_mode: i32,
-    pub vehicle_friendly_fire: bool,
-}
-
-/// MoonLoader's `onInitGame` payload (RPC 139).
-#[derive(Clone, Debug, PartialEq)]
-pub struct InitGame {
-    pub player_id: u16,
-    pub host_name: Vec<u8>,
-    pub settings: GameSettings,
-    /// R1's 212 vehicle-model capability flags, retained byte-for-byte.
-    pub vehicle_models: [u8; 212],
-}
-
-/// A class preview or spawn definition shared by the class and spawn RPCs.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct SpawnInfo {
-    pub team: u8,
-    pub skin: i32,
-    /// R1 serializes this byte between the skin and position. Its purpose is unknown.
-    pub unused: u8,
-    pub position: Vector3,
-    pub rotation: f32,
-    pub weapons: [i32; 3],
-    pub ammo: [i32; 3],
-}
-
-/// MoonLoader's `onRequestClassResponse` payload (RPC 128).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct RequestClassResponse {
-    pub can_spawn: bool,
-    pub spawn: SpawnInfo,
-}
-
-/// MoonLoader's `onPlayerStreamIn` payload (RPC 32).
-///
-/// R1 sends one skill level for each of the eleven weapon-skill categories after the fixed
-/// player data.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerStreamIn {
-    pub player_id: u16,
-    pub team: u8,
-    pub model: i32,
-    pub position: Vector3,
-    pub rotation: f32,
-    pub color: i32,
-    pub fighting_style: u8,
-    pub weapon_skill_levels: [u16; 11],
-}
 
 /// MoonLoader's `onCreate3DText` payload (RPC 36).
 #[derive(Clone, Debug, PartialEq)]
@@ -224,49 +146,11 @@ pub struct Animation {
     pub time: i32,
 }
 
-/// MoonLoader's `onApplyPlayerAnimation` payload (RPC 86).
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlayerAnimation {
-    pub player_id: u16,
-    pub animation: Animation,
-}
-
 /// MoonLoader's `onApplyActorAnimation` payload (RPC 173).
 #[derive(Clone, Debug, PartialEq)]
 pub struct ActorAnimation {
     pub actor_id: u16,
     pub animation: Animation,
-}
-
-/// MoonLoader's `onPlayCrimeReport` payload (RPC 112).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CrimeReport {
-    pub suspect_id: u16,
-    pub in_vehicle: bool,
-    pub vehicle_model: i32,
-    pub vehicle_color: i32,
-    pub crime: i32,
-    pub coordinates: Vector3,
-}
-
-/// An attached player object, present only when `create` is true.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AttachedObject {
-    pub model_id: i32,
-    pub bone: i32,
-    pub offset: Vector3,
-    pub rotation: Vector3,
-    pub scale: Vector3,
-    pub color1: i32,
-    pub color2: i32,
-}
-
-/// MoonLoader's `onSetPlayerAttachedObject` payload (RPC 113).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerAttachedObject {
-    pub player_id: u16,
-    pub index: i32,
-    pub object: Option<AttachedObject>,
 }
 
 /// MoonLoader's `onEnterEditObject` payload (RPC 117).
@@ -305,20 +189,6 @@ pub struct TextDraw {
 pub struct ShowTextDraw {
     pub textdraw_id: u16,
     pub textdraw: TextDraw,
-}
-
-/// One score and ping record sent by RPC 155.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct ScorePing {
-    pub player_id: u16,
-    pub score: i32,
-    pub ping: i32,
-}
-
-/// MoonLoader's `onUpdateScoresAndPings` payload (RPC 155), retained in wire order.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct ScoresAndPings {
-    pub entries: Vec<ScorePing>,
 }
 
 /// MoonLoader's `onVehicleStreamIn` vehicle data (RPC 164).

@@ -1,5 +1,6 @@
 use super::*;
-use crate::events::{ProtocolAction, packet, rpc::incoming, test_support};
+use crate::events::{EncodedPayload, ProtocolAction, packet, test_support};
+use samp_protocol::rpc::incoming as protocol_incoming;
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -1572,7 +1573,9 @@ fn id_filtered_callback_ignores_unrelated_events() {
 }
 
 #[test]
-fn typed_callback_decodes_matching_descriptor_and_fails_open() {
+fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
+    use samp_protocol::WireDescriptor;
+
     let _serial = REGISTRATION_TEST_LOCK
         .lock()
         .unwrap_or_else(|error| error.into_inner());
@@ -1581,7 +1584,7 @@ fn typed_callback_decodes_matching_descriptor_and_fails_open() {
     let observed = Arc::clone(&calls);
     let api = test_support::test_api();
     let subscription = api
-        .on_incoming_typed_rpc(incoming::ENABLE_STUNT_BONUS, move |enabled| {
+        .on_incoming_protocol_rpc(protocol_incoming::r1::ENABLE_STUNT_BONUS, move |enabled| {
             assert!(enabled);
             observed.fetch_add(1, Ordering::AcqRel);
             ProtocolAction::Block
@@ -1594,15 +1597,20 @@ fn typed_callback_decodes_matching_descriptor_and_fails_open() {
     );
     assert_eq!(
         test_support::invoke_registered_callback_with_payload(
-            incoming::ENABLE_STUNT_BONUS.id(),
-            incoming::ENABLE_STUNT_BONUS
-                .encode(api, true)
-                .expect("the typed test payload must encode"),
+            protocol_incoming::r1::EnableStuntBonusRpc::ID,
+            EncodedPayload::from_bits(
+                protocol_incoming::r1::EnableStuntBonusRpc::encode_bits(&true)
+                    .expect("the Protocol test payload must encode")
+                    .as_bytes()
+                    .to_vec(),
+                1,
+            )
+            .expect("the Protocol test payload must preserve its bit length"),
         ),
         Some(SampClientSdkHookAction::Block)
     );
     assert_eq!(
-        test_support::invoke_registered_callback(incoming::ENABLE_STUNT_BONUS.id()),
+        test_support::invoke_registered_callback(protocol_incoming::r1::EnableStuntBonusRpc::ID),
         Some(SampClientSdkHookAction::Continue)
     );
     assert_eq!(calls.load(Ordering::Acquire), 1);
@@ -1890,8 +1898,8 @@ fn register_handlers_collects_every_supported_handler_form() {
             packet::incoming::PLAYER_SYNC,
             |_| ProtocolAction::Continue
         ),
-        incoming_typed_rpc(
-            incoming::ENABLE_STUNT_BONUS,
+        incoming_protocol_rpc(
+            protocol_incoming::r1::ENABLE_STUNT_BONUS,
             |_| ProtocolAction::Continue
         ),
     )

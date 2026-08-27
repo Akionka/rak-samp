@@ -13,7 +13,8 @@
   subscription or send fail to compile. It also owns four fixed incoming RPC batches:
   server messages through vehicle stream-out, vehicle position through player name tags, the
   26 descriptors from `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and the 29 descriptors from
-  `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. `SHOW_DIALOG` remains in the SDK until
+  `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. It also owns the R1 player/session
+  group (`INIT_GAME` through `UPDATE_SCORES_AND_PINGS`). `SHOW_DIALOG` remains in the SDK until
   the Native encoded-string extension boundary moves.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.

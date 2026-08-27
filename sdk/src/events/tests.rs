@@ -12,12 +12,16 @@ fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }
 }
 
-fn test_spawn_info() -> incoming::SpawnInfo {
-    incoming::SpawnInfo {
+fn test_protocol_vector3(x: f32, y: f32, z: f32) -> protocol_incoming::Vector3 {
+    protocol_incoming::Vector3 { x, y, z }
+}
+
+fn test_spawn_info() -> protocol_incoming::r1::SpawnInfo {
+    protocol_incoming::r1::SpawnInfo {
         team: 7,
         skin: 411,
         unused: 0xA5,
-        position: test_vector3(1.0, 2.0, 3.0),
+        position: test_protocol_vector3(1.0, 2.0, 3.0),
         rotation: 4.0,
         weapons: [22, 24, 31],
         ammo: [100, 200, 300],
@@ -26,6 +30,19 @@ fn test_spawn_info() -> incoming::SpawnInfo {
 
 fn test_animation() -> incoming::Animation {
     incoming::Animation {
+        animation_library: b"PED".to_vec(),
+        animation_name: b"WALK".to_vec(),
+        frame_delta: 4.0,
+        looped: true,
+        lock_x: false,
+        lock_y: true,
+        freeze: false,
+        time: -1,
+    }
+}
+
+fn test_protocol_animation() -> protocol_incoming::r1::Animation {
+    protocol_incoming::r1::Animation {
         animation_library: b"PED".to_vec(),
         animation_name: b"WALK".to_vec(),
         frame_delta: 4.0,
@@ -531,18 +548,19 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
 
 #[test]
 fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
-    let value = incoming::PlayerStreamIn {
+    use samp_protocol::WireDescriptor;
+
+    let value = protocol_incoming::r1::PlayerStreamIn {
         player_id: 42,
         team: 3,
         model: 411,
-        position: test_vector3(1.0, 2.0, 3.0),
+        position: test_protocol_vector3(1.0, 2.0, 3.0),
         rotation: 90.0,
         color: -1,
         fighting_style: 4,
         weapon_skill_levels: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     };
-    let encoded = incoming::PLAYER_STREAM_IN
-        .encode(test_api(), value)
+    let encoded = protocol_incoming::r1::PlayerStreamInRpc::encode_bits(&value)
         .expect("R1 player stream-in payload must encode");
 
     assert_eq!(encoded.len_bits(), 400);
@@ -555,12 +573,12 @@ fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
             0x07, 0x00, 0x08, 0x00, 0x09, 0x00, 0x0A, 0x00,
         ]
     );
-    assert_replacement_round_trip(incoming::PLAYER_STREAM_IN, value);
+    assert_protocol_replacement_round_trip(protocol_incoming::r1::PLAYER_STREAM_IN, value);
 }
 
 #[test]
 fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
-    let settings = incoming::GameSettings {
+    let settings = protocol_incoming::r1::GameSettings {
         zone_names: true,
         use_cj_walk: false,
         allow_weapons: true,
@@ -587,29 +605,29 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         lag_compensation_mode: 1,
         vehicle_friendly_fire: true,
     };
-    assert_replacement_round_trip(
-        incoming::INIT_GAME,
-        incoming::InitGame {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::INIT_GAME,
+        protocol_incoming::r1::InitGame {
             player_id: 42,
             host_name: b"R1 host".to_vec(),
             settings,
             vehicle_models: [1; 212],
         },
     );
-    assert_replacement_round_trip(
-        incoming::REQUEST_CLASS_RESPONSE,
-        incoming::RequestClassResponse {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::REQUEST_CLASS_RESPONSE,
+        protocol_incoming::r1::RequestClassResponse {
             can_spawn: true,
             spawn: test_spawn_info(),
         },
     );
-    assert_replacement_round_trip(
-        incoming::PLAYER_STREAM_IN,
-        incoming::PlayerStreamIn {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::PLAYER_STREAM_IN,
+        protocol_incoming::r1::PlayerStreamIn {
             player_id: 42,
             team: 3,
             model: 411,
-            position: test_vector3(1.0, 2.0, 3.0),
+            position: test_protocol_vector3(1.0, 2.0, 3.0),
             rotation: 90.0,
             color: -1,
             fighting_style: 4,
@@ -664,7 +682,10 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             ],
         },
     );
-    assert_replacement_round_trip(incoming::SET_SPAWN_INFO, test_spawn_info());
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::SET_SPAWN_INFO,
+        test_spawn_info(),
+    );
     assert_replacement_round_trip(
         incoming::INIT_MENU,
         incoming::InitMenu {
@@ -735,36 +756,36 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             }),
         },
     );
-    assert_replacement_round_trip(
-        incoming::APPLY_PLAYER_ANIMATION,
-        incoming::PlayerAnimation {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::APPLY_PLAYER_ANIMATION,
+        protocol_incoming::r1::PlayerAnimation {
             player_id: 7,
-            animation: test_animation(),
+            animation: test_protocol_animation(),
         },
     );
-    assert_replacement_round_trip(incoming::ENABLE_STUNT_BONUS, true);
-    assert_replacement_round_trip(
-        incoming::PLAY_CRIME_REPORT,
-        incoming::CrimeReport {
+    assert_protocol_replacement_round_trip(protocol_incoming::r1::ENABLE_STUNT_BONUS, true);
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::PLAY_CRIME_REPORT,
+        protocol_incoming::r1::CrimeReport {
             suspect_id: 7,
             in_vehicle: true,
             vehicle_model: 411,
             vehicle_color: 4,
             crime: 9,
-            coordinates: test_vector3(1.0, 2.0, 3.0),
+            coordinates: test_protocol_vector3(1.0, 2.0, 3.0),
         },
     );
-    assert_replacement_round_trip(
-        incoming::SET_PLAYER_ATTACHED_OBJECT,
-        incoming::PlayerAttachedObject {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::SET_PLAYER_ATTACHED_OBJECT,
+        protocol_incoming::r1::PlayerAttachedObject {
             player_id: 7,
             index: 3,
-            object: Some(incoming::AttachedObject {
+            object: Some(protocol_incoming::r1::AttachedObject {
                 model_id: 19327,
                 bone: 1,
-                offset: test_vector3(1.0, 2.0, 3.0),
-                rotation: test_vector3(4.0, 5.0, 6.0),
-                scale: test_vector3(1.0, 1.0, 1.0),
+                offset: test_protocol_vector3(1.0, 2.0, 3.0),
+                rotation: test_protocol_vector3(4.0, 5.0, 6.0),
+                scale: test_protocol_vector3(1.0, 1.0, 1.0),
                 color1: -1,
                 color2: 0,
             }),
@@ -777,7 +798,7 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             object_id: 5,
         },
     );
-    assert_replacement_round_trip(incoming::TOGGLE_PLAYER_SPECTATING, false);
+    assert_protocol_replacement_round_trip(protocol_incoming::r1::TOGGLE_PLAYER_SPECTATING, false);
     assert_replacement_round_trip(
         incoming::SHOW_TEXT_DRAW,
         incoming::ShowTextDraw {
@@ -806,10 +827,10 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(incoming::TEXT_DRAW_HIDE, 99);
-    assert_replacement_round_trip(
-        incoming::UPDATE_SCORES_AND_PINGS,
-        incoming::ScoresAndPings {
-            entries: vec![incoming::ScorePing {
+    assert_protocol_replacement_round_trip(
+        protocol_incoming::r1::UPDATE_SCORES_AND_PINGS,
+        protocol_incoming::r1::ScoresAndPings {
+            entries: vec![protocol_incoming::r1::ScorePing {
                 player_id: 7,
                 score: -100,
                 ping: 42,
@@ -916,9 +937,11 @@ fn r1_remote_sync_and_markers_decode_and_atomically_replace() {
 
 #[test]
 fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
+    use samp_protocol::WireDescriptor;
+
     let api = test_api();
     let mut raw = TestEvent::new(
-        incoming::ENABLE_STUNT_BONUS.id(),
+        protocol_incoming::r1::EnableStuntBonusRpc::ID,
         EncodedPayload::from_bits(vec![0b1000_0000], 2).unwrap(),
     );
     let mut event = unsafe {
@@ -929,11 +952,16 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
     }
     .unwrap();
     assert!(matches!(
-        incoming::ENABLE_STUNT_BONUS.handle(&mut event, |_| panic!("must not dispatch")),
-        Err(EventError::UnexpectedBitLength {
-            bit_len: 1,
-            expected: 0
-        })
+        super::handle_protocol::<protocol_incoming::r1::EnableStuntBonusRpc>(
+            &mut event,
+            |_| panic!("must not dispatch"),
+        ),
+        Err(super::core::ProtocolEventError::Decode(
+            samp_protocol::DecodeError::UnexpectedTrailingBits {
+                remaining_bits: 1,
+                allowed_bits: 0,
+            }
+        ))
     ));
 }
 
@@ -1048,26 +1076,28 @@ fn set_player_skin_uses_rpc_153_and_two_i32_values() {
 
 #[test]
 fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
+    use samp_protocol::WireDescriptor;
+
     let descriptors = [
-        (incoming::INIT_GAME.id(), 139),
-        (incoming::REQUEST_CLASS_RESPONSE.id(), 128),
-        (incoming::PLAYER_STREAM_IN.id(), 32),
+        (protocol_incoming::r1::InitGameRpc::ID, 139),
+        (protocol_incoming::r1::RequestClassResponseRpc::ID, 128),
+        (protocol_incoming::r1::PlayerStreamInRpc::ID, 32),
         (incoming::CREATE_3D_TEXT.id(), 36),
         (incoming::CREATE_OBJECT.id(), 44),
-        (incoming::SET_SPAWN_INFO.id(), 68),
+        (protocol_incoming::r1::SpawnInfoRpc::ID, 68),
         (incoming::INIT_MENU.id(), 76),
         (incoming::INTERPOLATE_CAMERA.id(), 82),
         (incoming::TOGGLE_SELECT_TEXT_DRAW.id(), 83),
         (incoming::SET_OBJECT_MATERIAL.id(), 84),
-        (incoming::APPLY_PLAYER_ANIMATION.id(), 86),
-        (incoming::ENABLE_STUNT_BONUS.id(), 104),
-        (incoming::PLAY_CRIME_REPORT.id(), 112),
-        (incoming::SET_PLAYER_ATTACHED_OBJECT.id(), 113),
+        (protocol_incoming::r1::PlayerAnimationRpc::ID, 86),
+        (protocol_incoming::r1::EnableStuntBonusRpc::ID, 104),
+        (protocol_incoming::r1::CrimeReportRpc::ID, 112),
+        (protocol_incoming::r1::PlayerAttachedObjectRpc::ID, 113),
         (incoming::ENTER_EDIT_OBJECT.id(), 117),
-        (incoming::TOGGLE_PLAYER_SPECTATING.id(), 124),
+        (protocol_incoming::r1::TogglePlayerSpectatingRpc::ID, 124),
         (incoming::SHOW_TEXT_DRAW.id(), 134),
         (incoming::TEXT_DRAW_HIDE.id(), 135),
-        (incoming::UPDATE_SCORES_AND_PINGS.id(), 155),
+        (protocol_incoming::r1::ScoresAndPingsRpc::ID, 155),
         (incoming::VEHICLE_STREAM_IN.id(), 164),
         (incoming::DISABLE_VEHICLE_COLLISIONS.id(), 167),
         (incoming::TOGGLE_CAMERA_TARGET_NOTIFYING.id(), 170),

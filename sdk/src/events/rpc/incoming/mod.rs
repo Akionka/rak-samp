@@ -6,8 +6,8 @@ pub use fixed::*;
 pub use r1::*;
 pub use types::*;
 
-use crate::events::core::handle;
-use crate::events::{EventError, ProtocolAction};
+use crate::events::core::{ProtocolEventError, handle, handle_protocol};
+use crate::events::{Event, EventError, ProtocolAction};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction};
 
 macro_rules! rpc_helper {
@@ -28,18 +28,44 @@ macro_rules! rpc_helper {
     };
 }
 
+macro_rules! protocol_rpc_helper {
+    ($name:ident, $descriptor:path, $value:ty, $event_name:literal) => {
+        #[doc = concat!("Handles MoonLoader's `", $event_name, "` from an incoming raw RPC callback.")]
+        ///
+        /// # Safety
+        ///
+        /// See [`crate::events::handle`].
+        #[allow(dead_code)]
+        pub(crate) unsafe fn $name(
+            api: HostApi,
+            raw: *mut SampClientSdkEventV1,
+            handler: impl FnOnce($value) -> ProtocolAction<$value>,
+        ) -> Result<SampClientSdkHookAction, ProtocolEventError> {
+            let mut event = unsafe { Event::from_callback(api, raw) }.map_err(|error| {
+                ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error))
+            })?;
+            handle_protocol::<$descriptor>(&mut event, handler)
+        }
+    };
+}
+
 rpc_helper!(on_show_dialog, ShowDialog, SHOW_DIALOG, "onShowDialog");
-rpc_helper!(on_init_game, InitGame, INIT_GAME, "onInitGame");
-rpc_helper!(
+protocol_rpc_helper!(
+    on_init_game,
+    samp_protocol::rpc::incoming::r1::InitGameRpc,
+    samp_protocol::rpc::incoming::r1::InitGame,
+    "onInitGame"
+);
+protocol_rpc_helper!(
     on_request_class_response,
-    RequestClassResponse,
-    REQUEST_CLASS_RESPONSE,
+    samp_protocol::rpc::incoming::r1::RequestClassResponseRpc,
+    samp_protocol::rpc::incoming::r1::RequestClassResponse,
     "onRequestClassResponse"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_player_stream_in,
-    PlayerStreamIn,
-    PLAYER_STREAM_IN,
+    samp_protocol::rpc::incoming::r1::PlayerStreamInRpc,
+    samp_protocol::rpc::incoming::r1::PlayerStreamIn,
     "onPlayerStreamIn"
 );
 rpc_helper!(
@@ -49,10 +75,10 @@ rpc_helper!(
     "onCreate3DText"
 );
 rpc_helper!(on_create_object, Object, CREATE_OBJECT, "onCreateObject");
-rpc_helper!(
+protocol_rpc_helper!(
     on_set_spawn_info,
-    SpawnInfo,
-    SET_SPAWN_INFO,
+    samp_protocol::rpc::incoming::r1::SpawnInfoRpc,
+    samp_protocol::rpc::incoming::r1::SpawnInfo,
     "onSetSpawnInfo"
 );
 rpc_helper!(on_init_menu, InitMenu, INIT_MENU, "onInitMenu");
@@ -74,28 +100,28 @@ rpc_helper!(
     SET_OBJECT_MATERIAL,
     "onSetObjectMaterial/onSetObjectMaterialText"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_apply_player_animation,
-    PlayerAnimation,
-    APPLY_PLAYER_ANIMATION,
+    samp_protocol::rpc::incoming::r1::PlayerAnimationRpc,
+    samp_protocol::rpc::incoming::r1::PlayerAnimation,
     "onApplyPlayerAnimation"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_enable_stunt_bonus,
+    samp_protocol::rpc::incoming::r1::EnableStuntBonusRpc,
     bool,
-    ENABLE_STUNT_BONUS,
     "onEnableStuntBonus"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_play_crime_report,
-    CrimeReport,
-    PLAY_CRIME_REPORT,
+    samp_protocol::rpc::incoming::r1::CrimeReportRpc,
+    samp_protocol::rpc::incoming::r1::CrimeReport,
     "onPlayCrimeReport"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_set_player_attached_object,
-    PlayerAttachedObject,
-    SET_PLAYER_ATTACHED_OBJECT,
+    samp_protocol::rpc::incoming::r1::PlayerAttachedObjectRpc,
+    samp_protocol::rpc::incoming::r1::PlayerAttachedObject,
     "onSetPlayerAttachedObject"
 );
 rpc_helper!(
@@ -104,10 +130,10 @@ rpc_helper!(
     ENTER_EDIT_OBJECT,
     "onEnterEditObject"
 );
-rpc_helper!(
+protocol_rpc_helper!(
     on_toggle_player_spectating,
+    samp_protocol::rpc::incoming::r1::TogglePlayerSpectatingRpc,
     bool,
-    TOGGLE_PLAYER_SPECTATING,
     "onTogglePlayerSpectating"
 );
 rpc_helper!(
@@ -117,10 +143,10 @@ rpc_helper!(
     "onShowTextDraw"
 );
 rpc_helper!(on_text_draw_hide, u16, TEXT_DRAW_HIDE, "onTextDrawHide");
-rpc_helper!(
+protocol_rpc_helper!(
     on_update_scores_and_pings,
-    ScoresAndPings,
-    UPDATE_SCORES_AND_PINGS,
+    samp_protocol::rpc::incoming::r1::ScoresAndPingsRpc,
+    samp_protocol::rpc::incoming::r1::ScoresAndPings,
     "onUpdateScoresAndPings"
 );
 rpc_helper!(

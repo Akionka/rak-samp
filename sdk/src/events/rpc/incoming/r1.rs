@@ -15,27 +15,12 @@ fn read_array<const N: usize>(event: &mut Event<'_>) -> Result<[u8; N], EventErr
         .map_err(|_| EventError::Host(SampClientSdkResult::NativeCallFailed))
 }
 
-/// The R1 `onInitGame` descriptor.
-pub const INIT_GAME: IncomingRpc<InitGame> =
-    IncomingRpc::new_bits(139, decode_init_game, encode_init_game);
-/// The R1 `onRequestClassResponse` descriptor.
-pub const REQUEST_CLASS_RESPONSE: IncomingRpc<RequestClassResponse> = IncomingRpc::new_bits(
-    128,
-    decode_request_class_response,
-    encode_request_class_response,
-);
-/// The R1 `onPlayerStreamIn` descriptor.
-pub const PLAYER_STREAM_IN: IncomingRpc<PlayerStreamIn> =
-    IncomingRpc::new_bits(32, decode_player_stream_in, encode_player_stream_in);
 /// The R1 `onCreate3DText` descriptor.
 pub const CREATE_3D_TEXT: IncomingRpc<TextLabel3D> =
     IncomingRpc::new_bits(36, decode_text_label_3d, encode_text_label_3d);
 /// The R1 `onCreateObject` descriptor.
 pub const CREATE_OBJECT: IncomingRpc<Object> =
     IncomingRpc::new_bits(44, decode_object, encode_object);
-/// The R1 `onSetSpawnInfo` descriptor.
-pub const SET_SPAWN_INFO: IncomingRpc<SpawnInfo> =
-    IncomingRpc::new_bits(68, decode_spawn_info, encode_spawn_info);
 /// The R1 `onInitMenu` descriptor.
 pub const INIT_MENU: IncomingRpc<InitMenu> =
     IncomingRpc::new_bits(76, decode_init_menu, encode_init_menu);
@@ -54,35 +39,14 @@ pub const SET_OBJECT_MATERIAL: IncomingRpc<ObjectMaterialUpdate> = IncomingRpc::
     decode_object_material_update,
     encode_object_material_update,
 );
-/// The R1 `onApplyPlayerAnimation` descriptor.
-pub const APPLY_PLAYER_ANIMATION: IncomingRpc<PlayerAnimation> =
-    IncomingRpc::new_bits(86, decode_player_animation, encode_player_animation);
-/// The R1 `onEnableStuntBonus` descriptor.
-pub const ENABLE_STUNT_BONUS: IncomingRpc<bool> =
-    IncomingRpc::new_bits(104, decode_bit_bool, encode_bit_bool);
-/// The R1 `onPlayCrimeReport` descriptor.
-pub const PLAY_CRIME_REPORT: IncomingRpc<CrimeReport> =
-    IncomingRpc::new_bits(112, decode_crime_report, encode_crime_report);
-/// The R1 `onSetPlayerAttachedObject` descriptor.
-pub const SET_PLAYER_ATTACHED_OBJECT: IncomingRpc<PlayerAttachedObject> = IncomingRpc::new_bits(
-    113,
-    decode_player_attached_object,
-    encode_player_attached_object,
-);
 /// The R1 `onEnterEditObject` descriptor.
 pub const ENTER_EDIT_OBJECT: IncomingRpc<EnterEditObject> =
     IncomingRpc::new_bits(117, decode_enter_edit_object, encode_enter_edit_object);
-/// The R1 `onTogglePlayerSpectating` descriptor.
-pub const TOGGLE_PLAYER_SPECTATING: IncomingRpc<bool> =
-    IncomingRpc::new_bits(124, decode_bool32, encode_bool32);
 /// The R1 `onShowTextDraw` descriptor.
 pub const SHOW_TEXT_DRAW: IncomingRpc<ShowTextDraw> =
     IncomingRpc::new_bits(134, decode_show_text_draw, encode_show_text_draw);
 /// The R1 `onTextDrawHide` descriptor.
 pub const TEXT_DRAW_HIDE: IncomingRpc<u16> = IncomingRpc::new(135, decode_u16, encode_u16);
-/// The R1 `onInitGame` score/ping update descriptor.
-pub const UPDATE_SCORES_AND_PINGS: IncomingRpc<ScoresAndPings> =
-    IncomingRpc::new_bits(155, decode_scores_and_pings, encode_scores_and_pings);
 /// The R1 `onVehicleStreamIn` descriptor.
 pub const VEHICLE_STREAM_IN: IncomingRpc<VehicleStreamIn> =
     IncomingRpc::new_bits(164, decode_vehicle_stream_in, encode_vehicle_stream_in);
@@ -114,12 +78,6 @@ fn decode_bool32(event: &mut Event<'_>) -> Result<bool, EventError> {
     Ok(event.read_u32()? != 0)
 }
 
-fn encode_bool32(_api: HostApi, value: bool) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u32(u32::from(value));
-    Ok(writer.finish_bits())
-}
-
 fn read_i16(event: &mut Event<'_>) -> Result<i16, EventError> {
     Ok(event.read_u16()? as i16)
 }
@@ -134,181 +92,6 @@ fn read_fixed_string32(event: &mut Event<'_>) -> Result<[u8; 32], EventError> {
 
 fn write_fixed_string32(writer: &mut PayloadWriter, value: [u8; 32]) {
     writer.bytes(&value);
-}
-
-fn decode_spawn_info_fields(event: &mut Event<'_>) -> Result<SpawnInfo, EventError> {
-    Ok(SpawnInfo {
-        team: event.read_u8()?,
-        skin: decode_i32(event)?,
-        unused: event.read_u8()?,
-        position: decode_vector3(event)?,
-        rotation: event.read_f32()?,
-        weapons: [decode_i32(event)?, decode_i32(event)?, decode_i32(event)?],
-        ammo: [decode_i32(event)?, decode_i32(event)?, decode_i32(event)?],
-    })
-}
-
-fn encode_spawn_info_fields(writer: &mut PayloadWriter, value: SpawnInfo) {
-    writer.u8(value.team);
-    write_i32(writer, value.skin);
-    writer.u8(value.unused);
-    writer.vector3(value.position);
-    writer.f32(value.rotation);
-    for weapon in value.weapons {
-        write_i32(writer, weapon);
-    }
-    for ammo in value.ammo {
-        write_i32(writer, ammo);
-    }
-}
-
-fn decode_init_game(event: &mut Event<'_>) -> Result<InitGame, EventError> {
-    let mut settings = GameSettings {
-        zone_names: read_bit_bool(event)?,
-        use_cj_walk: read_bit_bool(event)?,
-        allow_weapons: read_bit_bool(event)?,
-        limit_global_chat_radius: read_bit_bool(event)?,
-        global_chat_radius: event.read_f32()?,
-        stunt_bonus: read_bit_bool(event)?,
-        nametag_draw_distance: event.read_f32()?,
-        disable_enter_exits: read_bit_bool(event)?,
-        nametag_los: read_bit_bool(event)?,
-        tire_popping: read_bit_bool(event)?,
-        classes_available: decode_i32(event)?,
-        show_player_tags: false,
-        player_markers_mode: 0,
-        world_time: 0,
-        world_weather: 0,
-        gravity: 0.0,
-        lan_mode: false,
-        death_money_drop: 0,
-        instagib: false,
-        normal_onfoot_send_rate: 0,
-        normal_incar_send_rate: 0,
-        normal_firing_send_rate: 0,
-        send_multiplier: 0,
-        lag_compensation_mode: 0,
-        vehicle_friendly_fire: false,
-    };
-    let player_id = event.read_u16()?;
-    settings.show_player_tags = read_bit_bool(event)?;
-    settings.player_markers_mode = decode_i32(event)?;
-    settings.world_time = event.read_u8()?;
-    settings.world_weather = event.read_u8()?;
-    settings.gravity = event.read_f32()?;
-    settings.lan_mode = read_bit_bool(event)?;
-    settings.death_money_drop = decode_i32(event)?;
-    settings.instagib = read_bit_bool(event)?;
-    settings.normal_onfoot_send_rate = decode_i32(event)?;
-    settings.normal_incar_send_rate = decode_i32(event)?;
-    settings.normal_firing_send_rate = decode_i32(event)?;
-    settings.send_multiplier = decode_i32(event)?;
-    settings.lag_compensation_mode = decode_i32(event)?;
-    let host_name = event.read_string8()?;
-    let vehicle_models = read_array::<212>(event)?;
-    settings.vehicle_friendly_fire = decode_bool32(event)?;
-    Ok(InitGame {
-        player_id,
-        host_name,
-        settings,
-        vehicle_models,
-    })
-}
-
-fn encode_init_game(api: HostApi, value: InitGame) -> Result<EncodedPayload, EventError> {
-    let _ = api;
-    let settings = value.settings;
-    let mut writer = PayloadWriter::new();
-    writer.bool(settings.zone_names);
-    writer.bool(settings.use_cj_walk);
-    writer.bool(settings.allow_weapons);
-    writer.bool(settings.limit_global_chat_radius);
-    writer.f32(settings.global_chat_radius);
-    writer.bool(settings.stunt_bonus);
-    writer.f32(settings.nametag_draw_distance);
-    writer.bool(settings.disable_enter_exits);
-    writer.bool(settings.nametag_los);
-    writer.bool(settings.tire_popping);
-    write_i32(&mut writer, settings.classes_available);
-    writer.u16(value.player_id);
-    writer.bool(settings.show_player_tags);
-    write_i32(&mut writer, settings.player_markers_mode);
-    writer.u8(settings.world_time);
-    writer.u8(settings.world_weather);
-    writer.f32(settings.gravity);
-    writer.bool(settings.lan_mode);
-    write_i32(&mut writer, settings.death_money_drop);
-    writer.bool(settings.instagib);
-    write_i32(&mut writer, settings.normal_onfoot_send_rate);
-    write_i32(&mut writer, settings.normal_incar_send_rate);
-    write_i32(&mut writer, settings.normal_firing_send_rate);
-    write_i32(&mut writer, settings.send_multiplier);
-    write_i32(&mut writer, settings.lag_compensation_mode);
-    writer.string8(&value.host_name)?;
-    writer.bytes(&value.vehicle_models);
-    writer.u32(u32::from(settings.vehicle_friendly_fire));
-    Ok(writer.finish_bits())
-}
-
-fn decode_request_class_response(
-    event: &mut Event<'_>,
-) -> Result<RequestClassResponse, EventError> {
-    Ok(RequestClassResponse {
-        can_spawn: decode_bool8(event)?,
-        spawn: decode_spawn_info_fields(event)?,
-    })
-}
-
-fn encode_request_class_response(
-    _api: HostApi,
-    value: RequestClassResponse,
-) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u8(u8::from(value.can_spawn));
-    encode_spawn_info_fields(&mut writer, value.spawn);
-    Ok(writer.finish_bits())
-}
-
-fn decode_player_stream_in(event: &mut Event<'_>) -> Result<PlayerStreamIn, EventError> {
-    let player_id = event.read_u16()?;
-    let team = event.read_u8()?;
-    let model = decode_i32(event)?;
-    let position = decode_vector3(event)?;
-    let rotation = event.read_f32()?;
-    let color = decode_i32(event)?;
-    let fighting_style = event.read_u8()?;
-    let mut weapon_skill_levels = [0; 11];
-    for skill_level in &mut weapon_skill_levels {
-        *skill_level = event.read_u16()?;
-    }
-    Ok(PlayerStreamIn {
-        player_id,
-        team,
-        model,
-        position,
-        rotation,
-        color,
-        fighting_style,
-        weapon_skill_levels,
-    })
-}
-
-fn encode_player_stream_in(
-    _api: HostApi,
-    value: PlayerStreamIn,
-) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    writer.u8(value.team);
-    write_i32(&mut writer, value.model);
-    writer.vector3(value.position);
-    writer.f32(value.rotation);
-    write_i32(&mut writer, value.color);
-    writer.u8(value.fighting_style);
-    for skill_level in value.weapon_skill_levels {
-        writer.u16(skill_level);
-    }
-    Ok(writer.finish_bits())
 }
 
 fn decode_text_label_3d(event: &mut Event<'_>) -> Result<TextLabel3D, EventError> {
@@ -487,17 +270,6 @@ fn encode_object(api: HostApi, value: Object) -> Result<EncodedPayload, EventErr
     for material in value.materials {
         encode_object_material(api, &mut writer, material)?;
     }
-    Ok(writer.finish_bits())
-}
-
-fn decode_spawn_info(event: &mut Event<'_>) -> Result<SpawnInfo, EventError> {
-    decode_spawn_info_fields(event)
-}
-
-fn encode_spawn_info(api: HostApi, value: SpawnInfo) -> Result<EncodedPayload, EventError> {
-    let _ = api;
-    let mut writer = PayloadWriter::new();
-    encode_spawn_info_fields(&mut writer, value);
     Ok(writer.finish_bits())
 }
 
@@ -681,23 +453,6 @@ fn encode_animation(writer: &mut PayloadWriter, value: Animation) -> Result<(), 
     Ok(())
 }
 
-fn decode_player_animation(event: &mut Event<'_>) -> Result<PlayerAnimation, EventError> {
-    Ok(PlayerAnimation {
-        player_id: event.read_u16()?,
-        animation: decode_animation(event)?,
-    })
-}
-
-fn encode_player_animation(
-    _api: HostApi,
-    value: PlayerAnimation,
-) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    encode_animation(&mut writer, value.animation)?;
-    Ok(writer.finish_bits())
-}
-
 fn decode_actor_animation(event: &mut Event<'_>) -> Result<ActorAnimation, EventError> {
     Ok(ActorAnimation {
         actor_id: event.read_u16()?,
@@ -712,78 +467,6 @@ fn encode_actor_animation(
     let mut writer = PayloadWriter::new();
     writer.u16(value.actor_id);
     encode_animation(&mut writer, value.animation)?;
-    Ok(writer.finish_bits())
-}
-
-fn decode_crime_report(event: &mut Event<'_>) -> Result<CrimeReport, EventError> {
-    Ok(CrimeReport {
-        suspect_id: event.read_u16()?,
-        in_vehicle: decode_bool32(event)?,
-        vehicle_model: decode_i32(event)?,
-        vehicle_color: decode_i32(event)?,
-        crime: decode_i32(event)?,
-        coordinates: decode_vector3(event)?,
-    })
-}
-
-fn encode_crime_report(_api: HostApi, value: CrimeReport) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.suspect_id);
-    writer.u32(u32::from(value.in_vehicle));
-    write_i32(&mut writer, value.vehicle_model);
-    write_i32(&mut writer, value.vehicle_color);
-    write_i32(&mut writer, value.crime);
-    writer.vector3(value.coordinates);
-    Ok(writer.finish_bits())
-}
-
-fn decode_attached_object(event: &mut Event<'_>) -> Result<AttachedObject, EventError> {
-    Ok(AttachedObject {
-        model_id: decode_i32(event)?,
-        bone: decode_i32(event)?,
-        offset: decode_vector3(event)?,
-        rotation: decode_vector3(event)?,
-        scale: decode_vector3(event)?,
-        color1: decode_i32(event)?,
-        color2: decode_i32(event)?,
-    })
-}
-
-fn encode_attached_object(writer: &mut PayloadWriter, value: AttachedObject) {
-    write_i32(writer, value.model_id);
-    write_i32(writer, value.bone);
-    writer.vector3(value.offset);
-    writer.vector3(value.rotation);
-    writer.vector3(value.scale);
-    write_i32(writer, value.color1);
-    write_i32(writer, value.color2);
-}
-
-fn decode_player_attached_object(
-    event: &mut Event<'_>,
-) -> Result<PlayerAttachedObject, EventError> {
-    let player_id = event.read_u16()?;
-    let index = decode_i32(event)?;
-    let create = read_bit_bool(event)?;
-    let object = create.then(|| decode_attached_object(event)).transpose()?;
-    Ok(PlayerAttachedObject {
-        player_id,
-        index,
-        object,
-    })
-}
-
-fn encode_player_attached_object(
-    _api: HostApi,
-    value: PlayerAttachedObject,
-) -> Result<EncodedPayload, EventError> {
-    let mut writer = PayloadWriter::new();
-    writer.u16(value.player_id);
-    write_i32(&mut writer, value.index);
-    writer.bool(value.object.is_some());
-    if let Some(object) = value.object {
-        encode_attached_object(&mut writer, object);
-    }
     Ok(writer.finish_bits())
 }
 
@@ -872,51 +555,6 @@ fn encode_show_text_draw(_api: HostApi, value: ShowTextDraw) -> Result<EncodedPa
     writer.i16(textdraw.color2);
     writer.u16(textdraw.text.len() as u16);
     writer.bytes(&textdraw.text);
-    Ok(writer.finish_bits())
-}
-
-fn decode_scores_and_pings(event: &mut Event<'_>) -> Result<ScoresAndPings, EventError> {
-    let bit_len = event.remaining_bits();
-    if !bit_len.is_multiple_of(80) {
-        return Err(EventError::UnexpectedBitLength {
-            bit_len,
-            expected: 80,
-        });
-    }
-    let count = bit_len / 80;
-    if count > MAX_SCORE_PING_ENTRIES {
-        return Err(EventError::LengthExceedsLimit {
-            length: count,
-            limit: MAX_SCORE_PING_ENTRIES,
-        });
-    }
-    let mut entries = Vec::with_capacity(count);
-    for _ in 0..count {
-        entries.push(ScorePing {
-            player_id: event.read_u16()?,
-            score: decode_i32(event)?,
-            ping: decode_i32(event)?,
-        });
-    }
-    Ok(ScoresAndPings { entries })
-}
-
-fn encode_scores_and_pings(
-    _api: HostApi,
-    value: ScoresAndPings,
-) -> Result<EncodedPayload, EventError> {
-    if value.entries.len() > MAX_SCORE_PING_ENTRIES {
-        return Err(EventError::LengthExceedsLimit {
-            length: value.entries.len(),
-            limit: MAX_SCORE_PING_ENTRIES,
-        });
-    }
-    let mut writer = PayloadWriter::new();
-    for entry in value.entries {
-        writer.u16(entry.player_id);
-        write_i32(&mut writer, entry.score);
-        write_i32(&mut writer, entry.ping);
-    }
     Ok(writer.finish_bits())
 }
 
