@@ -635,62 +635,6 @@ impl Net {
     {
         self.api.on_outgoing_typed_rpc(rpc, handler)
     }
-
-    /// Registers an incoming RPC callback that decodes one Protocol-owned descriptor.
-    pub fn on_incoming_protocol_rpc<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::IncomingRpcDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_incoming_typed_rpc(descriptor, handler)
-    }
-
-    /// Registers an outgoing RPC callback that decodes one Protocol-owned descriptor.
-    pub fn on_outgoing_protocol_rpc<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::OutgoingRpcDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_outgoing_typed_rpc(descriptor, handler)
-    }
-
-    /// Registers an incoming Packet callback that decodes one Protocol-owned descriptor.
-    pub fn on_incoming_protocol_packet<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::IncomingPacketDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_incoming_typed_packet(descriptor, handler)
-    }
-
-    /// Registers an outgoing Packet callback that decodes one Protocol-owned descriptor.
-    pub fn on_outgoing_protocol_packet<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::OutgoingPacketDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_outgoing_typed_packet(descriptor, handler)
-    }
 }
 
 /// Safe server metadata reads.

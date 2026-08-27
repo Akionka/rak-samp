@@ -78,8 +78,9 @@ impl HostApi {
 
     /// Registers a packet callback.
     ///
-    /// The callback receives a view that is valid only for that invocation. Use typed packet
-    /// descriptors from [`events::packet`] to decode, block, or replace a matching payload.
+    /// The callback receives a view that is valid only for that invocation. Use
+    /// [`Self::on_incoming_typed_packet`] or [`Self::on_outgoing_typed_packet`] to decode, block,
+    /// or replace a matching typed payload.
     pub fn on_packet<F>(
         self,
         direction: SampClientSdkDirection,
@@ -246,74 +247,6 @@ impl HostApi {
                 &state, event, &handler,
             )
         })
-    }
-
-    /// Registers an incoming RPC callback that decodes one Protocol-owned descriptor.
-    ///
-    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
-    /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_incoming_protocol_rpc<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::IncomingRpcDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_incoming_typed_rpc(descriptor, handler)
-    }
-
-    /// Registers an outgoing RPC callback that decodes one Protocol-owned descriptor.
-    ///
-    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
-    /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_outgoing_protocol_rpc<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::OutgoingRpcDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_outgoing_typed_rpc(descriptor, handler)
-    }
-
-    /// Registers an incoming Packet callback that decodes one Protocol-owned descriptor.
-    ///
-    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
-    /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_incoming_protocol_packet<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::IncomingPacketDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_incoming_typed_packet(descriptor, handler)
-    }
-
-    /// Registers an outgoing Packet callback that decodes one Protocol-owned descriptor.
-    ///
-    /// Nonmatching IDs and decode failures continue without calling `handler`. Source failures
-    /// retain their host status, while malformed payloads remain Protocol decode failures.
-    pub fn on_outgoing_protocol_packet<D, F>(
-        self,
-        descriptor: D,
-        handler: F,
-    ) -> Result<Subscription, SampClientSdkResult>
-    where
-        D: samp_protocol::OutgoingPacketDescriptor + 'static,
-        D::Value: 'static,
-        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
-    {
-        self.on_outgoing_typed_packet(descriptor, handler)
     }
 
     fn register_listener<F>(
