@@ -15,6 +15,10 @@ Run commands from the repository root.
   wire-format or native-boundary changes.
 - Preserve tests for exact-bit replacement, listener ordering, subscription
   shutdown, and native layout coverage when changing those behaviors.
+- After an SDK facade visibility change, compile an external consumer through
+  `Samp`, keep any negative privacy doctest minimal, audit exports and public
+  signatures, and inspect the generated public API for forbidden low-level
+  types. A successful documentation build alone does not prove absence.
 
 ## Deployment
 

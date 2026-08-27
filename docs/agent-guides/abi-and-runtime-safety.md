@@ -13,6 +13,9 @@
   or borrowed native objects across the DLL boundary.
 - Safe APIs return owned snapshots. Keep the underlying ABI wrapper internal
   to the SDK.
+- Resolve public SDK access through `Samp` and subsystem facades. Do not expose
+  `HostApi` directly, through re-exports or aliases, or transitively through
+  public constructors, methods, associated types, bounds, or return values.
 - The explicit unsafe `raw` API may expose native addresses only as opaque
   values. Never construct Rust references to client memory, and do not promise
   validity beyond the lifetime of the matching loaded client.

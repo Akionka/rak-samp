@@ -132,18 +132,43 @@ _Avoid_: Protocol bitstream, owned packet value
 
 **Protocol codec**:
 A transport-neutral transformation between owned protocol values and the
-project's bit-reader/bit-writer contracts.
+project's bit-reader/bit-writer contracts. It owns no message ID, Packet/RPC
+kind, direction, or trailing policy.
 _Avoid_: callback handler, HostApi adapter
 
+**Neutral Wire primitive**:
+A reusable binary representation contract over the current bit cursor. It may
+define byte order and explicit bounds, but not text, profile, compression, or
+message semantics.
+_Avoid_: string codec, profile helper, serialization framework
+
 **Wire descriptor**:
-The Protocol-owned identity, codec, and trailing-bit policy for one packet or
-RPC wire message. It contains no callback registration or action behavior.
+The Protocol-owned identity, value encoding and decoding contract, and
+trailing-bit policy for one Packet or RPC wire message. It contains no callback
+registration or action behavior.
 _Avoid_: callback descriptor, event handler
 
-**Callback descriptor**:
-The SDK-owned adapter that connects a Wire descriptor to callback lifetime,
-handler dispatch, replacement, and `Continue`/`Block` policy.
-_Avoid_: Wire descriptor, Protocol codec
+**Built-in Wire descriptor**:
+A nominal Wire descriptor for one known SA-MP Packet or RPC whose public
+identity is independent of its internal encoding implementation.
+_Avoid_: codec alias, generic descriptor
+
+**Generic directional descriptor**:
+A Protocol composition facility that assigns an ID, Packet/RPC kind, direction,
+and explicit trailing policy to a custom or ad-hoc codec. External codecs cannot
+claim direction directly, and codec reuse does not imply descriptor reuse.
+_Avoid_: built-in descriptor, message catalog entry
+
+**Typed callback descriptor**:
+The public sealed SDK metadata projection of one directional typed message. It
+exposes only the value type and raw ID needed by generic registration and owns no
+Protocol or callback behavior.
+_Avoid_: Wire descriptor, callback adapter, extension point
+
+**Callback adapter**:
+The SDK-internal adaptation of a typed callback descriptor to callback lifetime,
+decode and handler dispatch, replacement encoding, and ABI action policy.
+_Avoid_: Wire descriptor, Protocol codec, public callback trait
 
 **Encoded-string codec**:
 An injected contract for SA-MP RakNet compressed strings whose Native

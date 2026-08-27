@@ -3,7 +3,7 @@
 This Rust 2024 Cargo workspace builds the Windows x86 `samp_client_sdk.asi`
 host and provides the public SDK used by independently loaded SA-MP plugins.
 
-- Package and build tool: Cargo (Rust 1.87); `.cargo/config.toml` defaults to
+- Package and build tool: Cargo (Rust 1.98); `.cargo/config.toml` defaults to
   `i686-pc-windows-msvc`.
 - Workspace build: `cargo build --workspace`.
 - Workspace type/lint check: `cargo clippy --workspace -- -D warnings`.
