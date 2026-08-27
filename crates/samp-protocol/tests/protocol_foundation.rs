@@ -89,6 +89,18 @@ fn encoded_bits_canonicalize_unused_bits_and_reject_non_minimal_storage() {
 }
 
 #[test]
+fn encoded_bits_reject_oversized_payload() {
+    let maximum_bytes = MAX_BIT_STREAM_BITS.div_ceil(u8::BITS as usize);
+
+    assert_eq!(
+        EncodedBits::from_bits(vec![0; maximum_bytes + 1], MAX_BIT_STREAM_BITS + 1),
+        Err(EncodedBitsError::PayloadTooLarge {
+            requested_bits: MAX_BIT_STREAM_BITS + 1,
+        })
+    );
+}
+
+#[test]
 fn encoded_bits_support_empty_and_reject_invalid_lengths() {
     assert_eq!(EncodedBits::from_bits([], 0).unwrap().as_bytes(), &[]);
     assert_eq!(
