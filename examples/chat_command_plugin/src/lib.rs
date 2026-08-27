@@ -121,7 +121,7 @@ fn initialize() {
         return;
     }
     let net = samp.net();
-    let subscriptions = match net.on_outgoing_protocol_rpc(SEND_COMMAND, move |command| {
+    let subscriptions = match net.on_outgoing_typed_rpc(SEND_COMMAND, move |command| {
         if is_samp_client_sdk_command(&command) {
             run_example(samp);
             ProtocolAction::Block

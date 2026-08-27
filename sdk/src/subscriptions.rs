@@ -411,9 +411,9 @@ macro_rules! register_handlers {
         $subscriptions.try_add($api.on_outgoing_protocol_packet($descriptor, $handler))
     };
     (@add $subscriptions:ident, $api:ident, incoming_protocol_rpc, $descriptor:expr, $handler:expr) => {
-        $subscriptions.try_add($api.on_incoming_protocol_rpc($descriptor, $handler))
+        $subscriptions.try_add($api.on_incoming_typed_rpc($descriptor, $handler))
     };
     (@add $subscriptions:ident, $api:ident, outgoing_protocol_rpc, $descriptor:expr, $handler:expr) => {
-        $subscriptions.try_add($api.on_outgoing_protocol_rpc($descriptor, $handler))
+        $subscriptions.try_add($api.on_outgoing_typed_rpc($descriptor, $handler))
     };
 }

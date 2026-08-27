@@ -647,7 +647,7 @@ impl Net {
         D::Value: 'static,
         F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.api.on_incoming_protocol_rpc(descriptor, handler)
+        self.on_incoming_typed_rpc(descriptor, handler)
     }
 
     /// Registers an outgoing RPC callback that decodes one Protocol-owned descriptor.
@@ -661,7 +661,7 @@ impl Net {
         D::Value: 'static,
         F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.api.on_outgoing_protocol_rpc(descriptor, handler)
+        self.on_outgoing_typed_rpc(descriptor, handler)
     }
 
     /// Registers an incoming Packet callback that decodes one Protocol-owned descriptor.

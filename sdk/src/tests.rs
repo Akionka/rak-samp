@@ -1717,7 +1717,7 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
     test_support::reset_registration();
     let api = test_support::test_api();
     let subscription = api
-        .on_outgoing_protocol_rpc(SEND_DIALOG_RESPONSE, |response| {
+        .on_outgoing_typed_rpc(SEND_DIALOG_RESPONSE, |response| {
             match response.input.as_slice() {
                 b"continue" => ProtocolAction::Continue,
                 b"block" => ProtocolAction::Block,
@@ -2232,7 +2232,7 @@ fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     test_support::reset_registration();
     let api = test_support::test_api();
     let subscription = api
-        .on_incoming_protocol_rpc(SERVER_MESSAGE, |message| match message.text.as_slice() {
+        .on_incoming_typed_rpc(SERVER_MESSAGE, |message| match message.text.as_slice() {
             b"continue" => ProtocolAction::Continue,
             b"block" => ProtocolAction::Block,
             b"replace" => ProtocolAction::Replace(ServerMessage {
@@ -2301,7 +2301,7 @@ fn register_handlers_collects_every_supported_handler_form() {
             samp_protocol::packet::r1::PLAYER_SYNC,
             |_| ProtocolAction::Continue
         ),
-        incoming_protocol_rpc(
+        incoming_typed_rpc(
             protocol_incoming::r1::ENABLE_STUNT_BONUS,
             |_| ProtocolAction::Continue
         ),

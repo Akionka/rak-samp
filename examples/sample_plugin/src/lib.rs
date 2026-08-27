@@ -113,7 +113,7 @@ fn initialize() {
 
     let subscription = samp
         .net()
-        .on_incoming_protocol_rpc(SERVER_MESSAGE, |_message| {
+        .on_incoming_typed_rpc(SERVER_MESSAGE, |_message| {
             SERVER_MESSAGES.fetch_add(1, Ordering::Relaxed);
             ProtocolAction::Continue
         });

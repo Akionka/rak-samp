@@ -581,21 +581,19 @@ fn initialize() {
     STATUS.fetch_or(STATUS_RUNTIME_IDENTITY, Ordering::AcqRel);
     publish_status();
 
-    let reply_subscription = match samp
-        .net()
-        .on_incoming_protocol_rpc(SERVER_MESSAGE, |message| {
-            if message.text == INCOMING_MARKER {
-                STATUS.fetch_or(STATUS_REPLY_OBSERVED, Ordering::AcqRel);
-                INCOMING_REPLY_COUNT.fetch_add(1, Ordering::AcqRel);
-            }
-            if let Some(ids) = parse_entity_ids(&message.text) {
-                *ENTITY_IDS.lock().unwrap_or_else(|error| error.into_inner()) = Some(ids);
-            }
-            record_vehicle_phase(&message.text);
-            // The visible normal-chat reply is the required human proof that
-            // SA-MP's original incoming-RPC handler ran after this callback.
-            ProtocolAction::Continue
-        }) {
+    let reply_subscription = match samp.net().on_incoming_typed_rpc(SERVER_MESSAGE, |message| {
+        if message.text == INCOMING_MARKER {
+            STATUS.fetch_or(STATUS_REPLY_OBSERVED, Ordering::AcqRel);
+            INCOMING_REPLY_COUNT.fetch_add(1, Ordering::AcqRel);
+        }
+        if let Some(ids) = parse_entity_ids(&message.text) {
+            *ENTITY_IDS.lock().unwrap_or_else(|error| error.into_inner()) = Some(ids);
+        }
+        record_vehicle_phase(&message.text);
+        // The visible normal-chat reply is the required human proof that
+        // SA-MP's original incoming-RPC handler ran after this callback.
+        ProtocolAction::Continue
+    }) {
         Ok(subscription) => subscription,
         Err(error) => {
             record_failure(error);
