@@ -160,66 +160,68 @@ impl HostApi {
     ///
     /// Nonmatching packet IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_packet`] when decode failures need plugin-specific reporting.
-    pub fn on_incoming_typed_packet<T, F>(
+    pub fn on_incoming_typed_packet<D, F>(
         self,
-        packet: events::IncomingPacket<T>,
+        packet: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
+        D: events::TypedCallbackDescriptor<events::Incoming, events::PacketKind> + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_packet_id(
-            SampClientSdkDirection::Incoming,
-            packet.id(),
-            move |event| {
-                packet
-                    .handle(event, &handler)
-                    .unwrap_or(SampClientSdkHookAction::Continue)
-            },
-        )
+        let (id, state) =
+            events::callback_registration::<D, events::Incoming, events::PacketKind>(packet);
+        self.on_packet_id(SampClientSdkDirection::Incoming, id, move |event| {
+            events::handle_typed_callback::<D, events::Incoming, events::PacketKind, _>(
+                &state, event, &handler,
+            )
+        })
     }
 
     /// Registers an outgoing packet callback that decodes one typed descriptor.
     ///
     /// Nonmatching packet IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_packet`] when decode failures need plugin-specific reporting.
-    pub fn on_outgoing_typed_packet<T, F>(
+    pub fn on_outgoing_typed_packet<D, F>(
         self,
-        packet: events::OutgoingPacket<T>,
+        packet: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
+        D: events::TypedCallbackDescriptor<events::Outgoing, events::PacketKind> + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_packet_id(
-            SampClientSdkDirection::Outgoing,
-            packet.id(),
-            move |event| {
-                packet
-                    .handle(event, &handler)
-                    .unwrap_or(SampClientSdkHookAction::Continue)
-            },
-        )
+        let (id, state) =
+            events::callback_registration::<D, events::Outgoing, events::PacketKind>(packet);
+        self.on_packet_id(SampClientSdkDirection::Outgoing, id, move |event| {
+            events::handle_typed_callback::<D, events::Outgoing, events::PacketKind, _>(
+                &state, event, &handler,
+            )
+        })
     }
 
     /// Registers an incoming RPC callback that decodes one typed descriptor.
     ///
     /// Nonmatching RPC IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_rpc`] when decode failures need plugin-specific reporting.
-    pub fn on_incoming_typed_rpc<T, F>(
+    pub fn on_incoming_typed_rpc<D, F>(
         self,
-        rpc: events::IncomingRpc<T>,
+        rpc: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
+        D: events::TypedCallbackDescriptor<events::Incoming, events::RpcKind> + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_rpc_id(SampClientSdkDirection::Incoming, rpc.id(), move |event| {
-            rpc.handle(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+        let (id, state) =
+            events::callback_registration::<D, events::Incoming, events::RpcKind>(rpc);
+        self.on_rpc_id(SampClientSdkDirection::Incoming, id, move |event| {
+            events::handle_typed_callback::<D, events::Incoming, events::RpcKind, _>(
+                &state, event, &handler,
+            )
         })
     }
 
@@ -227,18 +229,22 @@ impl HostApi {
     ///
     /// Nonmatching RPC IDs and decode errors continue without calling `handler`. Use
     /// [`Self::on_rpc`] when decode failures need plugin-specific reporting.
-    pub fn on_outgoing_typed_rpc<T, F>(
+    pub fn on_outgoing_typed_rpc<D, F>(
         self,
-        rpc: events::OutgoingRpc<T>,
+        rpc: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> events::ProtocolAction<T> + Send + Sync + 'static,
+        D: events::TypedCallbackDescriptor<events::Outgoing, events::RpcKind> + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
-        self.on_rpc_id(SampClientSdkDirection::Outgoing, rpc.id(), move |event| {
-            rpc.handle(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+        let (id, state) =
+            events::callback_registration::<D, events::Outgoing, events::RpcKind>(rpc);
+        self.on_rpc_id(SampClientSdkDirection::Outgoing, id, move |event| {
+            events::handle_typed_callback::<D, events::Outgoing, events::RpcKind, _>(
+                &state, event, &handler,
+            )
         })
     }
 

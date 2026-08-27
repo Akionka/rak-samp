@@ -1,13 +1,16 @@
 //! Typed SA-MP RPC and packet helpers modeled after MoonLoader's `samp.events`.
 //!
-//! Register one raw callback through [`crate::HostApi`] and invoke a matching descriptor helper
-//! from it. Typed RPC catalogs live under [`rpc::incoming`] and [`rpc::outgoing`]; R1 exact-bit
-//! Packet catalogs live in [`samp_protocol::packet::r1`].
+//! Register Protocol-owned and remaining Host-backed descriptors through the same directional
+//! typed methods on [`crate::Net`]. Typed RPC catalogs live under [`rpc::incoming`] and
+//! [`rpc::outgoing`]; Protocol Packet catalogs live in [`samp_protocol::packet`].
 
+mod callback;
 mod core;
 pub mod packet;
 pub mod rpc;
 
+pub use callback::{Incoming, Outgoing, PacketKind, RpcKind, TypedCallbackDescriptor};
+pub(crate) use callback::{handle as handle_typed_callback, registration as callback_registration};
 #[cfg(test)]
 pub(crate) use core::TypedDescriptor;
 pub(crate) use core::handle_protocol;

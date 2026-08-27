@@ -1582,14 +1582,15 @@ fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
     test_support::reset_registration();
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::clone(&calls);
-    let api = test_support::test_api();
-    let subscription = api
-        .on_incoming_protocol_rpc(protocol_incoming::r1::ENABLE_STUNT_BONUS, move |enabled| {
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_incoming_typed_rpc(protocol_incoming::r1::ENABLE_STUNT_BONUS, move |enabled| {
             assert!(enabled);
             observed.fetch_add(1, Ordering::AcqRel);
             ProtocolAction::Block
         })
         .expect("test registration must succeed");
+    assert_eq!(test_support::registration_stats().registered_callbacks, 1);
 
     assert_eq!(
         test_support::invoke_registered_callback(99),
@@ -1628,16 +1629,17 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
         .lock()
         .unwrap_or_else(|error| error.into_inner());
     test_support::reset_registration();
-    let api = test_support::test_api();
-    let subscription =
-        api.on_outgoing_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, |text| {
-            match text.as_slice() {
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_outgoing_typed_rpc(
+            samp_protocol::rpc::outgoing::chat::SEND_CHAT,
+            |text| match text.as_slice() {
                 b"continue" => ProtocolAction::Continue,
                 b"block" => ProtocolAction::Block,
                 b"replace" => ProtocolAction::Replace(b"changed".to_vec()),
                 _ => unreachable!("test payload must select a callback action"),
-            }
-        })
+            },
+        )
         .expect("test registration must succeed");
 
     for (value, expected) in [
@@ -1757,9 +1759,9 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
         .lock()
         .unwrap_or_else(|error| error.into_inner());
     test_support::reset_registration();
-    let api = test_support::test_api();
-    let subscription = api
-        .on_incoming_protocol_packet(CONNECTION_ACCEPTED, |connection| {
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_incoming_typed_packet(CONNECTION_ACCEPTED, |connection| {
             match connection.challenge {
                 1 => ProtocolAction::Continue,
                 2 => ProtocolAction::Block,
@@ -1810,6 +1812,98 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
             96,
         ))
     );
+
+    subscription
+        .unregister_and_wait()
+        .expect("test shutdown must synchronize");
+}
+
+#[test]
+fn normal_typed_methods_accept_all_descriptor_sources() {
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let net = Samp::from_api(test_support::test_api()).net();
+
+    let subscriptions = [
+        net.on_outgoing_typed_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, |_| {
+            ProtocolAction::Continue
+        })
+        .expect("Protocol Packet registration must succeed"),
+        net.on_incoming_typed_rpc(events::rpc::incoming::SHOW_DIALOG, |_| {
+            ProtocolAction::Continue
+        })
+        .expect("legacy incoming RPC registration must succeed"),
+        net.on_outgoing_typed_rpc(events::rpc::outgoing::damage::SEND_DAMAGE, |_| {
+            ProtocolAction::Continue
+        })
+        .expect("legacy outgoing RPC registration must succeed"),
+    ];
+
+    assert_eq!(test_support::registration_stats().registered_callbacks, 3);
+    for subscription in subscriptions {
+        subscription
+            .unregister_and_wait()
+            .expect("test shutdown must synchronize");
+    }
+}
+
+#[test]
+fn normal_typed_legacy_callback_preserves_all_actions() {
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    let calls = Arc::new(AtomicUsize::new(0));
+    let observed = Arc::clone(&calls);
+    let subscription = Samp::from_api(test_support::test_api())
+        .net()
+        .on_outgoing_typed_rpc(events::rpc::outgoing::damage::SEND_DAMAGE, move |damage| {
+            match observed.fetch_add(1, Ordering::AcqRel) {
+                0 => ProtocolAction::Continue,
+                1 => ProtocolAction::Block,
+                2 => ProtocolAction::Replace(damage),
+                _ => unreachable!("test invokes exactly three actions"),
+            }
+        })
+        .expect("legacy typed registration must succeed");
+    let payload = || {
+        EncodedPayload::from_bits(
+            vec![
+                0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00, 0x00,
+                0x00,
+            ],
+            113,
+        )
+        .expect("the exact damage vector is valid")
+    };
+
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(115, payload()),
+        Some((
+            SampClientSdkHookAction::Continue,
+            payload().as_bytes().to_vec(),
+            113,
+        ))
+    );
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(115, payload()),
+        Some((
+            SampClientSdkHookAction::Block,
+            payload().as_bytes().to_vec(),
+            113,
+        ))
+    );
+    assert_eq!(
+        test_support::invoke_registered_callback_with_replacement(115, payload()),
+        Some((
+            SampClientSdkHookAction::Continue,
+            payload().as_bytes().to_vec(),
+            113,
+        ))
+    );
+    assert_eq!(calls.load(Ordering::Acquire), 3);
 
     subscription
         .unregister_and_wait()

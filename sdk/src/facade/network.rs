@@ -576,50 +576,62 @@ impl Net {
         self.api.on_rpc_id(direction, id, handler)
     }
 
-    pub fn on_incoming_typed_packet<T, F>(
+    pub fn on_incoming_typed_packet<D, F>(
         self,
-        packet: crate::events::IncomingPacket<T>,
+        packet: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
+        D: crate::events::TypedCallbackDescriptor<
+                crate::events::Incoming,
+                crate::events::PacketKind,
+            > + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_incoming_typed_packet(packet, handler)
     }
 
-    pub fn on_outgoing_typed_packet<T, F>(
+    pub fn on_outgoing_typed_packet<D, F>(
         self,
-        packet: crate::events::OutgoingPacket<T>,
+        packet: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
+        D: crate::events::TypedCallbackDescriptor<
+                crate::events::Outgoing,
+                crate::events::PacketKind,
+            > + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_outgoing_typed_packet(packet, handler)
     }
 
-    pub fn on_incoming_typed_rpc<T, F>(
+    pub fn on_incoming_typed_rpc<D, F>(
         self,
-        rpc: crate::events::IncomingRpc<T>,
+        rpc: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
+        D: crate::events::TypedCallbackDescriptor<crate::events::Incoming, crate::events::RpcKind>
+            + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_incoming_typed_rpc(rpc, handler)
     }
 
-    pub fn on_outgoing_typed_rpc<T, F>(
+    pub fn on_outgoing_typed_rpc<D, F>(
         self,
-        rpc: crate::events::OutgoingRpc<T>,
+        rpc: D,
         handler: F,
     ) -> Result<Subscription, SampClientSdkResult>
     where
-        T: 'static,
-        F: Fn(T) -> crate::events::ProtocolAction<T> + Send + Sync + 'static,
+        D: crate::events::TypedCallbackDescriptor<crate::events::Outgoing, crate::events::RpcKind>
+            + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.api.on_outgoing_typed_rpc(rpc, handler)
     }

@@ -4,7 +4,10 @@
 
 - `sdk/` is the public Rust package imported as `samp_client_sdk` by ASI
   plugins; its public paths follow cohesive modules rather than compatibility
-  aliases.
+  aliases. `Net` projects Protocol-owned and remaining Host-backed descriptors
+  through one sealed typed callback model. Direction and Packet/RPC kind stay
+  type-level, while decode, replacement, callback lifetime, and Host mutation
+  remain private SDK adaptation.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
   `limits`, one canonical set of cursor-preserving Wire read/write primitives,
