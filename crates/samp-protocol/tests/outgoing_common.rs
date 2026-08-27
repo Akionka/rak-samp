@@ -1,4 +1,3 @@
-use samp_protocol::rpc::incoming::Vector3;
 use samp_protocol::rpc::outgoing::common::{
     CameraTargetUpdate, ClickPlayer, ClientCheckResponse, ClientJoin, DeathNotification,
     DialogResponse, EditAttachedObject, EnterEditObject, EnterVehicle, MoneyIncrease, NpcJoin,
@@ -11,6 +10,7 @@ use samp_protocol::rpc::outgoing::common::{
     SEND_VEHICLE_DESTROYED, SEND_VEHICLE_TUNING, SendDialogResponse, SendInteriorChange,
     VehicleDamage, VehicleTuning,
 };
+use samp_protocol::types::Vector3;
 use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
 
 fn id<D: WireDescriptor>(_: D) -> u8 {

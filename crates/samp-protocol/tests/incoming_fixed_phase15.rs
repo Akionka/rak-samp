@@ -7,10 +7,13 @@ use samp_protocol::rpc::incoming::{
     SET_CAMERA_LOOK_AT, SET_CAMERA_POSITION, SET_GRAVITY, SET_PLAYER_FIGHTING_STYLE,
     SET_PLAYER_SPECIAL_ACTION, SET_PLAYER_VELOCITY, SET_VEHICLE_NUMBER_PLATE, SET_VEHICLE_PARAMS,
     SET_VEHICLE_VELOCITY, SET_WEAPON_AMMO, SPECTATE_PLAYER, SPECTATE_VEHICLE, STOP_OBJECT,
-    Spectate, TEXT_DRAW_SET_STRING, TextDrawSetString, TextDrawString, TrailerAttachment, Vector2,
-    Vector3, VehicleNumberPlate, VehicleParams, VehicleVelocity, WeaponAmmo,
+    Spectate, TEXT_DRAW_SET_STRING, TextDrawSetString, TextDrawString, TrailerAttachment,
+    VehicleNumberPlate, VehicleParams, VehicleVelocity, WeaponAmmo,
 };
-use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
+use samp_protocol::{
+    DecodeError, EncodeError, EncodedBits, WireDescriptor,
+    types::{Vector2, Vector3},
+};
 
 fn id<D: WireDescriptor>(_: D) -> u8 {
     D::ID

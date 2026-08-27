@@ -8,14 +8,15 @@ use super::{
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
 use samp_protocol::{
     WireDescriptor, packet::r1 as protocol_packet, rpc::incoming as protocol_incoming,
+    types::Vector3 as ProtocolVector3,
 };
 
 fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }
 }
 
-fn test_protocol_vector3(x: f32, y: f32, z: f32) -> protocol_incoming::Vector3 {
-    protocol_incoming::Vector3 { x, y, z }
+fn test_protocol_vector3(x: f32, y: f32, z: f32) -> ProtocolVector3 {
+    ProtocolVector3 { x, y, z }
 }
 
 fn test_spawn_info() -> protocol_incoming::r1::SpawnInfo {
@@ -58,7 +59,7 @@ fn test_protocol_animation() -> protocol_incoming::r1::Animation {
 
 #[test]
 fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
-    use protocol_incoming::Vector3;
+    use samp_protocol::types::Vector3;
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
     where
@@ -261,7 +262,7 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
 
 #[test]
 fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
-    use protocol_incoming::Vector3;
+    use samp_protocol::types::Vector3;
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
     where
@@ -370,7 +371,7 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
 
 #[test]
 fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
-    use protocol_incoming::{Vector2, Vector3};
+    use samp_protocol::types::{Vector2, Vector3};
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
     where

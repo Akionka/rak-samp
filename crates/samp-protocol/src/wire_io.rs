@@ -1,4 +1,7 @@
 //! Neutral primitive operations over raw Protocol bit I/O.
+//!
+//! This layer owns binary representation only. Text, profile, compression, and
+//! message semantics remain in specialized codecs.
 
 use crate::{
     BitRead, BitWrite, DecodeError, EncodeError,

@@ -9,7 +9,7 @@ use crate::{
     WireReadExt, WireWriteExt,
 };
 
-pub use super::common::Vector3;
+use crate::types::Vector3;
 
 /// R1 marker packets cannot contain more players than the Protocol player-slot limit.
 pub const MAX_MARKERS: usize = 1_000;
@@ -119,33 +119,33 @@ impl WireCodec for RemotePlayerSyncCodec {
     const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let player_id = read_u16(reader)?;
+        let player_id = reader.read_u16_le()?;
         let left_right_keys = read_bit_bool(reader)?
-            .then(|| read_u16(reader))
+            .then(|| reader.read_u16_le())
             .transpose()?;
         let up_down_keys = read_bit_bool(reader)?
-            .then(|| read_u16(reader))
+            .then(|| reader.read_u16_le())
             .transpose()?;
-        let key_data = read_u16(reader)?;
-        let position = read_vector3(reader)?;
+        let key_data = reader.read_u16_le()?;
+        let position = reader.read_vector3_le()?;
         let quaternion = read_normalized_quaternion(reader)?;
-        let (health, armour) = decode_health_armour(read_u8(reader)?);
-        let weapon = read_u8(reader)?;
-        let special_action = read_u8(reader)?;
+        let (health, armour) = decode_health_armour(reader.read_u8()?);
+        let weapon = reader.read_u8()?;
+        let special_action = reader.read_u8()?;
         let move_speed = read_compressed_vector(reader)?;
         let surfing = read_bit_bool(reader)?
             .then(|| {
                 Ok(RemotePlayerSurfing {
-                    vehicle_id: read_u16(reader)?,
-                    offsets: read_vector3(reader)?,
+                    vehicle_id: reader.read_u16_le()?,
+                    offsets: reader.read_vector3_le()?,
                 })
             })
             .transpose()?;
         let animation = read_bit_bool(reader)?
             .then(|| {
                 Ok(RemotePlayerAnimation {
-                    id: read_u16(reader)?,
-                    flags: read_u16(reader)?,
+                    id: reader.read_u16_le()?,
+                    flags: reader.read_u16_le()?,
                 })
             })
             .transpose()?;
@@ -170,25 +170,25 @@ impl WireCodec for RemotePlayerSyncCodec {
         writer: &mut W,
         value: &Self::Value,
     ) -> Result<(), EncodeError<W::Error>> {
-        write_u16(writer, value.player_id)?;
+        writer.write_u16_le(value.player_id)?;
         write_option_u16(writer, value.left_right_keys)?;
         write_option_u16(writer, value.up_down_keys)?;
-        write_u16(writer, value.key_data)?;
-        write_vector3(writer, value.position)?;
+        writer.write_u16_le(value.key_data)?;
+        writer.write_vector3_le(&value.position)?;
         write_normalized_quaternion(writer, value.quaternion)?;
-        write_u8(writer, encode_health_armour(value.health, value.armour))?;
-        write_u8(writer, value.weapon)?;
-        write_u8(writer, value.special_action)?;
+        writer.write_u8(encode_health_armour(value.health, value.armour))?;
+        writer.write_u8(value.weapon)?;
+        writer.write_u8(value.special_action)?;
         write_compressed_vector(writer, value.move_speed)?;
         write_bit_bool(writer, value.surfing.is_some())?;
         if let Some(surfing) = value.surfing {
-            write_u16(writer, surfing.vehicle_id)?;
-            write_vector3(writer, surfing.offsets)?;
+            writer.write_u16_le(surfing.vehicle_id)?;
+            writer.write_vector3_le(&surfing.offsets)?;
         }
         write_bit_bool(writer, value.animation.is_some())?;
         if let Some(animation) = value.animation {
-            write_u16(writer, animation.id)?;
-            write_u16(writer, animation.flags)?;
+            writer.write_u16_le(animation.id)?;
+            writer.write_u16_le(animation.flags)?;
         }
         Ok(())
     }
@@ -200,24 +200,24 @@ impl WireCodec for RemoteVehicleSyncCodec {
     const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let player_id = read_u16(reader)?;
-        let vehicle_id = read_u16(reader)?;
-        let left_right_keys = read_u16(reader)?;
-        let up_down_keys = read_u16(reader)?;
-        let key_data = read_u16(reader)?;
+        let player_id = reader.read_u16_le()?;
+        let vehicle_id = reader.read_u16_le()?;
+        let left_right_keys = reader.read_u16_le()?;
+        let up_down_keys = reader.read_u16_le()?;
+        let key_data = reader.read_u16_le()?;
         let quaternion = read_normalized_quaternion(reader)?;
-        let position = read_vector3(reader)?;
+        let position = reader.read_vector3_le()?;
         let move_speed = read_compressed_vector(reader)?;
-        let vehicle_health = read_u16(reader)?;
-        let (player_health, armour) = decode_health_armour(read_u8(reader)?);
-        let current_weapon = read_u8(reader)?;
+        let vehicle_health = reader.read_u16_le()?;
+        let (player_health, armour) = decode_health_armour(reader.read_u8()?);
+        let current_weapon = reader.read_u8()?;
         let siren = read_bit_bool(reader)?;
         let landing_gear = read_bit_bool(reader)?;
         let train_speed = read_bit_bool(reader)?
-            .then(|| read_i32(reader))
+            .then(|| reader.read_i32_le())
             .transpose()?;
         let trailer_id = read_bit_bool(reader)?
-            .then(|| read_u16(reader))
+            .then(|| reader.read_u16_le())
             .transpose()?;
         Ok(RemoteVehicleSync {
             player_id,
@@ -243,29 +243,26 @@ impl WireCodec for RemoteVehicleSyncCodec {
         writer: &mut W,
         value: &Self::Value,
     ) -> Result<(), EncodeError<W::Error>> {
-        write_u16(writer, value.player_id)?;
-        write_u16(writer, value.vehicle_id)?;
-        write_u16(writer, value.left_right_keys)?;
-        write_u16(writer, value.up_down_keys)?;
-        write_u16(writer, value.key_data)?;
+        writer.write_u16_le(value.player_id)?;
+        writer.write_u16_le(value.vehicle_id)?;
+        writer.write_u16_le(value.left_right_keys)?;
+        writer.write_u16_le(value.up_down_keys)?;
+        writer.write_u16_le(value.key_data)?;
         write_normalized_quaternion(writer, value.quaternion)?;
-        write_vector3(writer, value.position)?;
+        writer.write_vector3_le(&value.position)?;
         write_compressed_vector(writer, value.move_speed)?;
-        write_u16(writer, value.vehicle_health)?;
-        write_u8(
-            writer,
-            encode_health_armour(value.player_health, value.armour),
-        )?;
-        write_u8(writer, value.current_weapon)?;
+        writer.write_u16_le(value.vehicle_health)?;
+        writer.write_u8(encode_health_armour(value.player_health, value.armour))?;
+        writer.write_u8(value.current_weapon)?;
         write_bit_bool(writer, value.siren)?;
         write_bit_bool(writer, value.landing_gear)?;
         write_bit_bool(writer, value.train_speed.is_some())?;
         if let Some(train_speed) = value.train_speed {
-            write_i32(writer, train_speed)?;
+            writer.write_i32_le(train_speed)?;
         }
         write_bit_bool(writer, value.trailer_id.is_some())?;
         if let Some(trailer_id) = value.trailer_id {
-            write_u16(writer, trailer_id)?;
+            writer.write_u16_le(trailer_id)?;
         }
         Ok(())
     }
@@ -277,7 +274,7 @@ impl WireCodec for MarkersSyncCodec {
     const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::TerminalAlignmentPadding;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let count = usize::try_from(WireReadExt::read_i32_le(reader)?).map_err(|_| {
+        let count = usize::try_from(reader.read_i32_le()?).map_err(|_| {
             DecodeError::LengthExceedsLimit {
                 length: usize::MAX,
                 limit: MAX_MARKERS,
@@ -291,7 +288,7 @@ impl WireCodec for MarkersSyncCodec {
         }
         let mut markers = Vec::with_capacity(count);
         for _ in 0..count {
-            let player_id = WireReadExt::read_u16_le(reader)?;
+            let player_id = reader.read_u16_le()?;
             let coordinates = read_bit_bool(reader)?
                 .then(|| {
                     Ok(MarkerCoordinates {
@@ -319,9 +316,9 @@ impl WireCodec for MarkersSyncCodec {
                 limit: MAX_MARKERS,
             });
         }
-        WireWriteExt::write_i32_le(writer, value.markers.len() as i32)?;
+        writer.write_i32_le(value.markers.len() as i32)?;
         for marker in &value.markers {
-            WireWriteExt::write_u16_le(writer, marker.player_id)?;
+            writer.write_u16_le(marker.player_id)?;
             write_bit_bool(writer, marker.coordinates.is_some())?;
             if let Some(coordinates) = marker.coordinates {
                 WireWriteExt::write_i16_le(writer, coordinates.x)?;
@@ -339,13 +336,13 @@ fn write_option_u16<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     write_bit_bool(writer, value.is_some())?;
     if let Some(value) = value {
-        write_u16(writer, value)?;
+        writer.write_u16_le(value)?;
     }
     Ok(())
 }
 
 fn read_compressed_vector<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    let magnitude = read_f32(reader)?;
+    let magnitude = reader.read_f32_le()?;
     if magnitude == 0.0 {
         return Ok(Vector3 {
             x: 0.0,
@@ -365,7 +362,7 @@ fn write_compressed_vector<W: BitWrite>(
     value: Vector3,
 ) -> Result<(), EncodeError<W::Error>> {
     let magnitude = (value.x.mul_add(value.x, value.y * value.y) + value.z * value.z).sqrt();
-    write_f32(writer, magnitude)?;
+    writer.write_f32_le(magnitude)?;
     if magnitude != 0.0 {
         write_compressed_float(writer, value.x / magnitude)?;
         write_compressed_float(writer, value.y / magnitude)?;
@@ -375,17 +372,14 @@ fn write_compressed_vector<W: BitWrite>(
 }
 
 fn read_compressed_float<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    Ok(f32::from(read_u16(reader)?) / 32_767.5 - 1.0)
+    Ok(f32::from(reader.read_u16_le()?) / 32_767.5 - 1.0)
 }
 
 fn write_compressed_float<W: BitWrite>(
     writer: &mut W,
     value: f32,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(
-        writer,
-        ((value.clamp(-1.0, 1.0) + 1.0) * 32_767.5).round() as u16,
-    )
+    writer.write_u16_le(((value.clamp(-1.0, 1.0) + 1.0) * 32_767.5).round() as u16)
 }
 
 fn read_normalized_quaternion<R: BitRead>(
@@ -395,9 +389,9 @@ fn read_normalized_quaternion<R: BitRead>(
     let x_negative = read_bit_bool(reader)?;
     let y_negative = read_bit_bool(reader)?;
     let z_negative = read_bit_bool(reader)?;
-    let mut x = f32::from(read_u16(reader)?) / 65_535.0;
-    let mut y = f32::from(read_u16(reader)?) / 65_535.0;
-    let mut z = f32::from(read_u16(reader)?) / 65_535.0;
+    let mut x = f32::from(reader.read_u16_le()?) / 65_535.0;
+    let mut y = f32::from(reader.read_u16_le()?) / 65_535.0;
+    let mut z = f32::from(reader.read_u16_le()?) / 65_535.0;
     if x_negative {
         x = -x;
     }
@@ -423,10 +417,7 @@ fn write_normalized_quaternion<W: BitWrite>(
     write_bit_bool(writer, y < 0.0)?;
     write_bit_bool(writer, z < 0.0)?;
     for component in [x, y, z] {
-        write_u16(
-            writer,
-            (component.abs().clamp(0.0, 1.0) * 65_535.0).floor() as u16,
-        )?;
+        writer.write_u16_le((component.abs().clamp(0.0, 1.0) * 65_535.0).floor() as u16)?;
     }
     Ok(())
 }
@@ -453,46 +444,6 @@ fn write_bit_bool<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), Encode
     writer
         .write_left_aligned_bits(&[u8::from(value) << 7], 1)
         .map_err(EncodeError::Source)
-}
-
-fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
-    WireReadExt::read_u8(reader)
-}
-
-fn write_u8<W: BitWrite>(writer: &mut W, value: u8) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u8(writer, value)
-}
-
-fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {
-    WireReadExt::read_u16_le(reader)
-}
-
-fn write_u16<W: BitWrite>(writer: &mut W, value: u16) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u16_le(writer, value)
-}
-
-fn read_i32<R: BitRead>(reader: &mut R) -> Result<i32, DecodeError<R::Error>> {
-    WireReadExt::read_i32_le(reader)
-}
-
-fn write_i32<W: BitWrite>(writer: &mut W, value: i32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_i32_le(writer, value)
-}
-
-fn read_f32<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    WireReadExt::read_f32_le(reader)
-}
-
-fn write_f32<W: BitWrite>(writer: &mut W, value: f32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_f32_le(writer, value)
-}
-
-fn read_vector3<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    WireReadExt::read_vector3_le(reader)
-}
-
-fn write_vector3<W: BitWrite>(writer: &mut W, value: Vector3) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_vector3_le(writer, &value)
 }
 
 fn read_bits<R: BitRead>(reader: &mut R, bit_len: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {

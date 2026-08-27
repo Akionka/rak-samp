@@ -7,9 +7,9 @@ use samp_protocol::packet::common::{
     SEND_SPECTATOR_SYNC, SEND_STATS_UPDATE, SEND_TRAILER_SYNC, SEND_UNOCCUPIED_SYNC,
     SEND_VEHICLE_SYNC, SEND_WEAPONS_UPDATE, SendRconCommand, SendStatsUpdate, SendWeaponsUpdate,
     SpectatorSync, StatsUpdate, TRAILER_SYNC, TrailerSync, UNOCCUPIED_SYNC, UnoccupiedSync,
-    Vector3, VehicleSync, WeaponSlot, WeaponsUpdate,
+    VehicleSync, WeaponSlot, WeaponsUpdate,
 };
-use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
+use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor, types::Vector3};
 
 fn id<D: WireDescriptor>(_: D) -> u8 {
     D::ID

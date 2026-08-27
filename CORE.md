@@ -7,7 +7,7 @@
   aliases.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
-  `limits`, cursor-preserving Wire read/write primitives, directional typed Wire
+  `limits`, one canonical set of cursor-preserving Wire read/write primitives, directional typed Wire
   descriptors with explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
   slash-command, profile-neutral byte-aligned RPC codecs, common byte-aligned
   Packet codecs, and R1 exact-bit remote synchronization Packet codecs. Directional marker traits make an invalid typed

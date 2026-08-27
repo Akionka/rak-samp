@@ -1329,7 +1329,7 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
         SampClientSdkResult::Ok
     );
 
-    let protocol_zero = samp_protocol::rpc::incoming::Vector3 {
+    let protocol_zero = samp_protocol::types::Vector3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,
@@ -1374,7 +1374,7 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
 #[test]
 fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
     let api = test_support::test_api();
-    let zero = samp_protocol::packet::common::Vector3 {
+    let zero = samp_protocol::types::Vector3 {
         x: 0.0,
         y: 0.0,
         z: 0.0,

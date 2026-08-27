@@ -23,11 +23,11 @@ use samp_protocol::rpc::incoming::{
     SET_VEHICLE_TIRES, SET_WEATHER, SET_WORLD_BOUNDS, SET_WORLD_TIME, SHOW_MENU,
     SHOW_PLAYER_NAME_TAG, STOP_AUDIO_STREAM, ServerMessage, TOGGLE_PLAYER_CONTROLLABLE,
     TOGGLE_WIDESCREEN, UPDATE_GLOBAL_TIMER, VEHICLE_DAMAGE_STATUS_UPDATE, VEHICLE_STREAM_OUT,
-    VEHICLE_TUNING_NOTIFICATION, Vector3, VehicleAngle, VehicleComponent, VehicleDamageStatus,
+    VEHICLE_TUNING_NOTIFICATION, VehicleAngle, VehicleComponent, VehicleDamageStatus,
     VehicleHealth, VehicleInterior, VehicleParamsEx, VehiclePosition, VehicleTuningNotification,
     WorldBounds,
 };
-use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
+use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor, types::Vector3};
 
 fn id<D: WireDescriptor>(_: D) -> u8 {
     D::ID

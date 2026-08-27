@@ -1,7 +1,7 @@
-use samp_protocol::rpc::incoming::{Vector3, r1::*};
 use samp_protocol::{
     BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireCodec, WireDescriptor,
 };
+use samp_protocol::{rpc::incoming::r1::*, types::Vector3};
 
 fn vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }

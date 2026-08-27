@@ -397,7 +397,7 @@ fn read_text_draw_string<R: BitRead>(
 ) -> Result<TextDrawString, DecodeError<R::Error>> {
     Ok(TextDrawString {
         textdraw_id: reader.read_u16_le()?,
-        text: read_string16(reader)?,
+        text: reader.read_len_prefixed_bytes_u16_le(MAX_STRING32_BYTES)?,
     })
 }
 
@@ -406,14 +406,14 @@ fn write_text_draw_string<W: BitWrite>(
     value: &TextDrawString,
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.textdraw_id)?;
-    write_string16(writer, &value.text)
+    writer.write_len_prefixed_bytes_u16_le(&value.text, MAX_STRING32_BYTES)
 }
 
 fn read_gang_zone<R: BitRead>(reader: &mut R) -> Result<GangZone, DecodeError<R::Error>> {
     Ok(GangZone {
         zone_id: reader.read_u16_le()?,
-        square_start: read_vector2(reader)?,
-        square_end: read_vector2(reader)?,
+        square_start: reader.read_vector2_le()?,
+        square_end: reader.read_vector2_le()?,
         color: reader.read_i32_le()?,
     })
 }
@@ -423,8 +423,8 @@ fn write_gang_zone<W: BitWrite>(
     value: &GangZone,
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.zone_id)?;
-    write_vector2(writer, &value.square_start)?;
-    write_vector2(writer, &value.square_end)?;
+    writer.write_vector2_le(&value.square_start)?;
+    writer.write_vector2_le(&value.square_end)?;
     writer.write_i32_le(value.color)
 }
 
@@ -445,7 +445,7 @@ fn read_vehicle_number_plate<R: BitRead>(
 ) -> Result<VehicleNumberPlate, DecodeError<R::Error>> {
     Ok(VehicleNumberPlate {
         vehicle_id: reader.read_u16_le()?,
-        text: read_string8(reader)?,
+        text: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
     })
 }
 
@@ -454,7 +454,7 @@ fn write_vehicle_number_plate<W: BitWrite>(
     value: &VehicleNumberPlate,
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.vehicle_id)?;
-    write_string8(writer, &value.text)
+    writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
 }
 
 fn read_spectate<R: BitRead>(reader: &mut R) -> Result<Spectate, DecodeError<R::Error>> {
@@ -570,31 +570,4 @@ fn write_player_exit_vehicle<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.player_id)?;
     writer.write_u16_le(value.vehicle_id)
-}
-
-fn read_vector2<R: BitRead>(reader: &mut R) -> Result<Vector2, DecodeError<R::Error>> {
-    reader.read_vector2_le()
-}
-
-fn write_vector2<W: BitWrite>(
-    writer: &mut W,
-    value: &Vector2,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_vector2_le(value)
-}
-
-fn read_string8<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))
-}
-
-fn write_string8<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    writer.write_len_prefixed_bytes_u8(value, usize::from(u8::MAX))
-}
-
-fn read_string16<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    reader.read_len_prefixed_bytes_u16_le(MAX_STRING32_BYTES)
-}
-
-fn write_string16<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    writer.write_len_prefixed_bytes_u16_le(value, MAX_STRING32_BYTES)
 }

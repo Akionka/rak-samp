@@ -13,10 +13,7 @@ use crate::{
     WireReadExt, WireWriteExt,
 };
 
-pub use crate::{
-    limits::MAX_STRING32_BYTES,
-    types::{Vector2, Vector3},
-};
+use crate::{limits::MAX_STRING32_BYTES, types::Vector3};
 
 /// MoonLoader's `onServerMessage` payload (RPC 93).
 #[derive(Clone, Debug, PartialEq)]
@@ -603,13 +600,53 @@ macro_rules! fixed_codec {
     };
 }
 
+macro_rules! fixed_scalar_codec {
+    ($codec:ident, $value:ty, $read:ident, $write:ident) => {
+        impl WireCodec for $codec {
+            type Value = $value;
+            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
+
+            fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+                reader.$read()
+            }
+
+            fn encode<W: BitWrite>(
+                writer: &mut W,
+                value: &Self::Value,
+            ) -> Result<(), EncodeError<W::Error>> {
+                writer.$write(*value)
+            }
+        }
+    };
+}
+
+macro_rules! fixed_vector_codec {
+    ($codec:ident, $value:ty, $read:ident, $write:ident) => {
+        impl WireCodec for $codec {
+            type Value = $value;
+            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
+
+            fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+                reader.$read()
+            }
+
+            fn encode<W: BitWrite>(
+                writer: &mut W,
+                value: &Self::Value,
+            ) -> Result<(), EncodeError<W::Error>> {
+                writer.$write(value)
+            }
+        }
+    };
+}
+
 fixed_codec!(Empty, (), read_empty, write_empty);
-fixed_codec!(U8, u8, read_u8, write_u8);
-fixed_codec!(U16, u16, read_u16, write_u16);
-fixed_codec!(I32, i32, read_i32, write_i32);
-fixed_codec!(F32, f32, read_f32, write_f32);
+fixed_scalar_codec!(U8, u8, read_u8, write_u8);
+fixed_scalar_codec!(U16, u16, read_u16_le, write_u16_le);
+fixed_scalar_codec!(I32, i32, read_i32_le, write_i32_le);
+fixed_scalar_codec!(F32, f32, read_f32_le, write_f32_le);
 fixed_codec!(Bool8, bool, read_bool8, write_bool8);
-fixed_codec!(Vector3Codec, Vector3, read_vector3, write_vector3);
+fixed_vector_codec!(Vector3Codec, Vector3, read_vector3_le, write_vector3_le);
 fixed_codec!(
     ServerMessageCodec,
     ServerMessage,
@@ -835,8 +872,8 @@ fixed_codec!(
 
 fn read_server_message<R: BitRead>(reader: &mut R) -> Result<ServerMessage, DecodeError<R::Error>> {
     Ok(ServerMessage {
-        color: read_u32(reader)?,
-        text: read_string32(reader)?,
+        color: reader.read_u32_le()?,
+        text: reader.read_len_prefixed_bytes_u32_le(MAX_STRING32_BYTES)?,
     })
 }
 
@@ -844,15 +881,15 @@ fn write_server_message<W: BitWrite>(
     writer: &mut W,
     value: &ServerMessage,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u32(writer, &value.color)?;
-    write_string32(writer, &value.text)
+    writer.write_u32_le(value.color)?;
+    writer.write_len_prefixed_bytes_u32_le(&value.text, MAX_STRING32_BYTES)
 }
 
 fn read_game_text<R: BitRead>(reader: &mut R) -> Result<GameText, DecodeError<R::Error>> {
     Ok(GameText {
-        style: read_i32(reader)?,
-        time_ms: read_i32(reader)?,
-        text: read_string32(reader)?,
+        style: reader.read_i32_le()?,
+        time_ms: reader.read_i32_le()?,
+        text: reader.read_len_prefixed_bytes_u32_le(MAX_STRING32_BYTES)?,
     })
 }
 
@@ -860,15 +897,15 @@ fn write_game_text<W: BitWrite>(
     writer: &mut W,
     value: &GameText,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, &value.style)?;
-    write_i32(writer, &value.time_ms)?;
-    write_string32(writer, &value.text)
+    writer.write_i32_le(value.style)?;
+    writer.write_i32_le(value.time_ms)?;
+    writer.write_len_prefixed_bytes_u32_le(&value.text, MAX_STRING32_BYTES)
 }
 
 fn read_play_sound<R: BitRead>(reader: &mut R) -> Result<PlaySound, DecodeError<R::Error>> {
     Ok(PlaySound {
-        sound_id: read_i32(reader)?,
-        position: read_vector3(reader)?,
+        sound_id: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
     })
 }
 
@@ -876,14 +913,14 @@ fn write_play_sound<W: BitWrite>(
     writer: &mut W,
     value: &PlaySound,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, &value.sound_id)?;
-    write_vector3(writer, &value.position)
+    writer.write_i32_le(value.sound_id)?;
+    writer.write_vector3_le(&value.position)
 }
 
 fn read_checkpoint<R: BitRead>(reader: &mut R) -> Result<Checkpoint, DecodeError<R::Error>> {
     Ok(Checkpoint {
-        position: read_vector3(reader)?,
-        radius: read_f32(reader)?,
+        position: reader.read_vector3_le()?,
+        radius: reader.read_f32_le()?,
     })
 }
 
@@ -891,14 +928,14 @@ fn write_checkpoint<W: BitWrite>(
     writer: &mut W,
     value: &Checkpoint,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, &value.radius)
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.radius)
 }
 
 fn read_chat_message<R: BitRead>(reader: &mut R) -> Result<ChatMessage, DecodeError<R::Error>> {
     Ok(ChatMessage {
-        player_id: read_u16(reader)?,
-        text: read_string8(reader)?,
+        player_id: reader.read_u16_le()?,
+        text: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
     })
 }
 
@@ -906,17 +943,17 @@ fn write_chat_message<W: BitWrite>(
     writer: &mut W,
     value: &ChatMessage,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_string8(writer, &value.text)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
 }
 
 fn read_chat_bubble<R: BitRead>(reader: &mut R) -> Result<ChatBubble, DecodeError<R::Error>> {
     Ok(ChatBubble {
-        player_id: read_u16(reader)?,
-        color: read_u32(reader)?,
-        draw_distance: read_f32(reader)?,
-        duration_ms: read_i32(reader)?,
-        text: read_string8(reader)?,
+        player_id: reader.read_u16_le()?,
+        color: reader.read_u32_le()?,
+        draw_distance: reader.read_f32_le()?,
+        duration_ms: reader.read_i32_le()?,
+        text: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
     })
 }
 
@@ -924,19 +961,19 @@ fn write_chat_bubble<W: BitWrite>(
     writer: &mut W,
     value: &ChatBubble,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_u32(writer, &value.color)?;
-    write_f32(writer, &value.draw_distance)?;
-    write_i32(writer, &value.duration_ms)?;
-    write_string8(writer, &value.text)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u32_le(value.color)?;
+    writer.write_f32_le(value.draw_distance)?;
+    writer.write_i32_le(value.duration_ms)?;
+    writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
 }
 
 fn read_player_join<R: BitRead>(reader: &mut R) -> Result<PlayerJoin, DecodeError<R::Error>> {
     Ok(PlayerJoin {
-        player_id: read_u16(reader)?,
-        color: read_u32(reader)?,
+        player_id: reader.read_u16_le()?,
+        color: reader.read_u32_le()?,
         is_npc: read_bool8(reader)?,
-        nickname: read_string8(reader)?,
+        nickname: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
     })
 }
 
@@ -944,16 +981,16 @@ fn write_player_join<W: BitWrite>(
     writer: &mut W,
     value: &PlayerJoin,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_u32(writer, &value.color)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u32_le(value.color)?;
     write_bool8(writer, &value.is_npc)?;
-    write_string8(writer, &value.nickname)
+    writer.write_len_prefixed_bytes_u8(&value.nickname, usize::from(u8::MAX))
 }
 
 fn read_player_quit<R: BitRead>(reader: &mut R) -> Result<PlayerQuit, DecodeError<R::Error>> {
     Ok(PlayerQuit {
-        player_id: read_u16(reader)?,
-        reason: read_u8(reader)?,
+        player_id: reader.read_u16_le()?,
+        reason: reader.read_u8()?,
     })
 }
 
@@ -961,14 +998,14 @@ fn write_player_quit<W: BitWrite>(
     writer: &mut W,
     value: &PlayerQuit,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_u8(writer, &value.reason)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u8(value.reason)
 }
 
 fn read_player_name<R: BitRead>(reader: &mut R) -> Result<PlayerName, DecodeError<R::Error>> {
     Ok(PlayerName {
-        player_id: read_u16(reader)?,
-        name: read_string8(reader)?,
+        player_id: reader.read_u16_le()?,
+        name: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
         success: read_bool8(reader)?,
     })
 }
@@ -977,15 +1014,15 @@ fn write_player_name<W: BitWrite>(
     writer: &mut W,
     value: &PlayerName,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_string8(writer, &value.name)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_len_prefixed_bytes_u8(&value.name, usize::from(u8::MAX))?;
     write_bool8(writer, &value.success)
 }
 
 fn read_player_time<R: BitRead>(reader: &mut R) -> Result<PlayerTime, DecodeError<R::Error>> {
     Ok(PlayerTime {
-        hour: read_u8(reader)?,
-        minute: read_u8(reader)?,
+        hour: reader.read_u8()?,
+        minute: reader.read_u8()?,
     })
 }
 
@@ -993,16 +1030,16 @@ fn write_player_time<W: BitWrite>(
     writer: &mut W,
     value: &PlayerTime,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, &value.hour)?;
-    write_u8(writer, &value.minute)
+    writer.write_u8(value.hour)?;
+    writer.write_u8(value.minute)
 }
 
 fn read_world_bounds<R: BitRead>(reader: &mut R) -> Result<WorldBounds, DecodeError<R::Error>> {
     Ok(WorldBounds {
-        max_x: read_f32(reader)?,
-        min_x: read_f32(reader)?,
-        max_y: read_f32(reader)?,
-        min_y: read_f32(reader)?,
+        max_x: reader.read_f32_le()?,
+        min_x: reader.read_f32_le()?,
+        max_y: reader.read_f32_le()?,
+        min_y: reader.read_f32_le()?,
     })
 }
 
@@ -1010,16 +1047,16 @@ fn write_world_bounds<W: BitWrite>(
     writer: &mut W,
     value: &WorldBounds,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_f32(writer, &value.max_x)?;
-    write_f32(writer, &value.min_x)?;
-    write_f32(writer, &value.max_y)?;
-    write_f32(writer, &value.min_y)
+    writer.write_f32_le(value.max_x)?;
+    writer.write_f32_le(value.min_x)?;
+    writer.write_f32_le(value.max_y)?;
+    writer.write_f32_le(value.min_y)
 }
 
 fn read_player_weapon<R: BitRead>(reader: &mut R) -> Result<PlayerWeapon, DecodeError<R::Error>> {
     Ok(PlayerWeapon {
-        weapon_id: read_i32(reader)?,
-        ammo: read_i32(reader)?,
+        weapon_id: reader.read_i32_le()?,
+        ammo: reader.read_i32_le()?,
     })
 }
 
@@ -1027,14 +1064,14 @@ fn write_player_weapon<W: BitWrite>(
     writer: &mut W,
     value: &PlayerWeapon,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, &value.weapon_id)?;
-    write_i32(writer, &value.ammo)
+    writer.write_i32_le(value.weapon_id)?;
+    writer.write_i32_le(value.ammo)
 }
 
 fn read_player_team<R: BitRead>(reader: &mut R) -> Result<PlayerTeam, DecodeError<R::Error>> {
     Ok(PlayerTeam {
-        player_id: read_u16(reader)?,
-        team_id: read_u8(reader)?,
+        player_id: reader.read_u16_le()?,
+        team_id: reader.read_u8()?,
     })
 }
 
@@ -1042,14 +1079,14 @@ fn write_player_team<W: BitWrite>(
     writer: &mut W,
     value: &PlayerTeam,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_u8(writer, &value.team_id)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u8(value.team_id)
 }
 
 fn read_player_skin<R: BitRead>(reader: &mut R) -> Result<PlayerSkin, DecodeError<R::Error>> {
     Ok(PlayerSkin {
-        player_id: read_i32(reader)?,
-        skin_id: read_i32(reader)?,
+        player_id: reader.read_i32_le()?,
+        skin_id: reader.read_i32_le()?,
     })
 }
 
@@ -1057,16 +1094,16 @@ fn write_player_skin<W: BitWrite>(
     writer: &mut W,
     value: &PlayerSkin,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, &value.player_id)?;
-    write_i32(writer, &value.skin_id)
+    writer.write_i32_le(value.player_id)?;
+    writer.write_i32_le(value.skin_id)
 }
 
 fn read_put_player_in_vehicle<R: BitRead>(
     reader: &mut R,
 ) -> Result<PutPlayerInVehicle, DecodeError<R::Error>> {
     Ok(PutPlayerInVehicle {
-        vehicle_id: read_u16(reader)?,
-        seat_id: read_u8(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        seat_id: reader.read_u8()?,
     })
 }
 
@@ -1074,16 +1111,16 @@ fn write_put_player_in_vehicle<W: BitWrite>(
     writer: &mut W,
     value: &PutPlayerInVehicle,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_u8(writer, &value.seat_id)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_u8(value.seat_id)
 }
 
 fn read_vehicle_position<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehiclePosition, DecodeError<R::Error>> {
     Ok(VehiclePosition {
-        vehicle_id: read_u16(reader)?,
-        position: read_vector3(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        position: reader.read_vector3_le()?,
     })
 }
 
@@ -1091,14 +1128,14 @@ fn write_vehicle_position<W: BitWrite>(
     writer: &mut W,
     value: &VehiclePosition,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_vector3(writer, &value.position)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_vector3_le(&value.position)
 }
 
 fn read_vehicle_angle<R: BitRead>(reader: &mut R) -> Result<VehicleAngle, DecodeError<R::Error>> {
     Ok(VehicleAngle {
-        vehicle_id: read_u16(reader)?,
-        angle: read_f32(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        angle: reader.read_f32_le()?,
     })
 }
 
@@ -1106,14 +1143,14 @@ fn write_vehicle_angle<W: BitWrite>(
     writer: &mut W,
     value: &VehicleAngle,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_f32(writer, &value.angle)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_f32_le(value.angle)
 }
 
 fn read_vehicle_health<R: BitRead>(reader: &mut R) -> Result<VehicleHealth, DecodeError<R::Error>> {
     Ok(VehicleHealth {
-        vehicle_id: read_u16(reader)?,
-        health: read_f32(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        health: reader.read_f32_le()?,
     })
 }
 
@@ -1121,18 +1158,18 @@ fn write_vehicle_health<W: BitWrite>(
     writer: &mut W,
     value: &VehicleHealth,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_f32(writer, &value.health)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_f32_le(value.health)
 }
 
 fn read_race_checkpoint<R: BitRead>(
     reader: &mut R,
 ) -> Result<RaceCheckpoint, DecodeError<R::Error>> {
     Ok(RaceCheckpoint {
-        checkpoint_type: read_u8(reader)?,
-        position: read_vector3(reader)?,
-        next_position: read_vector3(reader)?,
-        size: read_f32(reader)?,
+        checkpoint_type: reader.read_u8()?,
+        position: reader.read_vector3_le()?,
+        next_position: reader.read_vector3_le()?,
+        size: reader.read_f32_le()?,
     })
 }
 
@@ -1140,17 +1177,17 @@ fn write_race_checkpoint<W: BitWrite>(
     writer: &mut W,
     value: &RaceCheckpoint,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, &value.checkpoint_type)?;
-    write_vector3(writer, &value.position)?;
-    write_vector3(writer, &value.next_position)?;
-    write_f32(writer, &value.size)
+    writer.write_u8(value.checkpoint_type)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_vector3_le(&value.next_position)?;
+    writer.write_f32_le(value.size)
 }
 
 fn read_audio_stream<R: BitRead>(reader: &mut R) -> Result<AudioStream, DecodeError<R::Error>> {
     Ok(AudioStream {
-        url: read_string8(reader)?,
-        position: read_vector3(reader)?,
-        radius: read_f32(reader)?,
+        url: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
+        position: reader.read_vector3_le()?,
+        radius: reader.read_f32_le()?,
         use_position: read_bool8(reader)?,
     })
 }
@@ -1159,9 +1196,9 @@ fn write_audio_stream<W: BitWrite>(
     writer: &mut W,
     value: &AudioStream,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_string8(writer, &value.url)?;
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, &value.radius)?;
+    writer.write_len_prefixed_bytes_u8(&value.url, usize::from(u8::MAX))?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.radius)?;
     write_bool8(writer, &value.use_position)
 }
 
@@ -1169,8 +1206,8 @@ fn read_object_position<R: BitRead>(
     reader: &mut R,
 ) -> Result<ObjectPosition, DecodeError<R::Error>> {
     Ok(ObjectPosition {
-        object_id: read_u16(reader)?,
-        position: read_vector3(reader)?,
+        object_id: reader.read_u16_le()?,
+        position: reader.read_vector3_le()?,
     })
 }
 
@@ -1178,16 +1215,16 @@ fn write_object_position<W: BitWrite>(
     writer: &mut W,
     value: &ObjectPosition,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.object_id)?;
-    write_vector3(writer, &value.position)
+    writer.write_u16_le(value.object_id)?;
+    writer.write_vector3_le(&value.position)
 }
 
 fn read_object_rotation<R: BitRead>(
     reader: &mut R,
 ) -> Result<ObjectRotation, DecodeError<R::Error>> {
     Ok(ObjectRotation {
-        object_id: read_u16(reader)?,
-        rotation: read_vector3(reader)?,
+        object_id: reader.read_u16_le()?,
+        rotation: reader.read_vector3_le()?,
     })
 }
 
@@ -1195,17 +1232,17 @@ fn write_object_rotation<W: BitWrite>(
     writer: &mut W,
     value: &ObjectRotation,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.object_id)?;
-    write_vector3(writer, &value.rotation)
+    writer.write_u16_le(value.object_id)?;
+    writer.write_vector3_le(&value.rotation)
 }
 
 fn read_player_death_notification<R: BitRead>(
     reader: &mut R,
 ) -> Result<PlayerDeathNotification, DecodeError<R::Error>> {
     Ok(PlayerDeathNotification {
-        killer_id: read_u16(reader)?,
-        killed_id: read_u16(reader)?,
-        reason: read_u8(reader)?,
+        killer_id: reader.read_u16_le()?,
+        killed_id: reader.read_u16_le()?,
+        reason: reader.read_u8()?,
     })
 }
 
@@ -1213,18 +1250,18 @@ fn write_player_death_notification<W: BitWrite>(
     writer: &mut W,
     value: &PlayerDeathNotification,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.killer_id)?;
-    write_u16(writer, &value.killed_id)?;
-    write_u8(writer, &value.reason)
+    writer.write_u16_le(value.killer_id)?;
+    writer.write_u16_le(value.killed_id)?;
+    writer.write_u8(value.reason)
 }
 
 fn read_map_icon<R: BitRead>(reader: &mut R) -> Result<MapIcon, DecodeError<R::Error>> {
     Ok(MapIcon {
-        icon_id: read_u8(reader)?,
-        position: read_vector3(reader)?,
-        icon_type: read_u8(reader)?,
-        color: read_i32(reader)?,
-        style: read_u8(reader)?,
+        icon_id: reader.read_u8()?,
+        position: reader.read_vector3_le()?,
+        icon_type: reader.read_u8()?,
+        color: reader.read_i32_le()?,
+        style: reader.read_u8()?,
     })
 }
 
@@ -1232,19 +1269,19 @@ fn write_map_icon<W: BitWrite>(
     writer: &mut W,
     value: &MapIcon,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, &value.icon_id)?;
-    write_vector3(writer, &value.position)?;
-    write_u8(writer, &value.icon_type)?;
-    write_i32(writer, &value.color)?;
-    write_u8(writer, &value.style)
+    writer.write_u8(value.icon_id)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_u8(value.icon_type)?;
+    writer.write_i32_le(value.color)?;
+    writer.write_u8(value.style)
 }
 
 fn read_vehicle_component<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehicleComponent, DecodeError<R::Error>> {
     Ok(VehicleComponent {
-        vehicle_id: read_u16(reader)?,
-        component_id: read_u16(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        component_id: reader.read_u16_le()?,
     })
 }
 
@@ -1252,16 +1289,16 @@ fn write_vehicle_component<W: BitWrite>(
     writer: &mut W,
     value: &VehicleComponent,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_u16(writer, &value.component_id)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_u16_le(value.component_id)
 }
 
 fn read_vehicle_interior<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehicleInterior, DecodeError<R::Error>> {
     Ok(VehicleInterior {
-        vehicle_id: read_u16(reader)?,
-        interior_id: read_u8(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        interior_id: reader.read_u8()?,
     })
 }
 
@@ -1269,14 +1306,14 @@ fn write_vehicle_interior<W: BitWrite>(
     writer: &mut W,
     value: &VehicleInterior,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_u8(writer, &value.interior_id)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_u8(value.interior_id)
 }
 
 fn read_player_color<R: BitRead>(reader: &mut R) -> Result<PlayerColor, DecodeError<R::Error>> {
     Ok(PlayerColor {
-        player_id: read_u16(reader)?,
-        color: read_i32(reader)?,
+        player_id: reader.read_u16_le()?,
+        color: reader.read_i32_le()?,
     })
 }
 
@@ -1284,8 +1321,8 @@ fn write_player_color<W: BitWrite>(
     writer: &mut W,
     value: &PlayerColor,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_i32(writer, &value.color)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_i32_le(value.color)
 }
 
 fn read_fixed_string32<R: BitRead>(reader: &mut R) -> Result<[u8; 32], DecodeError<R::Error>> {
@@ -1296,14 +1333,14 @@ fn write_fixed_string32<W: BitWrite>(
     writer: &mut W,
     value: &[u8; 32],
 ) -> Result<(), EncodeError<W::Error>> {
-    write_bytes(writer, value)
+    writer.write_bytes(value)
 }
 
 fn read_player_skill<R: BitRead>(reader: &mut R) -> Result<PlayerSkill, DecodeError<R::Error>> {
     Ok(PlayerSkill {
-        player_id: read_u16(reader)?,
-        skill: read_i32(reader)?,
-        level: read_u16(reader)?,
+        player_id: reader.read_u16_le()?,
+        skill: reader.read_i32_le()?,
+        level: reader.read_u16_le()?,
     })
 }
 
@@ -1311,18 +1348,18 @@ fn write_player_skill<W: BitWrite>(
     writer: &mut W,
     value: &PlayerSkill,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_i32(writer, &value.skill)?;
-    write_u16(writer, &value.level)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_i32_le(value.skill)?;
+    writer.write_u16_le(value.level)
 }
 
 fn read_remove_building<R: BitRead>(
     reader: &mut R,
 ) -> Result<RemoveBuilding, DecodeError<R::Error>> {
     Ok(RemoveBuilding {
-        model_id: read_i32(reader)?,
-        position: read_vector3(reader)?,
-        radius: read_f32(reader)?,
+        model_id: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
+        radius: reader.read_f32_le()?,
     })
 }
 
@@ -1330,19 +1367,19 @@ fn write_remove_building<W: BitWrite>(
     writer: &mut W,
     value: &RemoveBuilding,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, &value.model_id)?;
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, &value.radius)
+    writer.write_i32_le(value.model_id)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.radius)
 }
 
 fn read_attach_object_to_player<R: BitRead>(
     reader: &mut R,
 ) -> Result<AttachObjectToPlayer, DecodeError<R::Error>> {
     Ok(AttachObjectToPlayer {
-        object_id: read_u16(reader)?,
-        player_id: read_u16(reader)?,
-        offsets: read_vector3(reader)?,
-        rotation: read_vector3(reader)?,
+        object_id: reader.read_u16_le()?,
+        player_id: reader.read_u16_le()?,
+        offsets: reader.read_vector3_le()?,
+        rotation: reader.read_vector3_le()?,
     })
 }
 
@@ -1350,17 +1387,17 @@ fn write_attach_object_to_player<W: BitWrite>(
     writer: &mut W,
     value: &AttachObjectToPlayer,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.object_id)?;
-    write_u16(writer, &value.player_id)?;
-    write_vector3(writer, &value.offsets)?;
-    write_vector3(writer, &value.rotation)
+    writer.write_u16_le(value.object_id)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_vector3_le(&value.offsets)?;
+    writer.write_vector3_le(&value.rotation)
 }
 
 fn read_explosion<R: BitRead>(reader: &mut R) -> Result<Explosion, DecodeError<R::Error>> {
     Ok(Explosion {
-        position: read_vector3(reader)?,
-        style: read_i32(reader)?,
-        radius: read_f32(reader)?,
+        position: reader.read_vector3_le()?,
+        style: reader.read_i32_le()?,
+        radius: reader.read_f32_le()?,
     })
 }
 
@@ -1368,16 +1405,16 @@ fn write_explosion<W: BitWrite>(
     writer: &mut W,
     value: &Explosion,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_vector3(writer, &value.position)?;
-    write_i32(writer, &value.style)?;
-    write_f32(writer, &value.radius)
+    writer.write_vector3_le(&value.position)?;
+    writer.write_i32_le(value.style)?;
+    writer.write_f32_le(value.radius)
 }
 
 fn read_player_name_tag<R: BitRead>(
     reader: &mut R,
 ) -> Result<PlayerNameTag, DecodeError<R::Error>> {
     Ok(PlayerNameTag {
-        player_id: read_u16(reader)?,
+        player_id: reader.read_u16_le()?,
         show: read_bool8(reader)?,
     })
 }
@@ -1386,16 +1423,16 @@ fn write_player_name_tag<W: BitWrite>(
     writer: &mut W,
     value: &PlayerNameTag,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
+    writer.write_u16_le(value.player_id)?;
     write_bool8(writer, &value.show)
 }
 
 fn read_client_check<R: BitRead>(reader: &mut R) -> Result<ClientCheck, DecodeError<R::Error>> {
     Ok(ClientCheck {
-        request_type: read_u8(reader)?,
-        subject: read_i32(reader)?,
-        offset: read_u16(reader)?,
-        length: read_u16(reader)?,
+        request_type: reader.read_u8()?,
+        subject: reader.read_i32_le()?,
+        offset: reader.read_u16_le()?,
+        length: reader.read_u16_le()?,
     })
 }
 
@@ -1403,17 +1440,17 @@ fn write_client_check<W: BitWrite>(
     writer: &mut W,
     value: &ClientCheck,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, &value.request_type)?;
-    write_i32(writer, &value.subject)?;
-    write_u16(writer, &value.offset)?;
-    write_u16(writer, &value.length)
+    writer.write_u8(value.request_type)?;
+    writer.write_i32_le(value.subject)?;
+    writer.write_u16_le(value.offset)?;
+    writer.write_u16_le(value.length)
 }
 
 fn read_vehicle_params_ex<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehicleParamsEx, DecodeError<R::Error>> {
     Ok(VehicleParamsEx {
-        vehicle_id: read_u16(reader)?,
+        vehicle_id: reader.read_u16_le()?,
         params: read_fixed(reader)?,
         doors: read_fixed(reader)?,
         windows: read_fixed(reader)?,
@@ -1424,21 +1461,21 @@ fn write_vehicle_params_ex<W: BitWrite>(
     writer: &mut W,
     value: &VehicleParamsEx,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_bytes(writer, &value.params)?;
-    write_bytes(writer, &value.doors)?;
-    write_bytes(writer, &value.windows)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_bytes(&value.params)?;
+    writer.write_bytes(&value.doors)?;
+    writer.write_bytes(&value.windows)
 }
 
 fn read_vehicle_tuning_notification<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehicleTuningNotification, DecodeError<R::Error>> {
     Ok(VehicleTuningNotification {
-        player_id: read_u16(reader)?,
-        event: read_i32(reader)?,
-        vehicle_id: read_i32(reader)?,
-        param1: read_i32(reader)?,
-        param2: read_i32(reader)?,
+        player_id: reader.read_u16_le()?,
+        event: reader.read_i32_le()?,
+        vehicle_id: reader.read_i32_le()?,
+        param1: reader.read_i32_le()?,
+        param2: reader.read_i32_le()?,
     })
 }
 
@@ -1446,34 +1483,34 @@ fn write_vehicle_tuning_notification<W: BitWrite>(
     writer: &mut W,
     value: &VehicleTuningNotification,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.player_id)?;
-    write_i32(writer, &value.event)?;
-    write_i32(writer, &value.vehicle_id)?;
-    write_i32(writer, &value.param1)?;
-    write_i32(writer, &value.param2)
+    writer.write_u16_le(value.player_id)?;
+    writer.write_i32_le(value.event)?;
+    writer.write_i32_le(value.vehicle_id)?;
+    writer.write_i32_le(value.param1)?;
+    writer.write_i32_le(value.param2)
 }
 
 fn read_u16_u8<R: BitRead>(reader: &mut R) -> Result<(u16, u8), DecodeError<R::Error>> {
-    Ok((read_u16(reader)?, read_u8(reader)?))
+    Ok((reader.read_u16_le()?, reader.read_u8()?))
 }
 
 fn write_u16_u8<W: BitWrite>(
     writer: &mut W,
     value: &(u16, u8),
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.0)?;
-    write_u8(writer, &value.1)
+    writer.write_u16_le(value.0)?;
+    writer.write_u8(value.1)
 }
 
 fn read_vehicle_damage_status<R: BitRead>(
     reader: &mut R,
 ) -> Result<VehicleDamageStatus, DecodeError<R::Error>> {
     Ok(VehicleDamageStatus {
-        vehicle_id: read_u16(reader)?,
-        panel_damage: read_i32(reader)?,
-        door_damage: read_i32(reader)?,
-        lights: read_u8(reader)?,
-        tires: read_u8(reader)?,
+        vehicle_id: reader.read_u16_le()?,
+        panel_damage: reader.read_i32_le()?,
+        door_damage: reader.read_i32_le()?,
+        lights: reader.read_u8()?,
+        tires: reader.read_u8()?,
     })
 }
 
@@ -1481,35 +1518,35 @@ fn write_vehicle_damage_status<W: BitWrite>(
     writer: &mut W,
     value: &VehicleDamageStatus,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.vehicle_id)?;
-    write_i32(writer, &value.panel_damage)?;
-    write_i32(writer, &value.door_damage)?;
-    write_u8(writer, &value.lights)?;
-    write_u8(writer, &value.tires)
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_i32_le(value.panel_damage)?;
+    writer.write_i32_le(value.door_damage)?;
+    writer.write_u8(value.lights)?;
+    writer.write_u8(value.tires)
 }
 
 fn read_actor<R: BitRead>(reader: &mut R) -> Result<Actor, DecodeError<R::Error>> {
     Ok(Actor {
-        actor_id: read_u16(reader)?,
-        skin_id: read_i32(reader)?,
-        position: read_vector3(reader)?,
-        rotation: read_f32(reader)?,
-        health: read_f32(reader)?,
+        actor_id: reader.read_u16_le()?,
+        skin_id: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
+        rotation: reader.read_f32_le()?,
+        health: reader.read_f32_le()?,
     })
 }
 
 fn write_actor<W: BitWrite>(writer: &mut W, value: &Actor) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.actor_id)?;
-    write_i32(writer, &value.skin_id)?;
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, &value.rotation)?;
-    write_f32(writer, &value.health)
+    writer.write_u16_le(value.actor_id)?;
+    writer.write_i32_le(value.skin_id)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.rotation)?;
+    writer.write_f32_le(value.health)
 }
 
 fn read_actor_angle<R: BitRead>(reader: &mut R) -> Result<ActorAngle, DecodeError<R::Error>> {
     Ok(ActorAngle {
-        actor_id: read_u16(reader)?,
-        angle: read_f32(reader)?,
+        actor_id: reader.read_u16_le()?,
+        angle: reader.read_f32_le()?,
     })
 }
 
@@ -1517,14 +1554,14 @@ fn write_actor_angle<W: BitWrite>(
     writer: &mut W,
     value: &ActorAngle,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.actor_id)?;
-    write_f32(writer, &value.angle)
+    writer.write_u16_le(value.actor_id)?;
+    writer.write_f32_le(value.angle)
 }
 
 fn read_actor_position<R: BitRead>(reader: &mut R) -> Result<ActorPosition, DecodeError<R::Error>> {
     Ok(ActorPosition {
-        actor_id: read_u16(reader)?,
-        position: read_vector3(reader)?,
+        actor_id: reader.read_u16_le()?,
+        position: reader.read_vector3_le()?,
     })
 }
 
@@ -1532,14 +1569,14 @@ fn write_actor_position<W: BitWrite>(
     writer: &mut W,
     value: &ActorPosition,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.actor_id)?;
-    write_vector3(writer, &value.position)
+    writer.write_u16_le(value.actor_id)?;
+    writer.write_vector3_le(&value.position)
 }
 
 fn read_actor_health<R: BitRead>(reader: &mut R) -> Result<ActorHealth, DecodeError<R::Error>> {
     Ok(ActorHealth {
-        actor_id: read_u16(reader)?,
-        health: read_f32(reader)?,
+        actor_id: reader.read_u16_le()?,
+        health: reader.read_f32_le()?,
     })
 }
 
@@ -1547,8 +1584,8 @@ fn write_actor_health<W: BitWrite>(
     writer: &mut W,
     value: &ActorHealth,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, &value.actor_id)?;
-    write_f32(writer, &value.health)
+    writer.write_u16_le(value.actor_id)?;
+    writer.write_f32_le(value.health)
 }
 
 fn read_empty<R: BitRead>(_reader: &mut R) -> Result<(), DecodeError<R::Error>> {
@@ -1559,85 +1596,18 @@ fn write_empty<W: BitWrite>(_writer: &mut W, _value: &()) -> Result<(), EncodeEr
     Ok(())
 }
 
-fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
-    WireReadExt::read_u8(reader)
-}
-
-fn write_u8<W: BitWrite>(writer: &mut W, value: &u8) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u8(writer, *value)
-}
-
-fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {
-    WireReadExt::read_u16_le(reader)
-}
-
-fn write_u16<W: BitWrite>(writer: &mut W, value: &u16) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u16_le(writer, *value)
-}
-
-fn read_u32<R: BitRead>(reader: &mut R) -> Result<u32, DecodeError<R::Error>> {
-    WireReadExt::read_u32_le(reader)
-}
-
-fn write_u32<W: BitWrite>(writer: &mut W, value: &u32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u32_le(writer, *value)
-}
-
-fn read_i32<R: BitRead>(reader: &mut R) -> Result<i32, DecodeError<R::Error>> {
-    WireReadExt::read_i32_le(reader)
-}
-
-fn write_i32<W: BitWrite>(writer: &mut W, value: &i32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_i32_le(writer, *value)
-}
-
-fn read_f32<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    WireReadExt::read_f32_le(reader)
-}
-
-fn write_f32<W: BitWrite>(writer: &mut W, value: &f32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_f32_le(writer, *value)
-}
-
 fn read_bool8<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_u8(reader)? != 0)
+    Ok(reader.read_u8()? != 0)
 }
 
 fn write_bool8<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, &u8::from(*value))
-}
-
-fn read_vector3<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    WireReadExt::read_vector3_le(reader)
-}
-
-fn write_vector3<W: BitWrite>(
-    writer: &mut W,
-    value: &Vector3,
-) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_vector3_le(writer, value)
-}
-
-fn read_string8<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    WireReadExt::read_len_prefixed_bytes_u8(reader, usize::from(u8::MAX))
-}
-
-fn write_string8<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_len_prefixed_bytes_u8(writer, value, usize::from(u8::MAX))
-}
-
-fn read_string32<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    WireReadExt::read_len_prefixed_bytes_u32_le(reader, MAX_STRING32_BYTES)
-}
-
-fn write_string32<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_len_prefixed_bytes_u32_le(writer, value, MAX_STRING32_BYTES)
+    writer.write_u8(u8::from(*value))
 }
 
 fn read_fixed<R: BitRead, const LENGTH: usize>(
     reader: &mut R,
 ) -> Result<[u8; LENGTH], DecodeError<R::Error>> {
-    let bytes = read_bytes(reader, LENGTH)?;
+    let bytes = reader.read_bytes(LENGTH)?;
     match bytes.try_into() {
         Ok(bytes) => Ok(bytes),
         Err(_) => Err(DecodeError::OutOfBounds {
@@ -1645,14 +1615,6 @@ fn read_fixed<R: BitRead, const LENGTH: usize>(
             available_bits: 0,
         }),
     }
-}
-
-fn read_bytes<R: BitRead>(reader: &mut R, length: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    WireReadExt::read_bytes(reader, length)
-}
-
-fn write_bytes<W: BitWrite>(writer: &mut W, bytes: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_bytes(writer, bytes)
 }
 
 mod phase15;

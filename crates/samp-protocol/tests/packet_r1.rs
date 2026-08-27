@@ -1,10 +1,11 @@
 use samp_protocol::packet::r1::{
     MARKERS_SYNC, MAX_MARKERS, Marker, MarkerCoordinates, MarkersSync, MarkersSyncPacket,
     PLAYER_SYNC, RemotePlayerAnimation, RemotePlayerSurfing, RemotePlayerSync,
-    RemotePlayerSyncCodec, RemoteVehicleSync, VEHICLE_SYNC, Vector3,
+    RemotePlayerSyncCodec, RemoteVehicleSync, VEHICLE_SYNC,
 };
 use samp_protocol::{
     BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, WireCodec, WireDescriptor,
+    types::Vector3,
 };
 
 fn vector3(x: f32, y: f32, z: f32) -> Vector3 {

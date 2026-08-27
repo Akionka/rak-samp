@@ -1,6 +1,6 @@
 //! R1 player and session incoming RPC codecs.
 
-use super::fixed::Vector3;
+use crate::types::Vector3;
 use crate::{
     BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec,
     WireReadExt, WireWriteExt,
@@ -289,13 +289,13 @@ fn decode_init_game<R: BitRead>(reader: &mut R) -> Result<InitGame, DecodeError<
         use_cj_walk: read_bit_bool(reader)?,
         allow_weapons: read_bit_bool(reader)?,
         limit_global_chat_radius: read_bit_bool(reader)?,
-        global_chat_radius: read_f32(reader)?,
+        global_chat_radius: reader.read_f32_le()?,
         stunt_bonus: read_bit_bool(reader)?,
-        nametag_draw_distance: read_f32(reader)?,
+        nametag_draw_distance: reader.read_f32_le()?,
         disable_enter_exits: read_bit_bool(reader)?,
         nametag_los: read_bit_bool(reader)?,
         tire_popping: read_bit_bool(reader)?,
-        classes_available: read_i32(reader)?,
+        classes_available: reader.read_i32_le()?,
         show_player_tags: false,
         player_markers_mode: 0,
         world_time: 0,
@@ -311,21 +311,21 @@ fn decode_init_game<R: BitRead>(reader: &mut R) -> Result<InitGame, DecodeError<
         lag_compensation_mode: 0,
         vehicle_friendly_fire: false,
     };
-    let player_id = read_u16(reader)?;
+    let player_id = reader.read_u16_le()?;
     settings.show_player_tags = read_bit_bool(reader)?;
-    settings.player_markers_mode = read_i32(reader)?;
-    settings.world_time = read_u8(reader)?;
-    settings.world_weather = read_u8(reader)?;
-    settings.gravity = read_f32(reader)?;
+    settings.player_markers_mode = reader.read_i32_le()?;
+    settings.world_time = reader.read_u8()?;
+    settings.world_weather = reader.read_u8()?;
+    settings.gravity = reader.read_f32_le()?;
     settings.lan_mode = read_bit_bool(reader)?;
-    settings.death_money_drop = read_i32(reader)?;
+    settings.death_money_drop = reader.read_i32_le()?;
     settings.instagib = read_bit_bool(reader)?;
-    settings.normal_onfoot_send_rate = read_i32(reader)?;
-    settings.normal_incar_send_rate = read_i32(reader)?;
-    settings.normal_firing_send_rate = read_i32(reader)?;
-    settings.send_multiplier = read_i32(reader)?;
-    settings.lag_compensation_mode = read_i32(reader)?;
-    let host_name = read_string8(reader)?;
+    settings.normal_onfoot_send_rate = reader.read_i32_le()?;
+    settings.normal_incar_send_rate = reader.read_i32_le()?;
+    settings.normal_firing_send_rate = reader.read_i32_le()?;
+    settings.send_multiplier = reader.read_i32_le()?;
+    settings.lag_compensation_mode = reader.read_i32_le()?;
+    let host_name = reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?;
     let vehicle_models = read_fixed(reader)?;
     settings.vehicle_friendly_fire = read_bool32(reader)?;
     Ok(InitGame {
@@ -345,29 +345,29 @@ fn encode_init_game<W: BitWrite>(
     write_bit_bool(writer, settings.use_cj_walk)?;
     write_bit_bool(writer, settings.allow_weapons)?;
     write_bit_bool(writer, settings.limit_global_chat_radius)?;
-    write_f32(writer, settings.global_chat_radius)?;
+    writer.write_f32_le(settings.global_chat_radius)?;
     write_bit_bool(writer, settings.stunt_bonus)?;
-    write_f32(writer, settings.nametag_draw_distance)?;
+    writer.write_f32_le(settings.nametag_draw_distance)?;
     write_bit_bool(writer, settings.disable_enter_exits)?;
     write_bit_bool(writer, settings.nametag_los)?;
     write_bit_bool(writer, settings.tire_popping)?;
-    write_i32(writer, settings.classes_available)?;
-    write_u16(writer, value.player_id)?;
+    writer.write_i32_le(settings.classes_available)?;
+    writer.write_u16_le(value.player_id)?;
     write_bit_bool(writer, settings.show_player_tags)?;
-    write_i32(writer, settings.player_markers_mode)?;
-    write_u8(writer, settings.world_time)?;
-    write_u8(writer, settings.world_weather)?;
-    write_f32(writer, settings.gravity)?;
+    writer.write_i32_le(settings.player_markers_mode)?;
+    writer.write_u8(settings.world_time)?;
+    writer.write_u8(settings.world_weather)?;
+    writer.write_f32_le(settings.gravity)?;
     write_bit_bool(writer, settings.lan_mode)?;
-    write_i32(writer, settings.death_money_drop)?;
+    writer.write_i32_le(settings.death_money_drop)?;
     write_bit_bool(writer, settings.instagib)?;
-    write_i32(writer, settings.normal_onfoot_send_rate)?;
-    write_i32(writer, settings.normal_incar_send_rate)?;
-    write_i32(writer, settings.normal_firing_send_rate)?;
-    write_i32(writer, settings.send_multiplier)?;
-    write_i32(writer, settings.lag_compensation_mode)?;
-    write_string8(writer, &value.host_name)?;
-    write_bytes(writer, &value.vehicle_models)?;
+    writer.write_i32_le(settings.normal_onfoot_send_rate)?;
+    writer.write_i32_le(settings.normal_incar_send_rate)?;
+    writer.write_i32_le(settings.normal_firing_send_rate)?;
+    writer.write_i32_le(settings.send_multiplier)?;
+    writer.write_i32_le(settings.lag_compensation_mode)?;
+    writer.write_len_prefixed_bytes_u8(&value.host_name, usize::from(u8::MAX))?;
+    writer.write_bytes(&value.vehicle_models)?;
     write_bool32(writer, settings.vehicle_friendly_fire)
 }
 
@@ -393,17 +393,17 @@ fn decode_player_stream_in<R: BitRead>(
 ) -> Result<PlayerStreamIn, DecodeError<R::Error>> {
     let mut weapon_skill_levels = [0; 11];
     let value = PlayerStreamIn {
-        player_id: read_u16(reader)?,
-        team: read_u8(reader)?,
-        model: read_i32(reader)?,
-        position: read_vector3(reader)?,
-        rotation: read_f32(reader)?,
-        color: read_i32(reader)?,
-        fighting_style: read_u8(reader)?,
+        player_id: reader.read_u16_le()?,
+        team: reader.read_u8()?,
+        model: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
+        rotation: reader.read_f32_le()?,
+        color: reader.read_i32_le()?,
+        fighting_style: reader.read_u8()?,
         weapon_skill_levels: [0; 11],
     };
     for skill_level in &mut weapon_skill_levels {
-        *skill_level = read_u16(reader)?;
+        *skill_level = reader.read_u16_le()?;
     }
     Ok(PlayerStreamIn {
         weapon_skill_levels,
@@ -415,28 +415,36 @@ fn encode_player_stream_in<W: BitWrite>(
     writer: &mut W,
     value: &PlayerStreamIn,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, value.player_id)?;
-    write_u8(writer, value.team)?;
-    write_i32(writer, value.model)?;
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, value.rotation)?;
-    write_i32(writer, value.color)?;
-    write_u8(writer, value.fighting_style)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u8(value.team)?;
+    writer.write_i32_le(value.model)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.rotation)?;
+    writer.write_i32_le(value.color)?;
+    writer.write_u8(value.fighting_style)?;
     for skill_level in value.weapon_skill_levels {
-        write_u16(writer, skill_level)?;
+        writer.write_u16_le(skill_level)?;
     }
     Ok(())
 }
 
 fn decode_spawn_info<R: BitRead>(reader: &mut R) -> Result<SpawnInfo, DecodeError<R::Error>> {
     Ok(SpawnInfo {
-        team: read_u8(reader)?,
-        skin: read_i32(reader)?,
-        unused: read_u8(reader)?,
-        position: read_vector3(reader)?,
-        rotation: read_f32(reader)?,
-        weapons: [read_i32(reader)?, read_i32(reader)?, read_i32(reader)?],
-        ammo: [read_i32(reader)?, read_i32(reader)?, read_i32(reader)?],
+        team: reader.read_u8()?,
+        skin: reader.read_i32_le()?,
+        unused: reader.read_u8()?,
+        position: reader.read_vector3_le()?,
+        rotation: reader.read_f32_le()?,
+        weapons: [
+            reader.read_i32_le()?,
+            reader.read_i32_le()?,
+            reader.read_i32_le()?,
+        ],
+        ammo: [
+            reader.read_i32_le()?,
+            reader.read_i32_le()?,
+            reader.read_i32_le()?,
+        ],
     })
 }
 
@@ -444,16 +452,16 @@ fn encode_spawn_info<W: BitWrite>(
     writer: &mut W,
     value: &SpawnInfo,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, value.team)?;
-    write_i32(writer, value.skin)?;
-    write_u8(writer, value.unused)?;
-    write_vector3(writer, &value.position)?;
-    write_f32(writer, value.rotation)?;
+    writer.write_u8(value.team)?;
+    writer.write_i32_le(value.skin)?;
+    writer.write_u8(value.unused)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_f32_le(value.rotation)?;
     for weapon in value.weapons {
-        write_i32(writer, weapon)?;
+        writer.write_i32_le(weapon)?;
     }
     for ammo in value.ammo {
-        write_i32(writer, ammo)?;
+        writer.write_i32_le(ammo)?;
     }
     Ok(())
 }
@@ -462,7 +470,7 @@ fn decode_player_animation<R: BitRead>(
     reader: &mut R,
 ) -> Result<PlayerAnimation, DecodeError<R::Error>> {
     Ok(PlayerAnimation {
-        player_id: read_u16(reader)?,
+        player_id: reader.read_u16_le()?,
         animation: decode_animation(reader)?,
     })
 }
@@ -471,20 +479,20 @@ fn encode_player_animation<W: BitWrite>(
     writer: &mut W,
     value: &PlayerAnimation,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, value.player_id)?;
+    writer.write_u16_le(value.player_id)?;
     encode_animation(writer, &value.animation)
 }
 
 fn decode_animation<R: BitRead>(reader: &mut R) -> Result<Animation, DecodeError<R::Error>> {
     Ok(Animation {
-        animation_library: read_string8(reader)?,
-        animation_name: read_string8(reader)?,
-        frame_delta: read_f32(reader)?,
+        animation_library: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
+        animation_name: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
+        frame_delta: reader.read_f32_le()?,
         looped: read_bit_bool(reader)?,
         lock_x: read_bit_bool(reader)?,
         lock_y: read_bit_bool(reader)?,
         freeze: read_bit_bool(reader)?,
-        time: read_i32(reader)?,
+        time: reader.read_i32_le()?,
     })
 }
 
@@ -492,14 +500,14 @@ fn encode_animation<W: BitWrite>(
     writer: &mut W,
     value: &Animation,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_string8(writer, &value.animation_library)?;
-    write_string8(writer, &value.animation_name)?;
-    write_f32(writer, value.frame_delta)?;
+    writer.write_len_prefixed_bytes_u8(&value.animation_library, usize::from(u8::MAX))?;
+    writer.write_len_prefixed_bytes_u8(&value.animation_name, usize::from(u8::MAX))?;
+    writer.write_f32_le(value.frame_delta)?;
     write_bit_bool(writer, value.looped)?;
     write_bit_bool(writer, value.lock_x)?;
     write_bit_bool(writer, value.lock_y)?;
     write_bit_bool(writer, value.freeze)?;
-    write_i32(writer, value.time)
+    writer.write_i32_le(value.time)
 }
 
 fn decode_bit_bool<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
@@ -512,12 +520,12 @@ fn encode_bit_bool<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), Enco
 
 fn decode_crime_report<R: BitRead>(reader: &mut R) -> Result<CrimeReport, DecodeError<R::Error>> {
     Ok(CrimeReport {
-        suspect_id: read_u16(reader)?,
+        suspect_id: reader.read_u16_le()?,
         in_vehicle: read_bool32(reader)?,
-        vehicle_model: read_i32(reader)?,
-        vehicle_color: read_i32(reader)?,
-        crime: read_i32(reader)?,
-        coordinates: read_vector3(reader)?,
+        vehicle_model: reader.read_i32_le()?,
+        vehicle_color: reader.read_i32_le()?,
+        crime: reader.read_i32_le()?,
+        coordinates: reader.read_vector3_le()?,
     })
 }
 
@@ -525,19 +533,19 @@ fn encode_crime_report<W: BitWrite>(
     writer: &mut W,
     value: &CrimeReport,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, value.suspect_id)?;
+    writer.write_u16_le(value.suspect_id)?;
     write_bool32(writer, value.in_vehicle)?;
-    write_i32(writer, value.vehicle_model)?;
-    write_i32(writer, value.vehicle_color)?;
-    write_i32(writer, value.crime)?;
-    write_vector3(writer, &value.coordinates)
+    writer.write_i32_le(value.vehicle_model)?;
+    writer.write_i32_le(value.vehicle_color)?;
+    writer.write_i32_le(value.crime)?;
+    writer.write_vector3_le(&value.coordinates)
 }
 
 fn decode_player_attached_object<R: BitRead>(
     reader: &mut R,
 ) -> Result<PlayerAttachedObject, DecodeError<R::Error>> {
-    let player_id = read_u16(reader)?;
-    let index = read_i32(reader)?;
+    let player_id = reader.read_u16_le()?;
+    let index = reader.read_i32_le()?;
     let object = read_bit_bool(reader)?
         .then(|| decode_attached_object(reader))
         .transpose()?;
@@ -552,8 +560,8 @@ fn encode_player_attached_object<W: BitWrite>(
     writer: &mut W,
     value: &PlayerAttachedObject,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_u16(writer, value.player_id)?;
-    write_i32(writer, value.index)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_i32_le(value.index)?;
     write_bit_bool(writer, value.object.is_some())?;
     if let Some(object) = value.object {
         encode_attached_object(writer, &object)?;
@@ -565,13 +573,13 @@ fn decode_attached_object<R: BitRead>(
     reader: &mut R,
 ) -> Result<AttachedObject, DecodeError<R::Error>> {
     Ok(AttachedObject {
-        model_id: read_i32(reader)?,
-        bone: read_i32(reader)?,
-        offset: read_vector3(reader)?,
-        rotation: read_vector3(reader)?,
-        scale: read_vector3(reader)?,
-        color1: read_i32(reader)?,
-        color2: read_i32(reader)?,
+        model_id: reader.read_i32_le()?,
+        bone: reader.read_i32_le()?,
+        offset: reader.read_vector3_le()?,
+        rotation: reader.read_vector3_le()?,
+        scale: reader.read_vector3_le()?,
+        color1: reader.read_i32_le()?,
+        color2: reader.read_i32_le()?,
     })
 }
 
@@ -579,17 +587,17 @@ fn encode_attached_object<W: BitWrite>(
     writer: &mut W,
     value: &AttachedObject,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_i32(writer, value.model_id)?;
-    write_i32(writer, value.bone)?;
-    write_vector3(writer, &value.offset)?;
-    write_vector3(writer, &value.rotation)?;
-    write_vector3(writer, &value.scale)?;
-    write_i32(writer, value.color1)?;
-    write_i32(writer, value.color2)
+    writer.write_i32_le(value.model_id)?;
+    writer.write_i32_le(value.bone)?;
+    writer.write_vector3_le(&value.offset)?;
+    writer.write_vector3_le(&value.rotation)?;
+    writer.write_vector3_le(&value.scale)?;
+    writer.write_i32_le(value.color1)?;
+    writer.write_i32_le(value.color2)
 }
 
 fn decode_bool32<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_u32(reader)? != 0)
+    Ok(reader.read_u32_le()? != 0)
 }
 
 fn encode_bool32<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeError<W::Error>> {
@@ -597,11 +605,11 @@ fn encode_bool32<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), Encode
 }
 
 fn read_bool32<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_u32(reader)? != 0)
+    Ok(reader.read_u32_le()? != 0)
 }
 
 fn write_bool32<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    write_u32(writer, u32::from(value))
+    writer.write_u32_le(u32::from(value))
 }
 
 fn decode_scores_and_pings<R: BitRead>(
@@ -624,9 +632,9 @@ fn decode_scores_and_pings<R: BitRead>(
     let mut entries = Vec::with_capacity(count);
     for _ in 0..count {
         entries.push(ScorePing {
-            player_id: read_u16(reader)?,
-            score: read_i32(reader)?,
-            ping: read_i32(reader)?,
+            player_id: reader.read_u16_le()?,
+            score: reader.read_i32_le()?,
+            ping: reader.read_i32_le()?,
         });
     }
     Ok(ScoresAndPings { entries })
@@ -643,9 +651,9 @@ fn encode_scores_and_pings<W: BitWrite>(
         });
     }
     for entry in &value.entries {
-        write_u16(writer, entry.player_id)?;
-        write_i32(writer, entry.score)?;
-        write_i32(writer, entry.ping)?;
+        writer.write_u16_le(entry.player_id)?;
+        writer.write_i32_le(entry.score)?;
+        writer.write_i32_le(entry.ping)?;
     }
     Ok(())
 }
@@ -660,77 +668,18 @@ fn write_bit_bool<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), Encode
         .map_err(EncodeError::Source)
 }
 
-fn read_u8<R: BitRead>(reader: &mut R) -> Result<u8, DecodeError<R::Error>> {
-    WireReadExt::read_u8(reader)
-}
-
-fn write_u8<W: BitWrite>(writer: &mut W, value: u8) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u8(writer, value)
-}
-
-fn read_u16<R: BitRead>(reader: &mut R) -> Result<u16, DecodeError<R::Error>> {
-    WireReadExt::read_u16_le(reader)
-}
-
-fn write_u16<W: BitWrite>(writer: &mut W, value: u16) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u16_le(writer, value)
-}
-
-fn read_u32<R: BitRead>(reader: &mut R) -> Result<u32, DecodeError<R::Error>> {
-    WireReadExt::read_u32_le(reader)
-}
-
-fn write_u32<W: BitWrite>(writer: &mut W, value: u32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_u32_le(writer, value)
-}
-
-fn read_i32<R: BitRead>(reader: &mut R) -> Result<i32, DecodeError<R::Error>> {
-    WireReadExt::read_i32_le(reader)
-}
-
-fn write_i32<W: BitWrite>(writer: &mut W, value: i32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_i32_le(writer, value)
-}
-
-fn read_f32<R: BitRead>(reader: &mut R) -> Result<f32, DecodeError<R::Error>> {
-    WireReadExt::read_f32_le(reader)
-}
-
-fn write_f32<W: BitWrite>(writer: &mut W, value: f32) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_f32_le(writer, value)
-}
-
 fn read_bool8<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_u8(reader)? != 0)
+    Ok(reader.read_u8()? != 0)
 }
 
 fn write_bool8<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    write_u8(writer, u8::from(value))
-}
-
-fn read_vector3<R: BitRead>(reader: &mut R) -> Result<Vector3, DecodeError<R::Error>> {
-    WireReadExt::read_vector3_le(reader)
-}
-
-fn write_vector3<W: BitWrite>(
-    writer: &mut W,
-    value: &Vector3,
-) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_vector3_le(writer, value)
-}
-
-fn read_string8<R: BitRead>(reader: &mut R) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    WireReadExt::read_len_prefixed_bytes_u8(reader, usize::from(u8::MAX))
-}
-
-fn write_string8<W: BitWrite>(writer: &mut W, value: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_len_prefixed_bytes_u8(writer, value, usize::from(u8::MAX))
+    writer.write_u8(u8::from(value))
 }
 
 fn read_fixed<R: BitRead, const LENGTH: usize>(
     reader: &mut R,
 ) -> Result<[u8; LENGTH], DecodeError<R::Error>> {
-    let bytes = WireReadExt::read_bytes(reader, LENGTH)?;
+    let bytes = reader.read_bytes(LENGTH)?;
     match bytes.try_into() {
         Ok(bytes) => Ok(bytes),
         Err(_) => Err(DecodeError::OutOfBounds {
@@ -751,8 +700,4 @@ fn read_bits<R: BitRead>(reader: &mut R, bit_len: usize) -> Result<Vec<u8>, Deco
     reader
         .read_left_aligned_bits(bit_len)
         .map_err(DecodeError::Source)
-}
-
-fn write_bytes<W: BitWrite>(writer: &mut W, bytes: &[u8]) -> Result<(), EncodeError<W::Error>> {
-    WireWriteExt::write_bytes(writer, bytes)
 }
