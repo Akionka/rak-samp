@@ -959,13 +959,63 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
             &mut event,
             |_| panic!("must not dispatch"),
         ),
-        Err(super::core::ProtocolEventError::Decode(
+        Err(super::core::ProtocolEventError::DecodeMalformed(
             samp_protocol::DecodeError::UnexpectedTrailingBits {
                 remaining_bits: 1,
                 allowed_bits: 0,
             }
         ))
     ));
+}
+
+#[test]
+fn protocol_replacement_validates_canonical_framing_before_host_mutation() {
+    use samp_protocol::{
+        BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingRpc, WireCodec,
+    };
+
+    struct NonByteAlignedCodec;
+
+    impl WireCodec for NonByteAlignedCodec {
+        type Value = bool;
+
+        fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+            reader
+                .read_left_aligned_bits(8)
+                .map(|bits| bits[0] != 0)
+                .map_err(DecodeError::Source)
+        }
+
+        fn encode<W: BitWrite>(
+            writer: &mut W,
+            value: &Self::Value,
+        ) -> Result<(), EncodeError<W::Error>> {
+            writer
+                .write_left_aligned_bits(&[u8::from(*value) << 7], 1)
+                .map_err(EncodeError::Source)
+        }
+    }
+
+    type Descriptor = IncomingRpc<201, NonByteAlignedCodec, ExactBytesPolicy>;
+
+    let original = EncodedPayload::from_bits(vec![0x80], 8).unwrap();
+    let mut raw = TestEvent::new(201, original);
+    let mut event = unsafe {
+        Event::from_callback(
+            test_api(),
+            (&mut raw as *mut TestEvent).cast::<SampClientSdkEventV1>(),
+        )
+    }
+    .unwrap();
+
+    assert!(matches!(
+        super::handle_protocol::<Descriptor>(&mut event, ProtocolAction::Replace),
+        Err(super::core::ProtocolEventError::ReplacementEncode(
+            samp_protocol::EncodeError::NonByteAlignedPayload { bit_len: 1 }
+        ))
+    ));
+    assert_eq!(raw.bytes, [0x80]);
+    assert_eq!(raw.bit_len, 8);
 }
 
 #[test]
@@ -1046,7 +1096,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
         super::handle_protocol::<protocol_packet::MarkersSyncPacket>(&mut event, |_| panic!(
             "a full trailing byte must not dispatch"
         )),
-        Err(super::core::ProtocolEventError::Decode(
+        Err(super::core::ProtocolEventError::DecodeMalformed(
             samp_protocol::DecodeError::InvalidTerminalPaddingLength {
                 remaining_bits: 8,
                 required_bits: 7,

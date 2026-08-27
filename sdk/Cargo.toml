@@ -20,6 +20,7 @@ targets = ["i686-pc-windows-msvc"]
 name = "samp_client_sdk"
 
 [dependencies]
+log = "0.4"
 samp-protocol = { path = "../crates/samp-protocol" }
 
 [target.'cfg(all(windows, target_arch = "x86"))'.dependencies]

@@ -8,6 +8,9 @@ pub(crate) struct TestEvent {
     pub(crate) bytes: Vec<u8>,
     pub(crate) bit_len: usize,
     read_offset: usize,
+    reset_read_result: SampClientSdkResult,
+    replace_result: SampClientSdkResult,
+    pub(crate) replacement_calls: usize,
 }
 
 impl TestEvent {
@@ -17,6 +20,22 @@ impl TestEvent {
             bytes: payload.bytes,
             bit_len: payload.bit_len,
             read_offset: 0,
+            reset_read_result: SampClientSdkResult::Ok,
+            replace_result: SampClientSdkResult::Ok,
+            replacement_calls: 0,
+        }
+    }
+
+    pub(crate) fn with_results(
+        id: u8,
+        payload: EncodedPayload,
+        reset_read_result: SampClientSdkResult,
+        replace_result: SampClientSdkResult,
+    ) -> Self {
+        Self {
+            reset_read_result,
+            replace_result,
+            ..Self::new(id, payload)
         }
     }
 }
@@ -32,8 +51,11 @@ pub(super) unsafe extern "system" fn test_event_id(event: *const SampClientSdkEv
 pub(super) unsafe extern "system" fn test_event_reset_read(
     event: *mut SampClientSdkEventV1,
 ) -> SampClientSdkResult {
-    unsafe { test_event(event) }.read_offset = 0;
-    SampClientSdkResult::Ok
+    let event = unsafe { test_event(event) };
+    if event.reset_read_result == SampClientSdkResult::Ok {
+        event.read_offset = 0;
+    }
+    event.reset_read_result
 }
 
 pub(super) unsafe extern "system" fn test_event_clear(
@@ -175,6 +197,10 @@ pub(super) unsafe extern "system" fn test_event_replace_bits(
         return SampClientSdkResult::InvalidArgument;
     }
     let event = unsafe { test_event(event) };
+    event.replacement_calls += 1;
+    if event.replace_result != SampClientSdkResult::Ok {
+        return event.replace_result;
+    }
     event.bytes = if byte_len == 0 {
         Vec::new()
     } else {

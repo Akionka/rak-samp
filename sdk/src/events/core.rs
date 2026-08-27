@@ -103,16 +103,36 @@ impl fmt::Display for EventError {
 
 impl std::error::Error for EventError {}
 
-/// A Protocol codec failure while adapting a callback-local event.
-///
-/// Transport failures retain their original [`EventError`] in `Source`; malformed wire data
-/// remains a Protocol-owned error.
+/// A classified Protocol failure while adapting a callback-local event.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) enum ProtocolEventError {
-    /// The Protocol descriptor could not decode the callback payload.
-    Decode(samp_protocol::DecodeError<EventError>),
-    /// The Protocol descriptor could not encode a callback replacement.
-    Encode(samp_protocol::EncodeError<EventError>),
+    /// The Host rejected a source read before a typed value was produced.
+    DecodeSource(EventError),
+    /// Protocol validation rejected the callback payload.
+    DecodeMalformed(samp_protocol::DecodeError<EventError>),
+    /// The Protocol descriptor could not canonically encode a replacement.
+    ReplacementEncode(samp_protocol::EncodeError<samp_protocol::BitStreamError>),
+    /// The Host rejected the completed replacement payload.
+    ReplacementHost(EventError),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CallbackFailurePhase {
+    DecodeSource,
+    DecodeMalformed,
+    ReplacementEncode,
+    ReplacementHost,
+}
+
+impl ProtocolEventError {
+    pub(crate) fn phase(&self) -> CallbackFailurePhase {
+        match self {
+            Self::DecodeSource(_) => CallbackFailurePhase::DecodeSource,
+            Self::DecodeMalformed(_) => CallbackFailurePhase::DecodeMalformed,
+            Self::ReplacementEncode(_) => CallbackFailurePhase::ReplacementEncode,
+            Self::ReplacementHost(_) => CallbackFailurePhase::ReplacementHost,
+        }
+    }
 }
 
 /// A callback-local view over an opaque host event.
@@ -593,23 +613,48 @@ impl<T> Rpc<T> {
         event: &mut Event<'_>,
         handler: impl FnOnce(T) -> ProtocolAction<T>,
     ) -> Result<SampClientSdkHookAction, EventError> {
+        self.handle_classified(event, handler)
+            .map_err(|(_, error)| error)
+    }
+
+    pub(crate) fn handle_classified(
+        self,
+        event: &mut Event<'_>,
+        handler: impl FnOnce(T) -> ProtocolAction<T>,
+    ) -> Result<SampClientSdkHookAction, (CallbackFailurePhase, EventError)> {
         if event.id() != self.id {
             return Ok(SampClientSdkHookAction::Continue);
         }
-        event.reset_read()?;
-        let value = (self.decode)(event)?;
+        event
+            .reset_read()
+            .map_err(|error| (CallbackFailurePhase::DecodeSource, error))?;
+        let value = (self.decode)(event).map_err(|error| {
+            let phase = if matches!(&error, EventError::Host(_)) {
+                CallbackFailurePhase::DecodeSource
+            } else {
+                CallbackFailurePhase::DecodeMalformed
+            };
+            (phase, error)
+        })?;
         if event.remaining_bits() != 0 {
-            return Err(EventError::UnexpectedBitLength {
-                bit_len: event.remaining_bits(),
-                expected: 0,
-            });
+            return Err((
+                CallbackFailurePhase::DecodeMalformed,
+                EventError::UnexpectedBitLength {
+                    bit_len: event.remaining_bits(),
+                    expected: 0,
+                },
+            ));
         }
         match handler(value) {
             ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
             ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
             ProtocolAction::Replace(value) => {
-                let payload = self.encode(event.api, value)?;
-                event.replace_bits(payload.as_bytes(), payload.len_bits())?;
+                let payload = self
+                    .encode(event.api, value)
+                    .map_err(|error| (CallbackFailurePhase::ReplacementEncode, error))?;
+                event
+                    .replace_bits(payload.as_bytes(), payload.len_bits())
+                    .map_err(|error| (CallbackFailurePhase::ReplacementHost, error))?;
                 Ok(SampClientSdkHookAction::Continue)
             }
         }
@@ -667,6 +712,14 @@ macro_rules! directional_descriptor {
             ) -> Result<SampClientSdkHookAction, EventError> {
                 self.0.handle(event, handler)
             }
+
+            pub(crate) fn handle_classified(
+                self,
+                event: &mut Event<'_>,
+                handler: impl FnOnce(T) -> ProtocolAction<T>,
+            ) -> Result<SampClientSdkHookAction, (CallbackFailurePhase, EventError)> {
+                self.0.handle_classified(event, handler)
+            }
         }
 
         impl<T> TypedDescriptor<T> for $name<T> {
@@ -708,20 +761,19 @@ where
     }
     event
         .reset_read()
-        .map_err(|error| ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error)))?;
-    let value = D::decode_from(event).map_err(ProtocolEventError::Decode)?;
+        .map_err(ProtocolEventError::DecodeSource)?;
+    let value = D::decode_from(event).map_err(|error| match error {
+        samp_protocol::DecodeError::Source(error) => ProtocolEventError::DecodeSource(error),
+        error => ProtocolEventError::DecodeMalformed(error),
+    })?;
     match handler(value) {
         ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
         ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
         ProtocolAction::Replace(value) => {
-            let mut writer = PayloadWriter::new();
-            D::encode_to(&mut writer, &value).map_err(ProtocolEventError::Encode)?;
-            let payload = writer.finish_bits();
+            let payload = D::encode_bits(&value).map_err(ProtocolEventError::ReplacementEncode)?;
             event
                 .replace_bits(payload.as_bytes(), payload.len_bits())
-                .map_err(|error| {
-                    ProtocolEventError::Encode(samp_protocol::EncodeError::Source(error))
-                })?;
+                .map_err(ProtocolEventError::ReplacementHost)?;
             Ok(SampClientSdkHookAction::Continue)
         }
     }

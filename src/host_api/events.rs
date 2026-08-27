@@ -395,3 +395,33 @@ fn codec_result(error: CodecError) -> SampClientSdkResult {
         CodecError::NativeCallFailed => SampClientSdkResult::NativeCallFailed,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn replacement_capacity_failure_preserves_host_payload_and_cursor() {
+        let mut payload = BitStream::from_bytes_with_capacity(vec![0xA5], 8, 8).unwrap();
+        payload.set_read_offset_bits(3).unwrap();
+        let mut event = AbiEvent {
+            id: 35,
+            payload: &raw mut payload,
+        };
+        let replacement = [0x12, 0x34];
+
+        let result = unsafe {
+            event_replace_bits(
+                (&raw mut event).cast::<SampClientSdkEventV1>(),
+                replacement.as_ptr(),
+                replacement.len(),
+                16,
+            )
+        };
+
+        assert_eq!(result, SampClientSdkResult::PayloadTooLarge);
+        assert_eq!(payload.as_bytes(), &[0xA5]);
+        assert_eq!(payload.len_bits(), 8);
+        assert_eq!(payload.read_offset_bits(), 3);
+    }
+}

@@ -263,8 +263,9 @@ impl HostApi {
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
+                events::report_typed_callback_failure(error.phase(), "incoming", "rpc", D::ID)
+            })
         })
     }
 
@@ -283,8 +284,9 @@ impl HostApi {
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_rpc_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
+                events::report_typed_callback_failure(error.phase(), "outgoing", "rpc", D::ID)
+            })
         })
     }
 
@@ -303,8 +305,9 @@ impl HostApi {
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_packet_id(SampClientSdkDirection::Incoming, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
+                events::report_typed_callback_failure(error.phase(), "incoming", "packet", D::ID)
+            })
         })
     }
 
@@ -323,8 +326,9 @@ impl HostApi {
         F: Fn(D::Value) -> events::ProtocolAction<D::Value> + Send + Sync + 'static,
     {
         self.on_packet_id(SampClientSdkDirection::Outgoing, D::ID, move |event| {
-            events::handle_protocol::<D>(event, &handler)
-                .unwrap_or(SampClientSdkHookAction::Continue)
+            events::handle_protocol::<D>(event, &handler).unwrap_or_else(|error| {
+                events::report_typed_callback_failure(error.phase(), "outgoing", "packet", D::ID)
+            })
         })
     }
 

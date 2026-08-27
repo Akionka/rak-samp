@@ -101,6 +101,7 @@ dependencies = [
 name = "samp-client-sdk"
 version = "0.1.0-alpha.4"
 dependencies = [
+ "log",
  "samp-protocol",
  "windows-sys",
 ]

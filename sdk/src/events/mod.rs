@@ -9,8 +9,15 @@ mod core;
 pub mod packet;
 pub mod rpc;
 
+#[cfg(test)]
+pub(crate) use callback::{
+    CallbackFailurePhase, TestCallbackDiagnostic, take_test_callback_diagnostics,
+};
 pub use callback::{Incoming, Outgoing, PacketKind, RpcKind, TypedCallbackDescriptor};
-pub(crate) use callback::{handle as handle_typed_callback, registration as callback_registration};
+pub(crate) use callback::{
+    handle as handle_typed_callback, registration as callback_registration,
+    report_failure as report_typed_callback_failure,
+};
 #[cfg(test)]
 pub(crate) use core::TypedDescriptor;
 pub(crate) use core::handle_protocol;

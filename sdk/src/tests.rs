@@ -8,6 +8,34 @@ use std::sync::{
 
 static REGISTRATION_TEST_LOCK: Mutex<()> = Mutex::new(());
 
+struct FailingReplacementCodec;
+
+impl samp_protocol::WireCodec for FailingReplacementCodec {
+    type Value = bool;
+
+    fn decode<R: samp_protocol::BitRead>(
+        reader: &mut R,
+    ) -> Result<Self::Value, samp_protocol::DecodeError<R::Error>> {
+        reader
+            .read_left_aligned_bits(8)
+            .map(|bits| bits[0] != 0)
+            .map_err(samp_protocol::DecodeError::Source)
+    }
+
+    fn encode<W: samp_protocol::BitWrite>(
+        _writer: &mut W,
+        _value: &Self::Value,
+    ) -> Result<(), samp_protocol::EncodeError<W::Error>> {
+        Err(samp_protocol::EncodeError::LengthExceedsLimit {
+            length: 2,
+            limit: 1,
+        })
+    }
+}
+
+type FailingIncomingRpc =
+    samp_protocol::IncomingRpc<201, FailingReplacementCodec, samp_protocol::ExactBitsPolicy>;
+
 struct DropCounter(Arc<AtomicUsize>);
 
 impl Drop for DropCounter {
@@ -1816,6 +1844,287 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
     subscription
         .unregister_and_wait()
         .expect("test shutdown must synchronize");
+}
+
+#[test]
+fn malformed_typed_packet_is_diagnosed_before_fail_open() {
+    use crate::events::{
+        CallbackFailurePhase, TestCallbackDiagnostic, take_test_callback_diagnostics,
+    };
+    use samp_protocol::{
+        WireDescriptor,
+        packet::common::{CONNECTION_ACCEPTED, ConnectionAccepted, ConnectionAcceptedPacket},
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    take_test_callback_diagnostics();
+    let handler_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&handler_calls);
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_incoming_typed_packet(CONNECTION_ACCEPTED, move |_| {
+            captured_calls.fetch_add(1, Ordering::Relaxed);
+            ProtocolAction::Continue
+        })
+        .expect("test registration must succeed");
+
+    let bits = ConnectionAcceptedPacket::encode_bits(&ConnectionAccepted {
+        ip: -1,
+        port: 1,
+        player_id: 2,
+        challenge: 3,
+    })
+    .unwrap();
+    let mut bytes = bits.as_bytes().to_vec();
+    bytes.push(0);
+    let payload = EncodedPayload::from_bits(bytes, bits.len_bits() + 8).unwrap();
+
+    assert_eq!(
+        test_support::invoke_registered_callback_with_payload(34, payload),
+        Some(SampClientSdkHookAction::Continue)
+    );
+    assert_eq!(handler_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(
+        take_test_callback_diagnostics(),
+        vec![TestCallbackDiagnostic {
+            level: log::Level::Debug,
+            direction: "incoming",
+            kind: "packet",
+            id: 34,
+            phase: CallbackFailurePhase::DecodeMalformed,
+        }]
+    );
+
+    subscription.unregister_and_wait().unwrap();
+}
+
+#[test]
+fn typed_source_failure_is_warned_before_fail_open() {
+    use crate::events::{
+        CallbackFailurePhase, TestCallbackDiagnostic, take_test_callback_diagnostics,
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    take_test_callback_diagnostics();
+    let handler_calls = Arc::new(AtomicUsize::new(0));
+    let captured_calls = Arc::clone(&handler_calls);
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_incoming_typed_rpc(protocol_incoming::SET_PLAYER_DRUNK, move |_| {
+            captured_calls.fetch_add(1, Ordering::Relaxed);
+            ProtocolAction::Continue
+        })
+        .unwrap();
+    let payload = EncodedPayload::from_bits(vec![7, 0, 0, 0], 32).unwrap();
+
+    let outcome = test_support::invoke_registered_callback_with_source_failure(
+        35,
+        payload,
+        SampClientSdkResult::NativeCallFailed,
+    )
+    .unwrap();
+
+    assert_eq!(outcome.action, SampClientSdkHookAction::Continue);
+    assert_eq!(handler_calls.load(Ordering::Relaxed), 0);
+    assert_eq!(outcome.bytes, [7, 0, 0, 0]);
+    assert_eq!(outcome.bit_len, 32);
+    assert_eq!(outcome.replacement_calls, 0);
+    assert_eq!(
+        take_test_callback_diagnostics(),
+        vec![TestCallbackDiagnostic {
+            level: log::Level::Warn,
+            direction: "incoming",
+            kind: "rpc",
+            id: 35,
+            phase: CallbackFailurePhase::DecodeSource,
+        }]
+    );
+
+    subscription.unregister_and_wait().unwrap();
+}
+
+#[test]
+fn replacement_encode_failure_preserves_payload_without_host_mutation() {
+    use crate::events::{
+        CallbackFailurePhase, TestCallbackDiagnostic, take_test_callback_diagnostics,
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    take_test_callback_diagnostics();
+    let net = Samp::from_api(test_support::test_api()).net();
+    let subscription = net
+        .on_incoming_typed_rpc(FailingIncomingRpc::new(), ProtocolAction::Replace)
+        .unwrap();
+    let original = EncodedPayload::from_bits(vec![0x80], 8).unwrap();
+
+    let outcome = test_support::invoke_registered_callback_with_host_replacement(
+        201,
+        original,
+        SampClientSdkResult::Ok,
+    )
+    .unwrap();
+
+    assert_eq!(outcome.action, SampClientSdkHookAction::Continue);
+    assert_eq!(outcome.bytes, [0x80]);
+    assert_eq!(outcome.bit_len, 8);
+    assert_eq!(outcome.replacement_calls, 0);
+    assert_eq!(
+        take_test_callback_diagnostics(),
+        vec![TestCallbackDiagnostic {
+            level: log::Level::Warn,
+            direction: "incoming",
+            kind: "rpc",
+            id: 201,
+            phase: CallbackFailurePhase::ReplacementEncode,
+        }]
+    );
+
+    subscription.unregister_and_wait().unwrap();
+}
+
+#[test]
+fn host_rejection_preserves_incoming_rpc_and_packet_payloads() {
+    use crate::events::{
+        CallbackFailurePhase, TestCallbackDiagnostic, take_test_callback_diagnostics,
+    };
+    use samp_protocol::{
+        WireDescriptor,
+        packet::common::{CONNECTION_ACCEPTED, ConnectionAccepted, ConnectionAcceptedPacket},
+        rpc::incoming::{SET_PLAYER_DRUNK, SetPlayerDrunk},
+    };
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    take_test_callback_diagnostics();
+    let net = Samp::from_api(test_support::test_api()).net();
+    let rpc_subscription = net
+        .on_incoming_typed_rpc(SET_PLAYER_DRUNK, |_| ProtocolAction::Replace(8))
+        .unwrap();
+    let original = SetPlayerDrunk::encode_bits(&7).unwrap();
+    let original_bytes = original.as_bytes().to_vec();
+    let original_bit_len = original.len_bits();
+    let payload = EncodedPayload::from_bits(original_bytes.clone(), original_bit_len).unwrap();
+
+    let outcome = test_support::invoke_registered_callback_with_host_replacement(
+        35,
+        payload,
+        SampClientSdkResult::NativeCallFailed,
+    )
+    .unwrap();
+
+    assert_eq!(outcome.action, SampClientSdkHookAction::Continue);
+    assert_eq!(outcome.bytes, original_bytes);
+    assert_eq!(outcome.bit_len, original_bit_len);
+    assert_eq!(outcome.replacement_calls, 1);
+    assert_eq!(
+        take_test_callback_diagnostics(),
+        vec![TestCallbackDiagnostic {
+            level: log::Level::Warn,
+            direction: "incoming",
+            kind: "rpc",
+            id: 35,
+            phase: CallbackFailurePhase::ReplacementHost,
+        }]
+    );
+    rpc_subscription.unregister_and_wait().unwrap();
+
+    test_support::reset_registration();
+    let packet_subscription = net
+        .on_incoming_typed_packet(CONNECTION_ACCEPTED, |connection| {
+            ProtocolAction::Replace(ConnectionAccepted {
+                challenge: 42,
+                ..connection
+            })
+        })
+        .unwrap();
+    let original = ConnectionAcceptedPacket::encode_bits(&ConnectionAccepted {
+        ip: -1,
+        port: 1,
+        player_id: 2,
+        challenge: 3,
+    })
+    .unwrap();
+    let original_bytes = original.as_bytes().to_vec();
+    let original_bit_len = original.len_bits();
+    let payload = EncodedPayload::from_bits(original_bytes.clone(), original_bit_len).unwrap();
+
+    let outcome = test_support::invoke_registered_callback_with_host_replacement(
+        34,
+        payload,
+        SampClientSdkResult::NativeCallFailed,
+    )
+    .unwrap();
+
+    assert_eq!(outcome.action, SampClientSdkHookAction::Continue);
+    assert_eq!(outcome.bytes, original_bytes);
+    assert_eq!(outcome.bit_len, original_bit_len);
+    assert_eq!(outcome.replacement_calls, 1);
+    assert_eq!(
+        take_test_callback_diagnostics(),
+        vec![TestCallbackDiagnostic {
+            level: log::Level::Warn,
+            direction: "incoming",
+            kind: "packet",
+            id: 34,
+            phase: CallbackFailurePhase::ReplacementHost,
+        }]
+    );
+    packet_subscription.unregister_and_wait().unwrap();
+}
+
+#[test]
+fn successful_non_byte_aligned_replacement_uses_one_host_call() {
+    use crate::events::take_test_callback_diagnostics;
+    use samp_protocol::{WireDescriptor, packet::r1};
+
+    let _serial = REGISTRATION_TEST_LOCK
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    test_support::reset_registration();
+    take_test_callback_diagnostics();
+    let net = Samp::from_api(test_support::test_api()).net();
+    let value = r1::MarkersSync {
+        markers: vec![r1::Marker {
+            player_id: 1,
+            coordinates: None,
+        }],
+    };
+    let replacement = value.clone();
+    let subscription = net
+        .on_incoming_typed_packet(r1::MARKERS_SYNC, move |_| {
+            ProtocolAction::Replace(replacement.clone())
+        })
+        .unwrap();
+    let original = r1::MarkersSyncPacket::encode_bits(&value).unwrap();
+    assert_eq!(original.len_bits(), 49);
+    let payload =
+        EncodedPayload::from_bits(original.as_bytes().to_vec(), original.len_bits()).unwrap();
+
+    let outcome = test_support::invoke_registered_callback_with_host_replacement(
+        r1::MarkersSyncPacket::ID,
+        payload,
+        SampClientSdkResult::Ok,
+    )
+    .unwrap();
+
+    assert_eq!(outcome.action, SampClientSdkHookAction::Continue);
+    assert_eq!(outcome.bytes, original.as_bytes());
+    assert_eq!(outcome.bit_len, 49);
+    assert_eq!(outcome.replacement_calls, 1);
+    assert!(take_test_callback_diagnostics().is_empty());
+
+    subscription.unregister_and_wait().unwrap();
 }
 
 #[test]

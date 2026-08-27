@@ -16,7 +16,7 @@ macro_rules! protocol_packet_helper {
             handler: impl FnOnce($value) -> ProtocolAction<$value>,
         ) -> Result<SampClientSdkHookAction, ProtocolEventError> {
             let mut event = unsafe { Event::from_callback(api, raw) }.map_err(|error| {
-                ProtocolEventError::Decode(samp_protocol::DecodeError::Source(error))
+                ProtocolEventError::DecodeSource(error)
             })?;
             handle_protocol::<$descriptor>(&mut event, handler)
         }

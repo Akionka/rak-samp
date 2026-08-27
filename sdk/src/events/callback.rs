@@ -1,9 +1,65 @@
+pub(crate) use super::core::CallbackFailurePhase;
 use super::{
     Event, IncomingPacket as LegacyIncomingPacket, IncomingRpc as LegacyIncomingRpc,
     OutgoingPacket as LegacyOutgoingPacket, OutgoingRpc as LegacyOutgoingRpc, ProtocolAction,
     handle_protocol,
 };
 use crate::SampClientSdkHookAction;
+
+#[cfg(test)]
+use std::sync::Mutex;
+
+#[cfg(test)]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct TestCallbackDiagnostic {
+    pub(crate) level: log::Level,
+    pub(crate) direction: &'static str,
+    pub(crate) kind: &'static str,
+    pub(crate) id: u8,
+    pub(crate) phase: CallbackFailurePhase,
+}
+
+#[cfg(test)]
+static TEST_CALLBACK_DIAGNOSTICS: Mutex<Vec<TestCallbackDiagnostic>> = Mutex::new(Vec::new());
+
+#[cfg(test)]
+pub(crate) fn take_test_callback_diagnostics() -> Vec<TestCallbackDiagnostic> {
+    core::mem::take(
+        &mut *TEST_CALLBACK_DIAGNOSTICS
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()),
+    )
+}
+
+pub(crate) fn report_failure(
+    phase: CallbackFailurePhase,
+    direction: &'static str,
+    kind: &'static str,
+    id: u8,
+) -> SampClientSdkHookAction {
+    let level = if phase == CallbackFailurePhase::DecodeMalformed {
+        log::Level::Debug
+    } else {
+        log::Level::Warn
+    };
+    #[cfg(test)]
+    TEST_CALLBACK_DIAGNOSTICS
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .push(TestCallbackDiagnostic {
+            level,
+            direction,
+            kind,
+            id,
+            phase,
+        });
+    log::log!(
+        target: "samp_client_sdk::typed_callback",
+        level,
+        "typed callback failure: direction={direction} kind={kind} id={id} phase={phase:?}"
+    );
+    SampClientSdkHookAction::Continue
+}
 
 /// Marks callbacks for messages received from the server.
 pub struct Incoming;
@@ -18,11 +74,14 @@ pub struct PacketKind;
 pub struct RpcKind;
 
 mod private {
-    use super::{Event, ProtocolAction, SampClientSdkHookAction};
+    use super::{CallbackFailurePhase, Event, ProtocolAction, SampClientSdkHookAction};
 
     pub trait CallbackAdapter<Direction, Kind> {
         type Value;
         type State: Send + Sync + 'static;
+
+        const DIRECTION: &'static str;
+        const KIND: &'static str;
 
         fn id(&self) -> u8;
 
@@ -32,7 +91,7 @@ mod private {
             state: &Self::State,
             event: &mut Event<'_>,
             handler: F,
-        ) -> SampClientSdkHookAction
+        ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
         where
             F: FnOnce(Self::Value) -> ProtocolAction<Self::Value>;
     }
@@ -116,13 +175,16 @@ pub trait TypedCallbackDescriptor<Direction, Kind>:
 }
 
 macro_rules! protocol_adapter {
-    ($direction:ty, $kind:ty, $descriptor:path) => {
+    ($direction:ty, $kind:ty, $descriptor:path, $direction_name:literal, $kind_name:literal) => {
         impl<D> private::CallbackAdapter<$direction, $kind> for D
         where
             D: $descriptor,
         {
             type Value = D::Value;
             type State = ();
+
+            const DIRECTION: &'static str = $direction_name;
+            const KIND: &'static str = $kind_name;
 
             fn id(&self) -> u8 {
                 D::ID
@@ -134,11 +196,11 @@ macro_rules! protocol_adapter {
                 _state: &Self::State,
                 event: &mut Event<'_>,
                 handler: F,
-            ) -> SampClientSdkHookAction
+            ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
             where
                 F: FnOnce(Self::Value) -> ProtocolAction<Self::Value>,
             {
-                handle_protocol::<D>(event, handler).unwrap_or(SampClientSdkHookAction::Continue)
+                handle_protocol::<D>(event, handler).map_err(|error| error.phase())
             }
         }
     };
@@ -147,21 +209,40 @@ macro_rules! protocol_adapter {
 protocol_adapter!(
     Incoming,
     PacketKind,
-    samp_protocol::IncomingPacketDescriptor
+    samp_protocol::IncomingPacketDescriptor,
+    "incoming",
+    "packet"
 );
 protocol_adapter!(
     Outgoing,
     PacketKind,
-    samp_protocol::OutgoingPacketDescriptor
+    samp_protocol::OutgoingPacketDescriptor,
+    "outgoing",
+    "packet"
 );
-protocol_adapter!(Incoming, RpcKind, samp_protocol::IncomingRpcDescriptor);
-protocol_adapter!(Outgoing, RpcKind, samp_protocol::OutgoingRpcDescriptor);
+protocol_adapter!(
+    Incoming,
+    RpcKind,
+    samp_protocol::IncomingRpcDescriptor,
+    "incoming",
+    "rpc"
+);
+protocol_adapter!(
+    Outgoing,
+    RpcKind,
+    samp_protocol::OutgoingRpcDescriptor,
+    "outgoing",
+    "rpc"
+);
 
 macro_rules! legacy_adapter {
-    ($descriptor:ident, $direction:ty, $kind:ty) => {
+    ($descriptor:ident, $direction:ty, $kind:ty, $direction_name:literal, $kind_name:literal) => {
         impl<T: 'static> private::CallbackAdapter<$direction, $kind> for $descriptor<T> {
             type Value = T;
             type State = Self;
+
+            const DIRECTION: &'static str = $direction_name;
+            const KIND: &'static str = $kind_name;
 
             fn id(&self) -> u8 {
                 (*self).id()
@@ -175,22 +256,34 @@ macro_rules! legacy_adapter {
                 state: &Self::State,
                 event: &mut Event<'_>,
                 handler: F,
-            ) -> SampClientSdkHookAction
+            ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
             where
                 F: FnOnce(Self::Value) -> ProtocolAction<Self::Value>,
             {
                 (*state)
-                    .handle(event, handler)
-                    .unwrap_or(SampClientSdkHookAction::Continue)
+                    .handle_classified(event, handler)
+                    .map_err(|(phase, _)| phase)
             }
         }
     };
 }
 
-legacy_adapter!(LegacyIncomingPacket, Incoming, PacketKind);
-legacy_adapter!(LegacyOutgoingPacket, Outgoing, PacketKind);
-legacy_adapter!(LegacyIncomingRpc, Incoming, RpcKind);
-legacy_adapter!(LegacyOutgoingRpc, Outgoing, RpcKind);
+legacy_adapter!(
+    LegacyIncomingPacket,
+    Incoming,
+    PacketKind,
+    "incoming",
+    "packet"
+);
+legacy_adapter!(
+    LegacyOutgoingPacket,
+    Outgoing,
+    PacketKind,
+    "outgoing",
+    "packet"
+);
+legacy_adapter!(LegacyIncomingRpc, Incoming, RpcKind, "incoming", "rpc");
+legacy_adapter!(LegacyOutgoingRpc, Outgoing, RpcKind, "outgoing", "rpc");
 
 impl<D, Direction, Kind> TypedCallbackDescriptor<Direction, Kind> for D
 where
@@ -221,5 +314,14 @@ where
     D: TypedCallbackDescriptor<Direction, Kind>,
     F: FnOnce(D::Value) -> ProtocolAction<D::Value>,
 {
-    <D as private::CallbackAdapter<Direction, Kind>>::handle(state, event, handler)
+    <D as private::CallbackAdapter<Direction, Kind>>::handle(state, event, handler).unwrap_or_else(
+        |phase| {
+            report_failure(
+                phase,
+                <D as private::CallbackAdapter<Direction, Kind>>::DIRECTION,
+                <D as private::CallbackAdapter<Direction, Kind>>::KIND,
+                event.id(),
+            )
+        },
+    )
 }

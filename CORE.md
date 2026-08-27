@@ -7,7 +7,9 @@
   aliases. `Net` projects Protocol-owned and remaining Host-backed descriptors
   through one sealed typed callback model. Direction and Packet/RPC kind stay
   type-level, while decode, replacement, callback lifetime, and Host mutation
-  remain private SDK adaptation.
+  remain private SDK adaptation. Typed failures are classified and diagnosed
+  without payload data before fail-open conversion. Protocol replacements use
+  canonical owned exact-bit payloads before one failure-atomic Host mutation.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
   `limits`, one canonical set of cursor-preserving Wire read/write primitives,

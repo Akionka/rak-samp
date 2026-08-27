@@ -107,19 +107,58 @@ pub(crate) fn invoke_registered_callback_with_replacement(
     id: u8,
     payload: EncodedPayload,
 ) -> Option<(SampClientSdkHookAction, Vec<u8>, usize)> {
+    invoke_registered_callback_with_host_replacement(id, payload, SampClientSdkResult::Ok)
+        .map(|outcome| (outcome.action, outcome.bytes, outcome.bit_len))
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct CallbackInvocation {
+    pub(crate) action: SampClientSdkHookAction,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) bit_len: usize,
+    pub(crate) replacement_calls: usize,
+}
+
+pub(crate) fn invoke_registered_callback_with_host_replacement(
+    id: u8,
+    payload: EncodedPayload,
+    replace_result: SampClientSdkResult,
+) -> Option<CallbackInvocation> {
+    invoke_registered_callback_with_results(id, payload, SampClientSdkResult::Ok, replace_result)
+}
+
+pub(crate) fn invoke_registered_callback_with_source_failure(
+    id: u8,
+    payload: EncodedPayload,
+    source_result: SampClientSdkResult,
+) -> Option<CallbackInvocation> {
+    invoke_registered_callback_with_results(id, payload, source_result, SampClientSdkResult::Ok)
+}
+
+fn invoke_registered_callback_with_results(
+    id: u8,
+    payload: EncodedPayload,
+    reset_read_result: SampClientSdkResult,
+    replace_result: SampClientSdkResult,
+) -> Option<CallbackInvocation> {
     let callback = *REGISTRATION
         .lock()
         .unwrap_or_else(|error| error.into_inner())
         .callbacks
         .first()?;
-    let mut event = TestEvent::new(id, payload);
+    let mut event = TestEvent::with_results(id, payload, reset_read_result, replace_result);
     let action = unsafe {
         (callback.callback)(
             callback.user_data as *mut ::core::ffi::c_void,
             (&mut event as *mut TestEvent).cast::<SampClientSdkEventV1>(),
         )
     };
-    Some((action, event.bytes, event.bit_len))
+    Some(CallbackInvocation {
+        action,
+        bytes: event.bytes,
+        bit_len: event.bit_len,
+        replacement_calls: event.replacement_calls,
+    })
 }
 
 extern "system" fn test_status() -> crate::SampClientSdkHostStatus {
