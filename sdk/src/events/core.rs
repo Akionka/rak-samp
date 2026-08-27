@@ -359,11 +359,6 @@ impl PayloadWriter {
         }
     }
 
-    pub(super) fn finish(self) -> Vec<u8> {
-        debug_assert_eq!(self.bit_len, self.bytes.len() * u8::BITS as usize);
-        self.bytes
-    }
-
     pub(super) fn finish_bits(self) -> EncodedPayload {
         EncodedPayload {
             bytes: self.bytes,

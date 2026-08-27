@@ -1,6 +1,5 @@
 use super::*;
 use super::{
-    core::RpcEncoder,
     rpc::incoming,
     test_support::{
         TestEvent, assert_protocol_replacement_round_trip, assert_replacement_round_trip, test_api,
@@ -8,17 +7,6 @@ use super::{
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
 use samp_protocol::rpc::incoming as protocol_incoming;
-
-fn encode_bytes<T, D>(descriptor: D, value: T) -> Vec<u8>
-where
-    D: TypedDescriptor<T>,
-{
-    let descriptor = descriptor.into_rpc();
-    let RpcEncoder::Bytes(encode) = descriptor.encode else {
-        panic!("test descriptor must use a byte-aligned encoder");
-    };
-    encode(value).expect("test payload must be valid")
-}
 
 fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
     Vector3 { x, y, z }
@@ -359,6 +347,186 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
     assert_replacement_round_trip(protocol_incoming::REMOVE_PLAYER_FROM_VEHICLE, ());
     assert_replacement_round_trip(protocol_incoming::FORCE_CLASS_SELECTION, ());
     assert_replacement_round_trip(protocol_incoming::SET_CAMERA_BEHIND, ());
+}
+
+#[test]
+fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
+    use protocol_incoming::{Vector2, Vector3};
+
+    fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
+    where
+        D: samp_protocol::WireDescriptor,
+        D::Value: Clone + ::core::fmt::Debug + PartialEq,
+    {
+        assert_protocol_replacement_round_trip(descriptor, value);
+    }
+
+    assert_replacement_round_trip(protocol_incoming::ATTACH_CAMERA_TO_OBJECT, 1);
+    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_STOP_FLASH, 2);
+    assert_replacement_round_trip(protocol_incoming::CLEAR_PLAYER_ANIMATION, 3);
+    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_SPECIAL_ACTION, 4);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_PLAYER_FIGHTING_STYLE,
+        protocol_incoming::PlayerFightingStyle {
+            player_id: 5,
+            style_id: 6,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_PLAYER_VELOCITY,
+        Vector3 {
+            x: 1.0,
+            y: 2.0,
+            z: 3.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_VELOCITY,
+        protocol_incoming::VehicleVelocity {
+            turn: true,
+            velocity: Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::CREATE_PICKUP,
+        protocol_incoming::Pickup {
+            id: 7,
+            model: 8,
+            pickup_type: 9,
+            position: Vector3 {
+                x: 10.0,
+                y: 11.0,
+                z: 12.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::MOVE_OBJECT,
+        protocol_incoming::MoveObject {
+            object_id: 13,
+            from_position: Vector3 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            destination: Vector3 {
+                x: 4.0,
+                y: 5.0,
+                z: 6.0,
+            },
+            speed: 7.0,
+            rotation: Vector3 {
+                x: 8.0,
+                y: 9.0,
+                z: 10.0,
+            },
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::TEXT_DRAW_SET_STRING,
+        protocol_incoming::TextDrawString {
+            textdraw_id: 14,
+            text: b"text".to_vec(),
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::CREATE_GANG_ZONE,
+        protocol_incoming::GangZone {
+            zone_id: 15,
+            square_start: Vector2 { x: 1.0, y: 2.0 },
+            square_end: Vector2 { x: 3.0, y: 4.0 },
+            color: 16,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_DESTROY, 17);
+    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_FLASH, (18, 19));
+    assert_replacement_round_trip(protocol_incoming::STOP_OBJECT, 20);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_NUMBER_PLATE,
+        protocol_incoming::VehicleNumberPlate {
+            vehicle_id: 21,
+            text: b"plate".to_vec(),
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SPECTATE_PLAYER,
+        protocol_incoming::Spectate {
+            target_id: 22,
+            camera_type: 23,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SPECTATE_VEHICLE,
+        protocol_incoming::Spectate {
+            target_id: 24,
+            camera_type: 25,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::CONNECTION_REJECTED, 26);
+    assert_replacement_round_trip(protocol_incoming::REMOVE_MAP_ICON, 27);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_WEAPON_AMMO,
+        protocol_incoming::WeaponAmmo {
+            weapon_id: 28,
+            ammo: 29,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::SET_GRAVITY, 30.0);
+    assert_replacement_round_trip(
+        protocol_incoming::ATTACH_TRAILER_TO_VEHICLE,
+        protocol_incoming::TrailerAttachment {
+            trailer_id: 31,
+            vehicle_id: 32,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::DETACH_TRAILER_FROM_VEHICLE, 33);
+    assert_replacement_round_trip(
+        protocol_incoming::SET_CAMERA_POSITION,
+        Vector3 {
+            x: 34.0,
+            y: 35.0,
+            z: 36.0,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_CAMERA_LOOK_AT,
+        protocol_incoming::CameraLookAt {
+            position: Vector3 {
+                x: 37.0,
+                y: 38.0,
+                z: 39.0,
+            },
+            cut_type: 40,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::SET_VEHICLE_PARAMS,
+        protocol_incoming::VehicleParams {
+            vehicle_id: 41,
+            objective: true,
+            doors_locked: false,
+        },
+    );
+    assert_replacement_round_trip(protocol_incoming::PLAYER_DEATH, 42);
+    assert_replacement_round_trip(
+        protocol_incoming::PLAYER_ENTER_VEHICLE,
+        protocol_incoming::PlayerEnterVehicle {
+            player_id: 43,
+            vehicle_id: 44,
+            passenger: true,
+        },
+    );
+    assert_replacement_round_trip(
+        protocol_incoming::PLAYER_EXIT_VEHICLE,
+        protocol_incoming::PlayerExitVehicle {
+            player_id: 45,
+            vehicle_id: 46,
+        },
+    );
 }
 
 #[test]
@@ -908,25 +1076,4 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
     for (actual, expected) in descriptors {
         assert_eq!(actual, expected);
     }
-}
-
-#[test]
-fn further_fixed_layout_incoming_rpc_helpers_encode_exact_vectors() {
-    assert_eq!(incoming::CREATE_GANG_ZONE.id(), 108);
-
-    assert_eq!(
-        encode_bytes(
-            incoming::CREATE_GANG_ZONE,
-            incoming::GangZone {
-                zone_id: 0x1234,
-                square_start: Vector2 { x: 1.0, y: 2.0 },
-                square_end: Vector2 { x: 3.0, y: 4.0 },
-                color: -1,
-            },
-        ),
-        [
-            0x34, 0x12, 0, 0, 0x80, 0x3F, 0, 0, 0, 0x40, 0, 0, 0x40, 0x40, 0, 0, 0x80, 0x40, 0xFF,
-            0xFF, 0xFF, 0xFF,
-        ]
-    );
 }

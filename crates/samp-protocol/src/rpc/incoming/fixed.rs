@@ -1,8 +1,10 @@
 //! Fixed-layout incoming RPC codecs.
 //!
-//! This module owns the first two bounded incoming batches: 29 descriptors
-//! from `SERVER_MESSAGE` through `VEHICLE_STREAM_OUT`, then 30 descriptors
-//! from `SET_VEHICLE_POSITION` through `SHOW_PLAYER_NAME_TAG`. `SHOW_DIALOG`
+//! This module owns four bounded incoming batches: 29 descriptors from
+//! `SERVER_MESSAGE` through `VEHICLE_STREAM_OUT`, 30 descriptors from
+//! `SET_VEHICLE_POSITION` through `SHOW_PLAYER_NAME_TAG`, 26 descriptors from
+//! `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and 29 descriptors from
+//! `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. `SHOW_DIALOG`
 //! remains in the SDK because it needs the later Native encoded-string
 //! extension boundary.
 
@@ -17,6 +19,13 @@ pub struct Vector3 {
     pub x: f32,
     pub y: f32,
     pub z: f32,
+}
+
+/// A two-dimensional SA-MP coordinate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Vector2 {
+    pub x: f32,
+    pub y: f32,
 }
 
 /// MoonLoader's `onServerMessage` payload (RPC 93).
@@ -1695,3 +1704,7 @@ fn write_bytes<W: BitWrite>(writer: &mut W, bytes: &[u8]) -> Result<(), EncodeEr
         .write_left_aligned_bits(bytes, bytes.len() * u8::BITS as usize)
         .map_err(EncodeError::Source)
 }
+
+mod phase15;
+
+pub use phase15::*;

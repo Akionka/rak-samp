@@ -10,9 +10,11 @@
   descriptors with explicit trailing policies, Packet/RPC name catalogs, outgoing chat,
   slash-command, profile-neutral byte-aligned RPC codecs, and common
   byte-aligned Packet codecs. Directional marker traits make an invalid typed
-  subscription or send fail to compile. It also owns three fixed incoming RPC batches:
-  server messages through vehicle stream-out, vehicle position through player name tags, and the
-  26 descriptors from `CLIENT_CHECK` through `SET_CAMERA_BEHIND`.
+  subscription or send fail to compile. It also owns four fixed incoming RPC batches:
+  server messages through vehicle stream-out, vehicle position through player name tags, the
+  26 descriptors from `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and the 29 descriptors from
+  `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. `SHOW_DIALOG` remains in the SDK until
+  the Native encoded-string extension boundary moves.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
