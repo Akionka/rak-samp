@@ -2,7 +2,7 @@
 
 use crate::types::Vector3;
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, IncomingRpc, WireCodec,
     WireReadExt, WireWriteExt,
 };
 
@@ -161,7 +161,7 @@ pub struct ScoresAndPingsCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec>;
+        pub type $name = IncomingRpc<$id, $codec, ExactBitsPolicy>;
         pub const $constant: $name = IncomingRpc::new();
     };
 }
@@ -211,8 +211,6 @@ macro_rules! r1_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 $decode(reader)
             }

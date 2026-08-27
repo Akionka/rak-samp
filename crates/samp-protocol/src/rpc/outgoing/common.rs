@@ -2,7 +2,7 @@
 
 use crate::types::Vector3;
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, OutgoingRpc, TrailingPolicy, WireCodec,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, OutgoingRpc, WireCodec,
     WireReadExt, WireWriteExt,
 };
 
@@ -144,7 +144,7 @@ pub struct VehicleTuningCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = OutgoingRpc<$id, $codec>;
+        pub type $name = OutgoingRpc<$id, $codec, ExactBytesPolicy>;
         pub const $constant: $name = OutgoingRpc::new();
     };
 }
@@ -237,8 +237,6 @@ macro_rules! byte_aligned_codec {
         impl WireCodec for $codec {
             type Value = $value;
 
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 $decode(reader)
             }
@@ -258,8 +256,6 @@ macro_rules! byte_aligned_scalar_codec {
         impl WireCodec for $codec {
             type Value = $value;
 
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 reader.$read()
             }
@@ -278,8 +274,6 @@ macro_rules! byte_aligned_vector_codec {
     ($codec:ident, $value:ty, $read:ident, $write:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
 
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 reader.$read()

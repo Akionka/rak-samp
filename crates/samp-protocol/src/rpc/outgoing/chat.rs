@@ -1,16 +1,16 @@
 //! Outgoing chat and slash-command RPC codecs.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, OutgoingRpc, TrailingPolicy, WireCodec,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, OutgoingRpc, WireCodec,
     WireReadExt, WireWriteExt,
 };
 
 /// The `onSendChat` RPC ID.
-pub type SendChat = OutgoingRpc<101, String8>;
+pub type SendChat = OutgoingRpc<101, String8, ExactBytesPolicy>;
 /// The `onSendChat` descriptor.
 pub const SEND_CHAT: SendChat = OutgoingRpc::new();
 /// The `onSendCommand` RPC ID.
-pub type SendCommand = OutgoingRpc<50, String32<4096>>;
+pub type SendCommand = OutgoingRpc<50, String32<4096>, ExactBytesPolicy>;
 /// The `onSendCommand` descriptor.
 pub const SEND_COMMAND: SendCommand = OutgoingRpc::new();
 
@@ -19,8 +19,6 @@ pub struct String8;
 
 impl WireCodec for String8 {
     type Value = Vec<u8>;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         WireReadExt::read_len_prefixed_bytes_u8(reader, usize::from(u8::MAX))
@@ -39,8 +37,6 @@ pub struct String32<const LIMIT: usize>;
 
 impl<const LIMIT: usize> WireCodec for String32<LIMIT> {
     type Value = Vec<u8>;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let limit = LIMIT.min(u32::MAX as usize);

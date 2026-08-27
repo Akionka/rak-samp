@@ -17,6 +17,11 @@ pub enum DecodeError<E> {
         remaining_bits: usize,
         allowed_bits: usize,
     },
+    /// A terminal alignment region had the wrong structural bit length.
+    InvalidTerminalPaddingLength {
+        remaining_bits: usize,
+        required_bits: usize,
+    },
     /// A byte-aligned descriptor received a non-byte-aligned payload.
     NonByteAligned { bit_len: usize },
     /// A length-prefixed field exceeded its Protocol-defined byte limit.
@@ -45,6 +50,13 @@ impl<E: fmt::Display> fmt::Display for DecodeError<E> {
                 formatter,
                 "{remaining_bits} trailing bits exceed the {allowed_bits}-bit limit"
             ),
+            Self::InvalidTerminalPaddingLength {
+                remaining_bits,
+                required_bits,
+            } => write!(
+                formatter,
+                "terminal padding contains {remaining_bits} bits; {required_bits} bits are required"
+            ),
             Self::NonByteAligned { bit_len } => {
                 write!(formatter, "a {bit_len}-bit payload is not byte-aligned")
             }
@@ -65,6 +77,7 @@ impl<E: std::error::Error + 'static> std::error::Error for DecodeError<E> {
             Self::OutOfBounds { .. }
             | Self::InvalidBitLength { .. }
             | Self::UnexpectedTrailingBits { .. }
+            | Self::InvalidTerminalPaddingLength { .. }
             | Self::NonByteAligned { .. }
             | Self::LengthExceedsLimit { .. } => None,
         }
@@ -85,6 +98,8 @@ pub enum EncodeError<E> {
     InvalidBitLength { bit_len: usize, byte_len: usize },
     /// The encoded payload used more bytes than its bit length requires.
     NonMinimalStorage { bit_len: usize, byte_len: usize },
+    /// A byte-aligned descriptor encoded a non-byte-aligned payload.
+    NonByteAlignedPayload { bit_len: usize },
     /// A length-prefixed field exceeded its Protocol-defined byte limit.
     LengthExceedsLimit { length: usize, limit: usize },
 }
@@ -108,6 +123,12 @@ impl<E: fmt::Display> fmt::Display for EncodeError<E> {
                 formatter,
                 "a {bit_len}-bit payload must not use {byte_len} bytes of storage"
             ),
+            Self::NonByteAlignedPayload { bit_len } => {
+                write!(
+                    formatter,
+                    "a {bit_len}-bit encoded payload is not byte-aligned"
+                )
+            }
             Self::LengthExceedsLimit { length, limit } => {
                 write!(
                     formatter,
@@ -125,6 +146,7 @@ impl<E: std::error::Error + 'static> std::error::Error for EncodeError<E> {
             Self::PayloadTooLarge { .. }
             | Self::InvalidBitLength { .. }
             | Self::NonMinimalStorage { .. }
+            | Self::NonByteAlignedPayload { .. }
             | Self::LengthExceedsLimit { .. } => None,
         }
     }

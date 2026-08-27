@@ -5,8 +5,8 @@
 //! remains in [`super::common`].
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, IncomingPacket, TrailingPolicy, WireCodec,
-    WireReadExt, WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, IncomingPacket,
+    TerminalAlignmentPaddingPolicy, WireCodec, WireReadExt, WireWriteExt,
 };
 
 use crate::types::Vector3;
@@ -93,8 +93,8 @@ pub struct RemoteVehicleSyncCodec;
 pub struct MarkersSyncCodec;
 
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingPacket<$id, $codec>;
+    ($name:ident, $constant:ident, $id:literal, $codec:ty, $policy:ty) => {
+        pub type $name = IncomingPacket<$id, $codec, $policy>;
         pub const $constant: $name = IncomingPacket::new();
     };
 }
@@ -103,20 +103,26 @@ descriptor!(
     RemotePlayerSyncPacket,
     PLAYER_SYNC,
     207,
-    RemotePlayerSyncCodec
+    RemotePlayerSyncCodec,
+    ExactBitsPolicy
 );
 descriptor!(
     RemoteVehicleSyncPacket,
     VEHICLE_SYNC,
     200,
-    RemoteVehicleSyncCodec
+    RemoteVehicleSyncCodec,
+    ExactBitsPolicy
 );
-descriptor!(MarkersSyncPacket, MARKERS_SYNC, 208, MarkersSyncCodec);
+descriptor!(
+    MarkersSyncPacket,
+    MARKERS_SYNC,
+    208,
+    MarkersSyncCodec,
+    TerminalAlignmentPaddingPolicy
+);
 
 impl WireCodec for RemotePlayerSyncCodec {
     type Value = RemotePlayerSync;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let player_id = reader.read_u16_le()?;
@@ -197,8 +203,6 @@ impl WireCodec for RemotePlayerSyncCodec {
 impl WireCodec for RemoteVehicleSyncCodec {
     type Value = RemoteVehicleSync;
 
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
-
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let player_id = reader.read_u16_le()?;
         let vehicle_id = reader.read_u16_le()?;
@@ -270,8 +274,6 @@ impl WireCodec for RemoteVehicleSyncCodec {
 
 impl WireCodec for MarkersSyncCodec {
     type Value = MarkersSync;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::TerminalAlignmentPadding;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let count = usize::try_from(reader.read_i32_le()?).map_err(|_| {

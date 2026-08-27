@@ -174,9 +174,9 @@ fn marker_sync_accepts_terminal_alignment_padding_and_rejects_a_full_extra_byte(
     let malformed = EncodedBits::from_bits(bytes, 57).expect("the malformed suffix fits");
     assert!(matches!(
         MarkersSyncPacket::decode_bits(&malformed),
-        Err(DecodeError::UnexpectedTrailingBits {
+        Err(DecodeError::InvalidTerminalPaddingLength {
             remaining_bits: 8,
-            allowed_bits: 7,
+            required_bits: 7,
         })
     ));
 }

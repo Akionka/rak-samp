@@ -1047,9 +1047,9 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
             "a full trailing byte must not dispatch"
         )),
         Err(super::core::ProtocolEventError::Decode(
-            samp_protocol::DecodeError::UnexpectedTrailingBits {
+            samp_protocol::DecodeError::InvalidTerminalPaddingLength {
                 remaining_bits: 8,
-                allowed_bits: 7,
+                required_bits: 7,
             }
         ))
     ));

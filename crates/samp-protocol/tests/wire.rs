@@ -1,16 +1,15 @@
 use core::mem::size_of;
 
 use samp_protocol::{
-    BitRead, BitWrite, DecodeError, EncodeError, EncodedBits, Packet, Rpc, TrailingPolicy,
-    WireCodec, WireDescriptor, WireKind,
+    BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, ExactBitsPolicy,
+    ExactBytesPolicy, IncomingPacket, OutgoingRpc, Packet, Rpc, TerminalAlignmentPaddingPolicy,
+    TrailingPolicy, WireCodec, WireDescriptor, WireKind,
 };
 
 struct ThreeBitValue;
 
 impl WireCodec for ThreeBitValue {
     type Value = u8;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let bytes = reader
@@ -29,50 +28,10 @@ impl WireCodec for ThreeBitValue {
     }
 }
 
-struct ThreeBitExactByteValue;
-
-impl WireCodec for ThreeBitExactByteValue {
-    type Value = u8;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
-    fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        ThreeBitValue::decode(reader)
-    }
-
-    fn encode<W: BitWrite>(
-        writer: &mut W,
-        value: &Self::Value,
-    ) -> Result<(), EncodeError<W::Error>> {
-        ThreeBitValue::encode(writer, value)
-    }
-}
-
-struct ThreeBitMarkerValue;
-
-impl WireCodec for ThreeBitMarkerValue {
-    type Value = u8;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::TerminalAlignmentPadding;
-
-    fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        ThreeBitValue::decode(reader)
-    }
-
-    fn encode<W: BitWrite>(
-        writer: &mut W,
-        value: &Self::Value,
-    ) -> Result<(), EncodeError<W::Error>> {
-        ThreeBitValue::encode(writer, value)
-    }
-}
-
 struct OneByteValue;
 
 impl WireCodec for OneByteValue {
     type Value = u8;
-
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let bytes = reader
@@ -91,11 +50,32 @@ impl WireCodec for OneByteValue {
     }
 }
 
-type ThreeBitPacket = Packet<207, ThreeBitValue>;
-type ThreeBitRpc = Rpc<61, ThreeBitValue>;
-type ExactBytePacket = Packet<1, ThreeBitExactByteValue>;
-type MarkerPacket = Packet<208, ThreeBitMarkerValue>;
-type OneBytePacket = Packet<2, OneByteValue>;
+type ThreeBitPacket = Packet<207, ThreeBitValue, ExactBitsPolicy>;
+type ThreeBitRpc = Rpc<61, ThreeBitValue, ExactBitsPolicy>;
+type ExactBytePacket = Packet<1, ThreeBitValue, ExactBytesPolicy>;
+type MarkerPacket = Packet<208, ThreeBitValue, TerminalAlignmentPaddingPolicy>;
+type OneBytePacket = Packet<2, OneByteValue, ExactBytesPolicy>;
+
+#[test]
+fn one_codec_composes_with_distinct_descriptor_id_direction_kind_and_policy() {
+    type Incoming = IncomingPacket<7, ThreeBitValue, ExactBitsPolicy>;
+    type Outgoing = OutgoingRpc<8, ThreeBitValue, ExactBytesPolicy>;
+
+    assert_eq!(Incoming::ID, 7);
+    assert_eq!(Incoming::KIND, WireKind::Packet);
+    assert_eq!(Outgoing::ID, 8);
+    assert_eq!(Outgoing::KIND, WireKind::Rpc);
+    assert_eq!(Incoming::TRAILING_POLICY, TrailingPolicy::ExactBits);
+    assert_eq!(Outgoing::TRAILING_POLICY, TrailingPolicy::ExactBytes);
+    assert_eq!(
+        Incoming::decode_bits(&Incoming::encode_bits(&5).unwrap()),
+        Ok(5)
+    );
+    assert_eq!(
+        Outgoing::encode_bits(&5),
+        Err(EncodeError::NonByteAlignedPayload { bit_len: 3 })
+    );
+}
 
 #[test]
 fn packet_and_rpc_descriptors_are_distinct_zero_sized_wire_types() {
@@ -176,21 +156,86 @@ fn exact_bit_and_exact_byte_policies_reject_their_invalid_inputs() {
         Err(DecodeError::NonByteAligned { bit_len: 3 })
     );
 
-    let byte_aligned = EncodedBits::from_bits([0xA5], 8).unwrap();
+    let byte_aligned = OneBytePacket::encode_bits(&0xA5).unwrap();
+    assert_eq!(byte_aligned.len_bits(), 8);
     assert_eq!(OneBytePacket::decode_bits(&byte_aligned), Ok(0xA5));
 }
 
 #[test]
-fn terminal_alignment_padding_accepts_fewer_than_eight_bits_and_rejects_a_full_byte() {
+fn exact_byte_canonical_encoding_rejects_non_byte_aligned_codec_output() {
+    let mut low_level = BitStream::new();
+    ExactBytePacket::encode_to(&mut low_level, &5).unwrap();
+    assert_eq!(low_level.len_bits(), 3);
+
+    assert_eq!(
+        ExactBytePacket::encode_bits(&5),
+        Err(EncodeError::NonByteAlignedPayload { bit_len: 3 })
+    );
+}
+
+#[test]
+fn terminal_alignment_padding_requires_the_exact_structural_length() {
+    let canonical = MarkerPacket::encode_bits(&5).unwrap();
+    assert_eq!(canonical.len_bits(), 3);
+    assert_eq!(MarkerPacket::decode_bits(&canonical), Ok(5));
+
     let padded = EncodedBits::from_bits([0b1011_1111], 8).unwrap();
     assert_eq!(MarkerPacket::decode_bits(&padded), Ok(5));
+
+    let short = EncodedBits::from_bits([0b1011_1110], 7).unwrap();
+    assert_eq!(
+        MarkerPacket::decode_bits(&short),
+        Err(DecodeError::InvalidTerminalPaddingLength {
+            remaining_bits: 4,
+            required_bits: 5,
+        })
+    );
+
+    let long = EncodedBits::from_bits([0b1011_1111, 0], 9).unwrap();
+    assert_eq!(
+        MarkerPacket::decode_bits(&long),
+        Err(DecodeError::InvalidTerminalPaddingLength {
+            remaining_bits: 6,
+            required_bits: 5,
+        })
+    );
 
     let full_byte_suffix = EncodedBits::from_bits([0b1010_0000, 0], 11).unwrap();
     assert_eq!(
         MarkerPacket::decode_bits(&full_byte_suffix),
-        Err(DecodeError::UnexpectedTrailingBits {
+        Err(DecodeError::InvalidTerminalPaddingLength {
             remaining_bits: 8,
-            allowed_bits: 7,
+            required_bits: 5,
         })
+    );
+}
+
+#[test]
+fn terminal_alignment_padding_preserves_reader_source_errors() {
+    struct PaddingRejectingReader {
+        remaining_bits: usize,
+    }
+
+    impl BitRead for PaddingRejectingReader {
+        type Error = &'static str;
+
+        fn remaining_bits(&self) -> usize {
+            self.remaining_bits
+        }
+
+        fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+            if bit_len == 3 {
+                self.remaining_bits = 5;
+                Ok(vec![0b1010_0000])
+            } else {
+                Err("padding read failed")
+            }
+        }
+    }
+
+    let mut reader = PaddingRejectingReader { remaining_bits: 8 };
+    assert_eq!(
+        MarkerPacket::decode_from(&mut reader),
+        Err(DecodeError::Source("padding read failed"))
     );
 }

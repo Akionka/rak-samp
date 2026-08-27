@@ -21,12 +21,18 @@ pub enum TrailingPolicy {
     ExactBits,
     /// The complete payload must be byte-aligned and fully consumed.
     ExactBytes,
-    /// The codec may leave fewer than eight terminal alignment bits unread.
+    /// The decoder accepts no tail or the exact structural bits needed for byte alignment.
     TerminalAlignmentPadding,
 }
 
 impl TrailingPolicy {
-    fn validate<E>(self, payload_bits: usize, remaining_bits: usize) -> Result<(), DecodeError<E>> {
+    fn validate<R: BitRead>(
+        self,
+        payload_bits: usize,
+        meaningful_bits: usize,
+        reader: &mut R,
+    ) -> Result<(), DecodeError<R::Error>> {
+        let remaining_bits = reader.remaining_bits();
         match self {
             Self::ExactBits if remaining_bits == 0 => Ok(()),
             Self::ExactBits => Err(DecodeError::UnexpectedTrailingBits {
@@ -43,11 +49,21 @@ impl TrailingPolicy {
                 remaining_bits,
                 allowed_bits: 0,
             }),
-            Self::TerminalAlignmentPadding if remaining_bits < u8::BITS as usize => Ok(()),
-            Self::TerminalAlignmentPadding => Err(DecodeError::UnexpectedTrailingBits {
-                remaining_bits,
-                allowed_bits: u8::BITS as usize - 1,
-            }),
+            Self::TerminalAlignmentPadding if remaining_bits == 0 => Ok(()),
+            Self::TerminalAlignmentPadding => {
+                let required_bits =
+                    (u8::BITS as usize - meaningful_bits % u8::BITS as usize) % u8::BITS as usize;
+                if remaining_bits != required_bits {
+                    return Err(DecodeError::InvalidTerminalPaddingLength {
+                        remaining_bits,
+                        required_bits,
+                    });
+                }
+                reader
+                    .read_left_aligned_bits(required_bits)
+                    .map_err(DecodeError::Source)?;
+                Ok(())
+            }
         }
     }
 }
@@ -56,9 +72,6 @@ impl TrailingPolicy {
 pub trait WireCodec {
     /// The Rust value carried by this codec.
     type Value;
-
-    /// The required payload termination after decoding this value.
-    const TRAILING_POLICY: TrailingPolicy;
 
     /// Decodes one value from a raw left-aligned bit reader.
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>>;
@@ -88,7 +101,8 @@ pub trait WireDescriptor {
     fn decode_from<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let payload_bits = reader.remaining_bits();
         let value = Self::Codec::decode(reader)?;
-        Self::TRAILING_POLICY.validate(payload_bits, reader.remaining_bits())?;
+        let meaningful_bits = payload_bits - reader.remaining_bits();
+        Self::TRAILING_POLICY.validate(payload_bits, meaningful_bits, reader)?;
         Ok(value)
     }
 
@@ -104,6 +118,13 @@ pub trait WireDescriptor {
     fn encode_bits(value: &Self::Value) -> Result<EncodedBits, EncodeError<BitStreamError>> {
         let mut stream = BitStream::new();
         Self::encode_to(&mut stream, value)?;
+        if Self::TRAILING_POLICY == TrailingPolicy::ExactBytes
+            && !stream.len_bits().is_multiple_of(u8::BITS as usize)
+        {
+            return Err(EncodeError::NonByteAlignedPayload {
+                bit_len: stream.len_bits(),
+            });
+        }
         EncodedBits::from_bits(stream.as_bytes().to_vec(), stream.len_bits())
             .map_err(encode_bits_error)
     }
@@ -117,11 +138,51 @@ pub trait WireDescriptor {
 }
 
 mod sealed {
+    use super::TrailingPolicy;
+
+    pub trait TrailingPolicyMarker {
+        const POLICY: TrailingPolicy;
+    }
     pub trait IncomingPacketDescriptor {}
     pub trait OutgoingPacketDescriptor {}
     pub trait IncomingRpcDescriptor {}
     pub trait OutgoingRpcDescriptor {}
 }
+
+/// Selects one finite trailing-bit policy for a generic descriptor.
+///
+/// This trait is sealed. Custom messages select one of the three provided marker types.
+pub trait TrailingPolicyMarker: sealed::TrailingPolicyMarker {}
+
+/// Selects exact meaningful-bit framing.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ExactBitsPolicy;
+
+impl sealed::TrailingPolicyMarker for ExactBitsPolicy {
+    const POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
+}
+
+impl TrailingPolicyMarker for ExactBitsPolicy {}
+
+/// Selects exact byte-aligned framing.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ExactBytesPolicy;
+
+impl sealed::TrailingPolicyMarker for ExactBytesPolicy {
+    const POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
+}
+
+impl TrailingPolicyMarker for ExactBytesPolicy {}
+
+/// Selects structural terminal byte-alignment padding.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct TerminalAlignmentPaddingPolicy;
+
+impl sealed::TrailingPolicyMarker for TerminalAlignmentPaddingPolicy {
+    const POLICY: TrailingPolicy = TrailingPolicy::TerminalAlignmentPadding;
+}
+
+impl TrailingPolicyMarker for TerminalAlignmentPaddingPolicy {}
 
 /// Marks a descriptor that may decode an incoming RakNet Packet callback.
 ///
@@ -167,11 +228,11 @@ pub trait IncomingRpcDescriptor: WireDescriptor + sealed::IncomingRpcDescriptor 
 /// ```
 pub trait OutgoingRpcDescriptor: WireDescriptor + sealed::OutgoingRpcDescriptor {}
 
-/// A concrete zero-sized typed RakNet Packet descriptor.
+/// A zero-sized typed RakNet Packet descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Packet<const ID: u8, C>(PhantomData<C>);
+pub struct Packet<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> Packet<ID, C> {
+impl<const ID: u8, C, P> Packet<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -179,20 +240,20 @@ impl<const ID: u8, C> Packet<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for Packet<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for Packet<ID, C, P> {
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Packet;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-/// A concrete zero-sized typed incoming RakNet Packet descriptor.
+/// A zero-sized typed incoming RakNet Packet descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct IncomingPacket<const ID: u8, C>(PhantomData<C>);
+pub struct IncomingPacket<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> IncomingPacket<ID, C> {
+impl<const ID: u8, C, P> IncomingPacket<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -200,24 +261,32 @@ impl<const ID: u8, C> IncomingPacket<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for IncomingPacket<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor
+    for IncomingPacket<ID, C, P>
+{
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Packet;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-impl<const ID: u8, C: WireCodec> sealed::IncomingPacketDescriptor for IncomingPacket<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::IncomingPacketDescriptor
+    for IncomingPacket<ID, C, P>
+{
+}
 
-impl<const ID: u8, C: WireCodec> IncomingPacketDescriptor for IncomingPacket<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> IncomingPacketDescriptor
+    for IncomingPacket<ID, C, P>
+{
+}
 
-/// A concrete zero-sized typed outgoing RakNet Packet descriptor.
+/// A zero-sized typed outgoing RakNet Packet descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct OutgoingPacket<const ID: u8, C>(PhantomData<C>);
+pub struct OutgoingPacket<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> OutgoingPacket<ID, C> {
+impl<const ID: u8, C, P> OutgoingPacket<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -225,24 +294,32 @@ impl<const ID: u8, C> OutgoingPacket<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for OutgoingPacket<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor
+    for OutgoingPacket<ID, C, P>
+{
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Packet;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-impl<const ID: u8, C: WireCodec> sealed::OutgoingPacketDescriptor for OutgoingPacket<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::OutgoingPacketDescriptor
+    for OutgoingPacket<ID, C, P>
+{
+}
 
-impl<const ID: u8, C: WireCodec> OutgoingPacketDescriptor for OutgoingPacket<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> OutgoingPacketDescriptor
+    for OutgoingPacket<ID, C, P>
+{
+}
 
-/// A concrete zero-sized typed SA-MP RPC descriptor.
+/// A zero-sized typed SA-MP RPC descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Rpc<const ID: u8, C>(PhantomData<C>);
+pub struct Rpc<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> Rpc<ID, C> {
+impl<const ID: u8, C, P> Rpc<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -250,20 +327,20 @@ impl<const ID: u8, C> Rpc<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for Rpc<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for Rpc<ID, C, P> {
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Rpc;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-/// A concrete zero-sized typed incoming SA-MP RPC descriptor.
+/// A zero-sized typed incoming SA-MP RPC descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct IncomingRpc<const ID: u8, C>(PhantomData<C>);
+pub struct IncomingRpc<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> IncomingRpc<ID, C> {
+impl<const ID: u8, C, P> IncomingRpc<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -271,24 +348,30 @@ impl<const ID: u8, C> IncomingRpc<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for IncomingRpc<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for IncomingRpc<ID, C, P> {
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Rpc;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-impl<const ID: u8, C: WireCodec> sealed::IncomingRpcDescriptor for IncomingRpc<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::IncomingRpcDescriptor
+    for IncomingRpc<ID, C, P>
+{
+}
 
-impl<const ID: u8, C: WireCodec> IncomingRpcDescriptor for IncomingRpc<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> IncomingRpcDescriptor
+    for IncomingRpc<ID, C, P>
+{
+}
 
-/// A concrete zero-sized typed outgoing SA-MP RPC descriptor.
+/// A zero-sized typed outgoing SA-MP RPC descriptor with an explicit trailing policy.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct OutgoingRpc<const ID: u8, C>(PhantomData<C>);
+pub struct OutgoingRpc<const ID: u8, C, P>(PhantomData<(C, P)>);
 
-impl<const ID: u8, C> OutgoingRpc<ID, C> {
+impl<const ID: u8, C, P> OutgoingRpc<ID, C, P> {
     /// Creates this zero-sized descriptor.
     #[must_use]
     pub const fn new() -> Self {
@@ -296,18 +379,24 @@ impl<const ID: u8, C> OutgoingRpc<ID, C> {
     }
 }
 
-impl<const ID: u8, C: WireCodec> WireDescriptor for OutgoingRpc<ID, C> {
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for OutgoingRpc<ID, C, P> {
     type Value = C::Value;
     type Codec = C;
 
     const ID: u8 = ID;
     const KIND: WireKind = WireKind::Rpc;
-    const TRAILING_POLICY: TrailingPolicy = C::TRAILING_POLICY;
+    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
 }
 
-impl<const ID: u8, C: WireCodec> sealed::OutgoingRpcDescriptor for OutgoingRpc<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::OutgoingRpcDescriptor
+    for OutgoingRpc<ID, C, P>
+{
+}
 
-impl<const ID: u8, C: WireCodec> OutgoingRpcDescriptor for OutgoingRpc<ID, C> {}
+impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> OutgoingRpcDescriptor
+    for OutgoingRpc<ID, C, P>
+{
+}
 
 fn encode_bits_error(error: EncodedBitsError) -> EncodeError<BitStreamError> {
     match error {

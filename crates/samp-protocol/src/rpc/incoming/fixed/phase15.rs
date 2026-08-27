@@ -1,7 +1,7 @@
 //! The fixed incoming RPC batch from camera attachment through vehicle exit.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingRpc, WireCodec,
     WireReadExt, WireWriteExt, limits::MAX_STRING32_BYTES, types::Vector2, types::Vector3,
 };
 
@@ -130,7 +130,7 @@ pub struct PlayerExitVehicleCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec>;
+        pub type $name = IncomingRpc<$id, $codec, ExactBytesPolicy>;
         pub const $constant: $name = IncomingRpc::new();
     };
 }
@@ -234,8 +234,6 @@ macro_rules! fixed_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 $decode(reader)
             }

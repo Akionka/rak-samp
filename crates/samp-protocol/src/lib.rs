@@ -19,8 +19,9 @@ pub use catalog::{packet_name, rpc_name};
 pub use encoded_bits::{EncodedBits, EncodedBitsError};
 pub use error::{DecodeError, EncodeError};
 pub use wire::{
-    IncomingPacket, IncomingPacketDescriptor, IncomingRpc, IncomingRpcDescriptor, OutgoingPacket,
-    OutgoingPacketDescriptor, OutgoingRpc, OutgoingRpcDescriptor, Packet, Rpc, TrailingPolicy,
-    WireCodec, WireDescriptor, WireKind,
+    ExactBitsPolicy, ExactBytesPolicy, IncomingPacket, IncomingPacketDescriptor, IncomingRpc,
+    IncomingRpcDescriptor, OutgoingPacket, OutgoingPacketDescriptor, OutgoingRpc,
+    OutgoingRpcDescriptor, Packet, Rpc, TerminalAlignmentPaddingPolicy, TrailingPolicy,
+    TrailingPolicyMarker, WireCodec, WireDescriptor, WireKind,
 };
 pub use wire_io::{WireReadExt, WireWriteExt};

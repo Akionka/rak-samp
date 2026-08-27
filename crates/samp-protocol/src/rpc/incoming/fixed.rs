@@ -9,7 +9,7 @@
 //! extension boundary.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, IncomingRpc, TrailingPolicy, WireCodec,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingRpc, WireCodec,
     WireReadExt, WireWriteExt,
 };
 
@@ -384,7 +384,7 @@ pub struct ActorHealthCodec;
 
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = IncomingRpc<$id, $codec>;
+        pub type $name = IncomingRpc<$id, $codec, ExactBytesPolicy>;
         pub const $constant: $name = IncomingRpc::new();
     };
 }
@@ -584,8 +584,6 @@ macro_rules! fixed_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 $decode(reader)
             }
@@ -604,8 +602,6 @@ macro_rules! fixed_scalar_codec {
     ($codec:ident, $value:ty, $read:ident, $write:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 reader.$read()
             }
@@ -624,8 +620,6 @@ macro_rules! fixed_vector_codec {
     ($codec:ident, $value:ty, $read:ident, $write:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 reader.$read()
             }

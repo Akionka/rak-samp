@@ -7,7 +7,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, IncomingPacket, OutgoingPacket, TrailingPolicy,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, IncomingPacket, OutgoingPacket,
     WireCodec, WireReadExt, WireWriteExt,
 };
 
@@ -188,7 +188,7 @@ pub struct RemoteCodec<C>(PhantomData<C>);
 
 macro_rules! descriptor {
     ($direction:ident, $name:ident, $constant:ident, $id:literal, $codec:ty) => {
-        pub type $name = $direction<$id, $codec>;
+        pub type $name = $direction<$id, $codec, ExactBytesPolicy>;
         pub const $constant: $name = $direction::new();
     };
 }
@@ -368,8 +368,6 @@ macro_rules! byte_aligned_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 $decode(reader)
             }
@@ -388,8 +386,6 @@ macro_rules! byte_aligned_bytes_codec {
     ($codec:ident, $read:ident, $write:ident, $max_len:expr) => {
         impl WireCodec for $codec {
             type Value = Vec<u8>;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
             fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
                 reader.$read($max_len)
             }
@@ -484,8 +480,6 @@ where
     C: WireCodec,
 {
     type Value = RemoteSync<C::Value>;
-    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBytes;
-
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         Ok(RemoteSync {
             player_id: reader.read_u16_le()?,
