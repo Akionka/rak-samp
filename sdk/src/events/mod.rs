@@ -19,7 +19,7 @@ pub(crate) use core::TypedDescriptor;
 pub(crate) use core::{EncodedPayload, handle_protocol};
 pub use core::{
     Event, EventError, IncomingPacket, IncomingRpc, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES,
-    OutgoingPacket, OutgoingRpc, Packet, ProtocolAction, Rpc, Vector2, Vector3,
+    OutgoingPacket, OutgoingRpc, ProtocolAction, Vector2, Vector3,
 };
 
 #[cfg(test)]

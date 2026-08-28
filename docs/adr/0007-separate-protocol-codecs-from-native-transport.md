@@ -13,11 +13,12 @@ minimal storage, exact bounded length, and canonical unused bits, while SDK
 callback adapters retain callback lifetime and action behavior. The three Native compressed-string
 fields use reader/writer extension contracts that preserve limits, exact cursor
 advancement, and Host source failures. Extraction proceeds through independently
-green foundation, chat/command, common, R1, and encoded-string slices. The
-legacy `samp-client-sdk` does not re-export the Protocol crate; the future
-`samp` facade decides its own policy in Phase 7. Separate non-exhaustive Packet
-and RPC name catalogs preserve unknown raw IDs, and a Protocol-only Linux CI
-job proves the platform boundary without changing Cargo's target directory.
+green foundation, chat/command, common, R1, and encoded-string slices.
+`samp-client-sdk` does not re-export the Protocol crate. Plugins import
+Protocol values directly and use `Samp` plus its subsystem facades for Host
+operations. Separate non-exhaustive Packet and RPC name catalogs preserve
+unknown raw IDs, and a Protocol-only Linux CI job proves the platform boundary
+without changing Cargo's target directory.
 
 ## Consequences
 

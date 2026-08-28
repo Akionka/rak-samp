@@ -542,7 +542,7 @@ impl<T> Clone for RpcEncoder<T> {
 }
 
 /// A typed RPC descriptor with its SA-MP RPC ID and read/write layout.
-pub struct Rpc<T> {
+pub(crate) struct Rpc<T> {
     pub(super) id: u8,
     pub(super) decode: fn(&mut Event<'_>) -> Result<T, EventError>,
     pub(super) encode: RpcEncoder<T>,
@@ -555,12 +555,6 @@ impl<T> Clone for Rpc<T> {
         *self
     }
 }
-
-/// A direction-neutral typed packet descriptor.
-///
-/// This alias exists for low-level helper code. Public registration and send APIs accept the
-/// directional descriptor types below so that a descriptor cannot be used in the wrong direction.
-pub type Packet<T> = Rpc<T>;
 
 impl<T> Rpc<T> {
     /// Creates a descriptor for one RPC ID.

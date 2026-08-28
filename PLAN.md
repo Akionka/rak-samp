@@ -1,6 +1,10 @@
 
   # Reposition rak-samp as samp-client-sdk
 
+  > Protocol/SDK boundary status: complete for issues #22 and #39. See the
+  > [completion record](docs/evidence/protocol-sdk-boundary-completion.md).
+  > This plan continues to track the broader product repositioning.
+
   ## Summary
 
   Deliver the approved proposal across all three phases as one breaking 0.1.0-alpha.4 cutover.

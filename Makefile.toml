@@ -18,17 +18,17 @@ args = ["fmt", "--all", "--", "--check"]
 [tasks.check]
 description = "Check all workspace targets"
 command = "cargo"
-args = ["check", "--workspace", "--all-targets"]
+args = ["check", "--workspace", "--all-targets", "--locked"]
 
 [tasks.test]
 description = "Run all workspace tests"
 command = "cargo"
-args = ["test", "--workspace"]
+args = ["test", "--workspace", "--all-targets", "--locked"]
 
 [tasks.clippy]
 description = "Lint all workspace targets and deny warnings"
 command = "cargo"
-args = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]
+args = ["clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"]
 
 [tasks.doc]
 description = "Build public workspace documentation without dependencies"
@@ -39,11 +39,42 @@ args = [
     "--exclude",
     "samp-client-sdk-host",
     "--no-deps",
+    "--locked",
+]
+
+[tasks.release-hygiene]
+description = "Audit published metadata, vocabulary, and generated public API"
+dependencies = ["doc"]
+command = "powershell"
+args = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "scripts/check-release-hygiene.ps1",
+]
+
+[tasks.package-published]
+description = "Package and verify both published crates"
+command = "powershell"
+args = [
+    "-NoProfile",
+    "-ExecutionPolicy",
+    "Bypass",
+    "-File",
+    "scripts/package-published-crates.ps1",
 ]
 
 [tasks.quality]
 description = "Run the complete local quality gate"
-dependencies = ["format-check", "check", "test", "clippy", "doc"]
+dependencies = [
+    "format-check",
+    "check",
+    "test",
+    "clippy",
+    "release-hygiene",
+    "package-published",
+]
 
 [tasks.build-release]
 command = "cargo"

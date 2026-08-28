@@ -43,6 +43,15 @@ jobs:
       - name: Run tests
         run: cargo test --workspace --all-targets --locked
 
+      - name: Build public documentation
+        run: cargo doc --workspace --exclude samp-client-sdk-host --no-deps --locked
+
+      - name: Audit release hygiene
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-release-hygiene.ps1
+
+      - name: Check published packages
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-published-crates.ps1
+
       - name: Check release build
         run: cargo build --workspace --release --locked
 

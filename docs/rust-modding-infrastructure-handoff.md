@@ -1934,6 +1934,13 @@ docs(architecture): freeze baseline for gta/samp modkit migration
 
 **Goal:** make protocol code usable/testable independently of Windows and the host.
 
+**Protocol/SDK boundary status (2026-08-28):** complete for issues #22 and #39.
+The [completion record](evidence/protocol-sdk-boundary-completion.md) closes
+the P0/P1/P2 boundary program. The checklist below remains the broader
+architecture roadmap; its unchecked future-service items do not reopen that
+program. Native encoded strings intentionally remain Host-backed until a
+separate platform-independent extension is approved.
+
 ### Tasks
 
 - [ ] Create `crates/samp-protocol/Cargo.toml`.

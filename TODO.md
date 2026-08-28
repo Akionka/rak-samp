@@ -1,5 +1,9 @@
 # Repositioning TODO
 
+> Protocol/SDK boundary status: complete for issues #22 and #39. P0, P1, and
+> P2 are green; see the [completion record](docs/evidence/protocol-sdk-boundary-completion.md).
+> The remaining items below belong to the broader product repositioning.
+
 [PLAN.md](PLAN.md) is the decision-complete implementation plan. The approved
 [repositioning proposal](docs/repositioning-proposal.md) records the motivation
 and product decisions; when wording differs, follow `PLAN.md`.

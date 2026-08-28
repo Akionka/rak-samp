@@ -38,14 +38,27 @@ Plugins are 32-bit `cdylib`s that depend on the public `samp-client-sdk`
 package and import it as `samp_client_sdk`. Connect through `Samp`; the raw
 ABI wrapper is a private implementation detail.
 
-```rust
-use samp_client_sdk::Samp;
+Typed Protocol descriptors require both synchronized published packages:
 
-let samp = Samp::connect(std::time::Duration::from_secs(10))?;
-let subscription = samp.net().on_rpc(|event| {
-    // Inspect, block, or atomically replace this callback-local event.
-    samp_client_sdk::SampClientSdkHookAction::Continue
-})?;
+```toml
+[dependencies]
+samp-client-sdk = "=0.1.0-alpha.4"
+samp-protocol = "=0.1.0-alpha.4"
+```
+
+```rust
+use samp_client_sdk::{Samp, events::ProtocolAction};
+
+fn connect() -> Result<(), String> {
+    let samp = Samp::connect(std::time::Duration::from_secs(10))
+        .map_err(|error| error.to_string())?;
+    let subscription = samp.net().on_incoming_typed_rpc(
+        samp_protocol::rpc::incoming::common::SERVER_MESSAGE,
+        |_| ProtocolAction::Continue,
+    ).map_err(|error| format!("Registration failed: {error:?}"))?;
+    let _ = subscription;
+    Ok(())
+}
 ```
 
 Keep every `Subscription` or `SubscriptionSet`. Before unloading a plugin,
@@ -87,10 +100,12 @@ for its ASI module and `samp.sampfuncs().log_console(b"message")` writes through
 SAMPFUNCS's own console logger. This optional bridge never loads or initializes
 SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
 
-`samp_client_sdk::raknet::BitStream` is owned and bounded. Typed events,
-protocol catalogs, exact sends, and incoming emulation retain exact-bit and
-exactly-once dispatch semantics. Direct state reads are copied into host-owned
-snapshots; plugins never dereference native client memory through the safe API.
+`samp_protocol::BitStream` is owned and bounded. Protocol values and Wire
+descriptors come directly from `samp-protocol`; the SDK does not re-export
+them. Typed events, Protocol catalogs, exact sends, and incoming emulation
+retain exact-bit and exactly-once dispatch semantics. Direct state reads are
+copied into Host-owned snapshots; plugins never dereference Native client
+memory through the safe API.
 Protocol-backed `Net` sends return `ProtocolSendError`, which keeps structured
 Protocol encoding failures separate from synchronous Host enqueue rejection.
 Later queued execution is reported only through the returned `CommandReceipt`.

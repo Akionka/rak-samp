@@ -1,4 +1,4 @@
-use super::{fixed::*, types::*};
+use super::{common::*, types::*};
 use crate::events::core::PayloadWriter;
 use crate::{
     HostApi, SampClientSdkResult,

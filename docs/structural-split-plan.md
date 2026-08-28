@@ -2,6 +2,11 @@
 
 Status: complete (verified 2026-08-11).
 
+Historical note: references to `events/rpc/incoming/fixed.rs` below describe
+the layout reviewed in this completed split. Current production code uses the
+semantic `common` and `r1` taxonomy; the historical path is not a supported
+public namespace.
+
 This is a follow-up to the completed [module split plan](SPLIT_PLAN.md). The
 first pass established domain modules but left several composition roots and
 native bridges very large. This pass moves stable implementation and test
