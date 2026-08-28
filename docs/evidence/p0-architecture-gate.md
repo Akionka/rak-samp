@@ -30,10 +30,11 @@ backend, so explicit sends do not dispatch outgoing listeners.
 
 - `HostApi` and its resolvers are crate-private. The crate root exports only
   `CommandReceipt`, `TextLabelCreateReceipt`, and `ResolveError` from their
-  implementation modules. Legacy descriptor construction and Host-backed
-  manual encoding are also crate-private.
-- Generated public item indexes contain no `HostApi` or Host resolver item. The
-  only rendered `HostApi` text is the deliberate privacy `compile_fail` example.
+  implementation modules. Legacy descriptor construction, `EncodedPayload`,
+  and Host-backed manual encoding are also crate-private.
+- Generated public item indexes contain no `HostApi`, Host resolver,
+  `EncodedPayload`, or Host-backed manual encoder item. Rendered references to
+  those names are deliberate privacy `compile_fail` examples.
 - `samp-client-sdk` pins `samp-protocol` to exact version
   `=0.1.0-alpha.4` while retaining the workspace path.
 - `samp-protocol` has no dependencies and no SDK, Host, ABI, Native profile,
@@ -59,7 +60,7 @@ target. No Cargo target-directory setting changed.
 | `cargo fmt --all -- --check` | Pass |
 | `cargo test -p samp-protocol --tests --locked` | Pass: 62 tests |
 | `cargo test -p samp-client-sdk --lib --locked` | Pass: 103 tests |
-| `cargo test -p samp-client-sdk --doc --locked` | Pass: 5 external-context doctests |
+| `cargo test -p samp-client-sdk --doc --locked` | Pass: 7 external-context doctests |
 | `cargo test --workspace --all-targets --locked` | Pass |
 | `cargo clippy --workspace --all-targets --locked -- -D warnings` | Pass |
 | `cargo build --workspace --release --locked` | Pass |

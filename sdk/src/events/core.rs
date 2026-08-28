@@ -488,13 +488,13 @@ impl samp_protocol::BitWrite for PayloadWriter {
 
 /// A complete callback replacement with an exact bit length.
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub struct EncodedPayload {
+pub(crate) struct EncodedPayload {
     pub(super) bytes: Vec<u8>,
     pub(super) bit_len: usize,
 }
 
 impl EncodedPayload {
-    pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, EventError> {
+    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<Self, EventError> {
         let bit_len =
             bytes
                 .len()
@@ -506,7 +506,8 @@ impl EncodedPayload {
         Ok(Self { bytes, bit_len })
     }
 
-    pub fn from_bits(bytes: Vec<u8>, bit_len: usize) -> Result<Self, EventError> {
+    #[cfg(test)]
+    pub(crate) fn from_bits(bytes: Vec<u8>, bit_len: usize) -> Result<Self, EventError> {
         if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
             return Err(EventError::InvalidBitLength {
                 bit_len,
@@ -517,12 +518,12 @@ impl EncodedPayload {
     }
 
     #[must_use]
-    pub fn as_bytes(&self) -> &[u8] {
+    pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.bytes
     }
 
     #[must_use]
-    pub const fn len_bits(&self) -> usize {
+    pub(crate) const fn len_bits(&self) -> usize {
         self.bit_len
     }
 }

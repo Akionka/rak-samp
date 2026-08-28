@@ -16,10 +16,10 @@ pub use callback::{Incoming, Outgoing, PacketKind, RpcKind, TypedCallbackDescrip
 pub(crate) use callback::{handle as handle_typed_callback, registration as callback_registration};
 #[cfg(test)]
 pub(crate) use core::TypedDescriptor;
-pub(crate) use core::handle_protocol;
+pub(crate) use core::{EncodedPayload, handle_protocol};
 pub use core::{
-    EncodedPayload, Event, EventError, IncomingPacket, IncomingRpc, MAX_ENCODED_STRING_BYTES,
-    MAX_STRING32_BYTES, OutgoingPacket, OutgoingRpc, Packet, ProtocolAction, Rpc, Vector2, Vector3,
+    Event, EventError, IncomingPacket, IncomingRpc, MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES,
+    OutgoingPacket, OutgoingRpc, Packet, ProtocolAction, Rpc, Vector2, Vector3,
 };
 
 #[cfg(test)]

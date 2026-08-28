@@ -34,6 +34,16 @@
 //! ```compile_fail
 //! use samp_client_sdk::HostApi;
 //! ```
+//!
+//! Host-backed payload construction is also private:
+//!
+//! ```compile_fail
+//! use samp_client_sdk::events::EncodedPayload;
+//! ```
+//!
+//! ```compile_fail
+//! use samp_client_sdk::events::rpc::outgoing::damage::encode_damage_payload;
+//! ```
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp_client_sdk supports only 32-bit Windows x86 targets");

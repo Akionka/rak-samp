@@ -93,7 +93,7 @@ fn encode_damage(_api: HostApi, value: Damage) -> Result<EncodedPayload, EventEr
     encode_damage_payload(value)
 }
 
-pub fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError> {
+fn encode_damage_payload(value: Damage) -> Result<EncodedPayload, EventError> {
     let mut writer = PayloadWriter::new();
     writer.bit(value.take);
     writer.u16(value.player_id);
