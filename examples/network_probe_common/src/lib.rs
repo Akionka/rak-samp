@@ -9,10 +9,10 @@ compile_error!("samp-client-sdk network probes support only 32-bit Windows x86 t
 
 use samp_client_sdk::{
     CommandReceipt, GangzoneId, LocalChatDisplayMode, LocalChatMessage, LocalChatMessageStyle,
-    LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogStyle, ObjectId, PlayerId, Samp,
-    SampClientSdkClientVersion, SampClientSdkDirection, SampClientSdkHookAction,
-    SampClientSdkHostStatus, SampClientSdkResult, SendRateKind, SpecialAction, SubscriptionSet,
-    TextdrawId, Vector3, VehicleId, events::ProtocolAction, raw,
+    LocalCursorMode, LocalDeathMessage, LocalDialog, LocalDialogStyle, ObjectId, PlayerId,
+    ProtocolSendError, Samp, SampClientSdkClientVersion, SampClientSdkDirection,
+    SampClientSdkHookAction, SampClientSdkHostStatus, SampClientSdkResult, SendRateKind,
+    SpecialAction, SubscriptionSet, TextdrawId, Vector3, VehicleId, events::ProtocolAction, raw,
 };
 #[cfg(feature = "r1-probe")]
 use samp_protocol::BitStream;
@@ -706,7 +706,7 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     STATUS.fetch_or(STATUS_CURSOR_MODE, Ordering::AcqRel);
     publish_status();
 
-    let receipt = samp.net().send_chat(OUTBOUND_MARKER)?;
+    let receipt = probe_protocol_send(samp.net().send_chat(OUTBOUND_MARKER))?;
     wait_for_receipt(receipt)?;
     STATUS.fetch_or(STATUS_OUTBOUND_RECEIPT, Ordering::AcqRel);
     publish_status();
@@ -724,7 +724,7 @@ fn run_probe(samp: Samp) -> Result<(), SampClientSdkResult> {
     STATUS.fetch_or(STATUS_CHAT_INPUT_TEXT_CACHE, Ordering::AcqRel);
     publish_status();
     wait_for_receipt(samp.chat_input().set_enabled(false)?)?;
-    let dialog_receipt = samp.net().send_chat(DIALOG_REQUEST_MARKER)?;
+    let dialog_receipt = probe_protocol_send(samp.net().send_chat(DIALOG_REQUEST_MARKER))?;
     wait_for_receipt(dialog_receipt)?;
     STATUS.fetch_or(STATUS_DIALOG_REQUEST_RECEIPT, Ordering::AcqRel);
     publish_status();
@@ -936,7 +936,7 @@ fn parse_u16_fields(message: &[u8], prefix: &[u8]) -> Option<Vec<u16>> {
 }
 
 fn verify_entity_handles(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let request = samp.net().send_chat(ENTITY_REQUEST_MARKER)?;
+    let request = probe_protocol_send(samp.net().send_chat(ENTITY_REQUEST_MARKER))?;
     wait_for_receipt(request)?;
     let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
     loop {
@@ -1832,7 +1832,9 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
             .ok_or(SampClientSdkResult::NativeCallFailed)?;
 
     set_vehicle_phase("driver_request_before");
-    wait_for_receipt(samp.net().send_chat(LOCAL_DRIVER_REQUEST)?)?;
+    wait_for_receipt(probe_protocol_send(
+        samp.net().send_chat(LOCAL_DRIVER_REQUEST),
+    )?)?;
     set_vehicle_phase("driver_request_after");
     let local_vehicle = wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_driver)?;
     let local_vehicle_id =
@@ -1851,7 +1853,9 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
     set_vehicle_phase("driver_force_after");
 
     set_vehicle_phase("passenger_request_before");
-    wait_for_receipt(samp.net().send_chat(LOCAL_PASSENGER_REQUEST)?)?;
+    wait_for_receipt(probe_protocol_send(
+        samp.net().send_chat(LOCAL_PASSENGER_REQUEST),
+    )?)?;
     set_vehicle_phase("passenger_request_after");
     let passenger_vehicle =
         wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_passenger)?;
@@ -1880,7 +1884,9 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
     set_vehicle_phase("passenger_force_after");
 
     set_vehicle_phase("trailer_request_before");
-    wait_for_receipt(samp.net().send_chat(LOCAL_TRAILER_REQUEST)?)?;
+    wait_for_receipt(probe_protocol_send(
+        samp.net().send_chat(LOCAL_TRAILER_REQUEST),
+    )?)?;
     set_vehicle_phase("trailer_request_after");
     let local_trailer =
         wait_for_vehicle_phase(SCALAR_CACHE_TIMEOUT, |phases| phases.local_trailer)?;
@@ -1929,7 +1935,9 @@ fn verify_vehicle_sync(samp: Samp) -> Result<(), SampClientSdkResult> {
     set_vehicle_phase("packet_mask_after");
 
     set_vehicle_phase("cleanup_request_before");
-    wait_for_receipt(samp.net().send_chat(VEHICLE_CLEANUP_REQUEST)?)?;
+    wait_for_receipt(probe_protocol_send(
+        samp.net().send_chat(VEHICLE_CLEANUP_REQUEST),
+    )?)?;
     set_vehicle_phase("cleanup_request_after");
     wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         Ok(VEHICLE_PHASES
@@ -2207,7 +2215,7 @@ fn verify_reconnect_on_request(samp: Samp) -> Result<(), SampClientSdkResult> {
     })?;
 
     let replies_before = INCOMING_REPLY_COUNT.load(Ordering::Acquire);
-    wait_for_receipt(samp.net().send_chat(OUTBOUND_MARKER)?)?;
+    wait_for_receipt(probe_protocol_send(samp.net().send_chat(OUTBOUND_MARKER))?)?;
     wait_for_condition(CALLBACK_TIMEOUT, || {
         Ok(INCOMING_REPLY_COUNT.load(Ordering::Acquire) > replies_before)
     })?;
@@ -2269,6 +2277,13 @@ fn wait_for_receipt(mut receipt: CommandReceipt<()>) -> Result<(), SampClientSdk
             result => return result,
         }
     }
+}
+
+fn probe_protocol_send<T>(result: Result<T, ProtocolSendError>) -> Result<T, SampClientSdkResult> {
+    result.map_err(|error| match error {
+        ProtocolSendError::Encode(_) => SampClientSdkResult::InvalidArgument,
+        ProtocolSendError::Host(result) => result,
+    })
 }
 
 fn wait_for_status(required: u32, timeout: Duration) -> Result<(), SampClientSdkResult> {

@@ -91,6 +91,9 @@ SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
 protocol catalogs, exact sends, and incoming emulation retain exact-bit and
 exactly-once dispatch semantics. Direct state reads are copied into host-owned
 snapshots; plugins never dereference native client memory through the safe API.
+Protocol-backed `Net` sends return `ProtocolSendError`, which keeps structured
+Protocol encoding failures separate from synchronous Host enqueue rejection.
+Later queued execution is reported only through the returned `CommandReceipt`.
 `samp.net().incoming_emulation_ready()` exposes only a copied readiness scalar
 for packet emulation; it becomes true after the host captures a real incoming
 RPC receiver.

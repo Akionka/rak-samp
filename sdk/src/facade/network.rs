@@ -1,10 +1,13 @@
 use crate::{
-    CommandReceipt, HostApi, SampClientSdkDirection, SampClientSdkEncodedString,
+    CommandReceipt, HostApi, ProtocolSendError, SampClientSdkDirection, SampClientSdkEncodedString,
     SampClientSdkHookAction, SampClientSdkResult, SampClientSdkSendOptions, SendRateKind,
     ServerInfo, Subscription,
 };
 
 /// Safe networking and subscription operations.
+///
+/// Protocol-backed queued sends return [`ProtocolSendError`]. Its Host variant reports only a
+/// synchronous enqueue rejection; later command execution is observed through [`CommandReceipt`].
 #[derive(Clone, Copy)]
 pub struct Net {
     api: HostApi,
@@ -75,7 +78,7 @@ impl Net {
     }
 
     /// Queues one bounded SA-MP chat or slash-command RPC.
-    pub fn send_chat(self, text: &[u8]) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_chat(self, text: &[u8]) -> Result<CommandReceipt<()>, ProtocolSendError> {
         if text.first() == Some(&b'/') {
             self.api.submit_protocol_rpc(
                 samp_protocol::rpc::outgoing::chat::SEND_COMMAND,
@@ -88,7 +91,7 @@ impl Net {
     }
 
     /// Queues the server-bound request-spawn RPC.
-    pub fn send_request_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_request_spawn(self) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_REQUEST_SPAWN, ())
     }
@@ -97,7 +100,7 @@ impl Net {
     pub fn send_request_class(
         self,
         class_id: i32,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_REQUEST_CLASS,
             class_id,
@@ -108,7 +111,7 @@ impl Net {
     pub fn send_interior_change(
         self,
         interior_id: u8,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_INTERIOR_CHANGE,
             interior_id,
@@ -116,7 +119,7 @@ impl Net {
     }
 
     /// Queues the protocol-level spawn RPC without invoking native spawn code.
-    pub fn send_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_spawn(self) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_SPAWN, ())
     }
@@ -126,7 +129,7 @@ impl Net {
         self,
         vehicle_id: u16,
         passenger: bool,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_ENTER_VEHICLE,
             samp_protocol::rpc::outgoing::common::EnterVehicle {
@@ -140,7 +143,7 @@ impl Net {
     pub fn send_exit_vehicle(
         self,
         vehicle_id: u16,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_EXIT_VEHICLE,
             vehicle_id,
@@ -154,7 +157,7 @@ impl Net {
         button: u8,
         list_item: u16,
         input: &[u8],
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_DIALOG_RESPONSE,
             samp_protocol::rpc::outgoing::common::DialogResponse {
@@ -171,7 +174,7 @@ impl Net {
         self,
         player_id: u16,
         source: u8,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_CLICK_PLAYER,
             samp_protocol::rpc::outgoing::common::ClickPlayer { player_id, source },
@@ -182,7 +185,7 @@ impl Net {
     pub fn send_click_textdraw(
         self,
         textdraw_id: u16,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_CLICK_TEXT_DRAW,
             textdraw_id,
@@ -194,7 +197,7 @@ impl Net {
         self,
         player_id: u16,
         reason: u8,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_DEATH_NOTIFICATION,
             samp_protocol::rpc::outgoing::common::DeathNotification {
@@ -205,13 +208,13 @@ impl Net {
     }
 
     /// Queues the empty server-bound menu-quit RPC.
-    pub fn send_menu_quit(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_menu_quit(self) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_QUIT_MENU, ())
     }
 
     /// Queues a server-bound menu-row selection.
-    pub fn send_menu_select_row(self, row: u8) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_menu_select_row(self, row: u8) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_MENU_SELECT, row)
     }
@@ -220,7 +223,7 @@ impl Net {
     pub fn send_picked_up_pickup(
         self,
         pickup_id: i32,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_PICKED_UP_PICKUP,
             pickup_id,
@@ -231,7 +234,7 @@ impl Net {
     pub fn send_vehicle_destroyed(
         self,
         vehicle_id: u16,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DESTROYED,
             vehicle_id,
@@ -246,7 +249,7 @@ impl Net {
         door_damage: i32,
         lights: u8,
         tires: u8,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DAMAGED,
             samp_protocol::rpc::outgoing::common::VehicleDamage {
@@ -266,7 +269,7 @@ impl Net {
         id: i32,
         param1: i32,
         param2: i32,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_TUNING,
             samp_protocol::rpc::outgoing::common::VehicleTuning {
@@ -304,7 +307,7 @@ impl Net {
     pub fn send_edit_attached_object(
         self,
         edit: samp_protocol::rpc::outgoing::common::EditAttachedObject,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_EDIT_ATTACHED_OBJECT,
             edit,
@@ -324,7 +327,7 @@ impl Net {
     pub fn send_rcon_command(
         self,
         command: &[u8],
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api.submit_protocol_packet(
             samp_protocol::packet::common::SEND_RCON_COMMAND,
             command.to_vec(),
@@ -335,7 +338,7 @@ impl Net {
     pub fn send_aim_sync(
         self,
         sync: samp_protocol::packet::common::AimSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_AIM_SYNC, sync)
     }
@@ -344,7 +347,7 @@ impl Net {
     pub fn send_bullet_sync(
         self,
         sync: samp_protocol::packet::common::BulletSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_BULLET_SYNC, sync)
     }
@@ -353,7 +356,7 @@ impl Net {
     pub fn send_vehicle_sync(
         self,
         sync: samp_protocol::packet::common::VehicleSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_VEHICLE_SYNC, sync)
     }
@@ -362,7 +365,7 @@ impl Net {
     pub fn send_player_sync(
         self,
         sync: samp_protocol::packet::common::PlayerSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, sync)
     }
@@ -371,7 +374,7 @@ impl Net {
     pub fn send_spectator_sync(
         self,
         sync: samp_protocol::packet::common::SpectatorSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_SPECTATOR_SYNC, sync)
     }
@@ -380,7 +383,7 @@ impl Net {
     pub fn send_trailer_sync(
         self,
         sync: samp_protocol::packet::common::TrailerSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_TRAILER_SYNC, sync)
     }
@@ -389,7 +392,7 @@ impl Net {
     pub fn send_passenger_sync(
         self,
         sync: samp_protocol::packet::common::PassengerSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_PASSENGER_SYNC, sync)
     }
@@ -398,7 +401,7 @@ impl Net {
     pub fn send_unoccupied_sync(
         self,
         sync: samp_protocol::packet::common::UnoccupiedSync,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
             .submit_protocol_packet(samp_protocol::packet::common::SEND_UNOCCUPIED_SYNC, sync)
     }
@@ -700,5 +703,40 @@ mod tests {
         let mut disconnect = samp.net().disconnect(0).unwrap();
         assert_eq!(disconnect.id(), 25);
         assert_eq!(disconnect.try_take(), Ok(Some(())));
+    }
+
+    #[test]
+    fn queued_protocol_sends_preserve_sync_errors_and_wire_data() {
+        let samp = Samp::from_api(crate::events::test_support::test_api());
+        let oversized = [b'x'; 256];
+        assert_eq!(
+            samp.net().send_chat(&oversized).err(),
+            Some(crate::ProtocolSendError::Encode(
+                samp_protocol::EncodeError::LengthExceedsLimit {
+                    length: 256,
+                    limit: 255,
+                }
+            ))
+        );
+
+        crate::events::test_support::set_next_submit_send_result(
+            crate::SampClientSdkResult::QueueFull,
+        );
+        assert_eq!(
+            samp.net().send_request_spawn().err(),
+            Some(crate::ProtocolSendError::Host(
+                crate::SampClientSdkResult::QueueFull
+            ))
+        );
+
+        let _receipt = samp.net().send_chat(b"hi").unwrap();
+        let submitted = crate::events::test_support::take_last_submitted_send().unwrap();
+        assert_eq!(submitted.id, 101);
+        assert_eq!(submitted.bytes, [2, b'h', b'i']);
+        assert_eq!(submitted.bit_len, 24);
+        assert_eq!(
+            submitted.options,
+            crate::SampClientSdkSendOptions::default()
+        );
     }
 }

@@ -12,6 +12,7 @@ compile_error!("samp_client_sdk supports only 32-bit Windows x86 targets");
 
 mod abi;
 mod api;
+mod error;
 pub mod events;
 mod facade;
 mod host_api;
@@ -23,6 +24,7 @@ mod types;
 
 pub use abi::*;
 pub use api::*;
+pub use error::*;
 pub use facade::*;
 use limits::{
     MAX_RAKNET_DECODED_STRING_BYTES, MAX_SAMP_CHAT_ENTRIES, MAX_SAMP_CHAT_ENTRY_PREFIX_BYTES,

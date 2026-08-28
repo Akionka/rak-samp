@@ -2,7 +2,7 @@
 
 use crate::events;
 use crate::{
-    CommandReceipt, HostApi, SampClientSdkCommandReceipt, SampClientSdkResult,
+    CommandReceipt, HostApi, ProtocolSendError, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSendOptions,
 };
 use samp_protocol::BitStream;
@@ -16,7 +16,7 @@ impl HostApi {
     }
 
     /// Sends a bounded server-bound RCON command packet (201).
-    pub fn send_rcon_command(self, command: &[u8]) -> SampClientSdkResult {
+    pub fn send_rcon_command(self, command: &[u8]) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(
             samp_protocol::packet::common::SEND_RCON_COMMAND,
             command.to_vec(),
@@ -26,56 +26,56 @@ impl HostApi {
     pub fn send_aim_sync(
         self,
         sync: samp_protocol::packet::common::AimSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_AIM_SYNC, sync)
     }
     /// Sends a complete local bullet-sync packet (206).
     pub fn send_bullet_sync(
         self,
         sync: samp_protocol::packet::common::BulletSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_BULLET_SYNC, sync)
     }
     /// Sends a complete local vehicle-sync packet (200).
     pub fn send_vehicle_sync(
         self,
         sync: samp_protocol::packet::common::VehicleSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_VEHICLE_SYNC, sync)
     }
     /// Sends a complete local on-foot player-sync packet (207).
     pub fn send_player_sync(
         self,
         sync: samp_protocol::packet::common::PlayerSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, sync)
     }
     /// Sends a complete local spectator-sync packet (212).
     pub fn send_spectator_sync(
         self,
         sync: samp_protocol::packet::common::SpectatorSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_SPECTATOR_SYNC, sync)
     }
     /// Sends a complete local trailer-sync packet (210).
     pub fn send_trailer_sync(
         self,
         sync: samp_protocol::packet::common::TrailerSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_TRAILER_SYNC, sync)
     }
     /// Sends a complete local passenger-sync packet (211).
     pub fn send_passenger_sync(
         self,
         sync: samp_protocol::packet::common::PassengerSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_PASSENGER_SYNC, sync)
     }
     /// Sends a complete local unoccupied-vehicle sync packet (209).
     pub fn send_unoccupied_sync(
         self,
         sync: samp_protocol::packet::common::UnoccupiedSync,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_packet(samp_protocol::packet::common::SEND_UNOCCUPIED_SYNC, sync)
     }
     /// Sends a packet through SA-MP's original RakClient method.
@@ -246,7 +246,7 @@ impl HostApi {
     /// slash-prefixed value instead uses the command RPC (50), matching the
     /// native helper. It is real network traffic, not a local chat display
     /// action.
-    pub fn send_chat(self, text: &[u8]) -> SampClientSdkResult {
+    pub fn send_chat(self, text: &[u8]) -> Result<(), ProtocolSendError> {
         if text.first() == Some(&b'/') {
             self.send_protocol_rpc(
                 samp_protocol::rpc::outgoing::chat::SEND_COMMAND,
@@ -262,7 +262,7 @@ impl HostApi {
     /// This is the protocol-level equivalent of SF.lua's
     /// `sampSendRequestSpawn`; it does not call native local-player methods or
     /// mutate client state.
-    pub fn send_request_spawn(self) -> SampClientSdkResult {
+    pub fn send_request_spawn(self) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_REQUEST_SPAWN, ())
     }
 
@@ -271,7 +271,7 @@ impl HostApi {
     /// This carries the same server-bound protocol value as SF.lua's
     /// `sampRequestClass`, but does not invoke the native local-player method
     /// or update any local class-selection state.
-    pub fn send_request_class(self, class_id: i32) -> SampClientSdkResult {
+    pub fn send_request_class(self, class_id: i32) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_REQUEST_CLASS,
             class_id,
@@ -282,7 +282,7 @@ impl HostApi {
     ///
     /// This is protocol-only. It does not change the GTA interior or mutate
     /// SA-MP's native local-player state.
-    pub fn send_interior_change(self, interior_id: u8) -> SampClientSdkResult {
+    pub fn send_interior_change(self, interior_id: u8) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_INTERIOR_CHANGE,
             interior_id,
@@ -293,7 +293,7 @@ impl HostApi {
     ///
     /// This is protocol-only. It does not call the native local-player spawn
     /// method or change local spawn state.
-    pub fn send_spawn(self) -> SampClientSdkResult {
+    pub fn send_spawn(self) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_SPAWN, ())
     }
 
@@ -301,7 +301,11 @@ impl HostApi {
     ///
     /// This is protocol-only. It does not put the local GTA ped in a vehicle
     /// or otherwise alter native local-player state.
-    pub fn send_enter_vehicle(self, vehicle_id: u16, passenger: bool) -> SampClientSdkResult {
+    pub fn send_enter_vehicle(
+        self,
+        vehicle_id: u16,
+        passenger: bool,
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_ENTER_VEHICLE,
             samp_protocol::rpc::outgoing::common::EnterVehicle {
@@ -315,7 +319,7 @@ impl HostApi {
     ///
     /// This is protocol-only. It does not make the local GTA ped leave a
     /// vehicle or otherwise alter native local-player state.
-    pub fn send_exit_vehicle(self, vehicle_id: u16) -> SampClientSdkResult {
+    pub fn send_exit_vehicle(self, vehicle_id: u16) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_EXIT_VEHICLE,
             vehicle_id,
@@ -329,7 +333,7 @@ impl HostApi {
         button: u8,
         list_item: u16,
         input: &[u8],
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_DIALOG_RESPONSE,
             samp_protocol::rpc::outgoing::common::DialogResponse {
@@ -342,7 +346,7 @@ impl HostApi {
     }
 
     /// Sends a server-bound player-click action (RPC 23).
-    pub fn send_click_player(self, player_id: u16, source: u8) -> SampClientSdkResult {
+    pub fn send_click_player(self, player_id: u16, source: u8) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_CLICK_PLAYER,
             samp_protocol::rpc::outgoing::common::ClickPlayer { player_id, source },
@@ -350,7 +354,7 @@ impl HostApi {
     }
 
     /// Sends a server-bound textdraw-click action (RPC 83).
-    pub fn send_click_textdraw(self, textdraw_id: u16) -> SampClientSdkResult {
+    pub fn send_click_textdraw(self, textdraw_id: u16) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_CLICK_TEXT_DRAW,
             textdraw_id,
@@ -358,7 +362,7 @@ impl HostApi {
     }
 
     /// Sends a server-bound death notification naming another player (RPC 53).
-    pub fn send_death_by_player(self, player_id: u16, reason: u8) -> SampClientSdkResult {
+    pub fn send_death_by_player(self, player_id: u16, reason: u8) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_DEATH_NOTIFICATION,
             samp_protocol::rpc::outgoing::common::DeathNotification {
@@ -369,17 +373,17 @@ impl HostApi {
     }
 
     /// Sends the empty menu-quit RPC (140).
-    pub fn send_menu_quit(self) -> SampClientSdkResult {
+    pub fn send_menu_quit(self) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_QUIT_MENU, ())
     }
 
     /// Sends a server-bound menu-row selection (RPC 132).
-    pub fn send_menu_select_row(self, row: u8) -> SampClientSdkResult {
+    pub fn send_menu_select_row(self, row: u8) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_MENU_SELECT, row)
     }
 
     /// Sends a server-bound pickup notification (RPC 131).
-    pub fn send_picked_up_pickup(self, pickup_id: i32) -> SampClientSdkResult {
+    pub fn send_picked_up_pickup(self, pickup_id: i32) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_PICKED_UP_PICKUP,
             pickup_id,
@@ -387,7 +391,7 @@ impl HostApi {
     }
 
     /// Sends a server-bound vehicle-destroyed notification (RPC 136).
-    pub fn send_vehicle_destroyed(self, vehicle_id: u16) -> SampClientSdkResult {
+    pub fn send_vehicle_destroyed(self, vehicle_id: u16) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DESTROYED,
             vehicle_id,
@@ -402,7 +406,7 @@ impl HostApi {
         door_damage: i32,
         lights: u8,
         tires: u8,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DAMAGED,
             samp_protocol::rpc::outgoing::common::VehicleDamage {
@@ -425,7 +429,7 @@ impl HostApi {
         id: i32,
         param1: i32,
         param2: i32,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_VEHICLE_TUNING,
             samp_protocol::rpc::outgoing::common::VehicleTuning {
@@ -467,7 +471,7 @@ impl HostApi {
     pub fn send_edit_attached_object(
         self,
         edit: samp_protocol::rpc::outgoing::common::EditAttachedObject,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_protocol_rpc(
             samp_protocol::rpc::outgoing::common::SEND_EDIT_ATTACHED_OBJECT,
             edit,
@@ -491,20 +495,40 @@ impl HostApi {
             .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
     }
 
-    fn send_protocol_rpc<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
+    fn send_protocol_rpc<D>(self, _descriptor: D, value: D::Value) -> Result<(), ProtocolSendError>
     where
         D: samp_protocol::OutgoingRpcDescriptor,
     {
-        self.submit_protocol_rpc(descriptor, value)
-            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
+        match self.send_rpc(
+            D::ID,
+            payload.as_bytes(),
+            payload.len_bits(),
+            SampClientSdkSendOptions::default(),
+        ) {
+            SampClientSdkResult::Ok => Ok(()),
+            error => Err(ProtocolSendError::Host(error)),
+        }
     }
 
-    fn send_protocol_packet<D>(self, descriptor: D, value: D::Value) -> SampClientSdkResult
+    fn send_protocol_packet<D>(
+        self,
+        _descriptor: D,
+        value: D::Value,
+    ) -> Result<(), ProtocolSendError>
     where
         D: samp_protocol::OutgoingPacketDescriptor,
     {
-        self.submit_protocol_packet(descriptor, value)
-            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
+        match self.send_packet(
+            D::ID,
+            payload.as_bytes(),
+            payload.len_bits(),
+            SampClientSdkSendOptions::default(),
+        ) {
+            SampClientSdkResult::Ok => Ok(()),
+            error => Err(ProtocolSendError::Host(error)),
+        }
     }
 
     fn send_damage(
@@ -547,37 +571,35 @@ impl HostApi {
         self,
         _descriptor: D,
         value: D::Value,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult>
+    ) -> Result<CommandReceipt<()>, ProtocolSendError>
     where
         D: samp_protocol::OutgoingRpcDescriptor,
     {
-        let Ok(payload) = D::encode_bits(&value) else {
-            return Err(SampClientSdkResult::InvalidArgument);
-        };
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
         self.submit_rpc(
             D::ID,
             payload.as_bytes(),
             payload.len_bits(),
             SampClientSdkSendOptions::default(),
         )
+        .map_err(ProtocolSendError::Host)
     }
 
     pub(crate) fn submit_protocol_packet<D>(
         self,
         _descriptor: D,
         value: D::Value,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult>
+    ) -> Result<CommandReceipt<()>, ProtocolSendError>
     where
         D: samp_protocol::OutgoingPacketDescriptor,
     {
-        let Ok(payload) = D::encode_bits(&value) else {
-            return Err(SampClientSdkResult::InvalidArgument);
-        };
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
         self.submit_packet(
             D::ID,
             payload.as_bytes(),
             payload.len_bits(),
             SampClientSdkSendOptions::default(),
         )
+        .map_err(ProtocolSendError::Host)
     }
 }

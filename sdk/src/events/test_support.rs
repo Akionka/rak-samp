@@ -1,7 +1,10 @@
 use super::{EncodedPayload, Event, ProtocolAction, core::PayloadWriter};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkResult};
 use ::core::{mem, ptr};
-use std::sync::Mutex;
+use std::{
+    cell::{Cell, RefCell},
+    sync::Mutex,
+};
 
 mod api;
 mod callbacks;
@@ -41,6 +44,32 @@ impl RegistrationState {
 }
 
 static REGISTRATION: Mutex<RegistrationState> = Mutex::new(RegistrationState::new());
+
+thread_local! {
+    static NEXT_SEND_RESULT: Cell<Option<SampClientSdkResult>> = const { Cell::new(None) };
+    static NEXT_SUBMIT_SEND_RESULT: Cell<Option<SampClientSdkResult>> = const { Cell::new(None) };
+    static LAST_SUBMITTED_SEND: RefCell<Option<SubmittedSend>> = const { RefCell::new(None) };
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct SubmittedSend {
+    pub(crate) id: u8,
+    pub(crate) bytes: Vec<u8>,
+    pub(crate) bit_len: usize,
+    pub(crate) options: crate::SampClientSdkSendOptions,
+}
+
+pub(crate) fn set_next_send_result(result: SampClientSdkResult) {
+    NEXT_SEND_RESULT.set(Some(result));
+}
+
+pub(crate) fn set_next_submit_send_result(result: SampClientSdkResult) {
+    NEXT_SUBMIT_SEND_RESULT.set(Some(result));
+}
+
+pub(crate) fn take_last_submitted_send() -> Option<SubmittedSend> {
+    LAST_SUBMITTED_SEND.take()
+}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RegistrationStats {
@@ -235,6 +264,9 @@ unsafe extern "system" fn test_send(
     bit_len: usize,
     options: crate::SampClientSdkSendOptions,
 ) -> SampClientSdkResult {
+    if let Some(result) = NEXT_SEND_RESULT.take() {
+        return result;
+    }
     if options != crate::SampClientSdkSendOptions::default() {
         return SampClientSdkResult::NativeCallFailed;
     }
@@ -1225,13 +1257,29 @@ unsafe fn test_submit_command(
 }
 
 unsafe extern "system" fn test_submit_send(
-    _id: u8,
-    _bytes: *const u8,
-    _byte_len: usize,
-    _bit_len: usize,
-    _options: crate::SampClientSdkSendOptions,
+    id: u8,
+    bytes: *const u8,
+    byte_len: usize,
+    bit_len: usize,
+    options: crate::SampClientSdkSendOptions,
     receipt: *mut crate::SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
+    if let Some(result) = NEXT_SUBMIT_SEND_RESULT.take() {
+        return result;
+    }
+    let bytes = if byte_len == 0 {
+        Vec::new()
+    } else if bytes.is_null() {
+        return SampClientSdkResult::InvalidArgument;
+    } else {
+        unsafe { std::slice::from_raw_parts(bytes, byte_len) }.to_vec()
+    };
+    LAST_SUBMITTED_SEND.replace(Some(SubmittedSend {
+        id,
+        bytes,
+        bit_len,
+        options,
+    }));
     unsafe { test_submit_command(receipt, 4) }
 }
 

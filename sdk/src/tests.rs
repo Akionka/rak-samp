@@ -36,6 +36,33 @@ impl samp_protocol::WireCodec for FailingReplacementCodec {
 type FailingIncomingRpc =
     samp_protocol::IncomingRpc<201, FailingReplacementCodec, samp_protocol::ExactBitsPolicy>;
 
+struct ThreeBitCodec;
+
+impl samp_protocol::WireCodec for ThreeBitCodec {
+    type Value = u8;
+
+    fn decode<R: samp_protocol::BitRead>(
+        reader: &mut R,
+    ) -> Result<Self::Value, samp_protocol::DecodeError<R::Error>> {
+        let bytes = reader
+            .read_left_aligned_bits(3)
+            .map_err(samp_protocol::DecodeError::Source)?;
+        Ok(bytes[0] >> 5)
+    }
+
+    fn encode<W: samp_protocol::BitWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), samp_protocol::EncodeError<W::Error>> {
+        writer
+            .write_left_aligned_bits(&[*value << 5], 3)
+            .map_err(samp_protocol::EncodeError::Source)
+    }
+}
+
+type NonByteAlignedOutgoingRpc =
+    samp_protocol::OutgoingRpc<201, ThreeBitCodec, samp_protocol::ExactBytesPolicy>;
+
 struct DropCounter(Arc<AtomicUsize>);
 
 impl Drop for DropCounter {
@@ -1298,56 +1325,81 @@ fn owned_bit_stream_send_helpers_preserve_exact_partial_bit_lengths() {
 #[test]
 fn send_chat_uses_the_protocol_bounded_rpc_101_payload() {
     let api = test_support::test_api();
-    assert_eq!(api.send_chat(b"hi"), SampClientSdkResult::Ok);
-    assert_eq!(api.send_chat(b"/hi"), SampClientSdkResult::Ok);
+    assert_eq!(api.send_chat(b"hi"), Ok(()));
+    assert_eq!(api.send_chat(b"/hi"), Ok(()));
     assert_eq!(
         api.send_chat(&[b'x'; 256]),
-        SampClientSdkResult::InvalidArgument
+        Err(ProtocolSendError::Encode(
+            samp_protocol::EncodeError::LengthExceedsLimit {
+                length: 256,
+                limit: 255,
+            }
+        ))
     );
-    assert_eq!(api.send_request_spawn(), SampClientSdkResult::Ok);
+    assert_eq!(api.send_request_spawn(), Ok(()));
+}
+
+#[test]
+fn immediate_protocol_send_preserves_the_host_error_domain() {
+    let api = test_support::test_api();
+    test_support::set_next_send_result(SampClientSdkResult::NotReady);
+
+    assert_eq!(
+        api.send_request_spawn(),
+        Err(ProtocolSendError::Host(SampClientSdkResult::NotReady))
+    );
+}
+
+#[test]
+fn queued_protocol_send_preserves_the_descriptor_framing_error() {
+    let api = test_support::test_api();
+
+    assert_eq!(
+        api.submit_protocol_rpc(NonByteAlignedOutgoingRpc::new(), 5)
+            .err(),
+        Some(ProtocolSendError::Encode(
+            samp_protocol::EncodeError::NonByteAlignedPayload { bit_len: 3 }
+        ))
+    );
 }
 
 #[test]
 fn local_player_protocol_actions_preserve_their_wire_vectors() {
     let api = test_support::test_api();
-    assert_eq!(api.send_request_class(9), SampClientSdkResult::Ok);
-    assert_eq!(api.send_interior_change(7), SampClientSdkResult::Ok);
-    assert_eq!(api.send_spawn(), SampClientSdkResult::Ok);
-    assert_eq!(
-        api.send_enter_vehicle(0x1234, true),
-        SampClientSdkResult::Ok
-    );
-    assert_eq!(api.send_exit_vehicle(0x1234), SampClientSdkResult::Ok);
+    assert_eq!(api.send_request_class(9), Ok(()));
+    assert_eq!(api.send_interior_change(7), Ok(()));
+    assert_eq!(api.send_spawn(), Ok(()));
+    assert_eq!(api.send_enter_vehicle(0x1234, true), Ok(()));
+    assert_eq!(api.send_exit_vehicle(0x1234), Ok(()));
 }
 
 #[test]
 fn typed_protocol_action_conveniences_preserve_their_wire_vectors() {
     let api = test_support::test_api();
-    assert_eq!(
-        api.send_dialog_response(0x1234, 1, 0x3456, b"ok"),
-        SampClientSdkResult::Ok
-    );
-    assert_eq!(api.send_click_player(0x1234, 2), SampClientSdkResult::Ok);
-    assert_eq!(api.send_click_textdraw(0x1234), SampClientSdkResult::Ok);
-    assert_eq!(api.send_death_by_player(0x1234, 9), SampClientSdkResult::Ok);
-    assert_eq!(api.send_menu_quit(), SampClientSdkResult::Ok);
-    assert_eq!(api.send_menu_select_row(7), SampClientSdkResult::Ok);
-    assert_eq!(api.send_picked_up_pickup(9), SampClientSdkResult::Ok);
-    assert_eq!(api.send_vehicle_destroyed(0x1234), SampClientSdkResult::Ok);
+    assert_eq!(api.send_dialog_response(0x1234, 1, 0x3456, b"ok"), Ok(()));
+    assert_eq!(api.send_click_player(0x1234, 2), Ok(()));
+    assert_eq!(api.send_click_textdraw(0x1234), Ok(()));
+    assert_eq!(api.send_death_by_player(0x1234, 9), Ok(()));
+    assert_eq!(api.send_menu_quit(), Ok(()));
+    assert_eq!(api.send_menu_select_row(7), Ok(()));
+    assert_eq!(api.send_picked_up_pickup(9), Ok(()));
+    assert_eq!(api.send_vehicle_destroyed(0x1234), Ok(()));
     assert_eq!(
         api.send_dialog_response(0, 0, 0, &[b'x'; 256]),
-        SampClientSdkResult::InvalidArgument
+        Err(ProtocolSendError::Encode(
+            samp_protocol::EncodeError::LengthExceedsLimit {
+                length: 256,
+                limit: 255,
+            }
+        ))
     );
 }
 
 #[test]
 fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
     let api = test_support::test_api();
-    assert_eq!(
-        api.send_vehicle_damage(0x1234, 1, 2, 3, 4),
-        SampClientSdkResult::Ok
-    );
-    assert_eq!(api.send_scm_event(4, 1, 2, 3), SampClientSdkResult::Ok);
+    assert_eq!(api.send_vehicle_damage(0x1234, 1, 2, 3, 4), Ok(()));
+    assert_eq!(api.send_scm_event(4, 1, 2, 3), Ok(()));
     assert_eq!(
         api.send_give_damage(0x1234, 1.0, 24, 9),
         SampClientSdkResult::Ok
@@ -1373,10 +1425,7 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
         color1: 0,
         color2: 0,
     };
-    assert_eq!(
-        api.send_edit_attached_object(attached),
-        SampClientSdkResult::Ok
-    );
+    assert_eq!(api.send_edit_attached_object(attached), Ok(()));
     let zero = events::Vector3 {
         x: 0.0,
         y: 0.0,
@@ -1392,10 +1441,15 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
         }),
         SampClientSdkResult::Ok
     );
-    assert_eq!(api.send_rcon_command(b"rcon"), SampClientSdkResult::Ok);
+    assert_eq!(api.send_rcon_command(b"rcon"), Ok(()));
     assert_eq!(
         api.send_rcon_command(&[b'x'; events::MAX_STRING32_BYTES + 1]),
-        SampClientSdkResult::InvalidArgument
+        Err(ProtocolSendError::Encode(
+            samp_protocol::EncodeError::LengthExceedsLimit {
+                length: events::MAX_STRING32_BYTES + 1,
+                limit: events::MAX_STRING32_BYTES,
+            }
+        ))
     );
 }
 
@@ -1416,7 +1470,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             zoom_and_weapon_state: 0,
             aspect_ratio: 0,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_bullet_sync(samp_protocol::packet::common::BulletSync {
@@ -1427,7 +1481,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             center: zero,
             weapon_id: 0,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_vehicle_sync(samp_protocol::packet::common::VehicleSync {
@@ -1447,7 +1501,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             trailer_id: 0,
             vehicle_specific: [0; 4],
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_player_sync(samp_protocol::packet::common::PlayerSync {
@@ -1466,7 +1520,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             animation_id: 0,
             animation_flags: 0,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_spectator_sync(samp_protocol::packet::common::SpectatorSync {
@@ -1475,7 +1529,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             key_data: 0,
             position: zero,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_trailer_sync(samp_protocol::packet::common::TrailerSync {
@@ -1485,7 +1539,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             move_speed: zero,
             turn_speed: zero,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_passenger_sync(samp_protocol::packet::common::PassengerSync {
@@ -1499,7 +1553,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             key_data: 0,
             position: zero,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(
         api.send_unoccupied_sync(samp_protocol::packet::common::UnoccupiedSync {
@@ -1512,7 +1566,7 @@ fn typed_sync_send_conveniences_preserve_their_fixed_wire_vectors() {
             turn_speed: zero,
             vehicle_health: 0.0,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
 }
 

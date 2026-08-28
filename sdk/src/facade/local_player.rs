@@ -1,8 +1,8 @@
 use super::{Net, PedHandle, PlayerId, Samp, VehicleId};
 use crate::{
     AimSync, CommandReceipt, HostApi, InCarSync, LocalAnimation, LocalPlayer, OnFootSync,
-    PassengerSync, PlayerInfo, RemotePlayerState, SampClientSdkResult, SpecialAction, TrailerSync,
-    Vector3,
+    PassengerSync, PlayerInfo, ProtocolSendError, RemotePlayerState, SampClientSdkResult,
+    SpecialAction, TrailerSync, Vector3,
 };
 
 #[derive(Clone, Copy)]
@@ -93,7 +93,7 @@ impl Local {
     }
 
     /// Queues the protocol-level class request without changing local class state.
-    pub fn request_class(self, class_id: i32) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn request_class(self, class_id: i32) -> Result<CommandReceipt<()>, ProtocolSendError> {
         Net::from_api(self.api).send_request_class(class_id)
     }
 
@@ -101,12 +101,12 @@ impl Local {
     pub fn send_interior_change(
         self,
         interior_id: u8,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         Net::from_api(self.api).send_interior_change(interior_id)
     }
 
     /// Queues the protocol-level spawn RPC without invoking native spawn code.
-    pub fn send_spawn(self) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    pub fn send_spawn(self) -> Result<CommandReceipt<()>, ProtocolSendError> {
         Net::from_api(self.api).send_spawn()
     }
 
@@ -115,7 +115,7 @@ impl Local {
         self,
         vehicle: VehicleId,
         passenger: bool,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         Net::from_api(self.api).send_enter_vehicle(vehicle.get(), passenger)
     }
 
@@ -123,7 +123,7 @@ impl Local {
     pub fn send_exit_vehicle(
         self,
         vehicle: VehicleId,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         Net::from_api(self.api).send_exit_vehicle(vehicle.get())
     }
 }

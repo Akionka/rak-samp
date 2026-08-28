@@ -10,6 +10,9 @@
   remain private SDK adaptation. Typed failures are classified and diagnosed
   without payload data before fail-open conversion. Protocol replacements use
   canonical owned exact-bit payloads before one failure-atomic Host mutation.
+  Protocol-backed sends return `ProtocolSendError`, which preserves the exact
+  Protocol encode failure separately from synchronous Host submission or
+  enqueue rejection. Queued execution remains observable through its receipt.
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
   `limits`, one canonical set of cursor-preserving Wire read/write primitives,

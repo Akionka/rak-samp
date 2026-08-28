@@ -4,8 +4,8 @@
 compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Windows x86 targets");
 
 use samp_client_sdk::{
-    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, Samp, SampClientSdkResult, SubscriptionSet,
-    events::ProtocolAction,
+    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, ProtocolSendError, Samp, SampClientSdkResult,
+    SubscriptionSet, events::ProtocolAction,
 };
 use samp_protocol::rpc::outgoing::chat::SEND_COMMAND;
 use std::{
@@ -163,7 +163,8 @@ fn run_example(samp: Samp) {
 fn send_chat(samp: Samp) -> SampClientSdkResult {
     match samp.net().send_chat(CHAT_MESSAGE) {
         Ok(_receipt) => SampClientSdkResult::Ok,
-        Err(error) => error,
+        Err(ProtocolSendError::Encode(_)) => SampClientSdkResult::InvalidArgument,
+        Err(ProtocolSendError::Host(result)) => result,
     }
 }
 
