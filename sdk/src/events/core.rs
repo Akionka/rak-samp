@@ -715,6 +715,7 @@ macro_rules! directional_descriptor {
             }
         }
 
+        #[cfg(test)]
         impl<T> TypedDescriptor<T> for $name<T> {
             fn into_rpc(self) -> Rpc<T> {
                 self.0
@@ -728,10 +729,12 @@ directional_descriptor!(OutgoingPacket);
 directional_descriptor!(IncomingRpc);
 directional_descriptor!(OutgoingRpc);
 
+#[cfg(test)]
 pub(crate) trait TypedDescriptor<T> {
     fn into_rpc(self) -> Rpc<T>;
 }
 
+#[cfg(test)]
 impl<T> TypedDescriptor<T> for Rpc<T> {
     fn into_rpc(self) -> Rpc<T> {
         self
@@ -770,25 +773,6 @@ where
             Ok(SampClientSdkHookAction::Continue)
         }
     }
-}
-
-/// Calls a typed descriptor from a raw callback event.
-///
-/// # Safety
-///
-/// `raw` must be the event pointer supplied to the currently executing callback. On an error,
-/// return [`SampClientSdkHookAction::Continue`] so malformed traffic remains fail-open.
-pub(crate) unsafe fn handle<T, D>(
-    api: HostApi,
-    raw: *mut SampClientSdkEventV1,
-    descriptor: D,
-    handler: impl FnOnce(T) -> ProtocolAction<T>,
-) -> Result<SampClientSdkHookAction, EventError>
-where
-    D: TypedDescriptor<T>,
-{
-    let mut event = unsafe { Event::from_callback(api, raw) }?;
-    descriptor.into_rpc().handle(&mut event, handler)
 }
 
 #[cfg(test)]

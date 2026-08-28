@@ -1,6 +1,5 @@
 //! Low-level packet/RPC send and incoming-emulation `HostApi` wrappers.
 
-use crate::events;
 use crate::{
     CommandReceipt, HostApi, ProtocolSendError, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSendOptions,
@@ -448,7 +447,7 @@ impl HostApi {
         damage: f32,
         weapon: i32,
         body_part: i32,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_damage(player_id, damage, weapon, body_part, false)
     }
 
@@ -459,7 +458,7 @@ impl HostApi {
         damage: f32,
         weapon: i32,
         body_part: i32,
-    ) -> SampClientSdkResult {
+    ) -> Result<(), ProtocolSendError> {
         self.send_damage(player_id, damage, weapon, body_part, true)
     }
 
@@ -481,18 +480,9 @@ impl HostApi {
     /// Sends a complete global or player-object edit action (RPC 117).
     pub fn send_edit_object(
         self,
-        edit: events::rpc::outgoing::object::EditObject,
-    ) -> SampClientSdkResult {
-        self.send_typed_rpc(events::rpc::outgoing::object::SEND_EDIT_OBJECT, edit)
-    }
-
-    fn send_typed_rpc<T>(
-        self,
-        descriptor: events::OutgoingRpc<T>,
-        value: T,
-    ) -> SampClientSdkResult {
-        self.submit_typed_rpc(descriptor, value)
-            .map_or_else(|error| error, |_| SampClientSdkResult::Ok)
+        edit: samp_protocol::rpc::outgoing::common::EditObject,
+    ) -> Result<(), ProtocolSendError> {
+        self.send_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_EDIT_OBJECT, edit)
     }
 
     fn send_protocol_rpc<D>(self, _descriptor: D, value: D::Value) -> Result<(), ProtocolSendError>
@@ -538,32 +528,16 @@ impl HostApi {
         weapon: i32,
         body_part: i32,
         take: bool,
-    ) -> SampClientSdkResult {
-        self.send_typed_rpc(
-            events::rpc::outgoing::damage::SEND_DAMAGE,
-            events::rpc::outgoing::damage::Damage {
+    ) -> Result<(), ProtocolSendError> {
+        self.send_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DAMAGE,
+            samp_protocol::rpc::outgoing::common::Damage {
                 player_id,
                 damage,
                 weapon,
                 body_part,
                 take,
             },
-        )
-    }
-
-    pub(crate) fn submit_typed_rpc<T>(
-        self,
-        descriptor: events::OutgoingRpc<T>,
-        value: T,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        let Ok(payload) = descriptor.encode(self, value) else {
-            return Err(SampClientSdkResult::InvalidArgument);
-        };
-        self.submit_rpc(
-            descriptor.id(),
-            payload.as_bytes(),
-            payload.len_bits(),
-            SampClientSdkSendOptions::default(),
         )
     }
 

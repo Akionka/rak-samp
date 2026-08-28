@@ -1400,14 +1400,8 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
     let api = test_support::test_api();
     assert_eq!(api.send_vehicle_damage(0x1234, 1, 2, 3, 4), Ok(()));
     assert_eq!(api.send_scm_event(4, 1, 2, 3), Ok(()));
-    assert_eq!(
-        api.send_give_damage(0x1234, 1.0, 24, 9),
-        SampClientSdkResult::Ok
-    );
-    assert_eq!(
-        api.send_take_damage(0x1234, 1.0, 24, 9),
-        SampClientSdkResult::Ok
-    );
+    assert_eq!(api.send_give_damage(0x1234, 1.0, 24, 9), Ok(()));
+    assert_eq!(api.send_take_damage(0x1234, 1.0, 24, 9), Ok(()));
 
     let protocol_zero = samp_protocol::types::Vector3 {
         x: 0.0,
@@ -1426,20 +1420,15 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
         color2: 0,
     };
     assert_eq!(api.send_edit_attached_object(attached), Ok(()));
-    let zero = events::Vector3 {
-        x: 0.0,
-        y: 0.0,
-        z: 0.0,
-    };
     assert_eq!(
-        api.send_edit_object(events::rpc::outgoing::object::EditObject {
+        api.send_edit_object(samp_protocol::rpc::outgoing::common::EditObject {
             player_object: false,
             object_id: 0,
             response: 0,
-            position: zero,
-            rotation: zero,
+            position: protocol_zero,
+            rotation: protocol_zero,
         }),
-        SampClientSdkResult::Ok
+        Ok(())
     );
     assert_eq!(api.send_rcon_command(b"rcon"), Ok(()));
     assert_eq!(
@@ -2198,10 +2187,10 @@ fn normal_typed_methods_accept_all_descriptor_sources() {
             ProtocolAction::Continue
         })
         .expect("legacy incoming RPC registration must succeed"),
-        net.on_outgoing_typed_rpc(events::rpc::outgoing::damage::SEND_DAMAGE, |_| {
+        net.on_outgoing_typed_rpc(samp_protocol::rpc::outgoing::common::SEND_DAMAGE, |_| {
             ProtocolAction::Continue
         })
-        .expect("legacy outgoing RPC registration must succeed"),
+        .expect("Protocol outgoing RPC registration must succeed"),
     ];
 
     assert_eq!(test_support::registration_stats().registered_callbacks, 3);
@@ -2213,7 +2202,7 @@ fn normal_typed_methods_accept_all_descriptor_sources() {
 }
 
 #[test]
-fn normal_typed_legacy_callback_preserves_all_actions() {
+fn normal_typed_protocol_callback_preserves_all_actions() {
     let _serial = REGISTRATION_TEST_LOCK
         .lock()
         .unwrap_or_else(|error| error.into_inner());
@@ -2222,15 +2211,16 @@ fn normal_typed_legacy_callback_preserves_all_actions() {
     let observed = Arc::clone(&calls);
     let subscription = Samp::from_api(test_support::test_api())
         .net()
-        .on_outgoing_typed_rpc(events::rpc::outgoing::damage::SEND_DAMAGE, move |damage| {
-            match observed.fetch_add(1, Ordering::AcqRel) {
+        .on_outgoing_typed_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DAMAGE,
+            move |damage| match observed.fetch_add(1, Ordering::AcqRel) {
                 0 => ProtocolAction::Continue,
                 1 => ProtocolAction::Block,
                 2 => ProtocolAction::Replace(damage),
                 _ => unreachable!("test invokes exactly three actions"),
-            }
-        })
-        .expect("legacy typed registration must succeed");
+            },
+        )
+        .expect("Protocol typed registration must succeed");
     let payload = || {
         EncodedPayload::from_bits(
             vec![

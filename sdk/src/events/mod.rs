@@ -1,8 +1,8 @@
 //! Typed SA-MP RPC and packet helpers modeled after MoonLoader's `samp.events`.
 //!
-//! Register every descriptor through the same directional typed methods on [`crate::Net`]. Typed
-//! RPC catalogs live under [`rpc::incoming`] and [`rpc::outgoing`]; Packet catalogs live in
-//! [`samp_protocol::packet`].
+//! Register every descriptor through the same directional typed methods on [`crate::Net`].
+//! The remaining SDK-owned RPC catalog lives under [`rpc::incoming`]. Protocol-owned RPC and Packet
+//! catalogs live under [`samp_protocol::rpc`] and [`samp_protocol::packet`].
 
 mod callback;
 mod core;

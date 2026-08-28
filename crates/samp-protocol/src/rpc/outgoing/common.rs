@@ -1,9 +1,9 @@
-//! Common byte-aligned outgoing SA-MP RPC codecs.
+//! Common profile-neutral outgoing SA-MP RPC codecs.
 
 use crate::types::Vector3;
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
-    WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, ExactBitsPolicy, ExactBytesPolicy, WireCodec,
+    WireReadExt, WireWriteExt,
 };
 
 /// MoonLoader's `onSendDeathNotification` payload (RPC 53).
@@ -58,6 +58,43 @@ pub struct VehicleDamage {
     pub door_damage: i32,
     pub lights: u8,
     pub tires: u8,
+}
+
+/// MoonLoader's shared `onSendGiveDamage` / `onSendTakeDamage` payload (RPC 115).
+///
+/// `take` is a one-bit RakNet boolean. `false` identifies give-damage traffic and `true`
+/// identifies take-damage traffic.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Damage {
+    pub player_id: u16,
+    pub damage: f32,
+    pub weapon: i32,
+    pub body_part: i32,
+    pub take: bool,
+}
+
+/// MoonLoader's `onSendGiveActorDamage` payload (RPC 177).
+///
+/// `unused` is a one-bit RakNet boolean retained for wire compatibility.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ActorDamage {
+    pub unused: bool,
+    pub actor_id: u16,
+    pub damage: f32,
+    pub weapon: i32,
+    pub body_part: i32,
+}
+
+/// MoonLoader's `onSendEditObject` payload (RPC 117).
+///
+/// `player_object` is a one-bit RakNet boolean; encoded values preserve its exact-bit layout.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct EditObject {
+    pub player_object: bool,
+    pub object_id: u16,
+    pub response: i32,
+    pub position: Vector3,
+    pub rotation: Vector3,
 }
 
 /// MoonLoader's `onSendEnterEditObject` payload (RPC 27).
@@ -134,6 +171,9 @@ struct CameraTargetUpdateCodec;
 struct ClientJoinCodec;
 struct NpcJoinCodec;
 struct VehicleDamageCodec;
+struct DamageCodec;
+struct ActorDamageCodec;
+struct EditObjectCodec;
 struct EnterEditObjectCodec;
 struct EditAttachedObjectCodec;
 struct ClientCheckResponseCodec;
@@ -176,6 +216,15 @@ macro_rules! descriptor_value {
     (VehicleDamageCodec) => {
         VehicleDamage
     };
+    (DamageCodec) => {
+        Damage
+    };
+    (ActorDamageCodec) => {
+        ActorDamage
+    };
+    (EditObjectCodec) => {
+        EditObject
+    };
     (EnterEditObjectCodec) => {
         EnterEditObject
     };
@@ -209,6 +258,20 @@ macro_rules! descriptor {
             $codec,
             descriptor_value!($codec),
             ExactBytesPolicy
+        );
+    };
+}
+
+macro_rules! exact_bits_descriptor {
+    ($name:ident, $constant:ident, $id:literal, $codec:ident) => {
+        crate::wire::nominal_descriptor!(
+            outgoing rpc,
+            $name,
+            $constant,
+            $id,
+            $codec,
+            descriptor_value!($codec),
+            ExactBitsPolicy
         );
     };
 }
@@ -295,6 +358,14 @@ descriptor!(
     96,
     VehicleTuningCodec
 );
+exact_bits_descriptor!(SendDamage, SEND_DAMAGE, 115, DamageCodec);
+exact_bits_descriptor!(
+    SendGiveActorDamage,
+    SEND_GIVE_ACTOR_DAMAGE,
+    177,
+    ActorDamageCodec
+);
+exact_bits_descriptor!(SendEditObject, SEND_EDIT_OBJECT, 117, EditObjectCodec);
 
 macro_rules! byte_aligned_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
@@ -431,6 +502,51 @@ byte_aligned_codec!(
     read_vehicle_tuning,
     write_vehicle_tuning
 );
+
+impl WireCodec for DamageCodec {
+    type Value = Damage;
+
+    fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+        read_damage(reader)
+    }
+
+    fn encode<W: BitWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), EncodeError<W::Error>> {
+        write_damage(writer, value)
+    }
+}
+
+impl WireCodec for ActorDamageCodec {
+    type Value = ActorDamage;
+
+    fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+        read_actor_damage(reader)
+    }
+
+    fn encode<W: BitWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), EncodeError<W::Error>> {
+        write_actor_damage(writer, value)
+    }
+}
+
+impl WireCodec for EditObjectCodec {
+    type Value = EditObject;
+
+    fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+        read_edit_object(reader)
+    }
+
+    fn encode<W: BitWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), EncodeError<W::Error>> {
+        write_edit_object(writer, value)
+    }
+}
 
 fn read_empty<R: BitRead>(_reader: &mut R) -> Result<(), DecodeError<R::Error>> {
     Ok(())
@@ -697,4 +813,64 @@ fn write_vehicle_tuning<W: BitWrite>(
     writer.write_i32_le(value.param1)?;
     writer.write_i32_le(value.param2)?;
     writer.write_i32_le(value.event)
+}
+
+fn read_damage<R: BitRead>(reader: &mut R) -> Result<Damage, DecodeError<R::Error>> {
+    Ok(Damage {
+        take: reader.read_bit_bool()?,
+        player_id: reader.read_u16_le()?,
+        damage: reader.read_f32_le()?,
+        weapon: reader.read_i32_le()?,
+        body_part: reader.read_i32_le()?,
+    })
+}
+
+fn write_damage<W: BitWrite>(writer: &mut W, value: &Damage) -> Result<(), EncodeError<W::Error>> {
+    writer.write_bit_bool(value.take)?;
+    writer.write_u16_le(value.player_id)?;
+    writer.write_f32_le(value.damage)?;
+    writer.write_i32_le(value.weapon)?;
+    writer.write_i32_le(value.body_part)
+}
+
+fn read_actor_damage<R: BitRead>(reader: &mut R) -> Result<ActorDamage, DecodeError<R::Error>> {
+    Ok(ActorDamage {
+        unused: reader.read_bit_bool()?,
+        actor_id: reader.read_u16_le()?,
+        damage: reader.read_f32_le()?,
+        weapon: reader.read_i32_le()?,
+        body_part: reader.read_i32_le()?,
+    })
+}
+
+fn write_actor_damage<W: BitWrite>(
+    writer: &mut W,
+    value: &ActorDamage,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_bit_bool(value.unused)?;
+    writer.write_u16_le(value.actor_id)?;
+    writer.write_f32_le(value.damage)?;
+    writer.write_i32_le(value.weapon)?;
+    writer.write_i32_le(value.body_part)
+}
+
+fn read_edit_object<R: BitRead>(reader: &mut R) -> Result<EditObject, DecodeError<R::Error>> {
+    Ok(EditObject {
+        player_object: reader.read_bit_bool()?,
+        object_id: reader.read_u16_le()?,
+        response: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
+        rotation: reader.read_vector3_le()?,
+    })
+}
+
+fn write_edit_object<W: BitWrite>(
+    writer: &mut W,
+    value: &EditObject,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_bit_bool(value.player_object)?;
+    writer.write_u16_le(value.object_id)?;
+    writer.write_i32_le(value.response)?;
+    writer.write_vector3_le(&value.position)?;
+    writer.write_vector3_le(&value.rotation)
 }

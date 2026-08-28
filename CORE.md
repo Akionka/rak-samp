@@ -23,7 +23,7 @@
   ad-hoc descriptor therefore carries direction and an explicit trailing policy.
   The sealed direction-neutral `WireDescriptor` remains their common capability.
   Packet/RPC name catalogs,
-  outgoing chat, slash-command, profile-neutral byte-aligned RPC codecs, common
+  outgoing chat, slash-command, profile-neutral outgoing RPC codecs, common
   byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet
   codecs remain Protocol-owned. Directional marker traits make an invalid typed
   subscription or send fail to compile. Profile-neutral incoming RPCs live under

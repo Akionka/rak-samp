@@ -288,7 +288,7 @@ impl Net {
         damage: f32,
         weapon: i32,
         body_part: i32,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.send_damage(player_id, damage, weapon, body_part, false)
     }
 
@@ -299,7 +299,7 @@ impl Net {
         damage: f32,
         weapon: i32,
         body_part: i32,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.send_damage(player_id, damage, weapon, body_part, true)
     }
 
@@ -317,10 +317,10 @@ impl Net {
     /// Queues a complete global or player-object edit action.
     pub fn send_edit_object(
         self,
-        edit: crate::events::rpc::outgoing::object::EditObject,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
+        edit: samp_protocol::rpc::outgoing::common::EditObject,
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
         self.api
-            .submit_typed_rpc(crate::events::rpc::outgoing::object::SEND_EDIT_OBJECT, edit)
+            .submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_EDIT_OBJECT, edit)
     }
 
     /// Queues a bounded server-bound RCON command packet.
@@ -508,10 +508,10 @@ impl Net {
         weapon: i32,
         body_part: i32,
         take: bool,
-    ) -> Result<CommandReceipt<()>, SampClientSdkResult> {
-        self.api.submit_typed_rpc(
-            crate::events::rpc::outgoing::damage::SEND_DAMAGE,
-            crate::events::rpc::outgoing::damage::Damage {
+    ) -> Result<CommandReceipt<()>, ProtocolSendError> {
+        self.api.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DAMAGE,
+            samp_protocol::rpc::outgoing::common::Damage {
                 player_id,
                 damage,
                 weapon,

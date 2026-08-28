@@ -1,14 +1,15 @@
 use samp_protocol::rpc::outgoing::common::{
-    CameraTargetUpdate, ClickPlayer, ClientCheckResponse, ClientJoin, DeathNotification,
-    DialogResponse, EditAttachedObject, EnterEditObject, EnterVehicle, MoneyIncrease, NpcJoin,
-    SEND_CAMERA_TARGET_UPDATE, SEND_CLICK_PLAYER, SEND_CLICK_TEXT_DRAW, SEND_CLIENT_CHECK_RESPONSE,
-    SEND_CLIENT_JOIN, SEND_DEATH_NOTIFICATION, SEND_DIALOG_RESPONSE, SEND_EDIT_ATTACHED_OBJECT,
-    SEND_ENTER_EDIT_OBJECT, SEND_ENTER_VEHICLE, SEND_EXIT_VEHICLE, SEND_INTERIOR_CHANGE,
-    SEND_MAP_MARKER, SEND_MENU_SELECT, SEND_MONEY_INCREASE, SEND_NPC_JOIN, SEND_PICKED_UP_PICKUP,
-    SEND_PICKED_UP_WEAPON, SEND_QUIT_MENU, SEND_REQUEST_CLASS, SEND_REQUEST_SPAWN,
-    SEND_SERVER_STATISTICS_REQUEST, SEND_SPAWN, SEND_UPDATE_SCORES_AND_PINGS, SEND_VEHICLE_DAMAGED,
-    SEND_VEHICLE_DESTROYED, SEND_VEHICLE_TUNING, SendDialogResponse, SendInteriorChange,
-    VehicleDamage, VehicleTuning,
+    ActorDamage, CameraTargetUpdate, ClickPlayer, ClientCheckResponse, ClientJoin, Damage,
+    DeathNotification, DialogResponse, EditAttachedObject, EditObject, EnterEditObject,
+    EnterVehicle, MoneyIncrease, NpcJoin, SEND_CAMERA_TARGET_UPDATE, SEND_CLICK_PLAYER,
+    SEND_CLICK_TEXT_DRAW, SEND_CLIENT_CHECK_RESPONSE, SEND_CLIENT_JOIN, SEND_DAMAGE,
+    SEND_DEATH_NOTIFICATION, SEND_DIALOG_RESPONSE, SEND_EDIT_ATTACHED_OBJECT, SEND_EDIT_OBJECT,
+    SEND_ENTER_EDIT_OBJECT, SEND_ENTER_VEHICLE, SEND_EXIT_VEHICLE, SEND_GIVE_ACTOR_DAMAGE,
+    SEND_INTERIOR_CHANGE, SEND_MAP_MARKER, SEND_MENU_SELECT, SEND_MONEY_INCREASE, SEND_NPC_JOIN,
+    SEND_PICKED_UP_PICKUP, SEND_PICKED_UP_WEAPON, SEND_QUIT_MENU, SEND_REQUEST_CLASS,
+    SEND_REQUEST_SPAWN, SEND_SERVER_STATISTICS_REQUEST, SEND_SPAWN, SEND_UPDATE_SCORES_AND_PINGS,
+    SEND_VEHICLE_DAMAGED, SEND_VEHICLE_DESTROYED, SEND_VEHICLE_TUNING, SendDialogResponse,
+    SendInteriorChange, VehicleDamage, VehicleTuning,
 };
 use samp_protocol::types::Vector3;
 use samp_protocol::{DecodeError, EncodeError, EncodedBits, WireDescriptor};
@@ -30,8 +31,40 @@ where
     assert_eq!(D::decode_bits(&bits), Ok(value));
 }
 
+fn assert_exact_vector<D>(descriptor: D, value: D::Value, expected: &[u8], expected_bits: usize)
+where
+    D: WireDescriptor,
+    D::Value: Clone + core::fmt::Debug + PartialEq,
+{
+    let _ = descriptor;
+    let bits = D::encode_bits(&value).expect("the common exact-bit RPC value must encode");
+
+    assert_eq!(bits.as_bytes(), expected);
+    assert_eq!(bits.len_bits(), expected_bits);
+    assert_eq!(D::decode_bits(&bits), Ok(value));
+}
+
+fn assert_rejects_trailing_bit<D>(descriptor: D, value: &D::Value, expected_bits: usize)
+where
+    D: WireDescriptor,
+    D::Value: core::fmt::Debug + PartialEq,
+{
+    let _ = descriptor;
+    let bits = D::encode_bits(value).expect("the common exact-bit RPC value must encode");
+    let trailing = EncodedBits::from_bits(bits.as_bytes(), expected_bits + 1)
+        .expect("one trailing bit still uses minimal storage");
+
+    assert_eq!(
+        D::decode_bits(&trailing),
+        Err(DecodeError::UnexpectedTrailingBits {
+            remaining_bits: 1,
+            allowed_bits: 0,
+        })
+    );
+}
+
 #[test]
-fn common_outgoing_rpc_inventory_has_27_unique_entries() {
+fn common_outgoing_rpc_inventory_has_30_unique_entries() {
     let ids = [
         id(SEND_DEATH_NOTIFICATION),
         id(SEND_MAP_MARKER),
@@ -60,19 +93,89 @@ fn common_outgoing_rpc_inventory_has_27_unique_entries() {
         id(SEND_EXIT_VEHICLE),
         id(SEND_VEHICLE_DESTROYED),
         id(SEND_VEHICLE_TUNING),
+        id(SEND_DAMAGE),
+        id(SEND_GIVE_ACTOR_DAMAGE),
+        id(SEND_EDIT_OBJECT),
     ];
 
     assert_eq!(
         ids,
         [
             53, 119, 118, 155, 31, 97, 131, 168, 25, 54, 106, 27, 116, 52, 128, 129, 102, 103, 62,
-            23, 83, 132, 140, 26, 154, 136, 96,
+            23, 83, 132, 140, 26, 154, 136, 96, 115, 177, 117,
         ]
     );
 
     let mut unique = ids;
     unique.sort_unstable();
     assert!(unique.windows(2).all(|pair| pair[0] != pair[1]));
+}
+
+#[test]
+fn common_exact_bit_outgoing_rpcs_preserve_vectors_and_reject_trailing_bits() {
+    let damage = Damage {
+        player_id: 0x1234,
+        damage: 1.0,
+        weapon: 24,
+        body_part: 9,
+        take: true,
+    };
+    assert_exact_vector(
+        SEND_DAMAGE,
+        damage,
+        &[
+            0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00, 0x00,
+            0x00,
+        ],
+        113,
+    );
+
+    let actor_damage = ActorDamage {
+        unused: false,
+        actor_id: 0x5678,
+        damage: 2.5,
+        weapon: -1,
+        body_part: 3,
+    };
+    assert_exact_vector(
+        SEND_GIVE_ACTOR_DAMAGE,
+        actor_damage,
+        &[
+            0x3C, 0x2B, 0x00, 0x00, 0x10, 0x20, 0x7F, 0xFF, 0xFF, 0xFF, 0x81, 0x80, 0x00, 0x00,
+            0x00,
+        ],
+        113,
+    );
+
+    let edit_object = EditObject {
+        player_object: true,
+        object_id: 0x1234,
+        response: -2,
+        position: Vector3 {
+            x: 1.0,
+            y: -2.0,
+            z: 0.5,
+        },
+        rotation: Vector3 {
+            x: 90.0,
+            y: -45.0,
+            z: 180.0,
+        },
+    };
+    assert_exact_vector(
+        SEND_EDIT_OBJECT,
+        edit_object,
+        &[
+            0x9A, 0x09, 0x7F, 0x7F, 0xFF, 0xFF, 0x80, 0x00, 0x40, 0x1F, 0x80, 0x00, 0x00, 0x60,
+            0x00, 0x00, 0x00, 0x1F, 0x80, 0x00, 0x5A, 0x21, 0x00, 0x00, 0x1A, 0x61, 0x00, 0x00,
+            0x1A, 0x21, 0x80,
+        ],
+        241,
+    );
+
+    assert_rejects_trailing_bit(SEND_DAMAGE, &damage, 113);
+    assert_rejects_trailing_bit(SEND_GIVE_ACTOR_DAMAGE, &actor_damage, 113);
+    assert_rejects_trailing_bit(SEND_EDIT_OBJECT, &edit_object, 241);
 }
 
 #[test]
