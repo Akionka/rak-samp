@@ -6,6 +6,34 @@
 //! [`Samp::net`] to register callbacks or send owned traffic. Use the ID-filtered and typed
 //! variants when one handler owns one protocol message, and [`register_handlers!`] to keep a
 //! group in one [`SubscriptionSet`]. Synchronize subscriptions before unloading the plugin.
+//!
+//! A packaged Plugin uses only [`Samp`] and subsystem facades:
+//!
+//! ```no_run
+//! use samp_client_sdk::{Samp, events::ProtocolAction};
+//!
+//! # fn connect() -> Result<(), String> {
+//! let samp = Samp::connect(std::time::Duration::from_secs(10))
+//!     .map_err(|error| error.to_string())?;
+//! let net = samp.net();
+//! let protocol_subscription = net.on_incoming_typed_rpc(
+//!     samp_protocol::rpc::incoming::SERVER_MESSAGE,
+//!     |_| ProtocolAction::Continue,
+//! ).map_err(|error| format!("Protocol registration failed: {error:?}"))?;
+//! let host_backed_subscription = net.on_incoming_typed_rpc(
+//!     samp_client_sdk::events::rpc::incoming::SHOW_DIALOG,
+//!     |_| ProtocolAction::Continue,
+//! ).map_err(|error| format!("Host-backed registration failed: {error:?}"))?;
+//! # let _ = (protocol_subscription, host_backed_subscription);
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! The low-level Host wrapper is not part of the public SDK surface:
+//!
+//! ```compile_fail
+//! use samp_client_sdk::HostApi;
+//! ```
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp_client_sdk supports only 32-bit Windows x86 targets");
@@ -15,6 +43,10 @@ mod api;
 mod error;
 pub mod events;
 mod facade;
+#[allow(
+    dead_code,
+    reason = "private Host ABI adapters also cover direct and test-only entry points"
+)]
 mod host_api;
 pub mod limits;
 pub mod raw;
@@ -23,7 +55,8 @@ mod subscriptions;
 mod types;
 
 pub use abi::*;
-pub use api::*;
+use api::*;
+pub use api::{CommandReceipt, TextLabelCreateReceipt};
 pub use error::*;
 pub use facade::*;
 use limits::{
@@ -33,7 +66,8 @@ use limits::{
     MAX_SAMP_GANGZONES, MAX_SAMP_OBJECTS, MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES,
     MAX_SAMP_TEXT_LABELS, MAX_SAMP_TEXTDRAW_STRING_BYTES, MAX_SAMP_TEXTDRAWS, MAX_SAMP_VEHICLES,
 };
-pub use resolve::*;
+pub use resolve::ResolveError;
+use resolve::{wait_for_default_host, wait_for_host};
 pub use subscriptions::*;
 pub use types::*;
 

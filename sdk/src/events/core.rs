@@ -1,10 +1,8 @@
 //! Typed SA-MP Packet and RPC helpers modeled after MoonLoader's `samp.events`.
 //!
-//! Register one raw incoming or outgoing Packet or RPC callback through
-//! [`crate::HostApi`], then invoke a named helper from that callback. A helper ignores every
-//! other Packet or RPC ID, decodes its own payload, and converts [`ProtocolAction`] back to the
-//! host ABI action. `Replace` clears and serializes the complete Packet or RPC payload, just as
-//! returning a value table does in `samp.events`.
+//! Public consumers register typed descriptors through [`crate::Net`]. The private callback
+//! adapter filters IDs, decodes payloads, and converts [`ProtocolAction`] to the Host ABI action.
+//! `Replace` serializes the complete Packet or RPC payload before one atomic Host mutation.
 //!
 //! Text fields deliberately use `Vec<u8>`: SA-MP text is not guaranteed to be UTF-8. Use
 //! [`std::str::from_utf8`] only when the server's encoding is known.
@@ -137,8 +135,8 @@ impl ProtocolEventError {
 
 /// A callback-local view over an opaque host event.
 ///
-/// [`crate::HostApi::on_packet`] and [`crate::HostApi::on_rpc`] supply this to safe handlers. It
-/// may not be retained after that handler returns.
+/// Raw [`crate::Net::on_packet`] and [`crate::Net::on_rpc`] callbacks receive this value. It may
+/// not be retained after that handler returns.
 pub struct Event<'callback> {
     api: HostApi,
     raw: *mut SampClientSdkEventV1,
@@ -565,7 +563,7 @@ pub type Packet<T> = Rpc<T>;
 
 impl<T> Rpc<T> {
     /// Creates a descriptor for one RPC ID.
-    pub const fn new(
+    pub(crate) const fn new(
         id: u8,
         decode: fn(&mut Event<'_>) -> Result<T, EventError>,
         encode: fn(T) -> Result<Vec<u8>, EventError>,
@@ -578,7 +576,7 @@ impl<T> Rpc<T> {
     }
 
     /// Creates a descriptor whose replacement serializer can use host codecs and exact bits.
-    pub const fn new_bits(
+    pub(crate) const fn new_bits(
         id: u8,
         decode: fn(&mut Event<'_>) -> Result<T, EventError>,
         encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
@@ -597,7 +595,7 @@ impl<T> Rpc<T> {
     }
 
     /// Serializes one complete payload without mutating a callback event.
-    pub fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
+    pub(crate) fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
         match self.encode {
             RpcEncoder::Bytes(encode) => EncodedPayload::from_bytes(encode(value)?),
             RpcEncoder::Bits(encode) => encode(api, value),
@@ -608,7 +606,7 @@ impl<T> Rpc<T> {
     ///
     /// A non-matching event passes through without invoking `handler`. Decode failures are returned
     /// to the plugin so it can fail open and report the incompatible payload if appropriate.
-    pub fn handle(
+    pub(crate) fn handle(
         self,
         event: &mut Event<'_>,
         handler: impl FnOnce(T) -> ProtocolAction<T>,
@@ -674,9 +672,13 @@ macro_rules! directional_descriptor {
             }
         }
 
+        #[allow(
+            dead_code,
+            reason = "legacy descriptor directions share one private adapter shape"
+        )]
         impl<T> $name<T> {
             /// Creates a descriptor for one ID with a byte-aligned payload.
-            pub const fn new(
+            pub(crate) const fn new(
                 id: u8,
                 decode: fn(&mut Event<'_>) -> Result<T, EventError>,
                 encode: fn(T) -> Result<Vec<u8>, EventError>,
@@ -685,7 +687,7 @@ macro_rules! directional_descriptor {
             }
 
             /// Creates a descriptor with an exact-bit payload.
-            pub const fn new_bits(
+            pub(crate) const fn new_bits(
                 id: u8,
                 decode: fn(&mut Event<'_>) -> Result<T, EventError>,
                 encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
@@ -700,12 +702,16 @@ macro_rules! directional_descriptor {
             }
 
             /// Serializes one complete payload without mutating a callback event.
-            pub fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
+            pub(crate) fn encode(
+                self,
+                api: HostApi,
+                value: T,
+            ) -> Result<EncodedPayload, EventError> {
                 self.0.encode(api, value)
             }
 
             /// Handles this descriptor when `event` has the matching ID.
-            pub fn handle(
+            pub(crate) fn handle(
                 self,
                 event: &mut Event<'_>,
                 handler: impl FnOnce(T) -> ProtocolAction<T>,

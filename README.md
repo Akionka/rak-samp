@@ -36,7 +36,7 @@ cargo make install
 
 Plugins are 32-bit `cdylib`s that depend on the public `samp-client-sdk`
 package and import it as `samp_client_sdk`. Connect through `Samp`; the raw
-ABI wrapper is documentation-hidden implementation detail.
+ABI wrapper is a private implementation detail.
 
 ```rust
 use samp_client_sdk::Samp;

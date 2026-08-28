@@ -1,4 +1,4 @@
-/// Maximum decoded byte length accepted by [`crate::HostApi::decode_string`].
+/// Maximum byte length accepted by the private Native encoded-string decoder.
 ///
 /// The extra byte used by the host's native decoder is reserved for its NUL
 /// terminator and is not included in this limit.

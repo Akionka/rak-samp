@@ -40,14 +40,17 @@ impl std::error::Error for ResolveError {}
 /// Waits for the default `samp_client_sdk.asi` host to expose a ready v1 API.
 ///
 /// Call this from a plugin worker thread, never from `DllMain`.
-pub fn wait_for_default_host(timeout: Duration) -> Result<HostApi, ResolveError> {
+pub(crate) fn wait_for_default_host(timeout: Duration) -> Result<HostApi, ResolveError> {
     wait_for_host(DEFAULT_HOST_MODULE, timeout)
 }
 
 /// Waits for a named host module to expose a ready v1 API.
 ///
 /// `module_name` must be NUL-terminated, for example `b"samp_client_sdk.asi\\0"`.
-pub fn wait_for_host(module_name: &[u8], timeout: Duration) -> Result<HostApi, ResolveError> {
+pub(crate) fn wait_for_host(
+    module_name: &[u8],
+    timeout: Duration,
+) -> Result<HostApi, ResolveError> {
     if module_name.last() != Some(&0) {
         return Err(ResolveError::HostNotLoaded);
     }

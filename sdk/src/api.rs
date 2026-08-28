@@ -2,10 +2,8 @@
 
 use super::*;
 
-/// A validated reference to the host API table.
-#[doc(hidden)]
 #[derive(Clone, Copy)]
-pub struct HostApi {
+pub(crate) struct HostApi {
     pub(crate) raw: &'static SampClientSdkApiV1,
 }
 

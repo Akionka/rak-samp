@@ -325,9 +325,9 @@ impl LocalPlayer {
 
 /// An owned player-directory entry copied from the verified R1 game thread.
 ///
-/// [`HostApi::player_info`] returns a local entry immediately once the local
-/// snapshot exists. Remote IDs are demand-refreshed through the host's
-/// game-thread pump, so the first query can return [`SampClientSdkResult::NotReady`]
+/// The player facade returns a local entry immediately once the local snapshot
+/// exists. Remote IDs are demand-refreshed through the Host's
+/// game-thread pump, so the first query can return [`crate::SampClientSdkResult::NotReady`]
 /// while the copy is pending. No client, ped, or GTA handle crosses this API.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PlayerInfo {
@@ -343,7 +343,7 @@ pub struct PlayerInfo {
 /// Volatile read-only state copied from one defined remote R1 player.
 ///
 /// Remote state is demand-refreshed by the verified game-thread pump. The
-/// first lookup can return [`SampClientSdkResult::NotReady`]; no client or GTA
+/// first lookup can return [`crate::SampClientSdkResult::NotReady`]; no client or GTA
 /// pointer crosses the ABI.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct RemotePlayerState {
@@ -359,7 +359,7 @@ pub struct RemotePlayerState {
 ///
 /// The controller and animation fields preserve their native raw bit patterns;
 /// `surfing_vehicle_id` preserves the native `0xFFFF` sentinel. The first
-/// lookup can return [`SampClientSdkResult::NotReady`] while the game-thread
+/// lookup can return [`crate::SampClientSdkResult::NotReady`] while the game-thread
 /// cache refresh is pending. No client, player, ped, or GTA pointer crosses
 /// this API.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -385,7 +385,7 @@ pub struct OnFootSync {
 ///
 /// Vehicle IDs and the four vehicle-specific bytes retain their native raw
 /// representation. The first lookup can return
-/// [`SampClientSdkResult::NotReady`] while the game-thread cache refresh is
+/// [`crate::SampClientSdkResult::NotReady`] while the game-thread cache refresh is
 /// pending. No client, player, vehicle, ped, or GTA pointer crosses this API.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct InCarSync {
@@ -411,7 +411,7 @@ pub struct InCarSync {
 /// thread for either the local or a defined remote player.
 ///
 /// Vehicle IDs, seat IDs, and weapon IDs retain their native raw values. The
-/// first lookup can return [`SampClientSdkResult::NotReady`] while the
+/// first lookup can return [`crate::SampClientSdkResult::NotReady`] while the
 /// game-thread cache refresh is pending. No client, player, vehicle, ped, or
 /// GTA pointer crosses this API.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -432,7 +432,7 @@ pub struct PassengerSync {
 /// thread for either the local or a defined remote player.
 ///
 /// The trailer ID preserves its native raw value, including any sentinel. The
-/// first lookup can return [`SampClientSdkResult::NotReady`] while the
+/// first lookup can return [`crate::SampClientSdkResult::NotReady`] while the
 /// game-thread cache refresh is pending. No client, player, vehicle, ped, or
 /// GTA pointer crosses this API.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -449,7 +449,7 @@ pub struct TrailerSync {
 /// for either the local or a defined remote player.
 ///
 /// The zoom/weapon-state and aspect-ratio bytes retain their native raw
-/// values. The first lookup can return [`SampClientSdkResult::NotReady`] while
+/// values. The first lookup can return [`crate::SampClientSdkResult::NotReady`] while
 /// the game-thread cache refresh is pending. No native pointer crosses this API.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct AimSync {

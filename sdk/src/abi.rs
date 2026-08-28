@@ -627,7 +627,7 @@ pub type SampClientSdkChatCommandCallbackV1 =
 /// Fields are currently appended to preserve the v1 layout; during the ALPHA
 /// stage the ABI may make an explicit compatibility break. Check `size` before
 /// accessing fields added by a newer ABI version. Normal plugins use
-/// [`HostApi`] instead of calling this table directly.
+/// Use [`crate::Samp`] and its subsystem facades instead of calling this table directly.
 #[repr(C)]
 pub struct SampClientSdkApiV1 {
     pub abi_version: u32,

@@ -227,7 +227,8 @@ impl SubscriptionSet {
 
     /// Adds a registration result while preserving earlier registrations if it failed.
     ///
-    /// This is primarily useful to [`register_handlers!`] and other batch-registration helpers.
+    /// This is primarily useful to [`crate::register_handlers!`] and other
+    /// batch-registration helpers.
     pub fn try_add(
         mut self,
         registration: Result<Subscription, SampClientSdkResult>,

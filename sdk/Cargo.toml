@@ -21,7 +21,7 @@ name = "samp_client_sdk"
 
 [dependencies]
 log = "0.4"
-samp-protocol = { path = "../crates/samp-protocol" }
+samp-protocol = { version = "=0.1.0-alpha.4", path = "../crates/samp-protocol" }
 
 [target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
 windows-sys = { version = "0.61", features = [
