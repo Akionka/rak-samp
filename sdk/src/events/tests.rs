@@ -7,7 +7,9 @@ use super::{
 };
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
 use samp_protocol::{
-    WireDescriptor, packet::r1 as protocol_packet, rpc::incoming as protocol_incoming,
+    WireDescriptor,
+    packet::r1 as protocol_packet,
+    rpc::incoming::{common as protocol_common, r1 as protocol_r1},
     types::Vector3 as ProtocolVector3,
 };
 
@@ -19,8 +21,8 @@ fn test_protocol_vector3(x: f32, y: f32, z: f32) -> ProtocolVector3 {
     ProtocolVector3 { x, y, z }
 }
 
-fn test_spawn_info() -> protocol_incoming::r1::SpawnInfo {
-    protocol_incoming::r1::SpawnInfo {
+fn test_spawn_info() -> protocol_r1::SpawnInfo {
+    protocol_r1::SpawnInfo {
         team: 7,
         skin: 411,
         unused: 0xA5,
@@ -44,8 +46,8 @@ fn test_animation() -> incoming::Animation {
     }
 }
 
-fn test_protocol_animation() -> protocol_incoming::r1::Animation {
-    protocol_incoming::r1::Animation {
+fn test_protocol_animation() -> protocol_r1::Animation {
+    protocol_r1::Animation {
         animation_library: b"PED".to_vec(),
         animation_name: b"WALK".to_vec(),
         frame_delta: 4.0,
@@ -58,7 +60,7 @@ fn test_protocol_animation() -> protocol_incoming::r1::Animation {
 }
 
 #[test]
-fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
+fn vehicle_position_through_player_name_tag_decode_and_atomically_replace() {
     use samp_protocol::types::Vector3;
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
@@ -70,8 +72,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
     }
 
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_POSITION,
-        protocol_incoming::VehiclePosition {
+        protocol_common::SET_VEHICLE_POSITION,
+        protocol_common::VehiclePosition {
             vehicle_id: 1,
             position: Vector3 {
                 x: 1.0,
@@ -81,27 +83,27 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_ANGLE,
-        protocol_incoming::VehicleAngle {
+        protocol_common::SET_VEHICLE_ANGLE,
+        protocol_common::VehicleAngle {
             vehicle_id: 2,
             angle: 90.0,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_HEALTH,
-        protocol_incoming::VehicleHealth {
+        protocol_common::SET_VEHICLE_HEALTH,
+        protocol_common::VehicleHealth {
             vehicle_id: 3,
             health: 750.0,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::RESET_PLAYER_MONEY, ());
-    assert_replacement_round_trip(protocol_incoming::RESET_PLAYER_WEAPONS, ());
-    assert_replacement_round_trip(protocol_incoming::CANCEL_EDIT, ());
-    assert_replacement_round_trip(protocol_incoming::SET_TOGGLE_CLOCK, true);
-    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK, -2);
+    assert_replacement_round_trip(protocol_common::RESET_PLAYER_MONEY, ());
+    assert_replacement_round_trip(protocol_common::RESET_PLAYER_WEAPONS, ());
+    assert_replacement_round_trip(protocol_common::CANCEL_EDIT, ());
+    assert_replacement_round_trip(protocol_common::SET_TOGGLE_CLOCK, true);
+    assert_replacement_round_trip(protocol_common::SET_PLAYER_DRUNK, -2);
     assert_replacement_round_trip(
-        protocol_incoming::SET_RACE_CHECKPOINT,
-        protocol_incoming::RaceCheckpoint {
+        protocol_common::SET_RACE_CHECKPOINT,
+        protocol_common::RaceCheckpoint {
             checkpoint_type: 1,
             position: Vector3 {
                 x: 1.0,
@@ -117,8 +119,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::PLAY_AUDIO_STREAM,
-        protocol_incoming::AudioStream {
+        protocol_common::PLAY_AUDIO_STREAM,
+        protocol_common::AudioStream {
             url: b"https://example.invalid/audio".to_vec(),
             position: Vector3 {
                 x: 1.0,
@@ -130,8 +132,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_OBJECT_POSITION,
-        protocol_incoming::ObjectPosition {
+        protocol_common::SET_OBJECT_POSITION,
+        protocol_common::ObjectPosition {
             object_id: 4,
             position: Vector3 {
                 x: 1.0,
@@ -141,8 +143,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_OBJECT_ROTATION,
-        protocol_incoming::ObjectRotation {
+        protocol_common::SET_OBJECT_ROTATION,
+        protocol_common::ObjectRotation {
             object_id: 5,
             rotation: Vector3 {
                 x: 4.0,
@@ -151,18 +153,18 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(protocol_incoming::DESTROY_OBJECT, 6);
+    assert_replacement_round_trip(protocol_common::DESTROY_OBJECT, 6);
     assert_replacement_round_trip(
-        protocol_incoming::PLAYER_DEATH_NOTIFICATION,
-        protocol_incoming::PlayerDeathNotification {
+        protocol_common::PLAYER_DEATH_NOTIFICATION,
+        protocol_common::PlayerDeathNotification {
             killer_id: 7,
             killed_id: 8,
             reason: 9,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_MAP_ICON,
-        protocol_incoming::MapIcon {
+        protocol_common::SET_MAP_ICON,
+        protocol_common::MapIcon {
             icon_id: 1,
             position: Vector3 {
                 x: 1.0,
@@ -175,42 +177,42 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::REMOVE_VEHICLE_COMPONENT,
-        protocol_incoming::VehicleComponent {
+        protocol_common::REMOVE_VEHICLE_COMPONENT,
+        protocol_common::VehicleComponent {
             vehicle_id: 10,
             component_id: 11,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::REMOVE_3D_TEXT_LABEL, 12);
-    assert_replacement_round_trip(protocol_incoming::UPDATE_GLOBAL_TIMER, 13);
-    assert_replacement_round_trip(protocol_incoming::DESTROY_PICKUP, -14);
+    assert_replacement_round_trip(protocol_common::REMOVE_3D_TEXT_LABEL, 12);
+    assert_replacement_round_trip(protocol_common::UPDATE_GLOBAL_TIMER, 13);
+    assert_replacement_round_trip(protocol_common::DESTROY_PICKUP, -14);
     assert_replacement_round_trip(
-        protocol_incoming::LINK_VEHICLE_TO_INTERIOR,
-        protocol_incoming::VehicleInterior {
+        protocol_common::LINK_VEHICLE_TO_INTERIOR,
+        protocol_common::VehicleInterior {
             vehicle_id: 15,
             interior_id: 16,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_PLAYER_COLOR,
-        protocol_incoming::PlayerColor {
+        protocol_common::SET_PLAYER_COLOR,
+        protocol_common::PlayerColor {
             player_id: 17,
             color: -1,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::REQUEST_SPAWN_RESPONSE, false);
-    assert_replacement_round_trip(protocol_incoming::SET_SHOP_NAME, [b'S'; 32]);
+    assert_replacement_round_trip(protocol_common::REQUEST_SPAWN_RESPONSE, false);
+    assert_replacement_round_trip(protocol_common::SET_SHOP_NAME, [b'S'; 32]);
     assert_replacement_round_trip(
-        protocol_incoming::SET_PLAYER_SKILL_LEVEL,
-        protocol_incoming::PlayerSkill {
+        protocol_common::SET_PLAYER_SKILL_LEVEL,
+        protocol_common::PlayerSkill {
             player_id: 18,
             skill: 19,
             level: 20,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::REMOVE_BUILDING,
-        protocol_incoming::RemoveBuilding {
+        protocol_common::REMOVE_BUILDING,
+        protocol_common::RemoveBuilding {
             model_id: 21,
             position: Vector3 {
                 x: 1.0,
@@ -221,8 +223,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::ATTACH_OBJECT_TO_PLAYER,
-        protocol_incoming::AttachObjectToPlayer {
+        protocol_common::ATTACH_OBJECT_TO_PLAYER,
+        protocol_common::AttachObjectToPlayer {
             object_id: 22,
             player_id: 23,
             offsets: Vector3 {
@@ -237,11 +239,11 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(protocol_incoming::SHOW_MENU, 24);
-    assert_replacement_round_trip(protocol_incoming::HIDE_MENU, 25);
+    assert_replacement_round_trip(protocol_common::SHOW_MENU, 24);
+    assert_replacement_round_trip(protocol_common::HIDE_MENU, 25);
     assert_replacement_round_trip(
-        protocol_incoming::CREATE_EXPLOSION,
-        protocol_incoming::Explosion {
+        protocol_common::CREATE_EXPLOSION,
+        protocol_common::Explosion {
             position: Vector3 {
                 x: 1.0,
                 y: 2.0,
@@ -252,8 +254,8 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SHOW_PLAYER_NAME_TAG,
-        protocol_incoming::PlayerNameTag {
+        protocol_common::SHOW_PLAYER_NAME_TAG,
+        protocol_common::PlayerNameTag {
             player_id: 28,
             show: true,
         },
@@ -261,7 +263,7 @@ fn second_fixed_incoming_rpcs_decode_and_atomically_replace() {
 }
 
 #[test]
-fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
+fn client_check_through_set_camera_behind_decode_and_atomically_replace() {
     use samp_protocol::types::Vector3;
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
@@ -273,8 +275,8 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
     }
 
     assert_replacement_round_trip(
-        protocol_incoming::CLIENT_CHECK,
-        protocol_incoming::ClientCheck {
+        protocol_common::CLIENT_CHECK,
+        protocol_common::ClientCheck {
             request_type: 1,
             subject: -2,
             offset: 3,
@@ -282,8 +284,8 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_PARAMS_EX,
-        protocol_incoming::VehicleParamsEx {
+        protocol_common::SET_VEHICLE_PARAMS_EX,
+        protocol_common::VehicleParamsEx {
             vehicle_id: 5,
             params: [6; 8],
             doors: [7; 4],
@@ -291,8 +293,8 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::VEHICLE_TUNING_NOTIFICATION,
-        protocol_incoming::VehicleTuningNotification {
+        protocol_common::VEHICLE_TUNING_NOTIFICATION,
+        protocol_common::VehicleTuningNotification {
             player_id: 9,
             event: 10,
             vehicle_id: 11,
@@ -300,10 +302,10 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
             param2: 13,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::SET_VEHICLE_TIRES, (14, 15));
+    assert_replacement_round_trip(protocol_common::SET_VEHICLE_TIRES, (14, 15));
     assert_replacement_round_trip(
-        protocol_incoming::VEHICLE_DAMAGE_STATUS_UPDATE,
-        protocol_incoming::VehicleDamageStatus {
+        protocol_common::VEHICLE_DAMAGE_STATUS_UPDATE,
+        protocol_common::VehicleDamageStatus {
             vehicle_id: 16,
             panel_damage: 17,
             door_damage: 18,
@@ -311,17 +313,17 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
             tires: 20,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::TOGGLE_WIDESCREEN, true);
-    assert_replacement_round_trip(protocol_incoming::DESTROY_ACTOR, 21);
-    assert_replacement_round_trip(protocol_incoming::DESTROY_WEAPON_PICKUP, 22);
-    assert_replacement_round_trip(protocol_incoming::EDIT_ATTACHED_OBJECT, -23);
-    assert_replacement_round_trip(protocol_incoming::ENTER_SELECT_OBJECT, ());
-    assert_replacement_round_trip(protocol_incoming::SERVER_STATISTICS_RESPONSE, ());
-    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK_VISUALS, -24);
-    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_DRUNK_HANDLING, 25);
+    assert_replacement_round_trip(protocol_common::TOGGLE_WIDESCREEN, true);
+    assert_replacement_round_trip(protocol_common::DESTROY_ACTOR, 21);
+    assert_replacement_round_trip(protocol_common::DESTROY_WEAPON_PICKUP, 22);
+    assert_replacement_round_trip(protocol_common::EDIT_ATTACHED_OBJECT, -23);
+    assert_replacement_round_trip(protocol_common::ENTER_SELECT_OBJECT, ());
+    assert_replacement_round_trip(protocol_common::SERVER_STATISTICS_RESPONSE, ());
+    assert_replacement_round_trip(protocol_common::SET_PLAYER_DRUNK_VISUALS, -24);
+    assert_replacement_round_trip(protocol_common::SET_PLAYER_DRUNK_HANDLING, 25);
     assert_replacement_round_trip(
-        protocol_incoming::CREATE_ACTOR,
-        protocol_incoming::Actor {
+        protocol_common::CREATE_ACTOR,
+        protocol_common::Actor {
             actor_id: 26,
             skin_id: 27,
             position: Vector3 {
@@ -333,17 +335,17 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
             health: 5.0,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::CLEAR_ACTOR_ANIMATION, 28);
+    assert_replacement_round_trip(protocol_common::CLEAR_ACTOR_ANIMATION, 28);
     assert_replacement_round_trip(
-        protocol_incoming::SET_ACTOR_FACING_ANGLE,
-        protocol_incoming::ActorAngle {
+        protocol_common::SET_ACTOR_FACING_ANGLE,
+        protocol_common::ActorAngle {
             actor_id: 29,
             angle: 30.0,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_ACTOR_POSITION,
-        protocol_incoming::ActorPosition {
+        protocol_common::SET_ACTOR_POSITION,
+        protocol_common::ActorPosition {
             actor_id: 31,
             position: Vector3 {
                 x: 1.0,
@@ -353,24 +355,24 @@ fn final_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_ACTOR_HEALTH,
-        protocol_incoming::ActorHealth {
+        protocol_common::SET_ACTOR_HEALTH,
+        protocol_common::ActorHealth {
             actor_id: 32,
             health: 33.0,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_OBJECT_NO_CAMERA_COL, 34);
-    assert_replacement_round_trip(protocol_incoming::DISABLE_CHECKPOINT, ());
-    assert_replacement_round_trip(protocol_incoming::DISABLE_RACE_CHECKPOINT, ());
-    assert_replacement_round_trip(protocol_incoming::GAMEMODE_RESTART, ());
-    assert_replacement_round_trip(protocol_incoming::STOP_AUDIO_STREAM, ());
-    assert_replacement_round_trip(protocol_incoming::REMOVE_PLAYER_FROM_VEHICLE, ());
-    assert_replacement_round_trip(protocol_incoming::FORCE_CLASS_SELECTION, ());
-    assert_replacement_round_trip(protocol_incoming::SET_CAMERA_BEHIND, ());
+    assert_replacement_round_trip(protocol_common::SET_PLAYER_OBJECT_NO_CAMERA_COL, 34);
+    assert_replacement_round_trip(protocol_common::DISABLE_CHECKPOINT, ());
+    assert_replacement_round_trip(protocol_common::DISABLE_RACE_CHECKPOINT, ());
+    assert_replacement_round_trip(protocol_common::GAMEMODE_RESTART, ());
+    assert_replacement_round_trip(protocol_common::STOP_AUDIO_STREAM, ());
+    assert_replacement_round_trip(protocol_common::REMOVE_PLAYER_FROM_VEHICLE, ());
+    assert_replacement_round_trip(protocol_common::FORCE_CLASS_SELECTION, ());
+    assert_replacement_round_trip(protocol_common::SET_CAMERA_BEHIND, ());
 }
 
 #[test]
-fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
+fn common_world_incoming_rpcs_decode_and_atomically_replace() {
     use samp_protocol::types::{Vector2, Vector3};
 
     fn assert_replacement_round_trip<D>(descriptor: D, value: D::Value)
@@ -381,19 +383,19 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         assert_protocol_replacement_round_trip(descriptor, value);
     }
 
-    assert_replacement_round_trip(protocol_incoming::ATTACH_CAMERA_TO_OBJECT, 1);
-    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_STOP_FLASH, 2);
-    assert_replacement_round_trip(protocol_incoming::CLEAR_PLAYER_ANIMATION, 3);
-    assert_replacement_round_trip(protocol_incoming::SET_PLAYER_SPECIAL_ACTION, 4);
+    assert_replacement_round_trip(protocol_common::ATTACH_CAMERA_TO_OBJECT, 1);
+    assert_replacement_round_trip(protocol_common::GANG_ZONE_STOP_FLASH, 2);
+    assert_replacement_round_trip(protocol_common::CLEAR_PLAYER_ANIMATION, 3);
+    assert_replacement_round_trip(protocol_common::SET_PLAYER_SPECIAL_ACTION, 4);
     assert_replacement_round_trip(
-        protocol_incoming::SET_PLAYER_FIGHTING_STYLE,
-        protocol_incoming::PlayerFightingStyle {
+        protocol_common::SET_PLAYER_FIGHTING_STYLE,
+        protocol_common::PlayerFightingStyle {
             player_id: 5,
             style_id: 6,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_PLAYER_VELOCITY,
+        protocol_common::SET_PLAYER_VELOCITY,
         Vector3 {
             x: 1.0,
             y: 2.0,
@@ -401,8 +403,8 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_VELOCITY,
-        protocol_incoming::VehicleVelocity {
+        protocol_common::SET_VEHICLE_VELOCITY,
+        protocol_common::VehicleVelocity {
             turn: true,
             velocity: Vector3 {
                 x: 4.0,
@@ -412,8 +414,8 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::CREATE_PICKUP,
-        protocol_incoming::Pickup {
+        protocol_common::CREATE_PICKUP,
+        protocol_common::Pickup {
             id: 7,
             model: 8,
             pickup_type: 9,
@@ -425,8 +427,8 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::MOVE_OBJECT,
-        protocol_incoming::MoveObject {
+        protocol_common::MOVE_OBJECT,
+        protocol_common::MoveObject {
             object_id: 13,
             from_position: Vector3 {
                 x: 1.0,
@@ -447,65 +449,65 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::TEXT_DRAW_SET_STRING,
-        protocol_incoming::TextDrawString {
+        protocol_common::TEXT_DRAW_SET_STRING,
+        protocol_common::TextDrawString {
             textdraw_id: 14,
             text: b"text".to_vec(),
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::CREATE_GANG_ZONE,
-        protocol_incoming::GangZone {
+        protocol_common::CREATE_GANG_ZONE,
+        protocol_common::GangZone {
             zone_id: 15,
             square_start: Vector2 { x: 1.0, y: 2.0 },
             square_end: Vector2 { x: 3.0, y: 4.0 },
             color: 16,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_DESTROY, 17);
-    assert_replacement_round_trip(protocol_incoming::GANG_ZONE_FLASH, (18, 19));
-    assert_replacement_round_trip(protocol_incoming::STOP_OBJECT, 20);
+    assert_replacement_round_trip(protocol_common::GANG_ZONE_DESTROY, 17);
+    assert_replacement_round_trip(protocol_common::GANG_ZONE_FLASH, (18, 19));
+    assert_replacement_round_trip(protocol_common::STOP_OBJECT, 20);
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_NUMBER_PLATE,
-        protocol_incoming::VehicleNumberPlate {
+        protocol_common::SET_VEHICLE_NUMBER_PLATE,
+        protocol_common::VehicleNumberPlate {
             vehicle_id: 21,
             text: b"plate".to_vec(),
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SPECTATE_PLAYER,
-        protocol_incoming::Spectate {
+        protocol_common::SPECTATE_PLAYER,
+        protocol_common::Spectate {
             target_id: 22,
             camera_type: 23,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SPECTATE_VEHICLE,
-        protocol_incoming::Spectate {
+        protocol_common::SPECTATE_VEHICLE,
+        protocol_common::Spectate {
             target_id: 24,
             camera_type: 25,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::CONNECTION_REJECTED, 26);
-    assert_replacement_round_trip(protocol_incoming::REMOVE_MAP_ICON, 27);
+    assert_replacement_round_trip(protocol_common::CONNECTION_REJECTED, 26);
+    assert_replacement_round_trip(protocol_common::REMOVE_MAP_ICON, 27);
     assert_replacement_round_trip(
-        protocol_incoming::SET_WEAPON_AMMO,
-        protocol_incoming::WeaponAmmo {
+        protocol_common::SET_WEAPON_AMMO,
+        protocol_common::WeaponAmmo {
             weapon_id: 28,
             ammo: 29,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::SET_GRAVITY, 30.0);
+    assert_replacement_round_trip(protocol_common::SET_GRAVITY, 30.0);
     assert_replacement_round_trip(
-        protocol_incoming::ATTACH_TRAILER_TO_VEHICLE,
-        protocol_incoming::TrailerAttachment {
+        protocol_common::ATTACH_TRAILER_TO_VEHICLE,
+        protocol_common::TrailerAttachment {
             trailer_id: 31,
             vehicle_id: 32,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::DETACH_TRAILER_FROM_VEHICLE, 33);
+    assert_replacement_round_trip(protocol_common::DETACH_TRAILER_FROM_VEHICLE, 33);
     assert_replacement_round_trip(
-        protocol_incoming::SET_CAMERA_POSITION,
+        protocol_common::SET_CAMERA_POSITION,
         Vector3 {
             x: 34.0,
             y: 35.0,
@@ -513,8 +515,8 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_CAMERA_LOOK_AT,
-        protocol_incoming::CameraLookAt {
+        protocol_common::SET_CAMERA_LOOK_AT,
+        protocol_common::CameraLookAt {
             position: Vector3 {
                 x: 37.0,
                 y: 38.0,
@@ -524,25 +526,25 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::SET_VEHICLE_PARAMS,
-        protocol_incoming::VehicleParams {
+        protocol_common::SET_VEHICLE_PARAMS,
+        protocol_common::VehicleParams {
             vehicle_id: 41,
             objective: true,
             doors_locked: false,
         },
     );
-    assert_replacement_round_trip(protocol_incoming::PLAYER_DEATH, 42);
+    assert_replacement_round_trip(protocol_common::PLAYER_DEATH, 42);
     assert_replacement_round_trip(
-        protocol_incoming::PLAYER_ENTER_VEHICLE,
-        protocol_incoming::PlayerEnterVehicle {
+        protocol_common::PLAYER_ENTER_VEHICLE,
+        protocol_common::PlayerEnterVehicle {
             player_id: 43,
             vehicle_id: 44,
             passenger: true,
         },
     );
     assert_replacement_round_trip(
-        protocol_incoming::PLAYER_EXIT_VEHICLE,
-        protocol_incoming::PlayerExitVehicle {
+        protocol_common::PLAYER_EXIT_VEHICLE,
+        protocol_common::PlayerExitVehicle {
             player_id: 45,
             vehicle_id: 46,
         },
@@ -553,7 +555,7 @@ fn phase15_fixed_incoming_rpcs_decode_and_atomically_replace() {
 fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
     use samp_protocol::WireDescriptor;
 
-    let value = protocol_incoming::r1::PlayerStreamIn {
+    let value = protocol_r1::PlayerStreamIn {
         player_id: 42,
         team: 3,
         model: 411,
@@ -563,7 +565,7 @@ fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
         fighting_style: 4,
         weapon_skill_levels: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
     };
-    let encoded = protocol_incoming::r1::PlayerStreamInRpc::encode_bits(&value)
+    let encoded = protocol_r1::PlayerStreamInRpc::encode_bits(&value)
         .expect("R1 player stream-in payload must encode");
 
     assert_eq!(encoded.len_bits(), 400);
@@ -576,12 +578,12 @@ fn r1_player_stream_in_includes_all_eleven_weapon_skill_levels() {
             0x07, 0x00, 0x08, 0x00, 0x09, 0x00, 0x0A, 0x00,
         ]
     );
-    assert_protocol_replacement_round_trip(protocol_incoming::r1::PLAYER_STREAM_IN, value);
+    assert_protocol_replacement_round_trip(protocol_r1::PLAYER_STREAM_IN, value);
 }
 
 #[test]
 fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
-    let settings = protocol_incoming::r1::GameSettings {
+    let settings = protocol_r1::GameSettings {
         zone_names: true,
         use_cj_walk: false,
         allow_weapons: true,
@@ -609,8 +611,8 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         vehicle_friendly_fire: true,
     };
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::INIT_GAME,
-        protocol_incoming::r1::InitGame {
+        protocol_r1::INIT_GAME,
+        protocol_r1::InitGame {
             player_id: 42,
             host_name: b"R1 host".to_vec(),
             settings,
@@ -618,15 +620,15 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::REQUEST_CLASS_RESPONSE,
-        protocol_incoming::r1::RequestClassResponse {
+        protocol_r1::REQUEST_CLASS_RESPONSE,
+        protocol_r1::RequestClassResponse {
             can_spawn: true,
             spawn: test_spawn_info(),
         },
     );
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::PLAYER_STREAM_IN,
-        protocol_incoming::r1::PlayerStreamIn {
+        protocol_r1::PLAYER_STREAM_IN,
+        protocol_r1::PlayerStreamIn {
             player_id: 42,
             team: 3,
             model: 411,
@@ -685,10 +687,7 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             ],
         },
     );
-    assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::SET_SPAWN_INFO,
-        test_spawn_info(),
-    );
+    assert_protocol_replacement_round_trip(protocol_r1::SET_SPAWN_INFO, test_spawn_info());
     assert_replacement_round_trip(
         incoming::INIT_MENU,
         incoming::InitMenu {
@@ -760,16 +759,16 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::APPLY_PLAYER_ANIMATION,
-        protocol_incoming::r1::PlayerAnimation {
+        protocol_r1::APPLY_PLAYER_ANIMATION,
+        protocol_r1::PlayerAnimation {
             player_id: 7,
             animation: test_protocol_animation(),
         },
     );
-    assert_protocol_replacement_round_trip(protocol_incoming::r1::ENABLE_STUNT_BONUS, true);
+    assert_protocol_replacement_round_trip(protocol_r1::ENABLE_STUNT_BONUS, true);
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::PLAY_CRIME_REPORT,
-        protocol_incoming::r1::CrimeReport {
+        protocol_r1::PLAY_CRIME_REPORT,
+        protocol_r1::CrimeReport {
             suspect_id: 7,
             in_vehicle: true,
             vehicle_model: 411,
@@ -779,11 +778,11 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::SET_PLAYER_ATTACHED_OBJECT,
-        protocol_incoming::r1::PlayerAttachedObject {
+        protocol_r1::SET_PLAYER_ATTACHED_OBJECT,
+        protocol_r1::PlayerAttachedObject {
             player_id: 7,
             index: 3,
-            object: Some(protocol_incoming::r1::AttachedObject {
+            object: Some(protocol_r1::AttachedObject {
                 model_id: 19327,
                 bone: 1,
                 offset: test_protocol_vector3(1.0, 2.0, 3.0),
@@ -801,7 +800,7 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             object_id: 5,
         },
     );
-    assert_protocol_replacement_round_trip(protocol_incoming::r1::TOGGLE_PLAYER_SPECTATING, false);
+    assert_protocol_replacement_round_trip(protocol_r1::TOGGLE_PLAYER_SPECTATING, false);
     assert_replacement_round_trip(
         incoming::SHOW_TEXT_DRAW,
         incoming::ShowTextDraw {
@@ -831,9 +830,9 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
     );
     assert_replacement_round_trip(incoming::TEXT_DRAW_HIDE, 99);
     assert_protocol_replacement_round_trip(
-        protocol_incoming::r1::UPDATE_SCORES_AND_PINGS,
-        protocol_incoming::r1::ScoresAndPings {
-            entries: vec![protocol_incoming::r1::ScorePing {
+        protocol_r1::UPDATE_SCORES_AND_PINGS,
+        protocol_r1::ScoresAndPings {
+            entries: vec![protocol_r1::ScorePing {
                 player_id: 7,
                 score: -100,
                 ping: 42,
@@ -944,7 +943,7 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
 
     let api = test_api();
     let mut raw = TestEvent::new(
-        protocol_incoming::r1::EnableStuntBonusRpc::ID,
+        protocol_r1::EnableStuntBonusRpc::ID,
         EncodedPayload::from_bits(vec![0b1000_0000], 2).unwrap(),
     );
     let mut event = unsafe {
@@ -955,10 +954,9 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
     }
     .unwrap();
     assert!(matches!(
-        super::handle_protocol::<protocol_incoming::r1::EnableStuntBonusRpc>(
-            &mut event,
-            |_| panic!("must not dispatch"),
-        ),
+        super::handle_protocol::<protocol_r1::EnableStuntBonusRpc>(&mut event, |_| panic!(
+            "must not dispatch"
+        ),),
         Err(super::core::ProtocolEventError::DecodeMalformed(
             samp_protocol::DecodeError::UnexpectedTrailingBits {
                 remaining_bits: 1,
@@ -1109,7 +1107,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
 fn set_player_skin_uses_rpc_153_and_two_i32_values() {
     use samp_protocol::{
         WireDescriptor,
-        rpc::incoming::{PlayerSkin, SetPlayerSkin},
+        rpc::incoming::common::{PlayerSkin, SetPlayerSkin},
     };
 
     assert_eq!(SetPlayerSkin::ID, 153);
@@ -1128,25 +1126,25 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
     use samp_protocol::WireDescriptor;
 
     let descriptors = [
-        (protocol_incoming::r1::InitGameRpc::ID, 139),
-        (protocol_incoming::r1::RequestClassResponseRpc::ID, 128),
-        (protocol_incoming::r1::PlayerStreamInRpc::ID, 32),
+        (protocol_r1::InitGameRpc::ID, 139),
+        (protocol_r1::RequestClassResponseRpc::ID, 128),
+        (protocol_r1::PlayerStreamInRpc::ID, 32),
         (incoming::CREATE_3D_TEXT.id(), 36),
         (incoming::CREATE_OBJECT.id(), 44),
-        (protocol_incoming::r1::SpawnInfoRpc::ID, 68),
+        (protocol_r1::SpawnInfoRpc::ID, 68),
         (incoming::INIT_MENU.id(), 76),
         (incoming::INTERPOLATE_CAMERA.id(), 82),
         (incoming::TOGGLE_SELECT_TEXT_DRAW.id(), 83),
         (incoming::SET_OBJECT_MATERIAL.id(), 84),
-        (protocol_incoming::r1::PlayerAnimationRpc::ID, 86),
-        (protocol_incoming::r1::EnableStuntBonusRpc::ID, 104),
-        (protocol_incoming::r1::CrimeReportRpc::ID, 112),
-        (protocol_incoming::r1::PlayerAttachedObjectRpc::ID, 113),
+        (protocol_r1::PlayerAnimationRpc::ID, 86),
+        (protocol_r1::EnableStuntBonusRpc::ID, 104),
+        (protocol_r1::CrimeReportRpc::ID, 112),
+        (protocol_r1::PlayerAttachedObjectRpc::ID, 113),
         (incoming::ENTER_EDIT_OBJECT.id(), 117),
-        (protocol_incoming::r1::TogglePlayerSpectatingRpc::ID, 124),
+        (protocol_r1::TogglePlayerSpectatingRpc::ID, 124),
         (incoming::SHOW_TEXT_DRAW.id(), 134),
         (incoming::TEXT_DRAW_HIDE.id(), 135),
-        (protocol_incoming::r1::ScoresAndPingsRpc::ID, 155),
+        (protocol_r1::ScoresAndPingsRpc::ID, 155),
         (incoming::VEHICLE_STREAM_IN.id(), 164),
         (incoming::DISABLE_VEHICLE_COLLISIONS.id(), 167),
         (incoming::TOGGLE_CAMERA_TARGET_NOTIFYING.id(), 170),

@@ -6,7 +6,10 @@ use samp_protocol::{
     TrailingPolicy, WireCodec, WireDescriptor, WireKind,
     packet::{common::SendAimSync, r1::RemotePlayerSyncPacket},
     rpc::{
-        incoming::{ServerMessageRpc, fixed::AttachCameraToObject, r1::InitGameRpc},
+        incoming::{
+            common::{AttachCameraToObject, ServerMessageRpc},
+            r1::InitGameRpc,
+        },
         outgoing::{chat::SendChat, common::SendDeathNotification},
     },
 };
@@ -73,11 +76,11 @@ fn built_in_descriptors_have_nominal_public_identities() {
     );
     assert_eq!(
         type_name::<ServerMessageRpc>(),
-        "samp_protocol::rpc::incoming::fixed::ServerMessageRpc"
+        "samp_protocol::rpc::incoming::common::ServerMessageRpc"
     );
     assert_eq!(
         type_name::<AttachCameraToObject>(),
-        "samp_protocol::rpc::incoming::fixed::phase15::AttachCameraToObject"
+        "samp_protocol::rpc::incoming::common::AttachCameraToObject"
     );
     assert_eq!(
         type_name::<InitGameRpc>(),

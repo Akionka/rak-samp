@@ -239,7 +239,7 @@ pub trait IncomingRpcDescriptor: WireDescriptor + sealed::IncomingRpcDescriptor 
 /// Marks a descriptor that may decode an outgoing SA-MP RPC callback or encode a send.
 ///
 /// ```compile_fail
-/// use samp_protocol::{OutgoingRpcDescriptor, rpc::incoming::SERVER_MESSAGE};
+/// use samp_protocol::{OutgoingRpcDescriptor, rpc::incoming::common::SERVER_MESSAGE};
 ///
 /// fn register<D: OutgoingRpcDescriptor>(_: D) {}
 ///

@@ -2,7 +2,7 @@ use samp_protocol::{
     IncomingPacketDescriptor, IncomingRpcDescriptor, OutgoingPacketDescriptor,
     OutgoingRpcDescriptor,
     packet::common::{AuthenticationRequest, SendAimSync},
-    rpc::{incoming::fixed::ServerMessageRpc, outgoing::chat::SendChat},
+    rpc::{incoming::common::ServerMessageRpc, outgoing::chat::SendChat},
 };
 
 fn require_incoming_packet<D: IncomingPacketDescriptor>() {}

@@ -17,7 +17,7 @@
 //!     .map_err(|error| error.to_string())?;
 //! let net = samp.net();
 //! let protocol_subscription = net.on_incoming_typed_rpc(
-//!     samp_protocol::rpc::incoming::SERVER_MESSAGE,
+//!     samp_protocol::rpc::incoming::common::SERVER_MESSAGE,
 //!     |_| ProtocolAction::Continue,
 //! ).map_err(|error| format!("Protocol registration failed: {error:?}"))?;
 //! let host_backed_subscription = net.on_incoming_typed_rpc(

@@ -44,9 +44,10 @@ backend, so explicit sends do not dispatch outgoing listeners.
   method, macro form, SDK helper family, codec identity, Wire primitive, or
   framing policy.
 
-The `fixed` and `phase15` module taxonomy remains parent #22 P1/P2 work. It is
-not part of this P0 gate and does not add a second callback, descriptor,
-primitive, framing, or send boundary.
+The later semantic taxonomy cut exposes profile-neutral incoming RPCs only
+through `rpc::incoming::common` and profile-specific RPCs through
+`rpc::incoming::r1`. It adds no second callback, descriptor, primitive,
+framing, or send boundary.
 
 ## Validation
 

@@ -1553,7 +1553,7 @@ Keep tests for:
 - exact replacement vectors;
 - bounded allocations;
 - encoded strings;
-- all existing fixed RPC vectors;
+- all existing common RPC vectors;
 - malformed input rejection;
 - read cursor behavior.
 

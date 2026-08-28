@@ -22,12 +22,10 @@
   outgoing chat, slash-command, profile-neutral byte-aligned RPC codecs, common
   byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet
   codecs remain Protocol-owned. Directional marker traits make an invalid typed
-  subscription or send fail to compile. It also owns four fixed incoming RPC batches:
-  server messages through vehicle stream-out, vehicle position through player name tags, the
-  26 descriptors from `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and the 29 descriptors from
-  `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. It also owns the R1 player/session
-  group (`INIT_GAME` through `UPDATE_SCORES_AND_PINGS`). `SHOW_DIALOG` remains in the SDK until
-  the Native encoded-string extension boundary moves.
+  subscription or send fail to compile. Profile-neutral incoming RPCs live under
+  `rpc::incoming::common`; R1 player and session RPCs live under
+  `rpc::incoming::r1`. `SHOW_DIALOG` remains in the SDK until the Native
+  encoded-string extension boundary moves.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces

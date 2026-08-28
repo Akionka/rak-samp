@@ -22,7 +22,7 @@ use samp_protocol::{
         SendAimSync, SendPassengerSync, SendPlayerSync, SendStatsUpdate, SendTrailerSync,
         SendUnoccupiedSync, SendVehicleSync, SendWeaponsUpdate,
     },
-    rpc::incoming::SERVER_MESSAGE,
+    rpc::incoming::common::SERVER_MESSAGE,
 };
 use std::{
     ffi::c_void,

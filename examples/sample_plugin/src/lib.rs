@@ -4,7 +4,7 @@
 compile_error!("samp_client_sdk_sample_plugin supports only 32-bit Windows x86 targets");
 
 use samp_client_sdk::{Samp, Subscription, events::ProtocolAction};
-use samp_protocol::rpc::incoming::SERVER_MESSAGE;
+use samp_protocol::rpc::incoming::common::SERVER_MESSAGE;
 use std::{
     ffi::c_void,
     sync::{

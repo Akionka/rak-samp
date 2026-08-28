@@ -1,19 +1,17 @@
-//! Fixed-layout incoming RPC codecs.
+//! Profile-neutral incoming RPC codecs.
 //!
-//! This module owns four bounded incoming batches: 29 descriptors from
-//! `SERVER_MESSAGE` through `VEHICLE_STREAM_OUT`, 30 descriptors from
-//! `SET_VEHICLE_POSITION` through `SHOW_PLAYER_NAME_TAG`, 26 descriptors from
-//! `CLIENT_CHECK` through `SET_CAMERA_BEHIND`, and 29 descriptors from
-//! `ATTACH_CAMERA_TO_OBJECT` through `PLAYER_EXIT_VEHICLE`. `SHOW_DIALOG`
-//! remains in the SDK because it needs the later Native encoded-string
-//! extension boundary.
+//! `SHOW_DIALOG` remains in the SDK because it crosses the Native
+//! encoded-string boundary.
 
 use crate::{
     BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
     WireWriteExt,
 };
 
-use crate::{limits::MAX_STRING32_BYTES, types::Vector3};
+use crate::{
+    limits::MAX_STRING32_BYTES,
+    types::{Vector2, Vector3},
+};
 
 /// MoonLoader's `onServerMessage` payload (RPC 93).
 #[derive(Clone, Debug, PartialEq)]
@@ -332,6 +330,113 @@ pub struct ActorHealth {
     pub health: f32,
 }
 
+/// MoonLoader's `onSetPlayerFightingStyle` payload (RPC 89).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlayerFightingStyle {
+    pub player_id: u16,
+    pub style_id: u8,
+}
+
+/// MoonLoader's `onSetVehicleVelocity` payload (RPC 91).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleVelocity {
+    pub turn: bool,
+    pub velocity: Vector3,
+}
+
+/// MoonLoader's `onCreatePickup` payload (RPC 95).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Pickup {
+    pub id: i32,
+    pub model: i32,
+    pub pickup_type: i32,
+    pub position: Vector3,
+}
+
+/// MoonLoader's `onMoveObject` payload (RPC 99).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct MoveObject {
+    pub object_id: u16,
+    pub from_position: Vector3,
+    pub destination: Vector3,
+    pub speed: f32,
+    pub rotation: Vector3,
+}
+
+/// MoonLoader's `onTextDrawSetString` payload (RPC 105).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextDrawString {
+    pub textdraw_id: u16,
+    pub text: Vec<u8>,
+}
+
+/// MoonLoader's `onCreateGangZone` payload (RPC 108).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GangZone {
+    pub zone_id: u16,
+    pub square_start: Vector2,
+    pub square_end: Vector2,
+    pub color: i32,
+}
+
+/// MoonLoader's `onSetVehicleNumberPlate` payload (RPC 123).
+#[derive(Clone, Debug, PartialEq)]
+pub struct VehicleNumberPlate {
+    pub vehicle_id: u16,
+    pub text: Vec<u8>,
+}
+
+/// MoonLoader's `onSpectatePlayer` / `onSpectateVehicle` payload.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Spectate {
+    pub target_id: u16,
+    pub camera_type: u8,
+}
+
+/// MoonLoader's `onSetWeaponAmmo` payload (RPC 145).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct WeaponAmmo {
+    pub weapon_id: u8,
+    pub ammo: u16,
+}
+
+/// MoonLoader's `onAttachTrailerToVehicle` payload (RPC 148).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct TrailerAttachment {
+    pub trailer_id: u16,
+    pub vehicle_id: u16,
+}
+
+/// MoonLoader's `onSetCameraLookAt` payload (RPC 158).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CameraLookAt {
+    pub position: Vector3,
+    pub cut_type: u8,
+}
+
+/// MoonLoader's `onSetVehicleParams` payload (RPC 161).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VehicleParams {
+    pub vehicle_id: u16,
+    pub objective: bool,
+    pub doors_locked: bool,
+}
+
+/// MoonLoader's `onPlayerEnterVehicle` payload (RPC 26).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlayerEnterVehicle {
+    pub player_id: u16,
+    pub vehicle_id: u16,
+    pub passenger: bool,
+}
+
+/// MoonLoader's `onPlayerExitVehicle` payload (RPC 154).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PlayerExitVehicle {
+    pub player_id: u16,
+    pub vehicle_id: u16,
+}
+
 struct Empty;
 struct U8;
 struct U16;
@@ -381,6 +486,21 @@ struct ActorCodec;
 struct ActorAngleCodec;
 struct ActorPositionCodec;
 struct ActorHealthCodec;
+struct PlayerFightingStyleCodec;
+struct VehicleVelocityCodec;
+struct PickupCodec;
+struct MoveObjectCodec;
+struct TextDrawStringCodec;
+struct GangZoneCodec;
+struct U16I32Codec;
+struct VehicleNumberPlateCodec;
+struct SpectateCodec;
+struct WeaponAmmoCodec;
+struct TrailerAttachmentCodec;
+struct CameraLookAtCodec;
+struct VehicleParamsCodec;
+struct PlayerEnterVehicleCodec;
+struct PlayerExitVehicleCodec;
 
 macro_rules! descriptor_value {
     (Empty) => {
@@ -529,6 +649,51 @@ macro_rules! descriptor_value {
     };
     (ActorHealthCodec) => {
         ActorHealth
+    };
+    (PlayerFightingStyleCodec) => {
+        PlayerFightingStyle
+    };
+    (VehicleVelocityCodec) => {
+        VehicleVelocity
+    };
+    (PickupCodec) => {
+        Pickup
+    };
+    (MoveObjectCodec) => {
+        MoveObject
+    };
+    (TextDrawStringCodec) => {
+        TextDrawString
+    };
+    (GangZoneCodec) => {
+        GangZone
+    };
+    (U16I32Codec) => {
+        (u16, i32)
+    };
+    (VehicleNumberPlateCodec) => {
+        VehicleNumberPlate
+    };
+    (SpectateCodec) => {
+        Spectate
+    };
+    (WeaponAmmoCodec) => {
+        WeaponAmmo
+    };
+    (TrailerAttachmentCodec) => {
+        TrailerAttachment
+    };
+    (CameraLookAtCodec) => {
+        CameraLookAt
+    };
+    (VehicleParamsCodec) => {
+        VehicleParams
+    };
+    (PlayerEnterVehicleCodec) => {
+        PlayerEnterVehicle
+    };
+    (PlayerExitVehicleCodec) => {
+        PlayerExitVehicle
     };
 }
 
@@ -736,8 +901,82 @@ descriptor!(
 );
 descriptor!(ForceClassSelection, FORCE_CLASS_SELECTION, 74, Empty);
 descriptor!(SetCameraBehind, SET_CAMERA_BEHIND, 162, Empty);
+descriptor!(AttachCameraToObject, ATTACH_CAMERA_TO_OBJECT, 81, U16);
+descriptor!(GangZoneStopFlash, GANG_ZONE_STOP_FLASH, 85, U16);
+descriptor!(ClearPlayerAnimation, CLEAR_PLAYER_ANIMATION, 87, U16);
+descriptor!(SetPlayerSpecialAction, SET_PLAYER_SPECIAL_ACTION, 88, U8);
+descriptor!(
+    SetPlayerFightingStyle,
+    SET_PLAYER_FIGHTING_STYLE,
+    89,
+    PlayerFightingStyleCodec
+);
+descriptor!(SetPlayerVelocity, SET_PLAYER_VELOCITY, 90, Vector3Codec);
+descriptor!(
+    SetVehicleVelocity,
+    SET_VEHICLE_VELOCITY,
+    91,
+    VehicleVelocityCodec
+);
+descriptor!(CreatePickup, CREATE_PICKUP, 95, PickupCodec);
+descriptor!(MoveObjectRpc, MOVE_OBJECT, 99, MoveObjectCodec);
+descriptor!(
+    TextDrawSetString,
+    TEXT_DRAW_SET_STRING,
+    105,
+    TextDrawStringCodec
+);
+descriptor!(CreateGangZone, CREATE_GANG_ZONE, 108, GangZoneCodec);
+descriptor!(GangZoneDestroy, GANG_ZONE_DESTROY, 120, U16);
+descriptor!(GangZoneFlash, GANG_ZONE_FLASH, 121, U16I32Codec);
+descriptor!(StopObject, STOP_OBJECT, 122, U16);
+descriptor!(
+    SetVehicleNumberPlate,
+    SET_VEHICLE_NUMBER_PLATE,
+    123,
+    VehicleNumberPlateCodec
+);
+descriptor!(SpectatePlayer, SPECTATE_PLAYER, 126, SpectateCodec);
+descriptor!(SpectateVehicle, SPECTATE_VEHICLE, 127, SpectateCodec);
+descriptor!(ConnectionRejected, CONNECTION_REJECTED, 130, U8);
+descriptor!(RemoveMapIcon, REMOVE_MAP_ICON, 144, U8);
+descriptor!(SetWeaponAmmo, SET_WEAPON_AMMO, 145, WeaponAmmoCodec);
+descriptor!(SetGravity, SET_GRAVITY, 146, F32);
+descriptor!(
+    AttachTrailerToVehicle,
+    ATTACH_TRAILER_TO_VEHICLE,
+    148,
+    TrailerAttachmentCodec
+);
+descriptor!(
+    DetachTrailerFromVehicle,
+    DETACH_TRAILER_FROM_VEHICLE,
+    149,
+    U16
+);
+descriptor!(SetCameraPosition, SET_CAMERA_POSITION, 157, Vector3Codec);
+descriptor!(SetCameraLookAt, SET_CAMERA_LOOK_AT, 158, CameraLookAtCodec);
+descriptor!(
+    SetVehicleParams,
+    SET_VEHICLE_PARAMS,
+    161,
+    VehicleParamsCodec
+);
+descriptor!(PlayerDeath, PLAYER_DEATH, 166, U16);
+descriptor!(
+    PlayerEnterVehicleRpc,
+    PLAYER_ENTER_VEHICLE,
+    26,
+    PlayerEnterVehicleCodec
+);
+descriptor!(
+    PlayerExitVehicleRpc,
+    PLAYER_EXIT_VEHICLE,
+    154,
+    PlayerExitVehicleCodec
+);
 
-macro_rules! fixed_codec {
+macro_rules! wire_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
@@ -755,7 +994,7 @@ macro_rules! fixed_codec {
     };
 }
 
-macro_rules! fixed_scalar_codec {
+macro_rules! scalar_wire_codec {
     ($codec:ident, $value:ty, $read:ident, $write:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
@@ -773,7 +1012,7 @@ macro_rules! fixed_scalar_codec {
     };
 }
 
-macro_rules! fixed_vector_codec {
+macro_rules! vector_wire_codec {
     ($codec:ident, $value:ty, $read:ident, $write:ident) => {
         impl WireCodec for $codec {
             type Value = $value;
@@ -791,234 +1030,304 @@ macro_rules! fixed_vector_codec {
     };
 }
 
-fixed_codec!(Empty, (), read_empty, write_empty);
-fixed_scalar_codec!(U8, u8, read_u8, write_u8);
-fixed_scalar_codec!(U16, u16, read_u16_le, write_u16_le);
-fixed_scalar_codec!(I32, i32, read_i32_le, write_i32_le);
-fixed_scalar_codec!(F32, f32, read_f32_le, write_f32_le);
-fixed_codec!(Bool8, bool, read_bool8, write_bool8);
-fixed_vector_codec!(Vector3Codec, Vector3, read_vector3_le, write_vector3_le);
-fixed_codec!(
+wire_codec!(Empty, (), read_empty, write_empty);
+scalar_wire_codec!(U8, u8, read_u8, write_u8);
+scalar_wire_codec!(U16, u16, read_u16_le, write_u16_le);
+scalar_wire_codec!(I32, i32, read_i32_le, write_i32_le);
+scalar_wire_codec!(F32, f32, read_f32_le, write_f32_le);
+wire_codec!(Bool8, bool, read_bool8, write_bool8);
+vector_wire_codec!(Vector3Codec, Vector3, read_vector3_le, write_vector3_le);
+wire_codec!(
     ServerMessageCodec,
     ServerMessage,
     read_server_message,
     write_server_message
 );
-fixed_codec!(GameTextCodec, GameText, read_game_text, write_game_text);
-fixed_codec!(PlaySoundCodec, PlaySound, read_play_sound, write_play_sound);
-fixed_codec!(
+wire_codec!(GameTextCodec, GameText, read_game_text, write_game_text);
+wire_codec!(PlaySoundCodec, PlaySound, read_play_sound, write_play_sound);
+wire_codec!(
     CheckpointCodec,
     Checkpoint,
     read_checkpoint,
     write_checkpoint
 );
-fixed_codec!(
+wire_codec!(
     ChatMessageCodec,
     ChatMessage,
     read_chat_message,
     write_chat_message
 );
-fixed_codec!(
+wire_codec!(
     ChatBubbleCodec,
     ChatBubble,
     read_chat_bubble,
     write_chat_bubble
 );
-fixed_codec!(
+wire_codec!(
     PlayerJoinCodec,
     PlayerJoin,
     read_player_join,
     write_player_join
 );
-fixed_codec!(
+wire_codec!(
     PlayerQuitCodec,
     PlayerQuit,
     read_player_quit,
     write_player_quit
 );
-fixed_codec!(
+wire_codec!(
     PlayerNameCodec,
     PlayerName,
     read_player_name,
     write_player_name
 );
-fixed_codec!(
+wire_codec!(
     PlayerTimeCodec,
     PlayerTime,
     read_player_time,
     write_player_time
 );
-fixed_codec!(
+wire_codec!(
     WorldBoundsCodec,
     WorldBounds,
     read_world_bounds,
     write_world_bounds
 );
-fixed_codec!(
+wire_codec!(
     PlayerWeaponCodec,
     PlayerWeapon,
     read_player_weapon,
     write_player_weapon
 );
-fixed_codec!(
+wire_codec!(
     PlayerTeamCodec,
     PlayerTeam,
     read_player_team,
     write_player_team
 );
-fixed_codec!(
+wire_codec!(
     PlayerSkinCodec,
     PlayerSkin,
     read_player_skin,
     write_player_skin
 );
-fixed_codec!(
+wire_codec!(
     PutPlayerInVehicleCodec,
     PutPlayerInVehicle,
     read_put_player_in_vehicle,
     write_put_player_in_vehicle
 );
-fixed_codec!(
+wire_codec!(
     VehiclePositionCodec,
     VehiclePosition,
     read_vehicle_position,
     write_vehicle_position
 );
-fixed_codec!(
+wire_codec!(
     VehicleAngleCodec,
     VehicleAngle,
     read_vehicle_angle,
     write_vehicle_angle
 );
-fixed_codec!(
+wire_codec!(
     VehicleHealthCodec,
     VehicleHealth,
     read_vehicle_health,
     write_vehicle_health
 );
-fixed_codec!(
+wire_codec!(
     RaceCheckpointCodec,
     RaceCheckpoint,
     read_race_checkpoint,
     write_race_checkpoint
 );
-fixed_codec!(
+wire_codec!(
     AudioStreamCodec,
     AudioStream,
     read_audio_stream,
     write_audio_stream
 );
-fixed_codec!(
+wire_codec!(
     ObjectPositionCodec,
     ObjectPosition,
     read_object_position,
     write_object_position
 );
-fixed_codec!(
+wire_codec!(
     ObjectRotationCodec,
     ObjectRotation,
     read_object_rotation,
     write_object_rotation
 );
-fixed_codec!(
+wire_codec!(
     PlayerDeathNotificationCodec,
     PlayerDeathNotification,
     read_player_death_notification,
     write_player_death_notification
 );
-fixed_codec!(MapIconCodec, MapIcon, read_map_icon, write_map_icon);
-fixed_codec!(
+wire_codec!(MapIconCodec, MapIcon, read_map_icon, write_map_icon);
+wire_codec!(
     VehicleComponentCodec,
     VehicleComponent,
     read_vehicle_component,
     write_vehicle_component
 );
-fixed_codec!(
+wire_codec!(
     VehicleInteriorCodec,
     VehicleInterior,
     read_vehicle_interior,
     write_vehicle_interior
 );
-fixed_codec!(
+wire_codec!(
     PlayerColorCodec,
     PlayerColor,
     read_player_color,
     write_player_color
 );
-fixed_codec!(
+wire_codec!(
     FixedString32Codec,
     [u8; 32],
     read_fixed_string32,
     write_fixed_string32
 );
-fixed_codec!(
+wire_codec!(
     PlayerSkillCodec,
     PlayerSkill,
     read_player_skill,
     write_player_skill
 );
-fixed_codec!(
+wire_codec!(
     RemoveBuildingCodec,
     RemoveBuilding,
     read_remove_building,
     write_remove_building
 );
-fixed_codec!(
+wire_codec!(
     AttachObjectToPlayerCodec,
     AttachObjectToPlayer,
     read_attach_object_to_player,
     write_attach_object_to_player
 );
-fixed_codec!(ExplosionCodec, Explosion, read_explosion, write_explosion);
-fixed_codec!(
+wire_codec!(ExplosionCodec, Explosion, read_explosion, write_explosion);
+wire_codec!(
     PlayerNameTagCodec,
     PlayerNameTag,
     read_player_name_tag,
     write_player_name_tag
 );
-fixed_codec!(
+wire_codec!(
     ClientCheckCodec,
     ClientCheck,
     read_client_check,
     write_client_check
 );
-fixed_codec!(
+wire_codec!(
     VehicleParamsExCodec,
     VehicleParamsEx,
     read_vehicle_params_ex,
     write_vehicle_params_ex
 );
-fixed_codec!(
+wire_codec!(
     VehicleTuningNotificationCodec,
     VehicleTuningNotification,
     read_vehicle_tuning_notification,
     write_vehicle_tuning_notification
 );
-fixed_codec!(U16U8Codec, (u16, u8), read_u16_u8, write_u16_u8);
-fixed_codec!(
+wire_codec!(U16U8Codec, (u16, u8), read_u16_u8, write_u16_u8);
+wire_codec!(
     VehicleDamageStatusCodec,
     VehicleDamageStatus,
     read_vehicle_damage_status,
     write_vehicle_damage_status
 );
-fixed_codec!(ActorCodec, Actor, read_actor, write_actor);
-fixed_codec!(
+wire_codec!(ActorCodec, Actor, read_actor, write_actor);
+wire_codec!(
     ActorAngleCodec,
     ActorAngle,
     read_actor_angle,
     write_actor_angle
 );
-fixed_codec!(
+wire_codec!(
     ActorPositionCodec,
     ActorPosition,
     read_actor_position,
     write_actor_position
 );
-fixed_codec!(
+wire_codec!(
     ActorHealthCodec,
     ActorHealth,
     read_actor_health,
     write_actor_health
+);
+wire_codec!(
+    PlayerFightingStyleCodec,
+    PlayerFightingStyle,
+    read_player_fighting_style,
+    write_player_fighting_style
+);
+wire_codec!(
+    VehicleVelocityCodec,
+    VehicleVelocity,
+    read_vehicle_velocity,
+    write_vehicle_velocity
+);
+wire_codec!(PickupCodec, Pickup, read_pickup, write_pickup);
+wire_codec!(
+    MoveObjectCodec,
+    MoveObject,
+    read_move_object,
+    write_move_object
+);
+wire_codec!(
+    TextDrawStringCodec,
+    TextDrawString,
+    read_text_draw_string,
+    write_text_draw_string
+);
+wire_codec!(GangZoneCodec, GangZone, read_gang_zone, write_gang_zone);
+wire_codec!(U16I32Codec, (u16, i32), read_u16_i32, write_u16_i32);
+wire_codec!(
+    VehicleNumberPlateCodec,
+    VehicleNumberPlate,
+    read_vehicle_number_plate,
+    write_vehicle_number_plate
+);
+wire_codec!(SpectateCodec, Spectate, read_spectate, write_spectate);
+wire_codec!(
+    WeaponAmmoCodec,
+    WeaponAmmo,
+    read_weapon_ammo,
+    write_weapon_ammo
+);
+wire_codec!(
+    TrailerAttachmentCodec,
+    TrailerAttachment,
+    read_trailer_attachment,
+    write_trailer_attachment
+);
+wire_codec!(
+    CameraLookAtCodec,
+    CameraLookAt,
+    read_camera_look_at,
+    write_camera_look_at
+);
+wire_codec!(
+    VehicleParamsCodec,
+    VehicleParams,
+    read_vehicle_params,
+    write_vehicle_params
+);
+wire_codec!(
+    PlayerEnterVehicleCodec,
+    PlayerEnterVehicle,
+    read_player_enter_vehicle,
+    write_player_enter_vehicle
+);
+wire_codec!(
+    PlayerExitVehicleCodec,
+    PlayerExitVehicle,
+    read_player_exit_vehicle,
+    write_player_exit_vehicle
 );
 
 fn read_server_message<R: BitRead>(reader: &mut R) -> Result<ServerMessage, DecodeError<R::Error>> {
@@ -1768,6 +2077,253 @@ fn read_fixed<R: BitRead, const LENGTH: usize>(
     }
 }
 
-mod phase15;
+fn read_player_fighting_style<R: BitRead>(
+    reader: &mut R,
+) -> Result<PlayerFightingStyle, DecodeError<R::Error>> {
+    Ok(PlayerFightingStyle {
+        player_id: reader.read_u16_le()?,
+        style_id: reader.read_u8()?,
+    })
+}
 
-pub use phase15::*;
+fn write_player_fighting_style<W: BitWrite>(
+    writer: &mut W,
+    value: &PlayerFightingStyle,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u8(value.style_id)
+}
+
+fn read_vehicle_velocity<R: BitRead>(
+    reader: &mut R,
+) -> Result<VehicleVelocity, DecodeError<R::Error>> {
+    Ok(VehicleVelocity {
+        turn: reader.read_u8()? != 0,
+        velocity: reader.read_vector3_le()?,
+    })
+}
+
+fn write_vehicle_velocity<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleVelocity,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u8(u8::from(value.turn))?;
+    writer.write_vector3_le(&value.velocity)
+}
+
+fn read_pickup<R: BitRead>(reader: &mut R) -> Result<Pickup, DecodeError<R::Error>> {
+    Ok(Pickup {
+        id: reader.read_i32_le()?,
+        model: reader.read_i32_le()?,
+        pickup_type: reader.read_i32_le()?,
+        position: reader.read_vector3_le()?,
+    })
+}
+
+fn write_pickup<W: BitWrite>(writer: &mut W, value: &Pickup) -> Result<(), EncodeError<W::Error>> {
+    writer.write_i32_le(value.id)?;
+    writer.write_i32_le(value.model)?;
+    writer.write_i32_le(value.pickup_type)?;
+    writer.write_vector3_le(&value.position)
+}
+
+fn read_move_object<R: BitRead>(reader: &mut R) -> Result<MoveObject, DecodeError<R::Error>> {
+    Ok(MoveObject {
+        object_id: reader.read_u16_le()?,
+        from_position: reader.read_vector3_le()?,
+        destination: reader.read_vector3_le()?,
+        speed: reader.read_f32_le()?,
+        rotation: reader.read_vector3_le()?,
+    })
+}
+
+fn write_move_object<W: BitWrite>(
+    writer: &mut W,
+    value: &MoveObject,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.object_id)?;
+    writer.write_vector3_le(&value.from_position)?;
+    writer.write_vector3_le(&value.destination)?;
+    writer.write_f32_le(value.speed)?;
+    writer.write_vector3_le(&value.rotation)
+}
+
+fn read_text_draw_string<R: BitRead>(
+    reader: &mut R,
+) -> Result<TextDrawString, DecodeError<R::Error>> {
+    Ok(TextDrawString {
+        textdraw_id: reader.read_u16_le()?,
+        text: reader.read_len_prefixed_bytes_u16_le(MAX_STRING32_BYTES)?,
+    })
+}
+
+fn write_text_draw_string<W: BitWrite>(
+    writer: &mut W,
+    value: &TextDrawString,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.textdraw_id)?;
+    writer.write_len_prefixed_bytes_u16_le(&value.text, MAX_STRING32_BYTES)
+}
+
+fn read_gang_zone<R: BitRead>(reader: &mut R) -> Result<GangZone, DecodeError<R::Error>> {
+    Ok(GangZone {
+        zone_id: reader.read_u16_le()?,
+        square_start: reader.read_vector2_le()?,
+        square_end: reader.read_vector2_le()?,
+        color: reader.read_i32_le()?,
+    })
+}
+
+fn write_gang_zone<W: BitWrite>(
+    writer: &mut W,
+    value: &GangZone,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.zone_id)?;
+    writer.write_vector2_le(&value.square_start)?;
+    writer.write_vector2_le(&value.square_end)?;
+    writer.write_i32_le(value.color)
+}
+
+fn read_u16_i32<R: BitRead>(reader: &mut R) -> Result<(u16, i32), DecodeError<R::Error>> {
+    Ok((reader.read_u16_le()?, reader.read_i32_le()?))
+}
+
+fn write_u16_i32<W: BitWrite>(
+    writer: &mut W,
+    value: &(u16, i32),
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.0)?;
+    writer.write_i32_le(value.1)
+}
+
+fn read_vehicle_number_plate<R: BitRead>(
+    reader: &mut R,
+) -> Result<VehicleNumberPlate, DecodeError<R::Error>> {
+    Ok(VehicleNumberPlate {
+        vehicle_id: reader.read_u16_le()?,
+        text: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
+    })
+}
+
+fn write_vehicle_number_plate<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleNumberPlate,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
+}
+
+fn read_spectate<R: BitRead>(reader: &mut R) -> Result<Spectate, DecodeError<R::Error>> {
+    Ok(Spectate {
+        target_id: reader.read_u16_le()?,
+        camera_type: reader.read_u8()?,
+    })
+}
+
+fn write_spectate<W: BitWrite>(
+    writer: &mut W,
+    value: &Spectate,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.target_id)?;
+    writer.write_u8(value.camera_type)
+}
+
+fn read_weapon_ammo<R: BitRead>(reader: &mut R) -> Result<WeaponAmmo, DecodeError<R::Error>> {
+    Ok(WeaponAmmo {
+        weapon_id: reader.read_u8()?,
+        ammo: reader.read_u16_le()?,
+    })
+}
+
+fn write_weapon_ammo<W: BitWrite>(
+    writer: &mut W,
+    value: &WeaponAmmo,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u8(value.weapon_id)?;
+    writer.write_u16_le(value.ammo)
+}
+
+fn read_trailer_attachment<R: BitRead>(
+    reader: &mut R,
+) -> Result<TrailerAttachment, DecodeError<R::Error>> {
+    Ok(TrailerAttachment {
+        trailer_id: reader.read_u16_le()?,
+        vehicle_id: reader.read_u16_le()?,
+    })
+}
+
+fn write_trailer_attachment<W: BitWrite>(
+    writer: &mut W,
+    value: &TrailerAttachment,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.trailer_id)?;
+    writer.write_u16_le(value.vehicle_id)
+}
+
+fn read_camera_look_at<R: BitRead>(reader: &mut R) -> Result<CameraLookAt, DecodeError<R::Error>> {
+    Ok(CameraLookAt {
+        position: reader.read_vector3_le()?,
+        cut_type: reader.read_u8()?,
+    })
+}
+
+fn write_camera_look_at<W: BitWrite>(
+    writer: &mut W,
+    value: &CameraLookAt,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_vector3_le(&value.position)?;
+    writer.write_u8(value.cut_type)
+}
+
+fn read_vehicle_params<R: BitRead>(reader: &mut R) -> Result<VehicleParams, DecodeError<R::Error>> {
+    Ok(VehicleParams {
+        vehicle_id: reader.read_u16_le()?,
+        objective: reader.read_u8()? != 0,
+        doors_locked: reader.read_u8()? != 0,
+    })
+}
+
+fn write_vehicle_params<W: BitWrite>(
+    writer: &mut W,
+    value: &VehicleParams,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_u8(u8::from(value.objective))?;
+    writer.write_u8(u8::from(value.doors_locked))
+}
+
+fn read_player_enter_vehicle<R: BitRead>(
+    reader: &mut R,
+) -> Result<PlayerEnterVehicle, DecodeError<R::Error>> {
+    Ok(PlayerEnterVehicle {
+        player_id: reader.read_u16_le()?,
+        vehicle_id: reader.read_u16_le()?,
+        passenger: reader.read_u8()? != 0,
+    })
+}
+
+fn write_player_enter_vehicle<W: BitWrite>(
+    writer: &mut W,
+    value: &PlayerEnterVehicle,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u16_le(value.vehicle_id)?;
+    writer.write_u8(u8::from(value.passenger))
+}
+
+fn read_player_exit_vehicle<R: BitRead>(
+    reader: &mut R,
+) -> Result<PlayerExitVehicle, DecodeError<R::Error>> {
+    Ok(PlayerExitVehicle {
+        player_id: reader.read_u16_le()?,
+        vehicle_id: reader.read_u16_le()?,
+    })
+}
+
+fn write_player_exit_vehicle<W: BitWrite>(
+    writer: &mut W,
+    value: &PlayerExitVehicle,
+) -> Result<(), EncodeError<W::Error>> {
+    writer.write_u16_le(value.player_id)?;
+    writer.write_u16_le(value.vehicle_id)
+}

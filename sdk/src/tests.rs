@@ -1,6 +1,6 @@
 use super::*;
 use crate::events::{EncodedPayload, ProtocolAction, test_support};
-use samp_protocol::rpc::incoming as protocol_incoming;
+use samp_protocol::rpc::incoming::{common as protocol_common, r1 as protocol_r1};
 use std::sync::{
     Arc, Mutex,
     atomic::{AtomicUsize, Ordering},
@@ -1666,7 +1666,7 @@ fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
     let observed = Arc::clone(&calls);
     let net = Samp::from_api(test_support::test_api()).net();
     let subscription = net
-        .on_incoming_typed_rpc(protocol_incoming::r1::ENABLE_STUNT_BONUS, move |enabled| {
+        .on_incoming_typed_rpc(protocol_r1::ENABLE_STUNT_BONUS, move |enabled| {
             assert!(enabled);
             observed.fetch_add(1, Ordering::AcqRel);
             ProtocolAction::Block
@@ -1680,9 +1680,9 @@ fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
     );
     assert_eq!(
         test_support::invoke_registered_callback_with_payload(
-            protocol_incoming::r1::EnableStuntBonusRpc::ID,
+            protocol_r1::EnableStuntBonusRpc::ID,
             EncodedPayload::from_bits(
-                protocol_incoming::r1::EnableStuntBonusRpc::encode_bits(&true)
+                protocol_r1::EnableStuntBonusRpc::encode_bits(&true)
                     .expect("the Protocol test payload must encode")
                     .as_bytes()
                     .to_vec(),
@@ -1693,7 +1693,7 @@ fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
         Some(SampClientSdkHookAction::Block)
     );
     assert_eq!(
-        test_support::invoke_registered_callback(protocol_incoming::r1::EnableStuntBonusRpc::ID),
+        test_support::invoke_registered_callback(protocol_r1::EnableStuntBonusRpc::ID),
         Some(SampClientSdkHookAction::Continue)
     );
     assert_eq!(calls.load(Ordering::Acquire), 1);
@@ -1970,7 +1970,7 @@ fn typed_source_failure_is_warned_before_fail_open() {
     let captured_calls = Arc::clone(&handler_calls);
     let net = Samp::from_api(test_support::test_api()).net();
     let subscription = net
-        .on_incoming_typed_rpc(protocol_incoming::SET_PLAYER_DRUNK, move |_| {
+        .on_incoming_typed_rpc(protocol_common::SET_PLAYER_DRUNK, move |_| {
             captured_calls.fetch_add(1, Ordering::Relaxed);
             ProtocolAction::Continue
         })
@@ -2053,7 +2053,7 @@ fn host_rejection_preserves_incoming_rpc_and_packet_payloads() {
     use samp_protocol::{
         WireDescriptor,
         packet::common::{CONNECTION_ACCEPTED, ConnectionAccepted, ConnectionAcceptedPacket},
-        rpc::incoming::{SET_PLAYER_DRUNK, SetPlayerDrunk},
+        rpc::incoming::common::{SET_PLAYER_DRUNK, SetPlayerDrunk},
     };
 
     let _serial = REGISTRATION_TEST_LOCK
@@ -2320,7 +2320,7 @@ fn normal_typed_legacy_packet_callback_preserves_all_actions() {
 fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     use samp_protocol::{
         WireDescriptor,
-        rpc::incoming::{SERVER_MESSAGE, ServerMessage, ServerMessageRpc},
+        rpc::incoming::common::{SERVER_MESSAGE, ServerMessage, ServerMessageRpc},
     };
 
     let _serial = REGISTRATION_TEST_LOCK
@@ -2399,7 +2399,7 @@ fn register_handlers_collects_every_supported_handler_form() {
             |_| ProtocolAction::Continue
         ),
         incoming_typed_rpc(
-            protocol_incoming::r1::ENABLE_STUNT_BONUS,
+            protocol_r1::ENABLE_STUNT_BONUS,
             |_| ProtocolAction::Continue
         ),
     )

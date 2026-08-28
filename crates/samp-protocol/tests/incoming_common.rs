@@ -1,4 +1,4 @@
-use samp_protocol::rpc::incoming::{
+use samp_protocol::rpc::incoming::common::{
     ATTACH_OBJECT_TO_PLAYER, Actor, ActorAngle, ActorHealth, ActorPosition, AttachObjectToPlayer,
     AudioStream, CANCEL_EDIT, CHAT_BUBBLE, CHAT_MESSAGE, CLEAR_ACTOR_ANIMATION, CLIENT_CHECK,
     CREATE_ACTOR, CREATE_EXPLOSION, ChatBubble, ChatMessage, Checkpoint, ClientCheck,
@@ -52,7 +52,7 @@ where
     D: WireDescriptor,
     D::Value: Clone + core::fmt::Debug + PartialEq,
 {
-    let bits = D::encode_bits(value).expect("the fixed RPC value must encode");
+    let bits = D::encode_bits(value).expect("the common RPC value must encode");
 
     assert_eq!(bits.as_bytes(), expected);
     assert_eq!(bits.len_bits(), expected.len() * 8);
@@ -60,7 +60,7 @@ where
 }
 
 #[test]
-fn fixed_incoming_rpc_inventory_has_29_unique_entries() {
+fn server_message_through_vehicle_stream_out_descriptors_have_unique_ids() {
     let ids = [
         id(SERVER_MESSAGE),
         id(DISPLAY_GAME_TEXT),
@@ -107,7 +107,7 @@ fn fixed_incoming_rpc_inventory_has_29_unique_entries() {
 }
 
 #[test]
-fn second_fixed_incoming_rpc_inventory_has_30_unique_entries() {
+fn vehicle_position_through_player_name_tag_descriptors_have_unique_ids() {
     let ids = [
         id(SET_VEHICLE_POSITION),
         id(SET_VEHICLE_ANGLE),
@@ -155,7 +155,7 @@ fn second_fixed_incoming_rpc_inventory_has_30_unique_entries() {
 }
 
 #[test]
-fn fixed_incoming_rpcs_preserve_exact_vectors() {
+fn server_message_through_vehicle_stream_out_preserve_exact_vectors() {
     assert_vector(
         SERVER_MESSAGE,
         &ServerMessage {
@@ -336,7 +336,7 @@ fn fixed_incoming_rpcs_preserve_exact_vectors() {
 }
 
 #[test]
-fn second_fixed_incoming_rpcs_preserve_exact_vectors() {
+fn vehicle_position_through_player_name_tag_preserve_exact_vectors() {
     assert_vector(
         SET_VEHICLE_POSITION,
         &VehiclePosition {
@@ -567,7 +567,7 @@ fn second_fixed_incoming_rpcs_preserve_exact_vectors() {
 }
 
 #[test]
-fn second_fixed_incoming_rpcs_reject_invalid_lengths_and_trailing_bits() {
+fn vehicle_position_through_player_name_tag_reject_invalid_framing() {
     assert_eq!(
         encode(
             PLAY_AUDIO_STREAM,
@@ -617,7 +617,7 @@ fn second_fixed_incoming_rpcs_reject_invalid_lengths_and_trailing_bits() {
 }
 
 #[test]
-fn final_fixed_incoming_rpc_inventory_has_26_unique_entries() {
+fn client_check_through_set_camera_behind_descriptors_have_unique_ids() {
     let ids = [
         id(CLIENT_CHECK),
         id(SET_VEHICLE_PARAMS_EX),
@@ -661,7 +661,7 @@ fn final_fixed_incoming_rpc_inventory_has_26_unique_entries() {
 }
 
 #[test]
-fn final_fixed_incoming_rpcs_preserve_exact_vectors() {
+fn client_check_through_set_camera_behind_preserve_exact_vectors() {
     assert_vector(
         CLIENT_CHECK,
         &ClientCheck {
@@ -781,24 +781,24 @@ fn final_fixed_incoming_rpcs_preserve_exact_vectors() {
 }
 
 #[test]
-fn final_fixed_incoming_rpcs_reject_truncated_and_trailing_values() {
+fn client_check_through_set_camera_behind_reject_invalid_framing() {
     fn assert_rejects_malformed_value<D>(_descriptor: D, value: &D::Value)
     where
         D: WireDescriptor,
         D::Value: Clone + core::fmt::Debug + PartialEq,
     {
-        let encoded = D::encode_bits(value).expect("the fixed RPC value must encode");
+        let encoded = D::encode_bits(value).expect("the common RPC value must encode");
         if encoded.len_bits() > 0 {
             let truncated_bytes = encoded.as_bytes()[..encoded.as_bytes().len() - 1].to_vec();
             let truncated = EncodedBits::from_bits(truncated_bytes, encoded.len_bits() - 8)
-                .expect("the truncated fixed RPC payload must be valid bits");
+                .expect("the truncated common RPC payload must be valid bits");
             assert!(D::decode_bits(&truncated).is_err());
         }
 
         let mut bytes = encoded.as_bytes().to_vec();
         bytes.push(0);
         let trailing = EncodedBits::from_bits(bytes, encoded.len_bits() + 8)
-            .expect("the trailing fixed RPC payload must be valid bits");
+            .expect("the trailing common RPC payload must be valid bits");
         assert_eq!(
             D::decode_bits(&trailing),
             Err(DecodeError::UnexpectedTrailingBits {
@@ -906,7 +906,7 @@ fn final_fixed_incoming_rpcs_reject_truncated_and_trailing_values() {
 }
 
 #[test]
-fn fixed_incoming_rpcs_reject_invalid_lengths_and_trailing_bits() {
+fn server_message_through_vehicle_stream_out_reject_invalid_framing() {
     assert_eq!(
         encode(
             SERVER_MESSAGE,

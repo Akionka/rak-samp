@@ -1,4 +1,4 @@
-use samp_protocol::rpc::incoming::{
+use samp_protocol::rpc::incoming::common::{
     ATTACH_CAMERA_TO_OBJECT, ATTACH_TRAILER_TO_VEHICLE, CLEAR_PLAYER_ANIMATION,
     CONNECTION_REJECTED, CREATE_GANG_ZONE, CREATE_PICKUP, CameraLookAt,
     DETACH_TRAILER_FROM_VEHICLE, GANG_ZONE_DESTROY, GANG_ZONE_FLASH, GANG_ZONE_STOP_FLASH,
@@ -24,7 +24,7 @@ where
     D: WireDescriptor,
     D::Value: Clone + core::fmt::Debug + PartialEq,
 {
-    let bits = D::encode_bits(value).expect("the fixed RPC value must encode");
+    let bits = D::encode_bits(value).expect("the common RPC value must encode");
 
     assert_eq!(bits.as_bytes(), expected);
     assert_eq!(bits.len_bits(), expected.len() * 8);
@@ -32,7 +32,7 @@ where
 }
 
 #[test]
-fn phase15_fixed_incoming_rpc_inventory_has_29_unique_entries() {
+fn camera_through_vehicle_world_descriptors_have_unique_ids() {
     let ids = [
         id(ATTACH_CAMERA_TO_OBJECT),
         id(GANG_ZONE_STOP_FLASH),
@@ -79,7 +79,7 @@ fn phase15_fixed_incoming_rpc_inventory_has_29_unique_entries() {
 }
 
 #[test]
-fn phase15_fixed_incoming_rpcs_preserve_exact_vectors() {
+fn camera_through_vehicle_world_descriptors_preserve_exact_vectors() {
     assert_vector(ATTACH_CAMERA_TO_OBJECT, &0x1234, &[0x34, 0x12]);
     assert_vector(GANG_ZONE_STOP_FLASH, &0x5678, &[0x78, 0x56]);
     assert_vector(CLEAR_PLAYER_ANIMATION, &0x9ABC, &[0xBC, 0x9A]);
@@ -281,7 +281,7 @@ fn phase15_fixed_incoming_rpcs_preserve_exact_vectors() {
     let nonzero_bool = EncodedBits::from_bits([2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], 104)
         .expect("the nonzero Boolean vector must be valid");
     assert_eq!(
-        <samp_protocol::rpc::incoming::SetVehicleVelocity as WireDescriptor>::decode_bits(
+        <samp_protocol::rpc::incoming::common::SetVehicleVelocity as WireDescriptor>::decode_bits(
             &nonzero_bool,
         ),
         Ok(VehicleVelocity {
@@ -296,24 +296,24 @@ fn phase15_fixed_incoming_rpcs_preserve_exact_vectors() {
 }
 
 #[test]
-fn phase15_fixed_incoming_rpcs_reject_malformed_values() {
+fn camera_through_vehicle_world_descriptors_reject_invalid_framing() {
     fn assert_rejects_malformed_value<D>(_descriptor: D, value: &D::Value)
     where
         D: WireDescriptor,
         D::Value: Clone + core::fmt::Debug + PartialEq,
     {
-        let encoded = D::encode_bits(value).expect("the fixed RPC value must encode");
+        let encoded = D::encode_bits(value).expect("the common RPC value must encode");
         if encoded.len_bits() > 0 {
             let truncated_bytes = encoded.as_bytes()[..encoded.as_bytes().len() - 1].to_vec();
             let truncated = EncodedBits::from_bits(truncated_bytes, encoded.len_bits() - 8)
-                .expect("the truncated fixed RPC payload must be valid bits");
+                .expect("the truncated common RPC payload must be valid bits");
             assert!(D::decode_bits(&truncated).is_err());
         }
 
         let mut bytes = encoded.as_bytes().to_vec();
         bytes.push(0);
         let trailing = EncodedBits::from_bits(bytes, encoded.len_bits() + 8)
-            .expect("the trailing fixed RPC payload must be valid bits");
+            .expect("the trailing common RPC payload must be valid bits");
         assert_eq!(
             D::decode_bits(&trailing),
             Err(DecodeError::UnexpectedTrailingBits {

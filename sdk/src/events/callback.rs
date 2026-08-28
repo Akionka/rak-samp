@@ -122,7 +122,7 @@ mod private {
 /// };
 ///
 /// fn register_wrong_direction(net: Net) {
-///     let descriptor = samp_protocol::rpc::incoming::SERVER_MESSAGE;
+///     let descriptor = samp_protocol::rpc::incoming::common::SERVER_MESSAGE;
 ///     let _ = net.on_outgoing_typed_rpc(descriptor, |_| ProtocolAction::Continue);
 /// }
 /// ```
