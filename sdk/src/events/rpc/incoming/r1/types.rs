@@ -1,16 +1,5 @@
 use crate::events::{Vector2, Vector3};
 
-/// MoonLoader's `onShowDialog` payload (RPC 61).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ShowDialog {
-    pub dialog_id: u16,
-    pub style: u8,
-    pub title: Vec<u8>,
-    pub button1: Vec<u8>,
-    pub button2: Vec<u8>,
-    pub text: Vec<u8>,
-}
-
 /// The maximum number of rows that R1 menus can expose per column.
 pub const MAX_MENU_ROWS: usize = 12;
 /// The R1 client accepts at most two menu columns.

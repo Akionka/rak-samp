@@ -13,6 +13,18 @@ use crate::{
 /// Multi-byte values use little-endian byte order. These operations never align
 /// the cursor implicitly.
 pub trait WireReadExt: BitRead {
+    /// Reads one boolean encoded as a single MSB-first bit.
+    fn read_bit_bool(&mut self) -> Result<bool, DecodeError<Self::Error>> {
+        let bits = read_left_aligned_wire_bits(self, 1)?;
+        match bits.as_slice() {
+            [byte] => Ok(byte & 0x80 != 0),
+            _ => Err(DecodeError::InvalidBitLength {
+                bit_len: 1,
+                byte_len: bits.len(),
+            }),
+        }
+    }
+
     /// Reads one byte.
     fn read_u8(&mut self) -> Result<u8, DecodeError<Self::Error>> {
         Ok(read_fixed::<_, 1>(self)?[0])
@@ -46,16 +58,7 @@ pub trait WireReadExt: BitRead {
     /// Reads `byte_len` raw bytes.
     fn read_bytes(&mut self, byte_len: usize) -> Result<Vec<u8>, DecodeError<Self::Error>> {
         let requested_bits = decode_byte_bit_len(byte_len)?;
-        let available_bits = self.remaining_bits();
-        if requested_bits > available_bits {
-            return Err(DecodeError::OutOfBounds {
-                requested_bits,
-                available_bits,
-            });
-        }
-        let bytes = self
-            .read_left_aligned_bits(requested_bits)
-            .map_err(DecodeError::Source)?;
+        let bytes = read_left_aligned_wire_bits(self, requested_bits)?;
         if bytes.len() != byte_len {
             return Err(DecodeError::InvalidBitLength {
                 bit_len: requested_bits,
@@ -122,6 +125,12 @@ impl<T: BitRead + ?Sized> WireReadExt for T {}
 /// Multi-byte values use little-endian byte order. These operations never align
 /// the cursor implicitly.
 pub trait WireWriteExt: BitWrite {
+    /// Writes one boolean as a single MSB-first bit.
+    fn write_bit_bool(&mut self, value: bool) -> Result<(), EncodeError<Self::Error>> {
+        self.write_left_aligned_bits(&[u8::from(value) << 7], 1)
+            .map_err(EncodeError::Source)
+    }
+
     /// Writes one byte.
     fn write_u8(&mut self, value: u8) -> Result<(), EncodeError<Self::Error>> {
         WireWriteExt::write_bytes(self, &[value])
@@ -215,6 +224,22 @@ pub trait WireWriteExt: BitWrite {
 }
 
 impl<T: BitWrite + ?Sized> WireWriteExt for T {}
+
+fn read_left_aligned_wire_bits<R: BitRead + ?Sized>(
+    reader: &mut R,
+    requested_bits: usize,
+) -> Result<Vec<u8>, DecodeError<R::Error>> {
+    let available_bits = reader.remaining_bits();
+    if requested_bits > available_bits {
+        return Err(DecodeError::OutOfBounds {
+            requested_bits,
+            available_bits,
+        });
+    }
+    reader
+        .read_left_aligned_bits(requested_bits)
+        .map_err(DecodeError::Source)
+}
 
 fn read_fixed<R: BitRead + ?Sized, const LENGTH: usize>(
     reader: &mut R,

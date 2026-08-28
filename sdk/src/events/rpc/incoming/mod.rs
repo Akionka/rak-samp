@@ -1,7 +1,4 @@
-mod common;
-mod r1;
-mod types;
+//! SDK-owned incoming RPC descriptors grouped by semantic profile ownership.
 
-pub use common::*;
-pub use r1::*;
-pub use types::*;
+pub mod common;
+pub mod r1;

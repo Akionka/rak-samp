@@ -38,6 +38,27 @@ try {
     if (Select-String -Quiet -Path "crates/samp-protocol/src/rpc/incoming/mod.rs" -Pattern "pub\s+use\s+(common|r1)::\*") {
         throw "Protocol incoming RPC ownership is hidden by a broad re-export"
     }
+    if (Select-String -Quiet -Path "crates/samp-protocol/src/wire.rs" -Pattern "^\s*pub\s+(struct|enum|type)\s+(Packet|Rpc)\b") {
+        throw "Protocol exposes a direction-neutral Packet/Rpc descriptor"
+    }
+    $protocolRoot = Get-Content -Raw "crates/samp-protocol/src/lib.rs"
+    if ($protocolRoot -match "(?s)pub\s+use\s+wire::\{.*?\b(Packet|Rpc)\b.*?\};") {
+        throw "Protocol root re-exports a direction-neutral Packet/Rpc descriptor"
+    }
+    $sdkIncomingRpcModule = "sdk/src/events/rpc/incoming/mod.rs"
+    if (-not (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+mod\s+common\s*;")) {
+        throw "SDK incoming common RPC semantics are not publicly owned by common"
+    }
+    if (-not (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+mod\s+r1\s*;")) {
+        throw "SDK incoming R1 RPC semantics are not publicly owned by r1"
+    }
+    if (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+use\s+(self::)?(common|r1|types)::") {
+        throw "SDK incoming RPC ownership is hidden by a flat re-export"
+    }
+    if ((Test-Path "sdk/src/events/rpc/incoming/types.rs") -or
+        (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*mod\s+types\s*;")) {
+        throw "SDK incoming RPC payload ownership is mixed in a sibling types module"
+    }
 
     $repositoryFiles = git ls-files --cached --others --exclude-standard
     if ($LASTEXITCODE -ne 0) {

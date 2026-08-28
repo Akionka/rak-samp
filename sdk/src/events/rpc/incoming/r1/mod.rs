@@ -1,12 +1,58 @@
-use super::{common::*, types::*};
+//! R1-specific SDK-owned incoming RPC descriptors and payloads.
+
+mod types;
+
+pub use types::{
+    ActorAnimation, Animation, EnterEditObject, InitMenu, InterpolateCamera, MAX_MENU_COLUMNS,
+    MAX_MENU_ROWS, MAX_OBJECT_MATERIAL_TEXT_BYTES, MAX_OBJECT_MATERIALS, MenuColumn, Object,
+    ObjectAttachment, ObjectMaterial, ObjectMaterialUpdate, ShowTextDraw, StreamedVehicle,
+    TextDraw, TextLabel3D, TextMaterial, TextureMaterial, ToggleSelectTextDraw, VehicleStreamIn,
+};
+
 use crate::events::core::PayloadWriter;
 use crate::{
     HostApi, SampClientSdkResult,
     events::{
         EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES,
-        MAX_STRING32_BYTES,
+        MAX_STRING32_BYTES, Vector2, Vector3,
     },
 };
+
+fn decode_vector3(event: &mut Event<'_>) -> Result<Vector3, EventError> {
+    Ok(Vector3 {
+        x: event.read_f32()?,
+        y: event.read_f32()?,
+        z: event.read_f32()?,
+    })
+}
+
+fn decode_bool8(event: &mut Event<'_>) -> Result<bool, EventError> {
+    Ok(event.read_u8()? != 0)
+}
+
+fn decode_vector2(event: &mut Event<'_>) -> Result<Vector2, EventError> {
+    Ok(Vector2 {
+        x: event.read_f32()?,
+        y: event.read_f32()?,
+    })
+}
+
+fn encode_vector2(writer: &mut PayloadWriter, value: Vector2) {
+    writer.f32(value.x);
+    writer.f32(value.y);
+}
+
+fn decode_i32(event: &mut Event<'_>) -> Result<i32, EventError> {
+    Ok(event.read_u32()? as i32)
+}
+
+fn decode_u16(event: &mut Event<'_>) -> Result<u16, EventError> {
+    event.read_u16()
+}
+
+fn encode_u16(value: u16) -> Result<Vec<u8>, EventError> {
+    Ok(value.to_le_bytes().to_vec())
+}
 
 fn read_array<const N: usize>(event: &mut Event<'_>) -> Result<[u8; N], EventError> {
     event

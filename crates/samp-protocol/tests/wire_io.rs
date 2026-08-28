@@ -5,6 +5,42 @@ use samp_protocol::{
 };
 
 #[test]
+fn wire_bit_bool_reads_exactly_one_bit_at_the_current_cursor() {
+    let mut reader = BitStream::from_bits([0b1010_1000], 5).unwrap();
+
+    assert_eq!(
+        BitRead::read_left_aligned_bits(&mut reader, 3),
+        Ok(vec![0b1010_0000])
+    );
+    assert_eq!(WireReadExt::read_bit_bool(&mut reader), Ok(false));
+    assert_eq!(WireReadExt::read_bit_bool(&mut reader), Ok(true));
+    assert_eq!(reader.remaining_bits(), 0);
+}
+
+#[test]
+fn wire_bit_bool_reports_missing_input_as_protocol_bounds_failure() {
+    assert_eq!(
+        WireReadExt::read_bit_bool(&mut BitStream::new()),
+        Err(DecodeError::OutOfBounds {
+            requested_bits: 1,
+            available_bits: 0,
+        })
+    );
+}
+
+#[test]
+fn wire_bit_bool_writes_exactly_one_bit_at_the_current_cursor() {
+    let mut writer = BitStream::new();
+
+    BitWrite::write_left_aligned_bits(&mut writer, &[0b1010_0000], 3).unwrap();
+    WireWriteExt::write_bit_bool(&mut writer, false).unwrap();
+    WireWriteExt::write_bit_bool(&mut writer, true).unwrap();
+
+    assert_eq!(writer.len_bits(), 5);
+    assert_eq!(writer.as_bytes(), &[0b1010_1000]);
+}
+
+#[test]
 fn wire_primitives_preserve_values_from_a_non_byte_aligned_cursor() {
     let vector2 = Vector2 { x: 1.5, y: -2.5 };
     let vector3 = Vector3 {
@@ -158,7 +194,15 @@ fn wire_primitives_keep_source_failures_separate_from_validation() {
         Err(DecodeError::Source("read failed"))
     );
     assert_eq!(
+        WireReadExt::read_bit_bool(&mut RejectingReader),
+        Err(DecodeError::Source("read failed"))
+    );
+    assert_eq!(
         WireWriteExt::write_u8(&mut RejectingWriter, 1),
+        Err(EncodeError::Source("write failed"))
+    );
+    assert_eq!(
+        WireWriteExt::write_bit_bool(&mut RejectingWriter, true),
         Err(EncodeError::Source("write failed"))
     );
     assert_eq!(

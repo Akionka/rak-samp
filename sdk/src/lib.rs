@@ -21,7 +21,7 @@
 //!     |_| ProtocolAction::Continue,
 //! ).map_err(|error| format!("Protocol registration failed: {error:?}"))?;
 //! let host_backed_subscription = net.on_incoming_typed_rpc(
-//!     samp_client_sdk::events::rpc::incoming::SHOW_DIALOG,
+//!     samp_client_sdk::events::rpc::incoming::common::SHOW_DIALOG,
 //!     |_| ProtocolAction::Continue,
 //! ).map_err(|error| format!("Host-backed registration failed: {error:?}"))?;
 //! # let _ = (protocol_subscription, host_backed_subscription);

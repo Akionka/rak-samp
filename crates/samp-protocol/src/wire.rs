@@ -347,36 +347,6 @@ macro_rules! nominal_descriptor {
 
 pub(crate) use nominal_descriptor;
 
-/// A generic custom or ad-hoc RakNet Packet descriptor with an explicit trailing policy.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Packet<const ID: u8, C, P>(PhantomData<(C, P)>);
-
-impl<const ID: u8, C, P> Packet<ID, C, P> {
-    /// Creates this zero-sized descriptor.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for Packet<ID, C, P> {
-    type Value = C::Value;
-
-    const ID: u8 = ID;
-    const KIND: WireKind = WireKind::Packet;
-    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
-}
-
-impl<const ID: u8, C: WireCodec, P> sealed::WireDescriptor<C::Value> for Packet<ID, C, P> {
-    fn decode<R: BitRead>(reader: &mut R) -> Result<C::Value, DecodeError<R::Error>> {
-        C::decode(reader)
-    }
-
-    fn encode<W: BitWrite>(writer: &mut W, value: &C::Value) -> Result<(), EncodeError<W::Error>> {
-        C::encode(writer, value)
-    }
-}
-
 /// A generic custom or ad-hoc incoming RakNet Packet descriptor.
 ///
 /// Built-in messages use nominal semantic descriptor types instead.
@@ -463,36 +433,6 @@ impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::OutgoingPacket
 impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> OutgoingPacketDescriptor
     for OutgoingPacket<ID, C, P>
 {
-}
-
-/// A generic custom or ad-hoc SA-MP RPC descriptor with an explicit trailing policy.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Rpc<const ID: u8, C, P>(PhantomData<(C, P)>);
-
-impl<const ID: u8, C, P> Rpc<ID, C, P> {
-    /// Creates this zero-sized descriptor.
-    #[must_use]
-    pub const fn new() -> Self {
-        Self(PhantomData)
-    }
-}
-
-impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> WireDescriptor for Rpc<ID, C, P> {
-    type Value = C::Value;
-
-    const ID: u8 = ID;
-    const KIND: WireKind = WireKind::Rpc;
-    const TRAILING_POLICY: TrailingPolicy = P::POLICY;
-}
-
-impl<const ID: u8, C: WireCodec, P> sealed::WireDescriptor<C::Value> for Rpc<ID, C, P> {
-    fn decode<R: BitRead>(reader: &mut R) -> Result<C::Value, DecodeError<R::Error>> {
-        C::decode(reader)
-    }
-
-    fn encode<W: BitWrite>(writer: &mut W, value: &C::Value) -> Result<(), EncodeError<W::Error>> {
-        C::encode(writer, value)
-    }
 }
 
 /// A generic custom or ad-hoc incoming SA-MP RPC descriptor.

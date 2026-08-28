@@ -136,10 +136,12 @@ impl WireCodec for RemotePlayerSyncCodec {
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
         let player_id = reader.read_u16_le()?;
-        let left_right_keys = read_bit_bool(reader)?
+        let left_right_keys = reader
+            .read_bit_bool()?
             .then(|| reader.read_u16_le())
             .transpose()?;
-        let up_down_keys = read_bit_bool(reader)?
+        let up_down_keys = reader
+            .read_bit_bool()?
             .then(|| reader.read_u16_le())
             .transpose()?;
         let key_data = reader.read_u16_le()?;
@@ -149,7 +151,8 @@ impl WireCodec for RemotePlayerSyncCodec {
         let weapon = reader.read_u8()?;
         let special_action = reader.read_u8()?;
         let move_speed = read_compressed_vector(reader)?;
-        let surfing = read_bit_bool(reader)?
+        let surfing = reader
+            .read_bit_bool()?
             .then(|| {
                 Ok(RemotePlayerSurfing {
                     vehicle_id: reader.read_u16_le()?,
@@ -157,7 +160,8 @@ impl WireCodec for RemotePlayerSyncCodec {
                 })
             })
             .transpose()?;
-        let animation = read_bit_bool(reader)?
+        let animation = reader
+            .read_bit_bool()?
             .then(|| {
                 Ok(RemotePlayerAnimation {
                     id: reader.read_u16_le()?,
@@ -196,12 +200,12 @@ impl WireCodec for RemotePlayerSyncCodec {
         writer.write_u8(value.weapon)?;
         writer.write_u8(value.special_action)?;
         write_compressed_vector(writer, value.move_speed)?;
-        write_bit_bool(writer, value.surfing.is_some())?;
+        writer.write_bit_bool(value.surfing.is_some())?;
         if let Some(surfing) = value.surfing {
             writer.write_u16_le(surfing.vehicle_id)?;
             writer.write_vector3_le(&surfing.offsets)?;
         }
-        write_bit_bool(writer, value.animation.is_some())?;
+        writer.write_bit_bool(value.animation.is_some())?;
         if let Some(animation) = value.animation {
             writer.write_u16_le(animation.id)?;
             writer.write_u16_le(animation.flags)?;
@@ -225,12 +229,14 @@ impl WireCodec for RemoteVehicleSyncCodec {
         let vehicle_health = reader.read_u16_le()?;
         let (player_health, armour) = decode_health_armour(reader.read_u8()?);
         let current_weapon = reader.read_u8()?;
-        let siren = read_bit_bool(reader)?;
-        let landing_gear = read_bit_bool(reader)?;
-        let train_speed = read_bit_bool(reader)?
+        let siren = reader.read_bit_bool()?;
+        let landing_gear = reader.read_bit_bool()?;
+        let train_speed = reader
+            .read_bit_bool()?
             .then(|| reader.read_i32_le())
             .transpose()?;
-        let trailer_id = read_bit_bool(reader)?
+        let trailer_id = reader
+            .read_bit_bool()?
             .then(|| reader.read_u16_le())
             .transpose()?;
         Ok(RemoteVehicleSync {
@@ -268,13 +274,13 @@ impl WireCodec for RemoteVehicleSyncCodec {
         writer.write_u16_le(value.vehicle_health)?;
         writer.write_u8(encode_health_armour(value.player_health, value.armour))?;
         writer.write_u8(value.current_weapon)?;
-        write_bit_bool(writer, value.siren)?;
-        write_bit_bool(writer, value.landing_gear)?;
-        write_bit_bool(writer, value.train_speed.is_some())?;
+        writer.write_bit_bool(value.siren)?;
+        writer.write_bit_bool(value.landing_gear)?;
+        writer.write_bit_bool(value.train_speed.is_some())?;
         if let Some(train_speed) = value.train_speed {
             writer.write_i32_le(train_speed)?;
         }
-        write_bit_bool(writer, value.trailer_id.is_some())?;
+        writer.write_bit_bool(value.trailer_id.is_some())?;
         if let Some(trailer_id) = value.trailer_id {
             writer.write_u16_le(trailer_id)?;
         }
@@ -301,7 +307,8 @@ impl WireCodec for MarkersSyncCodec {
         let mut markers = Vec::with_capacity(count);
         for _ in 0..count {
             let player_id = reader.read_u16_le()?;
-            let coordinates = read_bit_bool(reader)?
+            let coordinates = reader
+                .read_bit_bool()?
                 .then(|| {
                     Ok(MarkerCoordinates {
                         x: WireReadExt::read_i16_le(reader)?,
@@ -331,7 +338,7 @@ impl WireCodec for MarkersSyncCodec {
         writer.write_i32_le(value.markers.len() as i32)?;
         for marker in &value.markers {
             writer.write_u16_le(marker.player_id)?;
-            write_bit_bool(writer, marker.coordinates.is_some())?;
+            writer.write_bit_bool(marker.coordinates.is_some())?;
             if let Some(coordinates) = marker.coordinates {
                 WireWriteExt::write_i16_le(writer, coordinates.x)?;
                 WireWriteExt::write_i16_le(writer, coordinates.y)?;
@@ -346,7 +353,7 @@ fn write_option_u16<W: BitWrite>(
     writer: &mut W,
     value: Option<u16>,
 ) -> Result<(), EncodeError<W::Error>> {
-    write_bit_bool(writer, value.is_some())?;
+    writer.write_bit_bool(value.is_some())?;
     if let Some(value) = value {
         writer.write_u16_le(value)?;
     }
@@ -397,10 +404,10 @@ fn write_compressed_float<W: BitWrite>(
 fn read_normalized_quaternion<R: BitRead>(
     reader: &mut R,
 ) -> Result<[f32; 4], DecodeError<R::Error>> {
-    let w_negative = read_bit_bool(reader)?;
-    let x_negative = read_bit_bool(reader)?;
-    let y_negative = read_bit_bool(reader)?;
-    let z_negative = read_bit_bool(reader)?;
+    let w_negative = reader.read_bit_bool()?;
+    let x_negative = reader.read_bit_bool()?;
+    let y_negative = reader.read_bit_bool()?;
+    let z_negative = reader.read_bit_bool()?;
     let mut x = f32::from(reader.read_u16_le()?) / 65_535.0;
     let mut y = f32::from(reader.read_u16_le()?) / 65_535.0;
     let mut z = f32::from(reader.read_u16_le()?) / 65_535.0;
@@ -424,10 +431,10 @@ fn write_normalized_quaternion<W: BitWrite>(
     writer: &mut W,
     [w, x, y, z]: [f32; 4],
 ) -> Result<(), EncodeError<W::Error>> {
-    write_bit_bool(writer, w < 0.0)?;
-    write_bit_bool(writer, x < 0.0)?;
-    write_bit_bool(writer, y < 0.0)?;
-    write_bit_bool(writer, z < 0.0)?;
+    writer.write_bit_bool(w < 0.0)?;
+    writer.write_bit_bool(x < 0.0)?;
+    writer.write_bit_bool(y < 0.0)?;
+    writer.write_bit_bool(z < 0.0)?;
     for component in [x, y, z] {
         writer.write_u16_le((component.abs().clamp(0.0, 1.0) * 65_535.0).floor() as u16)?;
     }
@@ -446,29 +453,6 @@ fn encode_health_armour(health: u8, armour: u8) -> u8 {
     };
     let armour = if armour >= 100 { 0x0F } else { armour / 7 };
     health | armour
-}
-
-fn read_bit_bool<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_bits(reader, 1)?[0] & 0x80 != 0)
-}
-
-fn write_bit_bool<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    writer
-        .write_left_aligned_bits(&[u8::from(value) << 7], 1)
-        .map_err(EncodeError::Source)
-}
-
-fn read_bits<R: BitRead>(reader: &mut R, bit_len: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let available_bits = reader.remaining_bits();
-    if bit_len > available_bits {
-        return Err(DecodeError::OutOfBounds {
-            requested_bits: bit_len,
-            available_bits,
-        });
-    }
-    reader
-        .read_left_aligned_bits(bit_len)
-        .map_err(DecodeError::Source)
 }
 
 #[cfg(test)]

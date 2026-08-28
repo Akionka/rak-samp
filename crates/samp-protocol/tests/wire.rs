@@ -2,7 +2,7 @@ use core::{any::type_name, mem::size_of};
 
 use samp_protocol::{
     BitRead, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits, ExactBitsPolicy,
-    ExactBytesPolicy, IncomingPacket, OutgoingRpc, Packet, Rpc, TerminalAlignmentPaddingPolicy,
+    ExactBytesPolicy, IncomingPacket, IncomingRpc, OutgoingRpc, TerminalAlignmentPaddingPolicy,
     TrailingPolicy, WireCodec, WireDescriptor, WireKind,
     packet::{common::SendAimSync, r1::RemotePlayerSyncPacket},
     rpc::{
@@ -58,11 +58,11 @@ impl WireCodec for OneByteValue {
     }
 }
 
-type ThreeBitPacket = Packet<207, ThreeBitValue, ExactBitsPolicy>;
-type ThreeBitRpc = Rpc<61, ThreeBitValue, ExactBitsPolicy>;
-type ExactBytePacket = Packet<1, ThreeBitValue, ExactBytesPolicy>;
-type MarkerPacket = Packet<208, ThreeBitValue, TerminalAlignmentPaddingPolicy>;
-type OneBytePacket = Packet<2, OneByteValue, ExactBytesPolicy>;
+type ThreeBitPacket = IncomingPacket<207, ThreeBitValue, ExactBitsPolicy>;
+type ThreeBitRpc = IncomingRpc<61, ThreeBitValue, ExactBitsPolicy>;
+type ExactBytePacket = IncomingPacket<1, ThreeBitValue, ExactBytesPolicy>;
+type MarkerPacket = IncomingPacket<208, ThreeBitValue, TerminalAlignmentPaddingPolicy>;
+type OneBytePacket = IncomingPacket<2, OneByteValue, ExactBytesPolicy>;
 
 #[test]
 fn built_in_descriptors_have_nominal_public_identities() {

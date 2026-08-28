@@ -1,6 +1,6 @@
 use super::*;
 use super::{
-    rpc::incoming,
+    rpc::incoming::r1 as incoming_r1,
     test_support::{
         TestEvent, assert_protocol_replacement_round_trip, assert_replacement_round_trip, test_api,
     },
@@ -33,8 +33,8 @@ fn test_spawn_info() -> protocol_r1::SpawnInfo {
     }
 }
 
-fn test_animation() -> incoming::Animation {
-    incoming::Animation {
+fn test_animation() -> incoming_r1::Animation {
+    incoming_r1::Animation {
         animation_library: b"PED".to_vec(),
         animation_name: b"WALK".to_vec(),
         frame_delta: 4.0,
@@ -640,8 +640,8 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::CREATE_3D_TEXT,
-        incoming::TextLabel3D {
+        incoming_r1::CREATE_3D_TEXT,
+        incoming_r1::TextLabel3D {
             id: 4,
             color: -1,
             position: test_vector3(1.0, 2.0, 3.0),
@@ -653,8 +653,8 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::CREATE_OBJECT,
-        incoming::Object {
+        incoming_r1::CREATE_OBJECT,
+        incoming_r1::Object {
             object_id: 9,
             model_id: 1337,
             position: test_vector3(1.0, 2.0, 3.0),
@@ -666,14 +666,14 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             attachment: None,
             textures_count: 2,
             materials: vec![
-                incoming::ObjectMaterial::Texture(incoming::TextureMaterial {
+                incoming_r1::ObjectMaterial::Texture(incoming_r1::TextureMaterial {
                     material_id: 0,
                     model_id: 18646,
                     library_name: b"matcolours".to_vec(),
                     texture_name: b"grey-10-percent".to_vec(),
                     color: -1,
                 }),
-                incoming::ObjectMaterial::Text(incoming::TextMaterial {
+                incoming_r1::ObjectMaterial::Text(incoming_r1::TextMaterial {
                     material_id: 1,
                     material_size: 90,
                     font_name: b"Arial".to_vec(),
@@ -689,31 +689,31 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
     );
     assert_protocol_replacement_round_trip(protocol_r1::SET_SPAWN_INFO, test_spawn_info());
     assert_replacement_round_trip(
-        incoming::INIT_MENU,
-        incoming::InitMenu {
+        incoming_r1::INIT_MENU,
+        incoming_r1::InitMenu {
             menu_id: 1,
             two_columns: true,
             title: *b"R1 menu                         ",
             position: Vector2 { x: 10.0, y: 20.0 },
             columns: vec![
-                incoming::MenuColumn {
+                incoming_r1::MenuColumn {
                     width: 100.0,
                     title: *b"first                           ",
                     rows: vec![*b"one                             "],
                 },
-                incoming::MenuColumn {
+                incoming_r1::MenuColumn {
                     width: 200.0,
                     title: *b"second                          ",
                     rows: vec![*b"two                             "],
                 },
             ],
-            rows: [-1; incoming::MAX_MENU_ROWS],
+            rows: [-1; incoming_r1::MAX_MENU_ROWS],
             menu: false,
         },
     );
     assert_replacement_round_trip(
-        incoming::INTERPOLATE_CAMERA,
-        incoming::InterpolateCamera {
+        incoming_r1::INTERPOLATE_CAMERA,
+        incoming_r1::InterpolateCamera {
             set_position: true,
             from_position: test_vector3(1.0, 2.0, 3.0),
             destination: test_vector3(4.0, 5.0, 6.0),
@@ -722,17 +722,17 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::TOGGLE_SELECT_TEXT_DRAW,
-        incoming::ToggleSelectTextDraw {
+        incoming_r1::TOGGLE_SELECT_TEXT_DRAW,
+        incoming_r1::ToggleSelectTextDraw {
             enabled: true,
             hover_color: -1,
         },
     );
     assert_replacement_round_trip(
-        incoming::SET_OBJECT_MATERIAL,
-        incoming::ObjectMaterialUpdate {
+        incoming_r1::SET_OBJECT_MATERIAL,
+        incoming_r1::ObjectMaterialUpdate {
             object_id: 9,
-            material: incoming::ObjectMaterial::Texture(incoming::TextureMaterial {
+            material: incoming_r1::ObjectMaterial::Texture(incoming_r1::TextureMaterial {
                 material_id: 1,
                 model_id: 123,
                 library_name: b"lib".to_vec(),
@@ -742,10 +742,10 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::SET_OBJECT_MATERIAL,
-        incoming::ObjectMaterialUpdate {
+        incoming_r1::SET_OBJECT_MATERIAL,
+        incoming_r1::ObjectMaterialUpdate {
             object_id: 9,
-            material: incoming::ObjectMaterial::Text(incoming::TextMaterial {
+            material: incoming_r1::ObjectMaterial::Text(incoming_r1::TextMaterial {
                 material_id: 2,
                 material_size: 90,
                 font_name: b"Arial".to_vec(),
@@ -794,18 +794,18 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::ENTER_EDIT_OBJECT,
-        incoming::EnterEditObject {
+        incoming_r1::ENTER_EDIT_OBJECT,
+        incoming_r1::EnterEditObject {
             player_object: true,
             object_id: 5,
         },
     );
     assert_protocol_replacement_round_trip(protocol_r1::TOGGLE_PLAYER_SPECTATING, false);
     assert_replacement_round_trip(
-        incoming::SHOW_TEXT_DRAW,
-        incoming::ShowTextDraw {
+        incoming_r1::SHOW_TEXT_DRAW,
+        incoming_r1::ShowTextDraw {
             textdraw_id: 99,
-            textdraw: incoming::TextDraw {
+            textdraw: incoming_r1::TextDraw {
                 flags: 1,
                 letter_width: 0.5,
                 letter_height: 1.0,
@@ -828,7 +828,7 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(incoming::TEXT_DRAW_HIDE, 99);
+    assert_replacement_round_trip(incoming_r1::TEXT_DRAW_HIDE, 99);
     assert_protocol_replacement_round_trip(
         protocol_r1::UPDATE_SCORES_AND_PINGS,
         protocol_r1::ScoresAndPings {
@@ -840,10 +840,10 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_replacement_round_trip(
-        incoming::VEHICLE_STREAM_IN,
-        incoming::VehicleStreamIn {
+        incoming_r1::VEHICLE_STREAM_IN,
+        incoming_r1::VehicleStreamIn {
             vehicle_id: 9,
-            vehicle: incoming::StreamedVehicle {
+            vehicle: incoming_r1::StreamedVehicle {
                 model: 411,
                 position: test_vector3(1.0, 2.0, 3.0),
                 rotation: 45.0,
@@ -863,11 +863,11 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(incoming::DISABLE_VEHICLE_COLLISIONS, true);
-    assert_replacement_round_trip(incoming::TOGGLE_CAMERA_TARGET_NOTIFYING, false);
+    assert_replacement_round_trip(incoming_r1::DISABLE_VEHICLE_COLLISIONS, true);
+    assert_replacement_round_trip(incoming_r1::TOGGLE_CAMERA_TARGET_NOTIFYING, false);
     assert_replacement_round_trip(
-        incoming::APPLY_ACTOR_ANIMATION,
-        incoming::ActorAnimation {
+        incoming_r1::APPLY_ACTOR_ANIMATION,
+        incoming_r1::ActorAnimation {
             actor_id: 8,
             animation: test_animation(),
         },
@@ -1129,26 +1129,26 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
         (protocol_r1::InitGameRpc::ID, 139),
         (protocol_r1::RequestClassResponseRpc::ID, 128),
         (protocol_r1::PlayerStreamInRpc::ID, 32),
-        (incoming::CREATE_3D_TEXT.id(), 36),
-        (incoming::CREATE_OBJECT.id(), 44),
+        (incoming_r1::CREATE_3D_TEXT.id(), 36),
+        (incoming_r1::CREATE_OBJECT.id(), 44),
         (protocol_r1::SpawnInfoRpc::ID, 68),
-        (incoming::INIT_MENU.id(), 76),
-        (incoming::INTERPOLATE_CAMERA.id(), 82),
-        (incoming::TOGGLE_SELECT_TEXT_DRAW.id(), 83),
-        (incoming::SET_OBJECT_MATERIAL.id(), 84),
+        (incoming_r1::INIT_MENU.id(), 76),
+        (incoming_r1::INTERPOLATE_CAMERA.id(), 82),
+        (incoming_r1::TOGGLE_SELECT_TEXT_DRAW.id(), 83),
+        (incoming_r1::SET_OBJECT_MATERIAL.id(), 84),
         (protocol_r1::PlayerAnimationRpc::ID, 86),
         (protocol_r1::EnableStuntBonusRpc::ID, 104),
         (protocol_r1::CrimeReportRpc::ID, 112),
         (protocol_r1::PlayerAttachedObjectRpc::ID, 113),
-        (incoming::ENTER_EDIT_OBJECT.id(), 117),
+        (incoming_r1::ENTER_EDIT_OBJECT.id(), 117),
         (protocol_r1::TogglePlayerSpectatingRpc::ID, 124),
-        (incoming::SHOW_TEXT_DRAW.id(), 134),
-        (incoming::TEXT_DRAW_HIDE.id(), 135),
+        (incoming_r1::SHOW_TEXT_DRAW.id(), 134),
+        (incoming_r1::TEXT_DRAW_HIDE.id(), 135),
         (protocol_r1::ScoresAndPingsRpc::ID, 155),
-        (incoming::VEHICLE_STREAM_IN.id(), 164),
-        (incoming::DISABLE_VEHICLE_COLLISIONS.id(), 167),
-        (incoming::TOGGLE_CAMERA_TARGET_NOTIFYING.id(), 170),
-        (incoming::APPLY_ACTOR_ANIMATION.id(), 173),
+        (incoming_r1::VEHICLE_STREAM_IN.id(), 164),
+        (incoming_r1::DISABLE_VEHICLE_COLLISIONS.id(), 167),
+        (incoming_r1::TOGGLE_CAMERA_TARGET_NOTIFYING.id(), 170),
+        (incoming_r1::APPLY_ACTOR_ANIMATION.id(), 173),
     ];
     for (actual, expected) in descriptors {
         assert_eq!(actual, expected);

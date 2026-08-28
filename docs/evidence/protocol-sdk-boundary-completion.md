@@ -17,7 +17,8 @@ semantic namespace, facade, package, and documentation work landed.
   `=0.1.0-alpha.4`. Package verification checks the normalized SDK manifest
   and requires exactly one `samp-protocol` entry in its packaged lockfile.
 - Public examples compile through `Samp`, `Net`, Protocol descriptor paths,
-  and the remaining `SHOW_DIALOG` Host-backed descriptor.
+  and the remaining `events::rpc::incoming::common::SHOW_DIALOG` Host-backed
+  descriptor.
 
 ## Contextual vocabulary and API audit
 
@@ -29,10 +30,11 @@ and inspects the generated SDK public item index.
 | --- | --- |
 | `on_*_protocol_*` | Absent from production source. The four typed `Net` methods are the public registration surface. |
 | `fixed`, `phase15` | Absent from current Packet/RPC production taxonomy. Historical split documents label removed `fixed` paths as historical. |
-| Migration-only descriptor aliases | The unused direction-neutral `events::Packet` alias is removed. The Host-backed `Rpc` carrier is crate-private. |
+| Direction-neutral descriptor paths | Protocol exposes only the generic `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and `OutgoingRpc` wrappers. The old neutral `Packet`/`Rpc` descriptors and the SDK `events::Packet` alias are absent; the Host-backed `Rpc` carrier is crate-private. |
 | `HostApi` | Private; absent from the generated public item index. The crate-level `compile_fail` example remains a privacy guard. |
 | `RpcEncoder`, `PayloadWriter`, `EncodedPayload` | Private; absent from the generated public item index. |
-| Incoming Protocol RPC ownership | Exposed only through `rpc::incoming::common` and `rpc::incoming::r1`; no broad incoming re-export remains. |
+| Incoming RPC ownership | Protocol uses `rpc::incoming::common` and `rpc::incoming::r1`. SDK-owned descriptors and payloads use `events::rpc::incoming::common` and `events::rpc::incoming::r1`; neither boundary has a flat incoming re-export. |
+| Neutral bit booleans | `WireReadExt::read_bit_bool` and `WireWriteExt::write_bit_bool` are the single canonical MSB-first implementation used by R1 Packet and RPC codecs. Protocol bounds failures stay distinct from reader/writer source failures. |
 
 The `Animations` and `Textdraw` aliases are unrelated facade naming
 compatibility and expose no Protocol migration status, codec strategy, or Host
@@ -62,6 +64,7 @@ The completion validation passed with:
 | `cargo test -p samp-protocol --target x86_64-unknown-linux-gnu --locked` | Pass in WSL Linux |
 | `cargo clippy -p samp-protocol --target x86_64-unknown-linux-gnu --all-targets --locked -- -D warnings` | Pass in WSL Linux |
 
-This closes the P1/P2 Definition of Done for #22. Future message migrations do
-not require new SDK registration methods, macro forms, public codec carriers,
-or migration-named modules.
+This closes the P1/P2 Definition of Done for #22. Future message migrations use
+directional Protocol wrappers and semantic SDK paths without new registration
+methods, macro forms, public codec carriers, primitive mini-codecs, or
+migration-named modules.

@@ -323,16 +323,16 @@ r1_codec!(
 
 fn decode_init_game<R: BitRead>(reader: &mut R) -> Result<InitGame, DecodeError<R::Error>> {
     let mut settings = GameSettings {
-        zone_names: read_bit_bool(reader)?,
-        use_cj_walk: read_bit_bool(reader)?,
-        allow_weapons: read_bit_bool(reader)?,
-        limit_global_chat_radius: read_bit_bool(reader)?,
+        zone_names: reader.read_bit_bool()?,
+        use_cj_walk: reader.read_bit_bool()?,
+        allow_weapons: reader.read_bit_bool()?,
+        limit_global_chat_radius: reader.read_bit_bool()?,
         global_chat_radius: reader.read_f32_le()?,
-        stunt_bonus: read_bit_bool(reader)?,
+        stunt_bonus: reader.read_bit_bool()?,
         nametag_draw_distance: reader.read_f32_le()?,
-        disable_enter_exits: read_bit_bool(reader)?,
-        nametag_los: read_bit_bool(reader)?,
-        tire_popping: read_bit_bool(reader)?,
+        disable_enter_exits: reader.read_bit_bool()?,
+        nametag_los: reader.read_bit_bool()?,
+        tire_popping: reader.read_bit_bool()?,
         classes_available: reader.read_i32_le()?,
         show_player_tags: false,
         player_markers_mode: 0,
@@ -350,14 +350,14 @@ fn decode_init_game<R: BitRead>(reader: &mut R) -> Result<InitGame, DecodeError<
         vehicle_friendly_fire: false,
     };
     let player_id = reader.read_u16_le()?;
-    settings.show_player_tags = read_bit_bool(reader)?;
+    settings.show_player_tags = reader.read_bit_bool()?;
     settings.player_markers_mode = reader.read_i32_le()?;
     settings.world_time = reader.read_u8()?;
     settings.world_weather = reader.read_u8()?;
     settings.gravity = reader.read_f32_le()?;
-    settings.lan_mode = read_bit_bool(reader)?;
+    settings.lan_mode = reader.read_bit_bool()?;
     settings.death_money_drop = reader.read_i32_le()?;
-    settings.instagib = read_bit_bool(reader)?;
+    settings.instagib = reader.read_bit_bool()?;
     settings.normal_onfoot_send_rate = reader.read_i32_le()?;
     settings.normal_incar_send_rate = reader.read_i32_le()?;
     settings.normal_firing_send_rate = reader.read_i32_le()?;
@@ -379,26 +379,26 @@ fn encode_init_game<W: BitWrite>(
     value: &InitGame,
 ) -> Result<(), EncodeError<W::Error>> {
     let settings = value.settings;
-    write_bit_bool(writer, settings.zone_names)?;
-    write_bit_bool(writer, settings.use_cj_walk)?;
-    write_bit_bool(writer, settings.allow_weapons)?;
-    write_bit_bool(writer, settings.limit_global_chat_radius)?;
+    writer.write_bit_bool(settings.zone_names)?;
+    writer.write_bit_bool(settings.use_cj_walk)?;
+    writer.write_bit_bool(settings.allow_weapons)?;
+    writer.write_bit_bool(settings.limit_global_chat_radius)?;
     writer.write_f32_le(settings.global_chat_radius)?;
-    write_bit_bool(writer, settings.stunt_bonus)?;
+    writer.write_bit_bool(settings.stunt_bonus)?;
     writer.write_f32_le(settings.nametag_draw_distance)?;
-    write_bit_bool(writer, settings.disable_enter_exits)?;
-    write_bit_bool(writer, settings.nametag_los)?;
-    write_bit_bool(writer, settings.tire_popping)?;
+    writer.write_bit_bool(settings.disable_enter_exits)?;
+    writer.write_bit_bool(settings.nametag_los)?;
+    writer.write_bit_bool(settings.tire_popping)?;
     writer.write_i32_le(settings.classes_available)?;
     writer.write_u16_le(value.player_id)?;
-    write_bit_bool(writer, settings.show_player_tags)?;
+    writer.write_bit_bool(settings.show_player_tags)?;
     writer.write_i32_le(settings.player_markers_mode)?;
     writer.write_u8(settings.world_time)?;
     writer.write_u8(settings.world_weather)?;
     writer.write_f32_le(settings.gravity)?;
-    write_bit_bool(writer, settings.lan_mode)?;
+    writer.write_bit_bool(settings.lan_mode)?;
     writer.write_i32_le(settings.death_money_drop)?;
-    write_bit_bool(writer, settings.instagib)?;
+    writer.write_bit_bool(settings.instagib)?;
     writer.write_i32_le(settings.normal_onfoot_send_rate)?;
     writer.write_i32_le(settings.normal_incar_send_rate)?;
     writer.write_i32_le(settings.normal_firing_send_rate)?;
@@ -526,10 +526,10 @@ fn decode_animation<R: BitRead>(reader: &mut R) -> Result<Animation, DecodeError
         animation_library: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
         animation_name: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
         frame_delta: reader.read_f32_le()?,
-        looped: read_bit_bool(reader)?,
-        lock_x: read_bit_bool(reader)?,
-        lock_y: read_bit_bool(reader)?,
-        freeze: read_bit_bool(reader)?,
+        looped: reader.read_bit_bool()?,
+        lock_x: reader.read_bit_bool()?,
+        lock_y: reader.read_bit_bool()?,
+        freeze: reader.read_bit_bool()?,
         time: reader.read_i32_le()?,
     })
 }
@@ -541,19 +541,19 @@ fn encode_animation<W: BitWrite>(
     writer.write_len_prefixed_bytes_u8(&value.animation_library, usize::from(u8::MAX))?;
     writer.write_len_prefixed_bytes_u8(&value.animation_name, usize::from(u8::MAX))?;
     writer.write_f32_le(value.frame_delta)?;
-    write_bit_bool(writer, value.looped)?;
-    write_bit_bool(writer, value.lock_x)?;
-    write_bit_bool(writer, value.lock_y)?;
-    write_bit_bool(writer, value.freeze)?;
+    writer.write_bit_bool(value.looped)?;
+    writer.write_bit_bool(value.lock_x)?;
+    writer.write_bit_bool(value.lock_y)?;
+    writer.write_bit_bool(value.freeze)?;
     writer.write_i32_le(value.time)
 }
 
 fn decode_bit_bool<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    read_bit_bool(reader)
+    reader.read_bit_bool()
 }
 
 fn encode_bit_bool<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeError<W::Error>> {
-    write_bit_bool(writer, *value)
+    writer.write_bit_bool(*value)
 }
 
 fn decode_crime_report<R: BitRead>(reader: &mut R) -> Result<CrimeReport, DecodeError<R::Error>> {
@@ -584,7 +584,8 @@ fn decode_player_attached_object<R: BitRead>(
 ) -> Result<PlayerAttachedObject, DecodeError<R::Error>> {
     let player_id = reader.read_u16_le()?;
     let index = reader.read_i32_le()?;
-    let object = read_bit_bool(reader)?
+    let object = reader
+        .read_bit_bool()?
         .then(|| decode_attached_object(reader))
         .transpose()?;
     Ok(PlayerAttachedObject {
@@ -600,7 +601,7 @@ fn encode_player_attached_object<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.player_id)?;
     writer.write_i32_le(value.index)?;
-    write_bit_bool(writer, value.object.is_some())?;
+    writer.write_bit_bool(value.object.is_some())?;
     if let Some(object) = value.object {
         encode_attached_object(writer, &object)?;
     }
@@ -696,16 +697,6 @@ fn encode_scores_and_pings<W: BitWrite>(
     Ok(())
 }
 
-fn read_bit_bool<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(read_bits(reader, 1)?[0] & 0x80 != 0)
-}
-
-fn write_bit_bool<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    writer
-        .write_left_aligned_bits(&[u8::from(value) << 7], 1)
-        .map_err(EncodeError::Source)
-}
-
 fn read_bool8<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
     Ok(reader.read_u8()? != 0)
 }
@@ -725,17 +716,4 @@ fn read_fixed<R: BitRead, const LENGTH: usize>(
             available_bits: 0,
         }),
     }
-}
-
-fn read_bits<R: BitRead>(reader: &mut R, bit_len: usize) -> Result<Vec<u8>, DecodeError<R::Error>> {
-    let available_bits = reader.remaining_bits();
-    if bit_len > available_bits {
-        return Err(DecodeError::OutOfBounds {
-            requested_bits: bit_len,
-            available_bits,
-        });
-    }
-    reader
-        .read_left_aligned_bits(bit_len)
-        .map_err(DecodeError::Source)
 }

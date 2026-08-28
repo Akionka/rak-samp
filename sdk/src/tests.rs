@@ -2194,7 +2194,7 @@ fn normal_typed_methods_accept_all_descriptor_sources() {
             ProtocolAction::Continue
         })
         .expect("Protocol Packet registration must succeed"),
-        net.on_incoming_typed_rpc(events::rpc::incoming::SHOW_DIALOG, |_| {
+        net.on_incoming_typed_rpc(events::rpc::incoming::common::SHOW_DIALOG, |_| {
             ProtocolAction::Continue
         })
         .expect("legacy incoming RPC registration must succeed"),

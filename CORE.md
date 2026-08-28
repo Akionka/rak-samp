@@ -16,16 +16,22 @@
 - `crates/samp-protocol/` is the platform-independent Rust package for owned
   Protocol bitstreams, exact-bit payload values, public neutral `types` and
   `limits`, one canonical set of cursor-preserving Wire read/write primitives,
+  including single-bit booleans with Protocol-owned bounds/source error mapping,
   and nominal built-in Wire descriptors whose identity hides private codec
-  implementations. Public generic directional wrappers compose custom or
-  ad-hoc messages with explicit trailing policies. Packet/RPC name catalogs,
+  implementations. `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and
+  `OutgoingRpc` are the only public generic descriptor wrappers; every custom or
+  ad-hoc descriptor therefore carries direction and an explicit trailing policy.
+  The sealed direction-neutral `WireDescriptor` remains their common capability.
+  Packet/RPC name catalogs,
   outgoing chat, slash-command, profile-neutral byte-aligned RPC codecs, common
   byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet
   codecs remain Protocol-owned. Directional marker traits make an invalid typed
   subscription or send fail to compile. Profile-neutral incoming RPCs live under
   `rpc::incoming::common`; R1 player and session RPCs live under
-  `rpc::incoming::r1`. `SHOW_DIALOG` remains in the SDK until the Native
-  encoded-string extension boundary moves.
+  `rpc::incoming::r1`. `SHOW_DIALOG` remains under the SDK-owned semantic path
+  `events::rpc::incoming::common::SHOW_DIALOG` until the Native encoded-string
+  extension boundary moves; SDK R1 descriptors and payloads remain under
+  `events::rpc::incoming::r1`.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces

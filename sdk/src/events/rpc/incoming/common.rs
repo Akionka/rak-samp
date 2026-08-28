@@ -1,11 +1,21 @@
-use super::types::ShowDialog;
+//! Profile-neutral SDK-owned incoming RPC descriptors and payloads.
+
 use crate::events::core::PayloadWriter;
 use crate::{
     HostApi,
-    events::{
-        EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES, Vector2, Vector3,
-    },
+    events::{EncodedPayload, Event, EventError, IncomingRpc, MAX_ENCODED_STRING_BYTES},
 };
+
+/// MoonLoader's `onShowDialog` payload (RPC 61).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShowDialog {
+    pub dialog_id: u16,
+    pub style: u8,
+    pub title: Vec<u8>,
+    pub button1: Vec<u8>,
+    pub button2: Vec<u8>,
+    pub text: Vec<u8>,
+}
 
 /// The `onShowDialog` descriptor.
 pub const SHOW_DIALOG: IncomingRpc<ShowDialog> =
@@ -31,40 +41,4 @@ fn encode_show_dialog(api: HostApi, value: ShowDialog) -> Result<EncodedPayload,
     writer.string8(&value.button2)?;
     writer.encoded_string(api, &value.text)?;
     Ok(writer.finish_bits())
-}
-
-pub(super) fn decode_vector3(event: &mut Event<'_>) -> Result<Vector3, EventError> {
-    Ok(Vector3 {
-        x: event.read_f32()?,
-        y: event.read_f32()?,
-        z: event.read_f32()?,
-    })
-}
-
-pub(super) fn decode_bool8(event: &mut Event<'_>) -> Result<bool, EventError> {
-    Ok(event.read_u8()? != 0)
-}
-
-pub(super) fn decode_vector2(event: &mut Event<'_>) -> Result<Vector2, EventError> {
-    Ok(Vector2 {
-        x: event.read_f32()?,
-        y: event.read_f32()?,
-    })
-}
-
-pub(super) fn encode_vector2(writer: &mut PayloadWriter, value: Vector2) {
-    writer.f32(value.x);
-    writer.f32(value.y);
-}
-
-pub(super) fn decode_i32(event: &mut Event<'_>) -> Result<i32, EventError> {
-    Ok(event.read_u32()? as i32)
-}
-
-pub(super) fn decode_u16(event: &mut Event<'_>) -> Result<u16, EventError> {
-    event.read_u16()
-}
-
-pub(super) fn encode_u16(value: u16) -> Result<Vec<u8>, EventError> {
-    Ok(value.to_le_bytes().to_vec())
 }

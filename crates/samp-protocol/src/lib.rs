@@ -21,7 +21,7 @@ pub use error::{DecodeError, EncodeError};
 pub use wire::{
     ExactBitsPolicy, ExactBytesPolicy, IncomingPacket, IncomingPacketDescriptor, IncomingRpc,
     IncomingRpcDescriptor, OutgoingPacket, OutgoingPacketDescriptor, OutgoingRpc,
-    OutgoingRpcDescriptor, Packet, Rpc, TerminalAlignmentPaddingPolicy, TrailingPolicy,
-    TrailingPolicyMarker, WireCodec, WireDescriptor, WireKind,
+    OutgoingRpcDescriptor, TerminalAlignmentPaddingPolicy, TrailingPolicy, TrailingPolicyMarker,
+    WireCodec, WireDescriptor, WireKind,
 };
 pub use wire_io::{WireReadExt, WireWriteExt};
