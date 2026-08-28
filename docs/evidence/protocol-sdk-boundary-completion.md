@@ -16,9 +16,8 @@ semantic namespace, facade, package, and documentation work landed.
 - The SDK depends on the workspace Protocol crate at exactly
   `=0.1.0-alpha.4`. Package verification checks the normalized SDK manifest
   and requires exactly one `samp-protocol` entry in its packaged lockfile.
-- Public examples compile through `Samp`, `Net`, Protocol descriptor paths,
-  and the remaining `events::rpc::incoming::common::SHOW_DIALOG` Host-backed
-  descriptor.
+- Public examples compile through `Samp`, `Net`, and Protocol descriptor paths,
+  including Host-injected encoded-string descriptors.
 
 ## Contextual vocabulary and API audit
 
@@ -33,7 +32,7 @@ and inspects the generated SDK public item index.
 | Direction-neutral descriptor paths | Protocol exposes only the generic `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and `OutgoingRpc` wrappers. The old neutral `Packet`/`Rpc` descriptors and the SDK `events::Packet` alias are absent; the Host-backed `Rpc` carrier is crate-private. |
 | `HostApi` | Private; absent from the generated public item index. The crate-level `compile_fail` example remains a privacy guard. |
 | `RpcEncoder`, `PayloadWriter`, `EncodedPayload` | Private; absent from the generated public item index. |
-| Incoming RPC ownership | Protocol uses `rpc::incoming::common` and `rpc::incoming::r1`. SDK-owned descriptors and payloads use `events::rpc::incoming::common` and `events::rpc::incoming::r1`; neither boundary has a flat incoming re-export. |
+| Incoming RPC ownership | Protocol uses `rpc::incoming::common` and `rpc::incoming::r1`. The SDK injects Host encoded-string operations and owns no duplicate incoming RPC descriptors or payloads. |
 | Neutral bit booleans | `WireReadExt::read_bit_bool` and `WireWriteExt::write_bit_bool` are the single canonical MSB-first implementation used by R1 Packet and RPC codecs. Protocol bounds failures stay distinct from reader/writer source failures. |
 
 The `Animations` and `Textdraw` aliases are unrelated facade naming

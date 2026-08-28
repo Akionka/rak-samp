@@ -1,21 +1,15 @@
-use super::*;
-use super::{
-    rpc::incoming::r1 as incoming_r1,
-    test_support::{
-        TestEvent, assert_protocol_replacement_round_trip, assert_replacement_round_trip, test_api,
-    },
+use super::test_support::{
+    TestEvent, assert_encoded_string_protocol_replacement_round_trip,
+    assert_protocol_replacement_round_trip, test_api,
 };
+use super::*;
 use crate::{SampClientSdkEventV1, SampClientSdkHookAction};
 use samp_protocol::{
-    WireDescriptor,
+    EncodedStringWireDescriptor, WireDescriptor,
     packet::r1 as protocol_packet,
     rpc::incoming::{common as protocol_common, r1 as protocol_r1},
     types::{Vector2 as ProtocolVector2, Vector3 as ProtocolVector3},
 };
-
-fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
-    Vector3 { x, y, z }
-}
 
 fn test_protocol_vector3(x: f32, y: f32, z: f32) -> ProtocolVector3 {
     ProtocolVector3 { x, y, z }
@@ -61,6 +55,18 @@ fn vehicle_position_through_player_name_tag_decode_and_atomically_replace() {
     {
         assert_protocol_replacement_round_trip(descriptor, value);
     }
+
+    assert_encoded_string_protocol_replacement_round_trip(
+        protocol_common::SHOW_DIALOG,
+        protocol_common::ShowDialog {
+            dialog_id: 1,
+            style: 2,
+            title: b"title".to_vec(),
+            button1: b"ok".to_vec(),
+            button2: b"cancel".to_vec(),
+            text: b"encoded dialog text".to_vec(),
+        },
+    );
 
     assert_replacement_round_trip(
         protocol_common::SET_VEHICLE_POSITION,
@@ -630,12 +636,12 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             weapon_skill_levels: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::CREATE_3D_TEXT,
-        incoming_r1::TextLabel3D {
+    assert_encoded_string_protocol_replacement_round_trip(
+        protocol_r1::CREATE_3D_TEXT,
+        protocol_r1::TextLabel3D {
             id: 4,
             color: -1,
-            position: test_vector3(1.0, 2.0, 3.0),
+            position: test_protocol_vector3(1.0, 2.0, 3.0),
             distance: 50.0,
             test_los: true,
             attached_player_id: u16::MAX,
@@ -643,13 +649,13 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             text: b"encoded 3D text".to_vec(),
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::CREATE_OBJECT,
-        incoming_r1::Object {
+    assert_encoded_string_protocol_replacement_round_trip(
+        protocol_r1::CREATE_OBJECT,
+        protocol_r1::Object {
             object_id: 9,
             model_id: 1337,
-            position: test_vector3(1.0, 2.0, 3.0),
-            rotation: test_vector3(4.0, 5.0, 6.0),
+            position: test_protocol_vector3(1.0, 2.0, 3.0),
+            rotation: test_protocol_vector3(4.0, 5.0, 6.0),
             draw_distance: 300.0,
             no_camera_collision: true,
             attach_to_vehicle_id: u16::MAX,
@@ -657,14 +663,14 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             attachment: None,
             textures_count: 2,
             materials: vec![
-                incoming_r1::ObjectMaterial::Texture(incoming_r1::TextureMaterial {
+                protocol_r1::ObjectMaterial::Texture(protocol_r1::TextureMaterial {
                     material_id: 0,
                     model_id: 18646,
                     library_name: b"matcolours".to_vec(),
                     texture_name: b"grey-10-percent".to_vec(),
                     color: -1,
                 }),
-                incoming_r1::ObjectMaterial::Text(incoming_r1::TextMaterial {
+                protocol_r1::ObjectMaterial::Text(protocol_r1::TextMaterial {
                     material_id: 1,
                     material_size: 90,
                     font_name: b"Arial".to_vec(),
@@ -719,11 +725,11 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             hover_color: -1,
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::SET_OBJECT_MATERIAL,
-        incoming_r1::ObjectMaterialUpdate {
+    assert_encoded_string_protocol_replacement_round_trip(
+        protocol_r1::SET_OBJECT_MATERIAL,
+        protocol_r1::ObjectMaterialUpdate {
             object_id: 9,
-            material: incoming_r1::ObjectMaterial::Texture(incoming_r1::TextureMaterial {
+            material: protocol_r1::ObjectMaterial::Texture(protocol_r1::TextureMaterial {
                 material_id: 1,
                 model_id: 123,
                 library_name: b"lib".to_vec(),
@@ -732,11 +738,11 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             }),
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::SET_OBJECT_MATERIAL,
-        incoming_r1::ObjectMaterialUpdate {
+    assert_encoded_string_protocol_replacement_round_trip(
+        protocol_r1::SET_OBJECT_MATERIAL,
+        protocol_r1::ObjectMaterialUpdate {
             object_id: 9,
-            material: incoming_r1::ObjectMaterial::Text(incoming_r1::TextMaterial {
+            material: protocol_r1::ObjectMaterial::Text(protocol_r1::TextMaterial {
                 material_id: 2,
                 material_size: 90,
                 font_name: b"Arial".to_vec(),
@@ -1120,13 +1126,13 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
         (protocol_r1::InitGameRpc::ID, 139),
         (protocol_r1::RequestClassResponseRpc::ID, 128),
         (protocol_r1::PlayerStreamInRpc::ID, 32),
-        (incoming_r1::CREATE_3D_TEXT.id(), 36),
-        (incoming_r1::CREATE_OBJECT.id(), 44),
+        (protocol_r1::Create3DTextRpc::ID, 36),
+        (protocol_r1::CreateObjectRpc::ID, 44),
         (protocol_r1::SpawnInfoRpc::ID, 68),
         (protocol_r1::InitMenuRpc::ID, 76),
         (protocol_r1::InterpolateCameraRpc::ID, 82),
         (protocol_r1::ToggleSelectTextDrawRpc::ID, 83),
-        (incoming_r1::SET_OBJECT_MATERIAL.id(), 84),
+        (protocol_r1::SetObjectMaterialRpc::ID, 84),
         (protocol_r1::PlayerAnimationRpc::ID, 86),
         (protocol_r1::EnableStuntBonusRpc::ID, 104),
         (protocol_r1::CrimeReportRpc::ID, 112),

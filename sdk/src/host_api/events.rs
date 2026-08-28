@@ -98,7 +98,7 @@ impl HostApi {
     /// Registers an RPC callback.
     ///
     /// The callback receives a view that is valid only for that invocation. Use typed RPC
-    /// descriptors from [`events::rpc`] to decode, block, or replace a matching payload.
+    /// descriptors from [`samp_protocol::rpc`] to decode, block, or replace a matching payload.
     pub fn on_rpc<F>(
         self,
         direction: SampClientSdkDirection,

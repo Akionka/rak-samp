@@ -26,7 +26,7 @@ pub enum TrailingPolicy {
 }
 
 impl TrailingPolicy {
-    fn validate<R: BitRead>(
+    pub(crate) fn validate<R: BitRead>(
         self,
         payload_bits: usize,
         meaningful_bits: usize,
@@ -173,6 +173,14 @@ pub(crate) mod sealed {
 /// This trait is sealed. Custom messages select one of the three provided marker types.
 pub trait TrailingPolicyMarker: sealed::TrailingPolicyMarker {}
 
+/// Selects the ordinary transport-neutral Wire codec path for callback adaptation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct PlainWire;
+
+/// Selects the injected Native encoded-string codec path for callback adaptation.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct EncodedStringWire;
+
 /// Selects exact meaningful-bit framing.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct ExactBitsPolicy;
@@ -234,7 +242,15 @@ pub trait OutgoingPacketDescriptor: WireDescriptor + sealed::OutgoingPacketDescr
 ///
 /// register(SEND_CHAT);
 /// ```
-pub trait IncomingRpcDescriptor: WireDescriptor + sealed::IncomingRpcDescriptor {}
+pub trait IncomingRpcDescriptor: sealed::IncomingRpcDescriptor {
+    /// The Rust value carried by this incoming RPC.
+    type Value;
+    /// The codec capability required by this descriptor.
+    type Capability;
+
+    /// The raw incoming RPC ID.
+    const ID: u8;
+}
 
 /// Marks a descriptor that may decode an outgoing SA-MP RPC callback or encode a send.
 ///
@@ -300,6 +316,27 @@ macro_rules! nominal_descriptor {
             OutgoingRpcDescriptor
         );
     };
+    (@direction IncomingRpcDescriptor, $name:ident, $value:ty, $id:literal) => {
+        impl $crate::wire::sealed::IncomingRpcDescriptor for $name {}
+        impl $crate::IncomingRpcDescriptor for $name {
+            type Value = $value;
+            type Capability = $crate::PlainWire;
+
+            const ID: u8 = $id;
+        }
+    };
+    (@direction IncomingPacketDescriptor, $name:ident, $value:ty, $id:literal) => {
+        impl $crate::wire::sealed::IncomingPacketDescriptor for $name {}
+        impl $crate::IncomingPacketDescriptor for $name {}
+    };
+    (@direction OutgoingPacketDescriptor, $name:ident, $value:ty, $id:literal) => {
+        impl $crate::wire::sealed::OutgoingPacketDescriptor for $name {}
+        impl $crate::OutgoingPacketDescriptor for $name {}
+    };
+    (@direction OutgoingRpcDescriptor, $name:ident, $value:ty, $id:literal) => {
+        impl $crate::wire::sealed::OutgoingRpcDescriptor for $name {}
+        impl $crate::OutgoingRpcDescriptor for $name {}
+    };
     (
         @impl,
         $name:ident,
@@ -340,8 +377,7 @@ macro_rules! nominal_descriptor {
                 <$policy as $crate::wire::sealed::TrailingPolicyMarker>::POLICY;
         }
 
-        impl $crate::wire::sealed::$direction for $name {}
-        impl $crate::$direction for $name {}
+        $crate::wire::nominal_descriptor!(@direction $direction, $name, $value, $id);
     };
 }
 
@@ -475,6 +511,10 @@ impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> sealed::IncomingRpcDes
 impl<const ID: u8, C: WireCodec, P: TrailingPolicyMarker> IncomingRpcDescriptor
     for IncomingRpc<ID, C, P>
 {
+    type Value = C::Value;
+    type Capability = PlainWire;
+
+    const ID: u8 = ID;
 }
 
 /// A generic custom or ad-hoc outgoing SA-MP RPC descriptor.

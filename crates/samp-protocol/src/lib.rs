@@ -6,6 +6,7 @@
 mod bitstream;
 mod catalog;
 mod encoded_bits;
+mod encoded_string;
 mod error;
 pub mod limits;
 pub mod packet;
@@ -17,11 +18,13 @@ mod wire_io;
 pub use bitstream::{BitRead, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};
 pub use catalog::{packet_name, rpc_name};
 pub use encoded_bits::{EncodedBits, EncodedBitsError};
+pub(crate) use encoded_string::EncodedStringWireCodec;
+pub use encoded_string::{EncodedStringRead, EncodedStringWireDescriptor, EncodedStringWrite};
 pub use error::{DecodeError, EncodeError};
 pub use wire::{
-    ExactBitsPolicy, ExactBytesPolicy, IncomingPacket, IncomingPacketDescriptor, IncomingRpc,
-    IncomingRpcDescriptor, OutgoingPacket, OutgoingPacketDescriptor, OutgoingRpc,
-    OutgoingRpcDescriptor, TerminalAlignmentPaddingPolicy, TrailingPolicy, TrailingPolicyMarker,
-    WireCodec, WireDescriptor, WireKind,
+    EncodedStringWire, ExactBitsPolicy, ExactBytesPolicy, IncomingPacket, IncomingPacketDescriptor,
+    IncomingRpc, IncomingRpcDescriptor, OutgoingPacket, OutgoingPacketDescriptor, OutgoingRpc,
+    OutgoingRpcDescriptor, PlainWire, TerminalAlignmentPaddingPolicy, TrailingPolicy,
+    TrailingPolicyMarker, WireCodec, WireDescriptor, WireKind,
 };
 pub use wire_io::{WireReadExt, WireWriteExt};

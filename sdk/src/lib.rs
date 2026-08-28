@@ -20,11 +20,11 @@
 //!     samp_protocol::rpc::incoming::common::SERVER_MESSAGE,
 //!     |_| ProtocolAction::Continue,
 //! ).map_err(|error| format!("Protocol registration failed: {error:?}"))?;
-//! let host_backed_subscription = net.on_incoming_typed_rpc(
-//!     samp_client_sdk::events::rpc::incoming::common::SHOW_DIALOG,
+//! let encoded_string_subscription = net.on_incoming_typed_rpc(
+//!     samp_protocol::rpc::incoming::common::SHOW_DIALOG,
 //!     |_| ProtocolAction::Continue,
-//! ).map_err(|error| format!("Host-backed registration failed: {error:?}"))?;
-//! # let _ = (protocol_subscription, host_backed_subscription);
+//! ).map_err(|error| format!("Encoded-string registration failed: {error:?}"))?;
+//! # let _ = (protocol_subscription, encoded_string_subscription);
 //! # Ok(())
 //! # }
 //! ```

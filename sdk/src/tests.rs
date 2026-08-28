@@ -2183,10 +2183,10 @@ fn normal_typed_methods_accept_all_descriptor_sources() {
             ProtocolAction::Continue
         })
         .expect("Protocol Packet registration must succeed"),
-        net.on_incoming_typed_rpc(events::rpc::incoming::common::SHOW_DIALOG, |_| {
+        net.on_incoming_typed_rpc(samp_protocol::rpc::incoming::common::SHOW_DIALOG, |_| {
             ProtocolAction::Continue
         })
-        .expect("legacy incoming RPC registration must succeed"),
+        .expect("encoded-string Protocol RPC registration must succeed"),
         net.on_outgoing_typed_rpc(samp_protocol::rpc::outgoing::common::SEND_DAMAGE, |_| {
             ProtocolAction::Continue
         })

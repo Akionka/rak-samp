@@ -26,11 +26,14 @@ try {
     if (Select-String -Quiet -Path "README.md" -Pattern "samp_client_sdk::raknet") {
         throw "README uses the removed SDK Protocol path"
     }
-    if (Test-Path "sdk/src/events/rpc/incoming/fixed.rs") {
-        throw "SDK production taxonomy still contains incoming/fixed.rs"
+    if (Get-ChildItem "sdk/src/events/rpc" -Recurse -File -Filter "*.rs" -ErrorAction SilentlyContinue) {
+        throw "SDK still contains a duplicate incoming RPC catalog"
     }
-    if (-not (Test-Path "sdk/src/events/rpc/incoming/common.rs")) {
-        throw "SDK production taxonomy does not contain incoming/common.rs"
+    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/common.rs")) {
+        throw "Protocol production taxonomy does not contain incoming/common.rs"
+    }
+    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/r1.rs")) {
+        throw "Protocol production taxonomy does not contain incoming/r1.rs"
     }
     if (Select-String -Quiet -Path "sdk/src/events/core.rs" -Pattern "^pub type Packet<") {
         throw "The migration-only public Packet alias remains"
@@ -45,19 +48,15 @@ try {
     if ($protocolRoot -match "(?s)pub\s+use\s+wire::\{.*?\b(Packet|Rpc)\b.*?\};") {
         throw "Protocol root re-exports a direction-neutral Packet/Rpc descriptor"
     }
-    $sdkIncomingRpcModule = "sdk/src/events/rpc/incoming/mod.rs"
-    if (-not (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+mod\s+common\s*;")) {
-        throw "SDK incoming common RPC semantics are not publicly owned by common"
+    $protocolIncomingRpcModule = "crates/samp-protocol/src/rpc/incoming/mod.rs"
+    if (-not (Select-String -Quiet -Path $protocolIncomingRpcModule -Pattern "^\s*pub\s+mod\s+common\s*;")) {
+        throw "Protocol incoming common RPC semantics are not publicly owned by common"
     }
-    if (-not (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+mod\s+r1\s*;")) {
-        throw "SDK incoming R1 RPC semantics are not publicly owned by r1"
+    if (-not (Select-String -Quiet -Path $protocolIncomingRpcModule -Pattern "^\s*pub\s+mod\s+r1\s*;")) {
+        throw "Protocol incoming R1 RPC semantics are not publicly owned by r1"
     }
-    if (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*pub\s+use\s+(self::)?(common|r1|types)::") {
-        throw "SDK incoming RPC ownership is hidden by a flat re-export"
-    }
-    if ((Test-Path "sdk/src/events/rpc/incoming/types.rs") -or
-        (Select-String -Quiet -Path $sdkIncomingRpcModule -Pattern "^\s*mod\s+types\s*;")) {
-        throw "SDK incoming RPC payload ownership is mixed in a sibling types module"
+    if (Select-String -Quiet -Path $protocolIncomingRpcModule -Pattern "^\s*pub\s+use\s+(self::)?(common|r1|types)::") {
+        throw "Protocol incoming RPC ownership is hidden by a flat re-export"
     }
 
     $repositoryFiles = git ls-files --cached --others --exclude-standard

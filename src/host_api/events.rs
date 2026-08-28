@@ -424,4 +424,24 @@ mod tests {
         assert_eq!(payload.len_bits(), 8);
         assert_eq!(payload.read_offset_bits(), 3);
     }
+
+    #[test]
+    fn codec_errors_preserve_distinct_sdk_statuses() {
+        assert_eq!(
+            codec_result(CodecError::ClientNotReady),
+            SampClientSdkResult::NotReady
+        );
+        assert_eq!(
+            codec_result(CodecError::InvalidArgument),
+            SampClientSdkResult::InvalidArgument
+        );
+        assert_eq!(
+            codec_result(CodecError::PayloadTooLarge),
+            SampClientSdkResult::PayloadTooLarge
+        );
+        assert_eq!(
+            codec_result(CodecError::NativeCallFailed),
+            SampClientSdkResult::NativeCallFailed
+        );
+    }
 }

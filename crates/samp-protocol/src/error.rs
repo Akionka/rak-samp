@@ -26,6 +26,10 @@ pub enum DecodeError<E> {
     NonByteAligned { bit_len: usize },
     /// A length-prefixed field exceeded its Protocol-defined byte limit.
     LengthExceedsLimit { length: usize, limit: usize },
+    /// A wire byte string contains an embedded NUL.
+    EmbeddedNul,
+    /// A tagged wire value used an unknown discriminant.
+    InvalidDiscriminant { value: u8 },
 }
 
 impl<E: fmt::Display> fmt::Display for DecodeError<E> {
@@ -66,6 +70,10 @@ impl<E: fmt::Display> fmt::Display for DecodeError<E> {
                     "a {length}-byte field exceeds the {limit}-byte limit"
                 )
             }
+            Self::EmbeddedNul => formatter.write_str("a wire byte string contains an embedded NUL"),
+            Self::InvalidDiscriminant { value } => {
+                write!(formatter, "wire discriminant {value} is not recognized")
+            }
         }
     }
 }
@@ -79,7 +87,9 @@ impl<E: std::error::Error + 'static> std::error::Error for DecodeError<E> {
             | Self::UnexpectedTrailingBits { .. }
             | Self::InvalidTerminalPaddingLength { .. }
             | Self::NonByteAligned { .. }
-            | Self::LengthExceedsLimit { .. } => None,
+            | Self::LengthExceedsLimit { .. }
+            | Self::EmbeddedNul
+            | Self::InvalidDiscriminant { .. } => None,
         }
     }
 }
@@ -104,6 +114,10 @@ pub enum EncodeError<E> {
     LengthExceedsLimit { length: usize, limit: usize },
     /// A collection did not contain the exact number of wire elements required.
     InvalidCollectionLength { length: usize, expected: usize },
+    /// A wire byte string contains an embedded NUL.
+    EmbeddedNul,
+    /// Related fields cannot be represented together on the wire.
+    InvalidFieldCombination { field: &'static str },
 }
 
 impl<E: fmt::Display> fmt::Display for EncodeError<E> {
@@ -141,6 +155,10 @@ impl<E: fmt::Display> fmt::Display for EncodeError<E> {
                 formatter,
                 "a collection contains {length} elements; exactly {expected} are required"
             ),
+            Self::EmbeddedNul => formatter.write_str("a wire byte string contains an embedded NUL"),
+            Self::InvalidFieldCombination { field } => {
+                write!(formatter, "wire field combination for {field} is invalid")
+            }
         }
     }
 }
@@ -154,7 +172,9 @@ impl<E: std::error::Error + 'static> std::error::Error for EncodeError<E> {
             | Self::NonMinimalStorage { .. }
             | Self::NonByteAlignedPayload { .. }
             | Self::LengthExceedsLimit { .. }
-            | Self::InvalidCollectionLength { .. } => None,
+            | Self::InvalidCollectionLength { .. }
+            | Self::EmbeddedNul
+            | Self::InvalidFieldCombination { .. } => None,
         }
     }
 }

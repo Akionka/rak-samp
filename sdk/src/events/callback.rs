@@ -2,7 +2,7 @@ pub(crate) use super::core::CallbackFailurePhase;
 use super::{
     Event, IncomingPacket as LegacyIncomingPacket, IncomingRpc as LegacyIncomingRpc,
     OutgoingPacket as LegacyOutgoingPacket, OutgoingRpc as LegacyOutgoingRpc, ProtocolAction,
-    handle_protocol,
+    handle_encoded_string_protocol, handle_protocol,
 };
 use crate::SampClientSdkHookAction;
 
@@ -221,19 +221,90 @@ protocol_adapter!(
     "packet"
 );
 protocol_adapter!(
-    Incoming,
-    RpcKind,
-    samp_protocol::IncomingRpcDescriptor,
-    "incoming",
-    "rpc"
-);
-protocol_adapter!(
     Outgoing,
     RpcKind,
     samp_protocol::OutgoingRpcDescriptor,
     "outgoing",
     "rpc"
 );
+
+trait IncomingRpcCapability<D: samp_protocol::IncomingRpcDescriptor> {
+    fn handle<F>(
+        event: &mut Event<'_>,
+        handler: F,
+    ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
+    where
+        F: FnOnce(
+            <D as samp_protocol::IncomingRpcDescriptor>::Value,
+        ) -> ProtocolAction<<D as samp_protocol::IncomingRpcDescriptor>::Value>;
+}
+
+impl<D> IncomingRpcCapability<D> for samp_protocol::PlainWire
+where
+    D: samp_protocol::IncomingRpcDescriptor<Capability = samp_protocol::PlainWire>
+        + samp_protocol::WireDescriptor<Value = <D as samp_protocol::IncomingRpcDescriptor>::Value>,
+{
+    fn handle<F>(
+        event: &mut Event<'_>,
+        handler: F,
+    ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
+    where
+        F: FnOnce(
+            <D as samp_protocol::IncomingRpcDescriptor>::Value,
+        ) -> ProtocolAction<<D as samp_protocol::IncomingRpcDescriptor>::Value>,
+    {
+        handle_protocol::<D>(event, handler).map_err(|error| error.phase())
+    }
+}
+
+impl<D> IncomingRpcCapability<D> for samp_protocol::EncodedStringWire
+where
+    D: samp_protocol::IncomingRpcDescriptor<Capability = samp_protocol::EncodedStringWire>
+        + samp_protocol::EncodedStringWireDescriptor<
+            Value = <D as samp_protocol::IncomingRpcDescriptor>::Value,
+        >,
+{
+    fn handle<F>(
+        event: &mut Event<'_>,
+        handler: F,
+    ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
+    where
+        F: FnOnce(
+            <D as samp_protocol::IncomingRpcDescriptor>::Value,
+        ) -> ProtocolAction<<D as samp_protocol::IncomingRpcDescriptor>::Value>,
+    {
+        handle_encoded_string_protocol::<D>(event, handler).map_err(|error| error.phase())
+    }
+}
+
+impl<D> private::CallbackAdapter<Incoming, RpcKind> for D
+where
+    D: samp_protocol::IncomingRpcDescriptor,
+    D::Capability: IncomingRpcCapability<D>,
+{
+    type Value = <D as samp_protocol::IncomingRpcDescriptor>::Value;
+    type State = ();
+
+    const DIRECTION: &'static str = "incoming";
+    const KIND: &'static str = "rpc";
+
+    fn id(&self) -> u8 {
+        <D as samp_protocol::IncomingRpcDescriptor>::ID
+    }
+
+    fn into_state(self) -> Self::State {}
+
+    fn handle<F>(
+        _state: &Self::State,
+        event: &mut Event<'_>,
+        handler: F,
+    ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
+    where
+        F: FnOnce(Self::Value) -> ProtocolAction<Self::Value>,
+    {
+        <D::Capability as IncomingRpcCapability<D>>::handle(event, handler)
+    }
+}
 
 macro_rules! legacy_adapter {
     ($descriptor:ident, $direction:ty, $kind:ty, $direction_name:literal, $kind_name:literal) => {

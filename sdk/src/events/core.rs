@@ -15,8 +15,6 @@ use core::{fmt, marker::PhantomData};
 /// This covers the documented 4096-byte SA-MP dialog/info limit while preventing a malformed
 /// server packet from requesting an unbounded allocation in a plugin.
 pub const MAX_STRING32_BYTES: usize = 4096;
-/// Maximum decoded text bytes accepted by `encodedString4096` helpers.
-pub const MAX_ENCODED_STRING_BYTES: usize = 4095;
 
 /// A three-dimensional SA-MP coordinate or velocity.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -110,6 +108,8 @@ pub(crate) enum ProtocolEventError {
     DecodeMalformed(samp_protocol::DecodeError<EventError>),
     /// The Protocol descriptor could not canonically encode a replacement.
     ReplacementEncode(samp_protocol::EncodeError<samp_protocol::BitStreamError>),
+    /// An injected encoded-string descriptor could not encode a replacement.
+    ReplacementEncodedStringEncode(samp_protocol::EncodeError<EventError>),
     /// The Host rejected the completed replacement payload.
     ReplacementHost(EventError),
 }
@@ -128,6 +128,7 @@ impl ProtocolEventError {
             Self::DecodeSource(_) => CallbackFailurePhase::DecodeSource,
             Self::DecodeMalformed(_) => CallbackFailurePhase::DecodeMalformed,
             Self::ReplacementEncode(_) => CallbackFailurePhase::ReplacementEncode,
+            Self::ReplacementEncodedStringEncode(_) => CallbackFailurePhase::ReplacementEncode,
             Self::ReplacementHost(_) => CallbackFailurePhase::ReplacementHost,
         }
     }
@@ -364,6 +365,16 @@ impl<'callback> samp_protocol::BitRead for Event<'callback> {
     }
 }
 
+impl<'callback> samp_protocol::EncodedStringRead for Event<'callback> {
+    fn read_encoded_string(&mut self, max_len: usize) -> Result<Vec<u8>, Self::Error> {
+        let capacity = max_len.checked_add(1).ok_or(EventError::ValueOutOfRange {
+            value: max_len,
+            maximum: usize::MAX - 1,
+        })?;
+        Event::read_encoded_string(self, capacity)
+    }
+}
+
 pub(super) struct PayloadWriter {
     bytes: Vec<u8>,
     bit_len: usize,
@@ -377,6 +388,7 @@ impl PayloadWriter {
         }
     }
 
+    #[cfg(test)]
     pub(super) fn finish_bits(self) -> EncodedPayload {
         EncodedPayload {
             bytes: self.bytes,
@@ -384,22 +396,12 @@ impl PayloadWriter {
         }
     }
 
-    pub(super) fn u8(&mut self, value: u8) {
-        self.bytes(&[value]);
-    }
-
+    #[cfg(test)]
     pub(super) fn u16(&mut self, value: u16) {
         self.bytes(&value.to_le_bytes());
     }
 
-    pub(super) fn u32(&mut self, value: u32) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    pub(super) fn f32(&mut self, value: f32) {
-        self.u32(value.to_bits());
-    }
-
+    #[cfg(test)]
     pub(super) fn bytes(&mut self, value: &[u8]) {
         self.bits(value, value.len() * u8::BITS as usize);
     }
@@ -423,26 +425,8 @@ impl PayloadWriter {
         self.bit_len += 1;
     }
 
-    pub(super) fn string8(&mut self, value: &[u8]) -> Result<(), EventError> {
-        if value.len() > u8::MAX as usize {
-            return Err(EventError::ValueOutOfRange {
-                value: value.len(),
-                maximum: u8::MAX as usize,
-            });
-        }
-        self.u8(value.len() as u8);
-        self.bytes(value);
-        Ok(())
-    }
-
-    pub(super) fn vector3(&mut self, value: Vector3) {
-        self.f32(value.x);
-        self.f32(value.y);
-        self.f32(value.z);
-    }
-
     pub(super) fn encoded_string(&mut self, api: HostApi, value: &[u8]) -> Result<(), EventError> {
-        self.encoded_string_with_limit(api, value, MAX_ENCODED_STRING_BYTES)
+        self.encoded_string_with_limit(api, value, samp_protocol::limits::MAX_ENCODED_STRING_BYTES)
     }
 
     pub(super) fn encoded_string_with_limit(
@@ -475,6 +459,40 @@ impl samp_protocol::BitWrite for PayloadWriter {
         }
         self.bits(bytes, bit_len);
         Ok(())
+    }
+}
+
+pub(super) struct EncodedStringPayloadWriter {
+    api: HostApi,
+    payload: PayloadWriter,
+}
+
+impl EncodedStringPayloadWriter {
+    pub(super) fn new(api: HostApi) -> Self {
+        Self {
+            api,
+            payload: PayloadWriter::new(),
+        }
+    }
+}
+
+impl samp_protocol::BitWrite for EncodedStringPayloadWriter {
+    type Error = EventError;
+
+    fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
+        samp_protocol::BitWrite::write_left_aligned_bits(&mut self.payload, bytes, bit_len)
+    }
+}
+
+impl samp_protocol::EncodedStringWrite for EncodedStringPayloadWriter {
+    fn write_encoded_string(&mut self, value: &[u8]) -> Result<(), Self::Error> {
+        self.payload.encoded_string(self.api, value)
+    }
+
+    fn finish_encoded_bits(
+        self,
+    ) -> Result<samp_protocol::EncodedBits, samp_protocol::EncodedBitsError> {
+        samp_protocol::EncodedBits::from_bits(self.payload.bytes, self.payload.bit_len)
     }
 }
 
@@ -714,13 +732,6 @@ macro_rules! directional_descriptor {
                 self.0.handle_classified(event, handler)
             }
         }
-
-        #[cfg(test)]
-        impl<T> TypedDescriptor<T> for $name<T> {
-            fn into_rpc(self) -> Rpc<T> {
-                self.0
-            }
-        }
     };
 }
 
@@ -728,18 +739,6 @@ directional_descriptor!(IncomingPacket);
 directional_descriptor!(OutgoingPacket);
 directional_descriptor!(IncomingRpc);
 directional_descriptor!(OutgoingRpc);
-
-#[cfg(test)]
-pub(crate) trait TypedDescriptor<T> {
-    fn into_rpc(self) -> Rpc<T>;
-}
-
-#[cfg(test)]
-impl<T> TypedDescriptor<T> for Rpc<T> {
-    fn into_rpc(self) -> Rpc<T> {
-        self
-    }
-}
 
 /// Handles one Protocol Packet or RPC descriptor from a raw callback event.
 ///
@@ -775,6 +774,38 @@ where
     }
 }
 
+/// Handles one Protocol descriptor that injects the Host encoded-string codec.
+pub(crate) fn handle_encoded_string_protocol<D>(
+    event: &mut Event<'_>,
+    handler: impl FnOnce(D::Value) -> ProtocolAction<D::Value>,
+) -> Result<SampClientSdkHookAction, ProtocolEventError>
+where
+    D: samp_protocol::EncodedStringWireDescriptor,
+{
+    if event.id() != D::ID {
+        return Ok(SampClientSdkHookAction::Continue);
+    }
+    event
+        .reset_read()
+        .map_err(ProtocolEventError::DecodeSource)?;
+    let value = D::decode_from(event).map_err(|error| match error {
+        samp_protocol::DecodeError::Source(error) => ProtocolEventError::DecodeSource(error),
+        error => ProtocolEventError::DecodeMalformed(error),
+    })?;
+    match handler(value) {
+        ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
+        ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
+        ProtocolAction::Replace(value) => {
+            let payload = D::encode_bits(EncodedStringPayloadWriter::new(event.api), &value)
+                .map_err(ProtocolEventError::ReplacementEncodedStringEncode)?;
+            event
+                .replace_bits(payload.as_bytes(), payload.len_bits())
+                .map_err(ProtocolEventError::ReplacementHost)?;
+            Ok(SampClientSdkHookAction::Continue)
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -782,7 +813,7 @@ mod tests {
     #[test]
     fn payload_writer_preserves_partial_bit_lengths() {
         let mut writer = PayloadWriter::new();
-        writer.u8(0xA5);
+        writer.bits(&[0xA5], 8);
         writer.bits(&[0b1100_0000], 3);
         let payload = writer.finish_bits();
 

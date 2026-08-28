@@ -2078,38 +2078,6 @@ unsafe extern "system" fn test_submit_register_chat_command(
     unsafe { test_submit_command(receipt, 41) }
 }
 
-pub(crate) fn assert_replacement_round_trip<T, D>(descriptor: D, value: T)
-where
-    D: super::TypedDescriptor<T>,
-    T: Clone + ::core::fmt::Debug + PartialEq,
-{
-    let descriptor = super::TypedDescriptor::into_rpc(descriptor);
-    let api = test_api();
-    let id = descriptor.id();
-    let encoded = descriptor
-        .encode(api, value.clone())
-        .expect("test payload must encode");
-    let mut raw = TestEvent::new(id, encoded.clone());
-    let mut event = unsafe {
-        Event::from_callback(
-            api,
-            (&mut raw as *mut TestEvent).cast::<SampClientSdkEventV1>(),
-        )
-    }
-    .expect("test event is not null");
-    assert_eq!(
-        descriptor
-            .handle(&mut event, |decoded| {
-                assert_eq!(decoded, value);
-                ProtocolAction::Replace(decoded)
-            })
-            .expect("typed replacement must succeed"),
-        SampClientSdkHookAction::Continue
-    );
-    assert_eq!(raw.bit_len, encoded.bit_len);
-    assert_eq!(raw.bytes, encoded.bytes);
-}
-
 pub(crate) fn assert_protocol_replacement_round_trip<D>(_descriptor: D, value: D::Value)
 where
     D: samp_protocol::WireDescriptor,
@@ -2134,6 +2102,39 @@ where
             ProtocolAction::Replace(decoded)
         })
         .expect("Protocol replacement must succeed"),
+        SampClientSdkHookAction::Continue
+    );
+    assert_eq!(raw.bit_len, encoded.len_bits());
+    assert_eq!(raw.bytes, encoded.as_bytes());
+}
+
+pub(crate) fn assert_encoded_string_protocol_replacement_round_trip<D>(
+    _descriptor: D,
+    value: D::Value,
+) where
+    D: samp_protocol::EncodedStringWireDescriptor,
+    D::Value: Clone + ::core::fmt::Debug + PartialEq,
+{
+    let api = test_api();
+    let bits = D::encode_bits(super::core::EncodedStringPayloadWriter::new(api), &value)
+        .expect("test payload must encode");
+    let encoded = EncodedPayload::from_bits(bits.as_bytes().to_vec(), bits.len_bits())
+        .expect("encoded protocol payload must fit the callback event");
+    let mut raw = TestEvent::new(D::ID, encoded.clone());
+    let mut event = unsafe {
+        Event::from_callback(
+            api,
+            (&mut raw as *mut TestEvent).cast::<SampClientSdkEventV1>(),
+        )
+    }
+    .expect("test event is not null");
+
+    assert_eq!(
+        super::handle_encoded_string_protocol::<D>(&mut event, |decoded| {
+            assert_eq!(decoded, value);
+            ProtocolAction::Replace(decoded)
+        })
+        .expect("encoded-string Protocol replacement must succeed"),
         SampClientSdkHookAction::Continue
     );
     assert_eq!(raw.bit_len, encoded.len_bits());

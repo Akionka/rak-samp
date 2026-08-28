@@ -1,17 +1,93 @@
 //! Profile-neutral incoming RPC codecs.
-//!
-//! `SHOW_DIALOG` remains in the SDK because it crosses the Native
-//! encoded-string boundary.
 
 use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, ExactBytesPolicy, WireCodec, WireReadExt,
-    WireWriteExt,
+    BitRead, BitWrite, DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec,
+    EncodedStringWireDescriptor, EncodedStringWrite, ExactBytesPolicy, TrailingPolicy, WireCodec,
+    WireKind, WireReadExt, WireWriteExt,
 };
 
 use crate::{
-    limits::MAX_STRING32_BYTES,
+    encoded_string::{read_encoded_string, write_encoded_string},
+    limits::{MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES},
     types::{Vector2, Vector3},
 };
+
+/// MoonLoader's `onShowDialog` payload (RPC 61).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ShowDialog {
+    pub dialog_id: u16,
+    pub style: u8,
+    pub title: Vec<u8>,
+    pub button1: Vec<u8>,
+    pub button2: Vec<u8>,
+    pub text: Vec<u8>,
+}
+
+struct ShowDialogCodec;
+
+impl EncodedStringWireCodec for ShowDialogCodec {
+    type Value = ShowDialog;
+
+    fn decode<R: EncodedStringRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+        Ok(ShowDialog {
+            dialog_id: reader.read_u16_le()?,
+            style: reader.read_u8()?,
+            title: reader.read_len_prefixed_bytes_u8(u8::MAX as usize)?,
+            button1: reader.read_len_prefixed_bytes_u8(u8::MAX as usize)?,
+            button2: reader.read_len_prefixed_bytes_u8(u8::MAX as usize)?,
+            text: read_encoded_string(reader, MAX_ENCODED_STRING_BYTES)?,
+        })
+    }
+
+    fn encode<W: EncodedStringWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), EncodeError<W::Error>> {
+        writer.write_u16_le(value.dialog_id)?;
+        writer.write_u8(value.style)?;
+        writer.write_len_prefixed_bytes_u8(&value.title, u8::MAX as usize)?;
+        writer.write_len_prefixed_bytes_u8(&value.button1, u8::MAX as usize)?;
+        writer.write_len_prefixed_bytes_u8(&value.button2, u8::MAX as usize)?;
+        write_encoded_string(writer, &value.text, MAX_ENCODED_STRING_BYTES)
+    }
+}
+
+/// The profile-neutral incoming `SHOW_DIALOG` Wire descriptor.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ShowDialogRpc;
+
+/// The profile-neutral incoming `SHOW_DIALOG` Wire descriptor value.
+pub const SHOW_DIALOG: ShowDialogRpc = ShowDialogRpc;
+
+impl crate::encoded_string::sealed::EncodedStringWireDescriptor<ShowDialog> for ShowDialogRpc {
+    fn decode<R: EncodedStringRead>(reader: &mut R) -> Result<ShowDialog, DecodeError<R::Error>> {
+        ShowDialogCodec::decode(reader)
+    }
+
+    fn encode<W: EncodedStringWrite>(
+        writer: &mut W,
+        value: &ShowDialog,
+    ) -> Result<(), EncodeError<W::Error>> {
+        ShowDialogCodec::encode(writer, value)
+    }
+}
+
+impl EncodedStringWireDescriptor for ShowDialogRpc {
+    type Value = ShowDialog;
+
+    const ID: u8 = 61;
+    const KIND: WireKind = WireKind::Rpc;
+    const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
+}
+
+impl crate::wire::sealed::IncomingRpcDescriptor for ShowDialogRpc {}
+
+impl crate::IncomingRpcDescriptor for ShowDialogRpc {
+    type Value = ShowDialog;
+    type Capability = crate::EncodedStringWire;
+
+    const ID: u8 = 61;
+}
 
 /// MoonLoader's `onServerMessage` payload (RPC 93).
 #[derive(Clone, Debug, PartialEq)]

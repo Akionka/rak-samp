@@ -27,11 +27,13 @@
   byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet
   codecs remain Protocol-owned. Directional marker traits make an invalid typed
   subscription or send fail to compile. Profile-neutral incoming RPCs live under
-  `rpc::incoming::common`; R1 player, session, world, UI, vehicle, and actor
-  RPCs live under `rpc::incoming::r1`. `SHOW_DIALOG` remains under the SDK-owned semantic path
-  `events::rpc::incoming::common::SHOW_DIALOG` until the Native encoded-string
-  extension boundary moves. The SDK R1 path retains only descriptors and
-  payloads that still require Native encoded strings.
+  `rpc::incoming::common`; R1 player, session, world, UI, vehicle, actor, and
+  object-material RPCs live under `rpc::incoming::r1`. `SHOW_DIALOG`,
+  `CREATE_3D_TEXT`, `CREATE_OBJECT`, and `SET_OBJECT_MATERIAL` use the narrow
+  `EncodedStringRead` and `EncodedStringWrite` contracts. The SDK injects the
+  Host compressor without moving Native code into Protocol. Their canonical
+  descriptor encoding consumes the injected writer and returns owned
+  `EncodedBits` with the exact bit length.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
