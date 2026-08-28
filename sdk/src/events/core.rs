@@ -400,10 +400,6 @@ impl PayloadWriter {
         self.u32(value.to_bits());
     }
 
-    pub(super) fn i16(&mut self, value: i16) {
-        self.u16(value as u16);
-    }
-
     pub(super) fn bytes(&mut self, value: &[u8]) {
         self.bits(value, value.len() * u8::BITS as usize);
     }
@@ -425,10 +421,6 @@ impl PayloadWriter {
             self.bytes[byte_index] |= 0x80 >> bit_index;
         }
         self.bit_len += 1;
-    }
-
-    pub(super) fn bool(&mut self, value: bool) {
-        self.bit(value);
     }
 
     pub(super) fn string8(&mut self, value: &[u8]) -> Result<(), EventError> {

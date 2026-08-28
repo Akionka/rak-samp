@@ -102,6 +102,8 @@ pub enum EncodeError<E> {
     NonByteAlignedPayload { bit_len: usize },
     /// A length-prefixed field exceeded its Protocol-defined byte limit.
     LengthExceedsLimit { length: usize, limit: usize },
+    /// A collection did not contain the exact number of wire elements required.
+    InvalidCollectionLength { length: usize, expected: usize },
 }
 
 impl<E: fmt::Display> fmt::Display for EncodeError<E> {
@@ -135,6 +137,10 @@ impl<E: fmt::Display> fmt::Display for EncodeError<E> {
                     "a {length}-byte field exceeds the {limit}-byte limit"
                 )
             }
+            Self::InvalidCollectionLength { length, expected } => write!(
+                formatter,
+                "a collection contains {length} elements; exactly {expected} are required"
+            ),
         }
     }
 }
@@ -147,7 +153,8 @@ impl<E: std::error::Error + 'static> std::error::Error for EncodeError<E> {
             | Self::InvalidBitLength { .. }
             | Self::NonMinimalStorage { .. }
             | Self::NonByteAlignedPayload { .. }
-            | Self::LengthExceedsLimit { .. } => None,
+            | Self::LengthExceedsLimit { .. }
+            | Self::InvalidCollectionLength { .. } => None,
         }
     }
 }

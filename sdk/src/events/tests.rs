@@ -10,7 +10,7 @@ use samp_protocol::{
     WireDescriptor,
     packet::r1 as protocol_packet,
     rpc::incoming::{common as protocol_common, r1 as protocol_r1},
-    types::Vector3 as ProtocolVector3,
+    types::{Vector2 as ProtocolVector2, Vector3 as ProtocolVector3},
 };
 
 fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
@@ -19,6 +19,10 @@ fn test_vector3(x: f32, y: f32, z: f32) -> Vector3 {
 
 fn test_protocol_vector3(x: f32, y: f32, z: f32) -> ProtocolVector3 {
     ProtocolVector3 { x, y, z }
+}
+
+fn test_protocol_vector2(x: f32, y: f32) -> ProtocolVector2 {
+    ProtocolVector2 { x, y }
 }
 
 fn test_spawn_info() -> protocol_r1::SpawnInfo {
@@ -30,19 +34,6 @@ fn test_spawn_info() -> protocol_r1::SpawnInfo {
         rotation: 4.0,
         weapons: [22, 24, 31],
         ammo: [100, 200, 300],
-    }
-}
-
-fn test_animation() -> incoming_r1::Animation {
-    incoming_r1::Animation {
-        animation_library: b"PED".to_vec(),
-        animation_name: b"WALK".to_vec(),
-        frame_delta: 4.0,
-        looped: true,
-        lock_x: false,
-        lock_y: true,
-        freeze: false,
-        time: -1,
     }
 }
 
@@ -688,42 +679,42 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
         },
     );
     assert_protocol_replacement_round_trip(protocol_r1::SET_SPAWN_INFO, test_spawn_info());
-    assert_replacement_round_trip(
-        incoming_r1::INIT_MENU,
-        incoming_r1::InitMenu {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::INIT_MENU,
+        protocol_r1::InitMenu {
             menu_id: 1,
             two_columns: true,
             title: *b"R1 menu                         ",
-            position: Vector2 { x: 10.0, y: 20.0 },
+            position: test_protocol_vector2(10.0, 20.0),
             columns: vec![
-                incoming_r1::MenuColumn {
+                protocol_r1::MenuColumn {
                     width: 100.0,
                     title: *b"first                           ",
                     rows: vec![*b"one                             "],
                 },
-                incoming_r1::MenuColumn {
+                protocol_r1::MenuColumn {
                     width: 200.0,
                     title: *b"second                          ",
                     rows: vec![*b"two                             "],
                 },
             ],
-            rows: [-1; incoming_r1::MAX_MENU_ROWS],
+            rows: [-1; protocol_r1::MAX_MENU_ROWS],
             menu: false,
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::INTERPOLATE_CAMERA,
-        incoming_r1::InterpolateCamera {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::INTERPOLATE_CAMERA,
+        protocol_r1::InterpolateCamera {
             set_position: true,
-            from_position: test_vector3(1.0, 2.0, 3.0),
-            destination: test_vector3(4.0, 5.0, 6.0),
+            from_position: test_protocol_vector3(1.0, 2.0, 3.0),
+            destination: test_protocol_vector3(4.0, 5.0, 6.0),
             time_ms: 500,
             mode: 2,
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::TOGGLE_SELECT_TEXT_DRAW,
-        incoming_r1::ToggleSelectTextDraw {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::TOGGLE_SELECT_TEXT_DRAW,
+        protocol_r1::ToggleSelectTextDraw {
             enabled: true,
             hover_color: -1,
         },
@@ -793,19 +784,19 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             }),
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::ENTER_EDIT_OBJECT,
-        incoming_r1::EnterEditObject {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::ENTER_EDIT_OBJECT,
+        protocol_r1::EnterEditObject {
             player_object: true,
             object_id: 5,
         },
     );
     assert_protocol_replacement_round_trip(protocol_r1::TOGGLE_PLAYER_SPECTATING, false);
-    assert_replacement_round_trip(
-        incoming_r1::SHOW_TEXT_DRAW,
-        incoming_r1::ShowTextDraw {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::SHOW_TEXT_DRAW,
+        protocol_r1::ShowTextDraw {
             textdraw_id: 99,
-            textdraw: incoming_r1::TextDraw {
+            textdraw: protocol_r1::TextDraw {
                 flags: 1,
                 letter_width: 0.5,
                 letter_height: 1.0,
@@ -818,9 +809,9 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
                 background_color: 0,
                 style: 4,
                 selectable: 1,
-                position: Vector2 { x: 100.0, y: 200.0 },
+                position: test_protocol_vector2(100.0, 200.0),
                 model_id: 1234,
-                rotation: test_vector3(0.0, 0.0, 1.0),
+                rotation: test_protocol_vector3(0.0, 0.0, 1.0),
                 zoom: 1.5,
                 color1: -1,
                 color2: 2,
@@ -828,7 +819,7 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(incoming_r1::TEXT_DRAW_HIDE, 99);
+    assert_protocol_replacement_round_trip(protocol_r1::TEXT_DRAW_HIDE, 99);
     assert_protocol_replacement_round_trip(
         protocol_r1::UPDATE_SCORES_AND_PINGS,
         protocol_r1::ScoresAndPings {
@@ -839,13 +830,13 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             }],
         },
     );
-    assert_replacement_round_trip(
-        incoming_r1::VEHICLE_STREAM_IN,
-        incoming_r1::VehicleStreamIn {
+    assert_protocol_replacement_round_trip(
+        protocol_r1::VEHICLE_STREAM_IN,
+        protocol_r1::VehicleStreamIn {
             vehicle_id: 9,
-            vehicle: incoming_r1::StreamedVehicle {
+            vehicle: protocol_r1::StreamedVehicle {
                 model: 411,
-                position: test_vector3(1.0, 2.0, 3.0),
+                position: test_protocol_vector3(1.0, 2.0, 3.0),
                 rotation: 45.0,
                 body_color1: 1,
                 body_color2: 2,
@@ -863,13 +854,13 @@ fn r1_complex_incoming_rpc_helpers_decode_and_atomically_replace() {
             },
         },
     );
-    assert_replacement_round_trip(incoming_r1::DISABLE_VEHICLE_COLLISIONS, true);
-    assert_replacement_round_trip(incoming_r1::TOGGLE_CAMERA_TARGET_NOTIFYING, false);
-    assert_replacement_round_trip(
-        incoming_r1::APPLY_ACTOR_ANIMATION,
-        incoming_r1::ActorAnimation {
+    assert_protocol_replacement_round_trip(protocol_r1::DISABLE_VEHICLE_COLLISIONS, true);
+    assert_protocol_replacement_round_trip(protocol_r1::TOGGLE_CAMERA_TARGET_NOTIFYING, false);
+    assert_protocol_replacement_round_trip(
+        protocol_r1::APPLY_ACTOR_ANIMATION,
+        protocol_r1::ActorAnimation {
             actor_id: 8,
-            animation: test_animation(),
+            animation: test_protocol_animation(),
         },
     );
 }
@@ -1132,23 +1123,23 @@ fn r1_complex_incoming_rpc_helpers_use_their_protocol_ids() {
         (incoming_r1::CREATE_3D_TEXT.id(), 36),
         (incoming_r1::CREATE_OBJECT.id(), 44),
         (protocol_r1::SpawnInfoRpc::ID, 68),
-        (incoming_r1::INIT_MENU.id(), 76),
-        (incoming_r1::INTERPOLATE_CAMERA.id(), 82),
-        (incoming_r1::TOGGLE_SELECT_TEXT_DRAW.id(), 83),
+        (protocol_r1::InitMenuRpc::ID, 76),
+        (protocol_r1::InterpolateCameraRpc::ID, 82),
+        (protocol_r1::ToggleSelectTextDrawRpc::ID, 83),
         (incoming_r1::SET_OBJECT_MATERIAL.id(), 84),
         (protocol_r1::PlayerAnimationRpc::ID, 86),
         (protocol_r1::EnableStuntBonusRpc::ID, 104),
         (protocol_r1::CrimeReportRpc::ID, 112),
         (protocol_r1::PlayerAttachedObjectRpc::ID, 113),
-        (incoming_r1::ENTER_EDIT_OBJECT.id(), 117),
+        (protocol_r1::EnterEditObjectRpc::ID, 117),
         (protocol_r1::TogglePlayerSpectatingRpc::ID, 124),
-        (incoming_r1::SHOW_TEXT_DRAW.id(), 134),
-        (incoming_r1::TEXT_DRAW_HIDE.id(), 135),
+        (protocol_r1::ShowTextDrawRpc::ID, 134),
+        (protocol_r1::TextDrawHideRpc::ID, 135),
         (protocol_r1::ScoresAndPingsRpc::ID, 155),
-        (incoming_r1::VEHICLE_STREAM_IN.id(), 164),
-        (incoming_r1::DISABLE_VEHICLE_COLLISIONS.id(), 167),
-        (incoming_r1::TOGGLE_CAMERA_TARGET_NOTIFYING.id(), 170),
-        (incoming_r1::APPLY_ACTOR_ANIMATION.id(), 173),
+        (protocol_r1::VehicleStreamInRpc::ID, 164),
+        (protocol_r1::DisableVehicleCollisionsRpc::ID, 167),
+        (protocol_r1::ToggleCameraTargetNotifyingRpc::ID, 170),
+        (protocol_r1::ApplyActorAnimationRpc::ID, 173),
     ];
     for (actual, expected) in descriptors {
         assert_eq!(actual, expected);
