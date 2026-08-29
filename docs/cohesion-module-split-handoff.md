@@ -1,6 +1,6 @@
 # Cohesion-Oriented Module Split Handoff
 
-Status: in progress; P0-P9 complete, P10 optional/deferred.
+Status: in progress; P0-P9 complete, P10 implementation complete, live validation in progress.
 
 Baseline reviewed: `master` at `f3fa5e5` (`refactor(protocol-sdk)!: inject encoded-string codecs`), 2026-08-29.
 
@@ -10,8 +10,13 @@ Implementation checkpoint (2026-08-29): P0-P9 and P10-01 through P10-09 are
 complete through `1181e54`. The full repository quality gate passes. The release host DLL is
 built in the repository-local `target/i686-pc-windows-msvc/release` directory
 and still exports only `DllMain` and `SampClientSdk_GetApiV1`. Continue with
-P10-10 four-profile live validation against the final release probe binaries,
-then P11 documentation and final acceptance.
+P10-10 live validation against the final release probe binaries. R1 completed
+the connected and reconnect passes with `status=0x3FFFFFFF` and `failure=0`;
+R3/R5/DL remain. The R1 environment required `gta_sa_fsr.asi` to be disabled
+after its crash handler recorded a null-object access violation in
+`gta_sa.exe`, with FSR frames and no SDK/probe frame in the captured stack.
+After the remaining profiles, continue with P11 documentation and final
+acceptance.
 
 ## 1. Objective
 

@@ -946,7 +946,20 @@ Do not start while the live-validation contract is still changing.
   R3 `9e81b96f4f05569cd7b6a18ed7347860436276f4cee14886dc889571e9ffcf3e`,
   R5 `807ee1cdf8413559738c165e2bc2d5a6b5d5a811755efff1e40a8f034119bc3f`,
   DL `16681ac07cd877027ba696ac4728fbaed6c2b72c7011784ee0d69435f80075bd`.
-  Four-profile in-game status/failure evidence is still required.
+  R1 live evidence (2026-08-29): the installed host SHA-256 was
+  `bdae27c50b144e2e3578e55c6a603a48e66b82ef5f2e3357e7f4674a68b0094f`
+  and the installed R1 probe matched the repository hash above. The complete
+  connected and reconnect run reported `status=0x3FFFFFFF`, `failure=0`,
+  `reconnect_server_ready=true`, `reconnect_local_ready=true`,
+  `reconnect_game_state=Some(14)`, `reconnect_spawned=Some(true)`, and
+  `reconnect_incoming_ready=true`.
+
+  The first R1 attempt exposed an unrelated `gta_sa_fsr.asi` crash:
+  `fastman92limitAdjuster.log` recorded `EXCEPTION_ACCESS_VIOLATION` at
+  `gta_sa.exe+0x3F98DF` while dereferencing a null object, with FSR frames and
+  no SDK/probe frame in the captured stack. The same final host/probe pair
+  completed after only `gta_sa_fsr.asi` was disabled. R3/R5/DL in-game
+  status/failure evidence is still required.
 
 ### P10 gate
 
