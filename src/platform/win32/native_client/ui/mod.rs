@@ -1,5 +1,10 @@
 //! Guarded UI cache reads shared by immutable client profiles.
 
+mod chat;
+mod dialog;
+mod display;
+mod input;
+
 use super::{
     memory::{
         bounded_c_string, read_i32_bool, read_pointer, read_unaligned, readable_range,
