@@ -236,20 +236,6 @@ pub struct AudioStream {
     pub use_position: bool,
 }
 
-/// MoonLoader's `onSetObjectPosition` payload (RPC 45).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ObjectPosition {
-    pub object_id: u16,
-    pub position: Vector3,
-}
-
-/// MoonLoader's `onSetObjectRotation` payload (RPC 46).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct ObjectRotation {
-    pub object_id: u16,
-    pub rotation: Vector3,
-}
-
 /// MoonLoader's `onPlayerDeathNotification` payload (RPC 55).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerDeathNotification {
@@ -303,15 +289,6 @@ pub struct RemoveBuilding {
     pub model_id: i32,
     pub position: Vector3,
     pub radius: f32,
-}
-
-/// MoonLoader's `onAttachObjectToPlayer` payload (RPC 75).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct AttachObjectToPlayer {
-    pub object_id: u16,
-    pub player_id: u16,
-    pub offsets: Vector3,
-    pub rotation: Vector3,
 }
 
 /// MoonLoader's `onCreateExplosion` payload (RPC 79).
@@ -379,16 +356,6 @@ pub struct Pickup {
     pub model: i32,
     pub pickup_type: i32,
     pub position: Vector3,
-}
-
-/// MoonLoader's `onMoveObject` payload (RPC 99).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct MoveObject {
-    pub object_id: u16,
-    pub from_position: Vector3,
-    pub destination: Vector3,
-    pub speed: f32,
-    pub rotation: Vector3,
 }
 
 /// MoonLoader's `onTextDrawSetString` payload (RPC 105).
@@ -469,8 +436,6 @@ struct VehicleAngleCodec;
 struct VehicleHealthCodec;
 struct RaceCheckpointCodec;
 struct AudioStreamCodec;
-struct ObjectPositionCodec;
-struct ObjectRotationCodec;
 struct PlayerDeathNotificationCodec;
 struct MapIconCodec;
 struct VehicleComponentCodec;
@@ -478,7 +443,6 @@ struct VehicleInteriorCodec;
 struct PlayerColorCodec;
 struct PlayerSkillCodec;
 struct RemoveBuildingCodec;
-struct AttachObjectToPlayerCodec;
 struct ExplosionCodec;
 struct PlayerNameTagCodec;
 struct VehicleParamsExCodec;
@@ -487,7 +451,6 @@ struct VehicleDamageStatusCodec;
 struct PlayerFightingStyleCodec;
 struct VehicleVelocityCodec;
 struct PickupCodec;
-struct MoveObjectCodec;
 struct TextDrawStringCodec;
 struct GangZoneCodec;
 struct VehicleNumberPlateCodec;
@@ -511,6 +474,15 @@ macro_rules! descriptor {
     };
 }
 
+mod object;
+
+pub use object::{
+    ATTACH_OBJECT_TO_PLAYER, AttachObjectToPlayer, AttachObjectToPlayerRpc, CANCEL_EDIT,
+    CancelEdit, DESTROY_OBJECT, DestroyObject, EDIT_ATTACHED_OBJECT, ENTER_SELECT_OBJECT,
+    EditAttachedObject, EnterSelectObject, MOVE_OBJECT, MoveObject, MoveObjectRpc, ObjectPosition,
+    ObjectRotation, SET_OBJECT_POSITION, SET_OBJECT_ROTATION, SET_PLAYER_OBJECT_NO_CAMERA_COL,
+    STOP_OBJECT, SetObjectPosition, SetObjectRotation, SetPlayerObjectNoCameraCol, StopObject,
+};
 mod camera;
 
 pub use camera::{
@@ -661,7 +633,6 @@ descriptor!(
 );
 descriptor!(ResetPlayerMoney, RESET_PLAYER_MONEY, 20, Empty, ());
 descriptor!(ResetPlayerWeapons, RESET_PLAYER_WEAPONS, 21, Empty, ());
-descriptor!(CancelEdit, CANCEL_EDIT, 28, Empty, ());
 descriptor!(SetToggleClock, SET_TOGGLE_CLOCK, 30, Bool8, bool);
 descriptor!(SetPlayerDrunk, SET_PLAYER_DRUNK, 35, I32, i32);
 descriptor!(
@@ -678,21 +649,6 @@ descriptor!(
     AudioStreamCodec,
     AudioStream
 );
-descriptor!(
-    SetObjectPosition,
-    SET_OBJECT_POSITION,
-    45,
-    ObjectPositionCodec,
-    ObjectPosition
-);
-descriptor!(
-    SetObjectRotation,
-    SET_OBJECT_ROTATION,
-    46,
-    ObjectRotationCodec,
-    ObjectRotation
-);
-descriptor!(DestroyObject, DESTROY_OBJECT, 47, U16, u16);
 descriptor!(
     PlayerDeathNotificationRpc,
     PLAYER_DEATH_NOTIFICATION,
@@ -740,13 +696,6 @@ descriptor!(
     RemoveBuildingCodec,
     RemoveBuilding
 );
-descriptor!(
-    AttachObjectToPlayerRpc,
-    ATTACH_OBJECT_TO_PLAYER,
-    75,
-    AttachObjectToPlayerCodec,
-    AttachObjectToPlayer
-);
 descriptor!(ShowMenu, SHOW_MENU, 77, U8, u8);
 descriptor!(HideMenu, HIDE_MENU, 78, U8, u8);
 descriptor!(
@@ -793,8 +742,6 @@ descriptor!(
 );
 descriptor!(ToggleWidescreen, TOGGLE_WIDESCREEN, 111, Bool8, bool);
 descriptor!(DestroyWeaponPickup, DESTROY_WEAPON_PICKUP, 151, U8, u8);
-descriptor!(EditAttachedObject, EDIT_ATTACHED_OBJECT, 116, I32, i32);
-descriptor!(EnterSelectObject, ENTER_SELECT_OBJECT, 27, Empty, ());
 descriptor!(
     SetPlayerDrunkVisuals,
     SET_PLAYER_DRUNK_VISUALS,
@@ -808,13 +755,6 @@ descriptor!(
     150,
     I32,
     i32
-);
-descriptor!(
-    SetPlayerObjectNoCameraCol,
-    SET_PLAYER_OBJECT_NO_CAMERA_COL,
-    169,
-    U16,
-    u16
 );
 descriptor!(DisableCheckpoint, DISABLE_CHECKPOINT, 37, Empty, ());
 descriptor!(
@@ -863,7 +803,6 @@ descriptor!(
     VehicleVelocity
 );
 descriptor!(CreatePickup, CREATE_PICKUP, 95, PickupCodec, Pickup);
-descriptor!(MoveObjectRpc, MOVE_OBJECT, 99, MoveObjectCodec, MoveObject);
 descriptor!(
     TextDrawSetString,
     TEXT_DRAW_SET_STRING,
@@ -880,7 +819,6 @@ descriptor!(
 );
 descriptor!(GangZoneDestroy, GANG_ZONE_DESTROY, 120, U16, u16);
 descriptor!(GangZoneFlash, GANG_ZONE_FLASH, 121, U16I32Codec, (u16, i32));
-descriptor!(StopObject, STOP_OBJECT, 122, U16, u16);
 descriptor!(
     SetVehicleNumberPlate,
     SET_VEHICLE_NUMBER_PLATE,
@@ -1033,18 +971,6 @@ wire_codec!(
     write_audio_stream
 );
 wire_codec!(
-    ObjectPositionCodec,
-    ObjectPosition,
-    read_object_position,
-    write_object_position
-);
-wire_codec!(
-    ObjectRotationCodec,
-    ObjectRotation,
-    read_object_rotation,
-    write_object_rotation
-);
-wire_codec!(
     PlayerDeathNotificationCodec,
     PlayerDeathNotification,
     read_player_death_notification,
@@ -1080,12 +1006,6 @@ wire_codec!(
     RemoveBuilding,
     read_remove_building,
     write_remove_building
-);
-wire_codec!(
-    AttachObjectToPlayerCodec,
-    AttachObjectToPlayer,
-    read_attach_object_to_player,
-    write_attach_object_to_player
 );
 wire_codec!(ExplosionCodec, Explosion, read_explosion, write_explosion);
 wire_codec!(
@@ -1125,12 +1045,6 @@ wire_codec!(
     write_vehicle_velocity
 );
 wire_codec!(PickupCodec, Pickup, read_pickup, write_pickup);
-wire_codec!(
-    MoveObjectCodec,
-    MoveObject,
-    read_move_object,
-    write_move_object
-);
 wire_codec!(
     TextDrawStringCodec,
     TextDrawString,
@@ -1473,40 +1387,6 @@ fn write_audio_stream<W: BitWrite>(
     write_bool8(writer, &value.use_position)
 }
 
-fn read_object_position<R: BitRead>(
-    reader: &mut R,
-) -> Result<ObjectPosition, DecodeError<R::Error>> {
-    Ok(ObjectPosition {
-        object_id: reader.read_u16_le()?,
-        position: reader.read_vector3_le()?,
-    })
-}
-
-fn write_object_position<W: BitWrite>(
-    writer: &mut W,
-    value: &ObjectPosition,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.object_id)?;
-    writer.write_vector3_le(&value.position)
-}
-
-fn read_object_rotation<R: BitRead>(
-    reader: &mut R,
-) -> Result<ObjectRotation, DecodeError<R::Error>> {
-    Ok(ObjectRotation {
-        object_id: reader.read_u16_le()?,
-        rotation: reader.read_vector3_le()?,
-    })
-}
-
-fn write_object_rotation<W: BitWrite>(
-    writer: &mut W,
-    value: &ObjectRotation,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.object_id)?;
-    writer.write_vector3_le(&value.rotation)
-}
-
 fn read_player_death_notification<R: BitRead>(
     reader: &mut R,
 ) -> Result<PlayerDeathNotification, DecodeError<R::Error>> {
@@ -1630,27 +1510,6 @@ fn write_remove_building<W: BitWrite>(
     writer.write_i32_le(value.model_id)?;
     writer.write_vector3_le(&value.position)?;
     writer.write_f32_le(value.radius)
-}
-
-fn read_attach_object_to_player<R: BitRead>(
-    reader: &mut R,
-) -> Result<AttachObjectToPlayer, DecodeError<R::Error>> {
-    Ok(AttachObjectToPlayer {
-        object_id: reader.read_u16_le()?,
-        player_id: reader.read_u16_le()?,
-        offsets: reader.read_vector3_le()?,
-        rotation: reader.read_vector3_le()?,
-    })
-}
-
-fn write_attach_object_to_player<W: BitWrite>(
-    writer: &mut W,
-    value: &AttachObjectToPlayer,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.object_id)?;
-    writer.write_u16_le(value.player_id)?;
-    writer.write_vector3_le(&value.offsets)?;
-    writer.write_vector3_le(&value.rotation)
 }
 
 fn read_explosion<R: BitRead>(reader: &mut R) -> Result<Explosion, DecodeError<R::Error>> {
@@ -1802,27 +1661,6 @@ fn write_pickup<W: BitWrite>(writer: &mut W, value: &Pickup) -> Result<(), Encod
     writer.write_i32_le(value.model)?;
     writer.write_i32_le(value.pickup_type)?;
     writer.write_vector3_le(&value.position)
-}
-
-fn read_move_object<R: BitRead>(reader: &mut R) -> Result<MoveObject, DecodeError<R::Error>> {
-    Ok(MoveObject {
-        object_id: reader.read_u16_le()?,
-        from_position: reader.read_vector3_le()?,
-        destination: reader.read_vector3_le()?,
-        speed: reader.read_f32_le()?,
-        rotation: reader.read_vector3_le()?,
-    })
-}
-
-fn write_move_object<W: BitWrite>(
-    writer: &mut W,
-    value: &MoveObject,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.object_id)?;
-    writer.write_vector3_le(&value.from_position)?;
-    writer.write_vector3_le(&value.destination)?;
-    writer.write_f32_le(value.speed)?;
-    writer.write_vector3_le(&value.rotation)
 }
 
 fn read_text_draw_string<R: BitRead>(
