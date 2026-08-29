@@ -25,7 +25,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P1 | Protocol descriptor-helper cleanup | P0 | [x] |
 | P2 | Split incoming `common` RPCs | P1 | [x] |
 | P3 | Split incoming `r1` RPCs | P1 | [x] |
-| P4 | Split `Runtime` | P0 | [ ] |
+| P4 | Split `Runtime` | P0 | [x] |
 | P5 | Split/domainize game-thread commands | P0 | [ ] |
 | P6 | Reduce Win32 composition root | P5 recommended | [ ] |
 | P7 | Split native-client players/UI | P0 + live-validation decision | [ ] |
@@ -333,37 +333,63 @@ Target tree: `crates/samp-protocol/src/rpc/incoming/r1/`.
 
 Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
 
-- [ ] **P4-01 — Convert request/value declarations.**
+- [x] **P4-01 — Convert request/value declarations.**
   - Create `requests.rs` for local dialog/chat/death request types and styles.
   - Create `snapshots.rs` for all owned cache/sync/server/UI snapshots and `Vector3`.
   - Re-export crate-visible names from `runtime/mod.rs` so existing callers do not need broad edits.
 
-- [ ] **P4-02 — Extract `network.rs`.**
+- [x] **P4-02 — Extract `network.rs`.**
   - Move packet/RPC listeners, sends, submissions, incoming emulation, hook status/readiness, raw pointer reads, version, and string codec bridge methods.
   - Keep signatures unchanged.
 
-- [ ] **P4-03 — Extract `commands.rs`.**
+- [x] **P4-03 — Extract `commands.rs`.**
   - Move every local UI/connection/text-label/textdraw/player/force-sync/send-rate producer and receipt helper.
   - Do not redesign the host-facing command surface.
 
-- [ ] **P4-04 — Extract `reads.rs`.**
+- [x] **P4-04 — Extract `reads.rs`.**
   - Move all cache/snapshot/handle/animation read forwarding methods.
 
-- [ ] **P4-05 — Reduce `runtime/mod.rs` to lifecycle/composition.**
+- [x] **P4-05 — Reduce `runtime/mod.rs` to lifecycle/composition.**
   - Keep `Runtime`, `ClientHookStatus`, `attach`, `Drop`, module declarations, and narrow re-exports.
   - Move the existing narrow inline test beside the owner if its ownership becomes obvious; otherwise keep a small parent test module.
 
-- [ ] **P4-06 — Audit crate-visible paths.**
+- [x] **P4-06 — Audit crate-visible paths.**
   - Search all host modules for `crate::runtime::...` imports and confirm they still resolve without unnecessary visibility widening.
 
-- [ ] **P4-07 — Validate Runtime split.**
+- [x] **P4-07 — Validate Runtime split.**
   - Host unit tests.
   - Workspace check/test/Clippy at phase close.
   - Record final module LOC and commit hash.
 
+  Evidence (2026-08-29): request/snapshot values `6fc4176`; network
+  facade `87657e1`; command facade `3d02e5b`; read facade `6bad80a`;
+  composition-root and test ownership cleanup `19e3698`
+  (`19e36987c41fa7a48d6b637505dd5acc318a89b4`). All 173 host tests
+  passed. Workspace check, tests, and Clippy with warnings denied passed.
+  Format check and `git diff --check` passed. All existing
+  `crate::runtime::...` consumers compile through explicit crate-private
+  re-exports; no wildcard re-export was added.
+
+  Final physical/nonblank LOC:
+
+  | Module | Physical | Nonblank |
+  | --- | ---: | ---: |
+  | `runtime/mod.rs` | 58 | 53 |
+  | `runtime/requests.rs` | 125 | 114 |
+  | `runtime/snapshots.rs` | 249 | 232 |
+  | `runtime/network.rs` | 177 | 152 |
+  | `runtime/commands.rs` | 462 | 408 |
+  | `runtime/reads.rs` | 232 | 190 |
+  | `runtime/errors.rs` | 85 | 77 |
+  | `runtime/options.rs` | 48 | 43 |
+
+  `commands.rs` remains the largest module because it owns the unchanged
+  host-facing command producer and receipt surface. P5 will split the
+  game-thread command implementation by domain without changing this facade.
+
 ### P4 gate
 
-- [ ] `runtime/mod.rs` is a composition root; no behavior or public/host contract changed.
+- [x] `runtime/mod.rs` is a composition root; no behavior or public/host contract changed.
 
 ---
 
@@ -778,6 +804,7 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P1 descriptor-helper cleanup | `cohesion-module-split` | `23f85114e1e5475890837603951c5d7f90d4b985` | 80 Protocol tests, Clippy, format, diff check passed | Explicit value types; no descriptor movement |
 | 2026-08-29 | P2 split common incoming RPCs | `cohesion-module-split` | `49795a9c0fa74d5c54eecca168b0f798963b9df7` | 80 Protocol tests, Clippy, format, diff check passed | Flat public imports preserved through explicit re-exports |
 | 2026-08-29 | P3 split R1 incoming RPCs | `cohesion-module-split` | `4102db7110f17f1d6bafa174bdf31b734511be8e` | 80 Protocol tests, Clippy, format, diff check passed | Framing policies and flat public imports preserved |
+| 2026-08-29 | P4 split Runtime facade | `cohesion-module-split` | `19e36987c41fa7a48d6b637505dd5acc318a89b4` | 173 host tests; workspace check, tests, Clippy, format, diff check passed | `runtime/mod.rs` reduced to lifecycle and composition |
 
 ## Blockers / decisions log
 
