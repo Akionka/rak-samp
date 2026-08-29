@@ -414,13 +414,6 @@ pub struct VehicleNumberPlate {
     pub text: Vec<u8>,
 }
 
-/// MoonLoader's `onSpectatePlayer` / `onSpectateVehicle` payload.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Spectate {
-    pub target_id: u16,
-    pub camera_type: u8,
-}
-
 /// MoonLoader's `onSetWeaponAmmo` payload (RPC 145).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct WeaponAmmo {
@@ -433,13 +426,6 @@ pub struct WeaponAmmo {
 pub struct TrailerAttachment {
     pub trailer_id: u16,
     pub vehicle_id: u16,
-}
-
-/// MoonLoader's `onSetCameraLookAt` payload (RPC 158).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct CameraLookAt {
-    pub position: Vector3,
-    pub cut_type: u8,
 }
 
 /// MoonLoader's `onSetVehicleParams` payload (RPC 161).
@@ -505,10 +491,8 @@ struct MoveObjectCodec;
 struct TextDrawStringCodec;
 struct GangZoneCodec;
 struct VehicleNumberPlateCodec;
-struct SpectateCodec;
 struct WeaponAmmoCodec;
 struct TrailerAttachmentCodec;
-struct CameraLookAtCodec;
 struct VehicleParamsCodec;
 struct PlayerEnterVehicleCodec;
 struct PlayerExitVehicleCodec;
@@ -527,6 +511,13 @@ macro_rules! descriptor {
     };
 }
 
+mod camera;
+
+pub use camera::{
+    ATTACH_CAMERA_TO_OBJECT, AttachCameraToObject, CameraLookAt, SET_CAMERA_BEHIND,
+    SET_CAMERA_LOOK_AT, SET_CAMERA_POSITION, SPECTATE_PLAYER, SPECTATE_VEHICLE, SetCameraBehind,
+    SetCameraLookAt, SetCameraPosition, Spectate, SpectatePlayer, SpectateVehicle,
+};
 mod session;
 
 pub use session::{
@@ -841,8 +832,6 @@ descriptor!(
     Empty,
     ()
 );
-descriptor!(SetCameraBehind, SET_CAMERA_BEHIND, 162, Empty, ());
-descriptor!(AttachCameraToObject, ATTACH_CAMERA_TO_OBJECT, 81, U16, u16);
 descriptor!(GangZoneStopFlash, GANG_ZONE_STOP_FLASH, 85, U16, u16);
 descriptor!(ClearPlayerAnimation, CLEAR_PLAYER_ANIMATION, 87, U16, u16);
 descriptor!(
@@ -899,20 +888,6 @@ descriptor!(
     VehicleNumberPlateCodec,
     VehicleNumberPlate
 );
-descriptor!(
-    SpectatePlayer,
-    SPECTATE_PLAYER,
-    126,
-    SpectateCodec,
-    Spectate
-);
-descriptor!(
-    SpectateVehicle,
-    SPECTATE_VEHICLE,
-    127,
-    SpectateCodec,
-    Spectate
-);
 descriptor!(RemoveMapIcon, REMOVE_MAP_ICON, 144, U8, u8);
 descriptor!(
     SetWeaponAmmo,
@@ -935,20 +910,6 @@ descriptor!(
     149,
     U16,
     u16
-);
-descriptor!(
-    SetCameraPosition,
-    SET_CAMERA_POSITION,
-    157,
-    Vector3Codec,
-    Vector3
-);
-descriptor!(
-    SetCameraLookAt,
-    SET_CAMERA_LOOK_AT,
-    158,
-    CameraLookAtCodec,
-    CameraLookAt
 );
 descriptor!(
     SetVehicleParams,
@@ -1183,7 +1144,6 @@ wire_codec!(
     read_vehicle_number_plate,
     write_vehicle_number_plate
 );
-wire_codec!(SpectateCodec, Spectate, read_spectate, write_spectate);
 wire_codec!(
     WeaponAmmoCodec,
     WeaponAmmo,
@@ -1195,12 +1155,6 @@ wire_codec!(
     TrailerAttachment,
     read_trailer_attachment,
     write_trailer_attachment
-);
-wire_codec!(
-    CameraLookAtCodec,
-    CameraLookAt,
-    read_camera_look_at,
-    write_camera_look_at
 );
 wire_codec!(
     VehicleParamsCodec,
@@ -1924,21 +1878,6 @@ fn write_vehicle_number_plate<W: BitWrite>(
     writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
 }
 
-fn read_spectate<R: BitRead>(reader: &mut R) -> Result<Spectate, DecodeError<R::Error>> {
-    Ok(Spectate {
-        target_id: reader.read_u16_le()?,
-        camera_type: reader.read_u8()?,
-    })
-}
-
-fn write_spectate<W: BitWrite>(
-    writer: &mut W,
-    value: &Spectate,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.target_id)?;
-    writer.write_u8(value.camera_type)
-}
-
 fn read_weapon_ammo<R: BitRead>(reader: &mut R) -> Result<WeaponAmmo, DecodeError<R::Error>> {
     Ok(WeaponAmmo {
         weapon_id: reader.read_u8()?,
@@ -1969,21 +1908,6 @@ fn write_trailer_attachment<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.trailer_id)?;
     writer.write_u16_le(value.vehicle_id)
-}
-
-fn read_camera_look_at<R: BitRead>(reader: &mut R) -> Result<CameraLookAt, DecodeError<R::Error>> {
-    Ok(CameraLookAt {
-        position: reader.read_vector3_le()?,
-        cut_type: reader.read_u8()?,
-    })
-}
-
-fn write_camera_look_at<W: BitWrite>(
-    writer: &mut W,
-    value: &CameraLookAt,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_vector3_le(&value.position)?;
-    writer.write_u8(value.cut_type)
 }
 
 fn read_vehicle_params<R: BitRead>(reader: &mut R) -> Result<VehicleParams, DecodeError<R::Error>> {
