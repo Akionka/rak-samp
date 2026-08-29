@@ -143,14 +143,6 @@ pub struct ChatBubble {
     pub text: Vec<u8>,
 }
 
-/// MoonLoader's `onSetPlayerName` payload (RPC 11).
-#[derive(Clone, Debug, PartialEq)]
-pub struct PlayerName {
-    pub player_id: u16,
-    pub name: Vec<u8>,
-    pub success: bool,
-}
-
 /// MoonLoader's `onSetPlayerTime` payload (RPC 29).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct PlayerTime {
@@ -165,29 +157,6 @@ pub struct WorldBounds {
     pub min_x: f32,
     pub max_y: f32,
     pub min_y: f32,
-}
-
-/// MoonLoader's `onGivePlayerWeapon` payload (RPC 22).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerWeapon {
-    pub weapon_id: i32,
-    pub ammo: i32,
-}
-
-/// MoonLoader's `onSetPlayerTeam` payload (RPC 69).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerTeam {
-    pub player_id: u16,
-    pub team_id: u8,
-}
-
-/// MoonLoader's `onSetPlayerSkin` payload (RPC 153).
-///
-/// Both fields stay signed so unknown skin IDs remain observable without lossy validation.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerSkin {
-    pub player_id: i32,
-    pub skin_id: i32,
 }
 
 /// MoonLoader's `onSetRaceCheckpoint` payload (RPC 38).
@@ -208,14 +177,6 @@ pub struct AudioStream {
     pub use_position: bool,
 }
 
-/// MoonLoader's `onPlayerDeathNotification` payload (RPC 55).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerDeathNotification {
-    pub killer_id: u16,
-    pub killed_id: u16,
-    pub reason: u8,
-}
-
 /// MoonLoader's `onSetMapIcon` payload (RPC 56).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct MapIcon {
@@ -224,21 +185,6 @@ pub struct MapIcon {
     pub icon_type: u8,
     pub color: i32,
     pub style: u8,
-}
-
-/// MoonLoader's `onSetPlayerColor` payload (RPC 72).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerColor {
-    pub player_id: u16,
-    pub color: i32,
-}
-
-/// MoonLoader's `onSetPlayerSkillLevel` payload (RPC 34).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerSkill {
-    pub player_id: u16,
-    pub skill: i32,
-    pub level: u16,
 }
 
 /// MoonLoader's `onRemoveBuilding` payload (RPC 43).
@@ -255,20 +201,6 @@ pub struct Explosion {
     pub position: Vector3,
     pub style: i32,
     pub radius: f32,
-}
-
-/// MoonLoader's `onShowPlayerNameTag` payload (RPC 80).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerNameTag {
-    pub player_id: u16,
-    pub show: bool,
-}
-
-/// MoonLoader's `onSetPlayerFightingStyle` payload (RPC 89).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct PlayerFightingStyle {
-    pub player_id: u16,
-    pub style_id: u8,
 }
 
 /// MoonLoader's `onCreatePickup` payload (RPC 95).
@@ -296,39 +228,22 @@ pub struct GangZone {
     pub color: i32,
 }
 
-/// MoonLoader's `onSetWeaponAmmo` payload (RPC 145).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct WeaponAmmo {
-    pub weapon_id: u8,
-    pub ammo: u16,
-}
-
 struct ServerMessageCodec;
 struct GameTextCodec;
 struct PlaySoundCodec;
 struct CheckpointCodec;
 struct ChatMessageCodec;
 struct ChatBubbleCodec;
-struct PlayerNameCodec;
 struct PlayerTimeCodec;
 struct WorldBoundsCodec;
-struct PlayerWeaponCodec;
-struct PlayerTeamCodec;
-struct PlayerSkinCodec;
 struct RaceCheckpointCodec;
 struct AudioStreamCodec;
-struct PlayerDeathNotificationCodec;
 struct MapIconCodec;
-struct PlayerColorCodec;
-struct PlayerSkillCodec;
 struct RemoveBuildingCodec;
 struct ExplosionCodec;
-struct PlayerNameTagCodec;
-struct PlayerFightingStyleCodec;
 struct PickupCodec;
 struct TextDrawStringCodec;
 struct GangZoneCodec;
-struct WeaponAmmoCodec;
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty) => {
         crate::wire::nominal_descriptor!(
@@ -343,6 +258,26 @@ macro_rules! descriptor {
     };
 }
 
+mod player;
+
+pub use player::{
+    CLEAR_PLAYER_ANIMATION, ClearPlayerAnimation, GIVE_PLAYER_MONEY, GIVE_PLAYER_WEAPON,
+    GivePlayerMoney, GivePlayerWeapon, PLAYER_DEATH, PLAYER_DEATH_NOTIFICATION, PLAYER_STREAM_OUT,
+    PlayerColor, PlayerDeath, PlayerDeathNotification, PlayerDeathNotificationRpc,
+    PlayerFightingStyle, PlayerName, PlayerNameTag, PlayerSkill, PlayerSkin, PlayerStreamOut,
+    PlayerTeam, PlayerWeapon, RESET_PLAYER_MONEY, RESET_PLAYER_WEAPONS, ResetPlayerMoney,
+    ResetPlayerWeapons, SET_INTERIOR, SET_PLAYER_ARMED_WEAPON, SET_PLAYER_ARMOUR, SET_PLAYER_COLOR,
+    SET_PLAYER_DRUNK, SET_PLAYER_DRUNK_HANDLING, SET_PLAYER_DRUNK_VISUALS, SET_PLAYER_FACING_ANGLE,
+    SET_PLAYER_FIGHTING_STYLE, SET_PLAYER_HEALTH, SET_PLAYER_NAME, SET_PLAYER_POS,
+    SET_PLAYER_POS_FIND_Z, SET_PLAYER_SKILL_LEVEL, SET_PLAYER_SKIN, SET_PLAYER_SPECIAL_ACTION,
+    SET_PLAYER_TEAM, SET_PLAYER_VELOCITY, SET_PLAYER_WANTED_LEVEL, SET_WEAPON_AMMO,
+    SHOW_PLAYER_NAME_TAG, SetInterior, SetPlayerArmedWeapon, SetPlayerArmour, SetPlayerColor,
+    SetPlayerDrunk, SetPlayerDrunkHandling, SetPlayerDrunkVisuals, SetPlayerFacingAngle,
+    SetPlayerFightingStyle, SetPlayerHealth, SetPlayerName, SetPlayerPos, SetPlayerPosFindZ,
+    SetPlayerSkillLevel, SetPlayerSkin, SetPlayerSpecialAction, SetPlayerTeam, SetPlayerVelocity,
+    SetPlayerWantedLevel, SetWeaponAmmo, ShowPlayerNameTag, TOGGLE_PLAYER_CONTROLLABLE,
+    TogglePlayerControllable, WeaponAmmo,
+};
 mod vehicle;
 
 pub use vehicle::{
@@ -406,24 +341,6 @@ descriptor!(
     GameTextCodec,
     GameText
 );
-descriptor!(SetPlayerPos, SET_PLAYER_POS, 12, Vector3Codec, Vector3);
-descriptor!(
-    SetPlayerPosFindZ,
-    SET_PLAYER_POS_FIND_Z,
-    13,
-    Vector3Codec,
-    Vector3
-);
-descriptor!(SetPlayerHealth, SET_PLAYER_HEALTH, 14, F32, f32);
-descriptor!(SetPlayerArmour, SET_PLAYER_ARMOUR, 66, F32, f32);
-descriptor!(SetPlayerFacingAngle, SET_PLAYER_FACING_ANGLE, 19, F32, f32);
-descriptor!(
-    TogglePlayerControllable,
-    TOGGLE_PLAYER_CONTROLLABLE,
-    15,
-    Bool8,
-    bool
-);
 descriptor!(PlaySoundRpc, PLAY_SOUND, 16, PlaySoundCodec, PlaySound);
 descriptor!(
     SetCheckpoint,
@@ -441,13 +358,6 @@ descriptor!(
 );
 descriptor!(ChatBubbleRpc, CHAT_BUBBLE, 59, ChatBubbleCodec, ChatBubble);
 descriptor!(
-    SetPlayerName,
-    SET_PLAYER_NAME,
-    11,
-    PlayerNameCodec,
-    PlayerName
-);
-descriptor!(
     SetPlayerTime,
     SET_PLAYER_TIME,
     29,
@@ -461,38 +371,9 @@ descriptor!(
     WorldBoundsCodec,
     WorldBounds
 );
-descriptor!(GivePlayerMoney, GIVE_PLAYER_MONEY, 18, I32, i32);
-descriptor!(
-    GivePlayerWeapon,
-    GIVE_PLAYER_WEAPON,
-    22,
-    PlayerWeaponCodec,
-    PlayerWeapon
-);
 descriptor!(SetWorldTime, SET_WORLD_TIME, 94, U8, u8);
 descriptor!(SetWeather, SET_WEATHER, 152, U8, u8);
-descriptor!(
-    SetPlayerSkin,
-    SET_PLAYER_SKIN,
-    153,
-    PlayerSkinCodec,
-    PlayerSkin
-);
-descriptor!(SetInterior, SET_INTERIOR, 156, U8, u8);
-descriptor!(SetPlayerArmedWeapon, SET_PLAYER_ARMED_WEAPON, 67, I32, i32);
-descriptor!(SetPlayerWantedLevel, SET_PLAYER_WANTED_LEVEL, 133, U8, u8);
-descriptor!(
-    SetPlayerTeam,
-    SET_PLAYER_TEAM,
-    69,
-    PlayerTeamCodec,
-    PlayerTeam
-);
-descriptor!(PlayerStreamOut, PLAYER_STREAM_OUT, 163, U16, u16);
-descriptor!(ResetPlayerMoney, RESET_PLAYER_MONEY, 20, Empty, ());
-descriptor!(ResetPlayerWeapons, RESET_PLAYER_WEAPONS, 21, Empty, ());
 descriptor!(SetToggleClock, SET_TOGGLE_CLOCK, 30, Bool8, bool);
-descriptor!(SetPlayerDrunk, SET_PLAYER_DRUNK, 35, I32, i32);
 descriptor!(
     SetRaceCheckpoint,
     SET_RACE_CHECKPOINT,
@@ -507,32 +388,11 @@ descriptor!(
     AudioStreamCodec,
     AudioStream
 );
-descriptor!(
-    PlayerDeathNotificationRpc,
-    PLAYER_DEATH_NOTIFICATION,
-    55,
-    PlayerDeathNotificationCodec,
-    PlayerDeathNotification
-);
 descriptor!(SetMapIcon, SET_MAP_ICON, 56, MapIconCodec, MapIcon);
 descriptor!(Remove3DTextLabel, REMOVE_3D_TEXT_LABEL, 58, U16, u16);
 descriptor!(UpdateGlobalTimer, UPDATE_GLOBAL_TIMER, 60, I32, i32);
 descriptor!(DestroyPickup, DESTROY_PICKUP, 63, I32, i32);
-descriptor!(
-    SetPlayerColor,
-    SET_PLAYER_COLOR,
-    72,
-    PlayerColorCodec,
-    PlayerColor
-);
 descriptor!(SetShopName, SET_SHOP_NAME, 33, FixedString32Codec, [u8; 32]);
-descriptor!(
-    SetPlayerSkillLevel,
-    SET_PLAYER_SKILL_LEVEL,
-    34,
-    PlayerSkillCodec,
-    PlayerSkill
-);
 descriptor!(
     RemoveBuildingRpc,
     REMOVE_BUILDING,
@@ -549,29 +409,8 @@ descriptor!(
     ExplosionCodec,
     Explosion
 );
-descriptor!(
-    ShowPlayerNameTag,
-    SHOW_PLAYER_NAME_TAG,
-    80,
-    PlayerNameTagCodec,
-    PlayerNameTag
-);
 descriptor!(ToggleWidescreen, TOGGLE_WIDESCREEN, 111, Bool8, bool);
 descriptor!(DestroyWeaponPickup, DESTROY_WEAPON_PICKUP, 151, U8, u8);
-descriptor!(
-    SetPlayerDrunkVisuals,
-    SET_PLAYER_DRUNK_VISUALS,
-    92,
-    I32,
-    i32
-);
-descriptor!(
-    SetPlayerDrunkHandling,
-    SET_PLAYER_DRUNK_HANDLING,
-    150,
-    I32,
-    i32
-);
 descriptor!(DisableCheckpoint, DISABLE_CHECKPOINT, 37, Empty, ());
 descriptor!(
     DisableRaceCheckpoint,
@@ -582,28 +421,6 @@ descriptor!(
 );
 descriptor!(StopAudioStream, STOP_AUDIO_STREAM, 42, Empty, ());
 descriptor!(GangZoneStopFlash, GANG_ZONE_STOP_FLASH, 85, U16, u16);
-descriptor!(ClearPlayerAnimation, CLEAR_PLAYER_ANIMATION, 87, U16, u16);
-descriptor!(
-    SetPlayerSpecialAction,
-    SET_PLAYER_SPECIAL_ACTION,
-    88,
-    U8,
-    u8
-);
-descriptor!(
-    SetPlayerFightingStyle,
-    SET_PLAYER_FIGHTING_STYLE,
-    89,
-    PlayerFightingStyleCodec,
-    PlayerFightingStyle
-);
-descriptor!(
-    SetPlayerVelocity,
-    SET_PLAYER_VELOCITY,
-    90,
-    Vector3Codec,
-    Vector3
-);
 descriptor!(CreatePickup, CREATE_PICKUP, 95, PickupCodec, Pickup);
 descriptor!(
     TextDrawSetString,
@@ -622,15 +439,7 @@ descriptor!(
 descriptor!(GangZoneDestroy, GANG_ZONE_DESTROY, 120, U16, u16);
 descriptor!(GangZoneFlash, GANG_ZONE_FLASH, 121, U16I32Codec, (u16, i32));
 descriptor!(RemoveMapIcon, REMOVE_MAP_ICON, 144, U8, u8);
-descriptor!(
-    SetWeaponAmmo,
-    SET_WEAPON_AMMO,
-    145,
-    WeaponAmmoCodec,
-    WeaponAmmo
-);
 descriptor!(SetGravity, SET_GRAVITY, 146, F32, f32);
-descriptor!(PlayerDeath, PLAYER_DEATH, 166, U16, u16);
 wire_codec!(
     ServerMessageCodec,
     ServerMessage,
@@ -658,12 +467,6 @@ wire_codec!(
     write_chat_bubble
 );
 wire_codec!(
-    PlayerNameCodec,
-    PlayerName,
-    read_player_name,
-    write_player_name
-);
-wire_codec!(
     PlayerTimeCodec,
     PlayerTime,
     read_player_time,
@@ -674,24 +477,6 @@ wire_codec!(
     WorldBounds,
     read_world_bounds,
     write_world_bounds
-);
-wire_codec!(
-    PlayerWeaponCodec,
-    PlayerWeapon,
-    read_player_weapon,
-    write_player_weapon
-);
-wire_codec!(
-    PlayerTeamCodec,
-    PlayerTeam,
-    read_player_team,
-    write_player_team
-);
-wire_codec!(
-    PlayerSkinCodec,
-    PlayerSkin,
-    read_player_skin,
-    write_player_skin
 );
 wire_codec!(
     RaceCheckpointCodec,
@@ -705,25 +490,7 @@ wire_codec!(
     read_audio_stream,
     write_audio_stream
 );
-wire_codec!(
-    PlayerDeathNotificationCodec,
-    PlayerDeathNotification,
-    read_player_death_notification,
-    write_player_death_notification
-);
 wire_codec!(MapIconCodec, MapIcon, read_map_icon, write_map_icon);
-wire_codec!(
-    PlayerColorCodec,
-    PlayerColor,
-    read_player_color,
-    write_player_color
-);
-wire_codec!(
-    PlayerSkillCodec,
-    PlayerSkill,
-    read_player_skill,
-    write_player_skill
-);
 wire_codec!(
     RemoveBuildingCodec,
     RemoveBuilding,
@@ -731,18 +498,6 @@ wire_codec!(
     write_remove_building
 );
 wire_codec!(ExplosionCodec, Explosion, read_explosion, write_explosion);
-wire_codec!(
-    PlayerNameTagCodec,
-    PlayerNameTag,
-    read_player_name_tag,
-    write_player_name_tag
-);
-wire_codec!(
-    PlayerFightingStyleCodec,
-    PlayerFightingStyle,
-    read_player_fighting_style,
-    write_player_fighting_style
-);
 wire_codec!(PickupCodec, Pickup, read_pickup, write_pickup);
 wire_codec!(
     TextDrawStringCodec,
@@ -751,12 +506,6 @@ wire_codec!(
     write_text_draw_string
 );
 wire_codec!(GangZoneCodec, GangZone, read_gang_zone, write_gang_zone);
-wire_codec!(
-    WeaponAmmoCodec,
-    WeaponAmmo,
-    read_weapon_ammo,
-    write_weapon_ammo
-);
 fn read_server_message<R: BitRead>(reader: &mut R) -> Result<ServerMessage, DecodeError<R::Error>> {
     Ok(ServerMessage {
         color: reader.read_u32_le()?,
@@ -855,23 +604,6 @@ fn write_chat_bubble<W: BitWrite>(
     writer.write_len_prefixed_bytes_u8(&value.text, usize::from(u8::MAX))
 }
 
-fn read_player_name<R: BitRead>(reader: &mut R) -> Result<PlayerName, DecodeError<R::Error>> {
-    Ok(PlayerName {
-        player_id: reader.read_u16_le()?,
-        name: reader.read_len_prefixed_bytes_u8(usize::from(u8::MAX))?,
-        success: read_bool8(reader)?,
-    })
-}
-
-fn write_player_name<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerName,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    writer.write_len_prefixed_bytes_u8(&value.name, usize::from(u8::MAX))?;
-    write_bool8(writer, &value.success)
-}
-
 fn read_player_time<R: BitRead>(reader: &mut R) -> Result<PlayerTime, DecodeError<R::Error>> {
     Ok(PlayerTime {
         hour: reader.read_u8()?,
@@ -904,51 +636,6 @@ fn write_world_bounds<W: BitWrite>(
     writer.write_f32_le(value.min_x)?;
     writer.write_f32_le(value.max_y)?;
     writer.write_f32_le(value.min_y)
-}
-
-fn read_player_weapon<R: BitRead>(reader: &mut R) -> Result<PlayerWeapon, DecodeError<R::Error>> {
-    Ok(PlayerWeapon {
-        weapon_id: reader.read_i32_le()?,
-        ammo: reader.read_i32_le()?,
-    })
-}
-
-fn write_player_weapon<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerWeapon,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_i32_le(value.weapon_id)?;
-    writer.write_i32_le(value.ammo)
-}
-
-fn read_player_team<R: BitRead>(reader: &mut R) -> Result<PlayerTeam, DecodeError<R::Error>> {
-    Ok(PlayerTeam {
-        player_id: reader.read_u16_le()?,
-        team_id: reader.read_u8()?,
-    })
-}
-
-fn write_player_team<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerTeam,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    writer.write_u8(value.team_id)
-}
-
-fn read_player_skin<R: BitRead>(reader: &mut R) -> Result<PlayerSkin, DecodeError<R::Error>> {
-    Ok(PlayerSkin {
-        player_id: reader.read_i32_le()?,
-        skin_id: reader.read_i32_le()?,
-    })
-}
-
-fn write_player_skin<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerSkin,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_i32_le(value.player_id)?;
-    writer.write_i32_le(value.skin_id)
 }
 
 fn read_race_checkpoint<R: BitRead>(
@@ -991,25 +678,6 @@ fn write_audio_stream<W: BitWrite>(
     write_bool8(writer, &value.use_position)
 }
 
-fn read_player_death_notification<R: BitRead>(
-    reader: &mut R,
-) -> Result<PlayerDeathNotification, DecodeError<R::Error>> {
-    Ok(PlayerDeathNotification {
-        killer_id: reader.read_u16_le()?,
-        killed_id: reader.read_u16_le()?,
-        reason: reader.read_u8()?,
-    })
-}
-
-fn write_player_death_notification<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerDeathNotification,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.killer_id)?;
-    writer.write_u16_le(value.killed_id)?;
-    writer.write_u8(value.reason)
-}
-
 fn read_map_icon<R: BitRead>(reader: &mut R) -> Result<MapIcon, DecodeError<R::Error>> {
     Ok(MapIcon {
         icon_id: reader.read_u8()?,
@@ -1029,38 +697,6 @@ fn write_map_icon<W: BitWrite>(
     writer.write_u8(value.icon_type)?;
     writer.write_i32_le(value.color)?;
     writer.write_u8(value.style)
-}
-
-fn read_player_color<R: BitRead>(reader: &mut R) -> Result<PlayerColor, DecodeError<R::Error>> {
-    Ok(PlayerColor {
-        player_id: reader.read_u16_le()?,
-        color: reader.read_i32_le()?,
-    })
-}
-
-fn write_player_color<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerColor,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    writer.write_i32_le(value.color)
-}
-
-fn read_player_skill<R: BitRead>(reader: &mut R) -> Result<PlayerSkill, DecodeError<R::Error>> {
-    Ok(PlayerSkill {
-        player_id: reader.read_u16_le()?,
-        skill: reader.read_i32_le()?,
-        level: reader.read_u16_le()?,
-    })
-}
-
-fn write_player_skill<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerSkill,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    writer.write_i32_le(value.skill)?;
-    writer.write_u16_le(value.level)
 }
 
 fn read_remove_building<R: BitRead>(
@@ -1097,40 +733,6 @@ fn write_explosion<W: BitWrite>(
     writer.write_vector3_le(&value.position)?;
     writer.write_i32_le(value.style)?;
     writer.write_f32_le(value.radius)
-}
-
-fn read_player_name_tag<R: BitRead>(
-    reader: &mut R,
-) -> Result<PlayerNameTag, DecodeError<R::Error>> {
-    Ok(PlayerNameTag {
-        player_id: reader.read_u16_le()?,
-        show: read_bool8(reader)?,
-    })
-}
-
-fn write_player_name_tag<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerNameTag,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    write_bool8(writer, &value.show)
-}
-
-fn read_player_fighting_style<R: BitRead>(
-    reader: &mut R,
-) -> Result<PlayerFightingStyle, DecodeError<R::Error>> {
-    Ok(PlayerFightingStyle {
-        player_id: reader.read_u16_le()?,
-        style_id: reader.read_u8()?,
-    })
-}
-
-fn write_player_fighting_style<W: BitWrite>(
-    writer: &mut W,
-    value: &PlayerFightingStyle,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.player_id)?;
-    writer.write_u8(value.style_id)
 }
 
 fn read_pickup<R: BitRead>(reader: &mut R) -> Result<Pickup, DecodeError<R::Error>> {
@@ -1183,19 +785,4 @@ fn write_gang_zone<W: BitWrite>(
     writer.write_vector2_le(&value.square_start)?;
     writer.write_vector2_le(&value.square_end)?;
     writer.write_i32_le(value.color)
-}
-
-fn read_weapon_ammo<R: BitRead>(reader: &mut R) -> Result<WeaponAmmo, DecodeError<R::Error>> {
-    Ok(WeaponAmmo {
-        weapon_id: reader.read_u8()?,
-        ammo: reader.read_u16_le()?,
-    })
-}
-
-fn write_weapon_ammo<W: BitWrite>(
-    writer: &mut W,
-    value: &WeaponAmmo,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u8(value.weapon_id)?;
-    writer.write_u16_le(value.ammo)
 }
