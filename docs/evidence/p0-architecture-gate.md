@@ -8,7 +8,7 @@ blocking work from #34 and #35 is present in the acceptance baseline.
 | Seam | Evidence |
 | --- | --- |
 | Public Protocol descriptor API | [`wire_io.rs`](../../crates/samp-protocol/tests/wire_io.rs) covers neutral, bounded, unaligned Wire primitives and distinct source errors. [`wire.rs`](../../crates/samp-protocol/tests/wire.rs) covers nominal built-ins, custom wrappers, explicit policies, canonical encoding, and structured framing errors. Packet and RPC integration tests preserve exact vectors. [`terminal-alignment-padding.md`](terminal-alignment-padding.md) fixes the structural-only padding decision. |
-| Public SDK facade over mock ABI | [`sdk/src/tests.rs`](../../sdk/src/tests.rs) proves unified Protocol registration, Host encoded-string injection, one Host subscription, action parity, failure diagnostics, exact-bit replacement, and replacement atomicity. The key tests are `normal_typed_methods_accept_all_descriptor_sources`, `custom_protocol_packet_callback_preserves_all_actions`, `malformed_typed_packet_is_diagnosed_before_fail_open`, `typed_source_failure_is_warned_before_fail_open`, `replacement_encode_failure_preserves_payload_without_host_mutation`, `host_rejection_preserves_incoming_rpc_and_packet_payloads`, and `successful_non_byte_aligned_replacement_uses_one_host_call`. |
+| Public SDK facade over mock ABI | [`sdk/src/tests/`](../../sdk/src/tests/) proves unified Protocol registration, Host encoded-string injection, one Host subscription, action parity, failure diagnostics, exact-bit replacement, and replacement atomicity. The key tests are `normal_typed_methods_accept_all_descriptor_sources`, `custom_protocol_packet_callback_preserves_all_actions`, `malformed_typed_packet_is_diagnosed_before_fail_open`, `typed_source_failure_is_warned_before_fail_open`, `replacement_encode_failure_preserves_payload_without_host_mutation`, `host_rejection_preserves_incoming_rpc_and_packet_payloads`, and `successful_non_byte_aligned_replacement_uses_one_host_call`. |
 | External packaged and documented consumer | The crate-level examples in [`sdk/src/lib.rs`](../../sdk/src/lib.rs) compile as an external consumer through `Samp` and `Net` for a plain Protocol descriptor and a Protocol encoded-string descriptor. A minimal `compile_fail` example proves that `HostApi` is not nameable. Both published crates package with the synchronized Protocol version. |
 
 ## Failure boundaries
@@ -23,7 +23,7 @@ Protocol sends return `ProtocolSendError::Encode(original)` or
 `ProtocolSendError::Host(result)`. Immediate and queued tests preserve the
 structured encode error, Host error, ID, bytes, meaningful bit length, and send
 options. [`Runtime::send_packet_with_options` and
-`Runtime::send_rpc_with_options`](../../src/runtime.rs) submit directly to the
+`Runtime::send_rpc_with_options`](../../src/runtime/mod.rs) submit directly to the
 backend, so explicit sends do not dispatch outgoing listeners.
 
 ## Public surface and dependency audits

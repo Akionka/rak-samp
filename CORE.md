@@ -39,9 +39,10 @@
   not re-export it.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
-  separate from lifecycle control, while the R1 bridge isolates approved
-  native addresses, object layouts, and guarded memory access from operation
-  sequencing. The Windows backend also separates bounded producer-side command
+  separate from lifecycle control, while one shared `NativeClientProfile`
+  bridge isolates approved R1, R3-1, R5-1, and DL-R1 addresses, layouts, narrow
+  strategies, and guarded memory access from operation sequencing. The Windows
+  backend also separates bounded producer-side command
   and cache-refresh requests from game-thread execution, with scalar and owned
   snapshot/catalog, chat-history, gangzone, object, player, owned on-foot, in-car, passenger, trailer, and aim sync, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
@@ -104,16 +105,19 @@ Leaf tests are colocated with their stable codecs and facade views. Parent test
 modules retain mock-ABI behavior, native ABI/layout checks, and cross-module
 Win32 queue, pump, cache-publication, invalidation, and hook-lifecycle tests.
 
-The SDK root re-exports safe types, ABI declarations, wrapper glue, resolution,
-and subscription ownership from dedicated modules. The Win32 root retains only
-shared state and tick ordering; backend forwarding, command execution, queue
-draining, refresh publication, native bitstream/string work, and hook patching
-live in dedicated child modules. One version-selected `NativeClientProfile`
+The SDK root re-exports safe types, ABI declarations from `abi/`, wrapper glue,
+resolution, and subscription ownership from dedicated modules. `runtime/`
+keeps lifecycle/composition separate from requests, snapshots, network,
+commands, and reads. The Win32 root retains shared state; lifecycle, tick
+ordering, cache invalidation, backend forwarding, domain command execution,
+refresh publication, native bitstream/string work, and hook patching live in
+dedicated child modules. One version-selected `NativeClientProfile`
 gates every direct bridge. Four equal profile specifications contain explicit
 per-version RVAs, layouts, and narrow strategies for R1, R3-1, R5-1, and
 DL-R1. The common game-tick pump and cache refresh paths consume only
 `NativeClientProfile`; shared modules own singleton lookup, native aliases,
-textdraws, UI, player/pool reads, and handle lookups. The Host API root retains
+textdraws, handle lookups, and capability-oriented `players/` and `ui/` trees.
+The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.
 

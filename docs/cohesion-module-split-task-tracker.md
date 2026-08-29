@@ -31,8 +31,8 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P7 | Split native-client players/UI | P0 + live-validation decision | [x] |
 | P8 | Split SDK ABI source | P0 | [x] |
 | P9 | Redistribute large tests | relevant production phase | [x] |
-| P10 | Split common network probe | P7 recommended | [-] |
-| P11 | Documentation and final acceptance | P2–P10 as selected | [ ] |
+| P10 | Split common network probe | P7 recommended | [x] |
+| P11 | Documentation and final acceptance | P2–P10 as selected | [-] |
 
 ---
 
@@ -937,57 +937,83 @@ Do not start while the live-validation contract is still changing.
   nine small cross-capability tests. All four profile crates use the same
   capability modules.
 
-- [ ] **P10-10 — Re-run every required live validator after the final probe refactor.**
+- [x] **P10-10 — Re-run every required live validator after the final probe refactor.**
   - Record final binaries/hashes/status/failure results.
 
-  Static evidence (2026-08-29): `cargo make quality` and `cargo make
-  build-release` passed. Repository-local release probe SHA-256 values:
-  R1 `c926b1f2b3a6cd5b5f19aa337677b4b65d0c91b840a3c4b4245a8caa1b456310`,
-  R3 `9e81b96f4f05569cd7b6a18ed7347860436276f4cee14886dc889571e9ffcf3e`,
-  R5 `807ee1cdf8413559738c165e2bc2d5a6b5d5a811755efff1e40a8f034119bc3f`,
-  DL `16681ac07cd877027ba696ac4728fbaed6c2b72c7011784ee0d69435f80075bd`.
-  R1 live evidence (2026-08-29): the installed host SHA-256 was
-  `bdae27c50b144e2e3578e55c6a603a48e66b82ef5f2e3357e7f4674a68b0094f`
-  and the installed R1 probe matched the repository hash above. The complete
-  connected and reconnect run reported `status=0x3FFFFFFF`, `failure=0`,
-  `reconnect_server_ready=true`, `reconnect_local_ready=true`,
-  `reconnect_game_state=Some(14)`, `reconnect_spawned=Some(true)`, and
-  `reconnect_incoming_ready=true`.
+  Final evidence (2026-08-29): host commit `f80fc8f` pins the independent DL
+  pool function RVAs; probe commit `a0e36ea` decodes DL connection states
+  through the Classic codec. `cargo make build-release` produced the final
+  repository-local artifacts. SHA-256 values: host
+  `F511FE9695DF11182892A0D8ED51EF9A6FB114E0CBD36C5B732AF4D6586F2E0F`,
+  R1 `D59D992C04608CF706809B9A6B32A10F2D7A99DD2885EE3C2431C1220DB74377`,
+  R3 `DC8F30B87DEA3DEF2BBE7702A49A625680DA6009AF8BDC51E184EB68B67C48F6`,
+  R5 `D25036C8536E064871A75DBB7A7581E92B2FD454A1B1761AC0383AF42CADF2EB`,
+  and DL `8965A48E73079890603185CC6776EF257EB1E67724D2D3136F821364CCDB255D`.
+
+  Each installed artifact matched its repository-local hash. R1, R3, R5, and
+  DL each completed the connected and reconnect run with
+  `status=0x3FFFFFFF`, `failure=0`, `reconnect_server_ready=true`,
+  `reconnect_local_ready=true`, `reconnect_spawned=Some(true)`, and
+  `reconnect_incoming_ready=true`. R1/R3/R5/DL reconnect game state was
+  `Some(14)`.
 
   The first R1 attempt exposed an unrelated `gta_sa_fsr.asi` crash:
   `fastman92limitAdjuster.log` recorded `EXCEPTION_ACCESS_VIOLATION` at
   `gta_sa.exe+0x3F98DF` while dereferencing a null object, with FSR frames and
   no SDK/probe frame in the captured stack. The same final host/probe pair
-  completed after only `gta_sa_fsr.asi` was disabled. R3/R5/DL in-game
-  status/failure evidence is still required.
+  completed after only `gta_sa_fsr.asi` was disabled.
+
+  The DL investigation found a native regression introduced by inherited R3
+  pool RVAs: DL requires player getter `0x1170`, vehicle getter `0x1180`, and
+  vehicle-exists `0x1150`. Commit `f80fc8f` pins those values and adds the
+  four-profile RVA matrix test. The corrected host completed the DL live run.
 
 ### P10 gate
 
-- [ ] The probe remains one common capability-oriented harness and final live evidence is current.
+- [x] The probe remains one common capability-oriented harness and final live evidence is current.
 
 ---
 
 ## P11 — Documentation and final acceptance
 
-- [ ] **P11-01 — Recount production/test LOC and document intentional exceptions.**
+- [x] **P11-01 — Recount production/test LOC and document intentional exceptions.**
   - Use nonblank and physical counts.
   - Do not fail the project solely because a cohesive file remains above a soft ceiling.
 
-- [ ] **P11-02 — Update `ARCHITECTURE.md`.**
+  Evidence (2026-08-29), physical/nonblank totals: common incoming RPCs
+  2,780/2,351; R1 incoming RPCs 1,793/1,608; Runtime 1,436/1,269;
+  game-thread commands 1,952/1,866; P6 composition files 1,601/1,494;
+  native players 1,720/1,646; native UI 1,256/1,209; SDK ABI 1,283/1,231;
+  SDK tests 2,586/2,432; Win32 vtable tests 2,024/1,861; common probe
+  2,846/2,704. Intentional cohesive exceptions include the flat 632/629-line
+  ABI table, the 1,384/1,335-line independent profile layout oracle, the
+  1,053/979-line cache publication/invalidation test matrix, and focused
+  vehicle, player-pool, callback, probe-orchestration, and probe-UI modules.
+
+- [x] **P11-02 — Update `ARCHITECTURE.md`.**
   - Replace obsolete single-file paths with the final module trees and ownership descriptions.
 
-- [ ] **P11-03 — Update `CORE.md`.**
+- [x] **P11-03 — Update `CORE.md`.**
   - Reflect final ownership where the core implementation map references moved modules.
 
-- [ ] **P11-04 — Update relevant agent guides.**
+- [x] **P11-04 — Update relevant agent guides.**
   - `repository-layout.md` must match directory modules.
   - Update `game-thread-commands.md` if internal ownership wording is now stale, without changing its invariants.
   - Update `packets-and-events.md` if Protocol ownership wording needs the new semantic child paths.
 
-- [ ] **P11-05 — Mark historical split plans appropriately.**
+  Evidence (2026-08-29): `repository-layout.md` now names the directory
+  modules and Protocol crate. `game-thread-commands.md` and
+  `packets-and-events.md` were reviewed; their invariant-based wording remains
+  current and required no change.
+
+- [x] **P11-05 — Mark historical split plans appropriately.**
   - Keep completed plans as history.
   - Do not rewrite old baselines to pretend the new structure existed earlier.
   - Link this handoff as the follow-up where useful.
+
+  Evidence (2026-08-29): `SPLIT_PLAN.md` now labels its paths as a historical
+  baseline and links this handoff. `structural-split-plan.md` already carries
+  the required historical note. Historical baseline tables were not rewritten.
 
 - [ ] **P11-06 — Update this tracker with final evidence.**
   - Every completed phase has commit hashes and validation results.
@@ -1063,6 +1089,8 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P6 reduce Win32 composition root | `cohesion-module-split` | `bac46be12fc54732760ce77c81ba03f939bc9ff1` | Full repository gate and local release DLL export audit passed | State remains private and root-owned; release-hygiene fix `af758bb` |
 | 2026-08-29 | P7 split native-client players/UI | `cohesion-module-split` | `60798146537bd6795d7b6a43ae2752f5b67d25ff` | 173 host tests; full repository gate; local DLL export audit passed | Final native-facing source hash recorded for deferred R1/R3/R5/DL live validation |
 | 2026-08-29 | P8 split SDK ABI source | `cohesion-module-split` | `f70352b0bd53becee2a0b4743059a7f69061f6ee` | 100 SDK tests; full workspace and public-hygiene gates passed | Flat 145-field, 580-byte x86 API table and crate-root exports preserved |
+| 2026-08-29 | P10 final native correction | `cohesion-module-split` | `f80fc8f232c418b0732107487dc43f2ef8362304` | 174 host tests, strict host Clippy, four-profile RVA matrix, DL live pass | Pin DL pool getter/existence RVAs independently from R3 |
+| 2026-08-29 | P10 final probe and live matrix | `cohesion-module-split` | `a0e36ea84c225628e5a3ba5324a58d0cbbf33fec` | Four probe suites and strict Clippy passed; R1/R3/R5/DL each reported `0x3FFFFFFF`, failure 0 | Final host and probe hashes recorded in P10-10 |
 
 ## Blockers / decisions log
 
