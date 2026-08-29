@@ -78,38 +78,14 @@ bounded_id!(
     "A checked SA-MP gangzone-pool ID."
 );
 
-macro_rules! gta_handle {
-    ($name:ident, $docs:literal) => {
-        #[doc = $docs]
-        #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-        pub struct $name(u32);
-
-        impl $name {
-            /// Returns `None` for the null GTA handle.
-            #[must_use]
-            pub const fn new(raw: u32) -> Option<Self> {
-                if raw == 0 { None } else { Some(Self(raw)) }
-            }
-
-            /// Returns the raw non-null GTA handle.
-            #[must_use]
-            pub const fn get(self) -> u32 {
-                self.0
-            }
-        }
-    };
-}
-
-gta_handle!(
-    ObjectHandle,
-    "A typed non-null GTA SA object handle (GTAREF)."
-);
-gta_handle!(
-    PickupHandle,
-    "A typed non-null GTA SA pickup handle (GTAREF)."
-);
-gta_handle!(VehicleHandle, "A typed non-null GTA SA vehicle handle.");
-gta_handle!(PedHandle, "A typed non-null GTA SA ped handle.");
+/// A typed non-null GTA SA object handle (GTAREF).
+pub use gta_sa::ObjectHandle;
+/// A typed non-null GTA SA ped handle.
+pub use gta_sa::PedHandle;
+/// A typed non-null GTA SA pickup handle (GTAREF).
+pub use gta_sa::PickupHandle;
+/// A typed non-null GTA SA vehicle handle.
+pub use gta_sa::VehicleHandle;
 
 /// Entry point for safe, copied SA-MP client operations.
 #[derive(Clone, Copy)]
@@ -310,11 +286,13 @@ mod tests {
     }
 
     #[test]
-    fn gta_handles_reject_the_null_value() {
-        assert_eq!(ObjectHandle::new(0), None);
-        assert_eq!(PickupHandle::new(0), None);
-        assert_eq!(VehicleHandle::new(0), None);
-        assert_eq!(PedHandle::new(0), None);
+    fn gta_handles_reject_zero_and_negative_raw_values() {
+        for raw in [0, -1, i32::MIN] {
+            assert_eq!(ObjectHandle::new(raw), None);
+            assert_eq!(PickupHandle::new(raw), None);
+            assert_eq!(VehicleHandle::new(raw), None);
+            assert_eq!(PedHandle::new(raw), None);
+        }
         assert_eq!(ObjectHandle::new(42).map(ObjectHandle::get), Some(42));
         assert_eq!(PickupHandle::new(42).map(PickupHandle::get), Some(42));
         assert_eq!(VehicleHandle::new(42).map(VehicleHandle::get), Some(42));
@@ -327,16 +305,22 @@ mod tests {
         let object_id = ObjectId::new(7).unwrap();
         let object_handle = samp.objects().handle(object_id).unwrap().unwrap();
         assert_eq!(object_handle.get(), 0x1007);
-        assert_eq!(object_handle.to_id(samp).unwrap(), Some(object_id));
+        assert_eq!(
+            samp.objects().id_by_handle(object_handle).unwrap(),
+            Some(object_id)
+        );
 
         let pickup_handle = samp.pickups().handle(7).unwrap().unwrap();
         assert_eq!(pickup_handle.get(), 0x2007);
-        assert_eq!(pickup_handle.to_id(samp).unwrap(), Some(7));
+        assert_eq!(samp.pickups().id_by_handle(pickup_handle).unwrap(), Some(7));
 
         let vehicle_id = VehicleId::new(7).unwrap();
         let vehicle_handle = samp.vehicles().handle(vehicle_id).unwrap().unwrap();
         assert_eq!(vehicle_handle.get(), 0x3007);
-        assert_eq!(vehicle_handle.to_id(samp).unwrap(), Some(vehicle_id));
+        assert_eq!(
+            samp.vehicles().id_by_handle(vehicle_handle).unwrap(),
+            Some(vehicle_id)
+        );
 
         let player_id = PlayerId::new(7).unwrap();
         let ped_handle = samp
@@ -346,7 +330,10 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(ped_handle.get(), 0x4007);
-        assert_eq!(ped_handle.to_id(samp).unwrap(), Some(player_id));
+        assert_eq!(
+            samp.players().id_by_ped_handle(ped_handle).unwrap(),
+            Some(player_id)
+        );
     }
 
     #[test]

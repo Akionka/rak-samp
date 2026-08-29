@@ -2147,17 +2147,25 @@ refactor(gta): move game-process runtime out of samp backend
 
 ### Tasks
 
-- [ ] Move `CPools::GetPedRef` (`0x54FF60`) to `gta-sa-native` profile/spec.
-- [ ] Move `CPools::GetVehicleRef` (`0x54FFC0`) to `gta-sa-native` profile/spec.
-- [ ] Add validated typed wrappers around those calls.
-- [ ] Create `crates/gta-sa`.
-- [ ] Move `PedHandle`, `VehicleHandle`, `ObjectHandle`, `PickupHandle` ownership to `gta-sa` or an appropriate GTA value module.
-- [ ] Store valid positive GTA handle tokens as private `NonZero<i32>` values in the safe Rust types; keep raw `i32` at the C ABI boundary and reject `raw <= 0` before wrapping.
-- [ ] Keep `PickupHandle` distinct from `ObjectHandle` and use pickup-specific validation.
-- [ ] Change SA-MP player/vehicle conversions to call the GTA backend internally.
-- [ ] Ensure SA-MP IDs remain in `samp`, not `gta-sa`.
-- [ ] Validate typed ID construction against the cross-profile maximum, then validate each operation against the active profile's bound before pool access.
-- [ ] Add roundtrip/mapping tests using existing mock ABI behavior.
+- [x] Move `CPools::GetPedRef` (`0x54FF60`) to `gta-sa-native` profile/spec.
+- [x] Move `CPools::GetVehicleRef` (`0x54FFC0`) to `gta-sa-native` profile/spec.
+- [x] Add validated typed wrappers around those calls.
+- [x] Create `crates/gta-sa`.
+- [x] Move `PedHandle`, `VehicleHandle`, `ObjectHandle`, `PickupHandle` ownership to `gta-sa` or an appropriate GTA value module.
+- [x] Store valid positive GTA handle tokens as private `NonZero<i32>` values in the safe Rust types; keep raw `i32` at the C ABI boundary and reject `raw <= 0` before wrapping.
+- [x] Keep `PickupHandle` distinct from `ObjectHandle` and use pickup-specific validation.
+- [x] Change SA-MP player/vehicle conversions to call the GTA backend internally.
+- [x] Ensure SA-MP IDs remain in `samp`, not `gta-sa`.
+- [x] Validate typed ID construction against the cross-profile maximum, then validate each operation against the active profile's bound before pool access.
+- [x] Add roundtrip/mapping tests using existing mock ABI behavior.
+
+Completed: 2026-08-30. `crates/gta-sa` owns the typed GTA entity handles as
+private `NonZero<i32>` tokens that reject zero and negative raw values.
+`gta-sa-native` owns the verified `CPools::GetPedRef`/`GetVehicleRef` targets in
+its profile and exposes a `cpool_ref` wrapper; the SA-MP backend calls it instead
+of holding its own GTA absolute addresses. SA-MP facades re-export the handle
+types and perform forward/reverse mappings through `Objects::id_by_handle`,
+`Vehicles::id_by_handle`, `Pickups::id_by_handle`, and `Players::id_by_ped_handle`.
 
 ### Acceptance criteria
 

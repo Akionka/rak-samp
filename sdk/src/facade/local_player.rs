@@ -1,4 +1,4 @@
-use super::{Net, PedHandle, PlayerId, Samp, VehicleId};
+use super::{Net, PedHandle, PlayerId, VehicleId};
 use crate::{
     AimSync, CommandReceipt, HostApi, InCarSync, LocalAnimation, LocalPlayer, OnFootSync,
     PassengerSync, PlayerInfo, ProtocolSendError, RemotePlayerState, SampClientSdkResult,
@@ -169,6 +169,16 @@ impl Players {
     pub fn max_id(self) -> Result<Option<PlayerId>, SampClientSdkResult> {
         self.api.player_max_id().map(PlayerId::new)
     }
+
+    /// Resolves a GTA SA ped handle back to a checked player-pool ID.
+    pub fn id_by_ped_handle(
+        self,
+        handle: PedHandle,
+    ) -> Result<Option<PlayerId>, SampClientSdkResult> {
+        self.api
+            .player_id_by_ped_handle(handle.get())
+            .map(|id| id.and_then(PlayerId::new))
+    }
 }
 
 /// Safe, nonblocking view of one checked SA-MP player-pool entry.
@@ -277,16 +287,7 @@ impl Player {
     pub fn ped_handle(self) -> Result<Option<PedHandle>, SampClientSdkResult> {
         self.api
             .player_ped_handle(self.id.get())
-            .map(|handle| handle.and_then(|handle| PedHandle::new(handle as u32)))
-    }
-}
-
-impl PedHandle {
-    /// Resolves this GTA SA ped handle back to a checked player-pool ID.
-    pub fn to_id(self, samp: Samp) -> Result<Option<PlayerId>, SampClientSdkResult> {
-        samp.api()
-            .player_id_by_ped_handle(self.get() as i32)
-            .map(|id| id.and_then(PlayerId::new))
+            .map(|handle| handle.and_then(PedHandle::new))
     }
 }
 

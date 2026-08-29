@@ -282,7 +282,7 @@ Tiers:
 | --- | --- | --- | --- |
 | [x] | `sampGetObjectPoolPtr` | Unsafe raw | `raw::object_pool` |
 | [x] | `sampGetObjectHandleBySampId` | Safe owned/read | `Object::handle` returning `ObjectHandle` |
-| [x] | `sampGetObjectSampIdByHandle` | Safe owned/read | `ObjectHandle::to_id` |
+| [x] | `sampGetObjectSampIdByHandle` | Safe owned/read | `Objects::id_by_handle` |
 
 ### Pickups (`pickup.lua`) — 3
 
@@ -290,7 +290,7 @@ Tiers:
 | --- | --- | --- | --- |
 | [x] | `sampGetPickupPoolPtr` | Unsafe raw | `raw::pickup_pool` |
 | [x] | `sampGetPickupHandleBySampId` | Safe owned/read | `Pickup::handle` returning `PickupHandle` |
-| [x] | `sampGetPickupSampIdByHandle` | Safe owned/read | `PickupHandle::to_id` |
+| [x] | `sampGetPickupSampIdByHandle` | Safe owned/read | `Pickups::id_by_handle` |
 
 ### Players (`player.lua`) — 43
 
@@ -308,7 +308,7 @@ Tiers:
 | [x] | `sampSendInteriorChange` | Queued mutation | `Local::send_interior_change` |
 | [x] | `sampForceUnoccupiedSyncSeatId` | Queued mutation | `Local::force_unoccupied_sync` |
 | [x] | `sampGetCharHandleBySampPlayerId` | Safe owned/read | `Player::ped_handle` returning `PedHandle` |
-| [x] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `PedHandle::to_id` |
+| [x] | `sampGetPlayerIdByCharHandle` | Safe owned/read | `Players::id_by_ped_handle` |
 | [x] | `sampGetPlayerArmor` | Safe owned/read | `Player::armour` |
 | [x] | `sampGetPlayerHealth` | Safe owned/read | `Player::health` |
 | [x] | `sampIsPlayerPaused` | Safe owned/read | `Player::is_paused` |
@@ -452,7 +452,7 @@ Tiers:
 | --- | --- | --- | --- |
 | [x] | `sampGetVehiclePoolPtr` | Unsafe raw | `raw::vehicle_pool` |
 | [x] | `sampGetCarHandleBySampVehicleId` | Safe owned/read | `Vehicle::handle` returning `VehicleHandle` |
-| [x] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `VehicleHandle::to_id` |
+| [x] | `sampGetVehicleIdByCarHandle` | Safe owned/read | `Vehicles::id_by_handle` |
 | [x] | `sampIsVehicleDefined` | Safe owned/read | `Vehicles::exists` |
 <!-- sf-lua-baseline:end -->
 

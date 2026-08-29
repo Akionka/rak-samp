@@ -20,6 +20,7 @@ targets = ["i686-pc-windows-msvc"]
 name = "samp_client_sdk"
 
 [dependencies]
+gta-sa = { version = "=0.1.0-alpha.4", path = "../crates/gta-sa" }
 log = "0.4"
 samp-protocol = { version = "=0.1.0-alpha.4", path = "../crates/samp-protocol" }
 

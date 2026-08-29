@@ -30,10 +30,6 @@ type R1RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32
 type ClassicRemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type R1RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type ClassicRemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-
-const GTA_CPOOLS_GET_PED_REF: usize = 0x54_FF60;
 
 impl NativeClientProfile {
     /// Copies the count pair from the guarded player pool.
@@ -537,22 +533,19 @@ impl NativeClientProfile {
         }
         .filter(|pointer| !pointer.is_null() && readable_range(*pointer, 1))
         .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(GTA_CPOOLS_GET_PED_REF as *const u8, 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let handle = unsafe {
-            match self.spec.strategies.pool_getter_abi {
-                PoolGetterAbi::R1 => {
-                    let function: R1CpoolRefFn = mem::transmute(GTA_CPOOLS_GET_PED_REF);
-                    function(game_ped.cast())
-                }
-                PoolGetterAbi::Classic => {
-                    let function: ClassicCpoolRefFn = mem::transmute(GTA_CPOOLS_GET_PED_REF);
-                    function(game_ped.cast())
-                }
-            }
+        let abi = match self.spec.strategies.pool_getter_abi {
+            PoolGetterAbi::R1 => CpoolRefAbi::R1,
+            PoolGetterAbi::Classic => CpoolRefAbi::Classic,
         };
-        Ok((handle != 0).then_some(handle))
+        let handle = unsafe {
+            cpool_ref(
+                GtaProfile::gta_sa_10_us().spec.pools.get_ped_ref,
+                abi,
+                game_ped.cast(),
+            )
+        }
+        .map_err(|_| DirectClientError::NotReady)?;
+        Ok(handle)
     }
 
     /// Finds a player ID by its GTA ped handle, checking the local player first.

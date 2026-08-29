@@ -1,5 +1,5 @@
 use super::{
-    GangzoneId, ObjectHandle, ObjectId, PickupHandle, PlayerId, Samp, TextLabelId, TextdrawId,
+    GangzoneId, ObjectHandle, ObjectId, PickupHandle, PlayerId, TextLabelId, TextdrawId,
     VehicleHandle, VehicleId,
 };
 use crate::{
@@ -251,15 +251,16 @@ impl Objects {
     pub fn handle(self, id: ObjectId) -> Result<Option<ObjectHandle>, SampClientSdkResult> {
         self.api
             .object_handle(id.get())
-            .map(|handle| handle.and_then(|handle| ObjectHandle::new(handle as u32)))
+            .map(|handle| handle.and_then(ObjectHandle::new))
     }
-}
 
-impl ObjectHandle {
-    /// Resolves this GTA SA object handle back to a checked object-pool ID.
-    pub fn to_id(self, samp: Samp) -> Result<Option<ObjectId>, SampClientSdkResult> {
-        samp.api()
-            .object_id_by_handle(self.get() as i32)
+    /// Resolves a GTA SA object handle back to a checked object-pool ID.
+    pub fn id_by_handle(
+        self,
+        handle: ObjectHandle,
+    ) -> Result<Option<ObjectId>, SampClientSdkResult> {
+        self.api
+            .object_id_by_handle(handle.get())
             .map(|id| id.and_then(ObjectId::new))
     }
 }
@@ -280,14 +281,12 @@ impl Pickups {
     pub fn handle(self, id: u16) -> Result<Option<PickupHandle>, SampClientSdkResult> {
         self.api
             .pickup_handle(id)
-            .map(|handle| handle.and_then(|handle| PickupHandle::new(handle as u32)))
+            .map(|handle| handle.and_then(PickupHandle::new))
     }
-}
 
-impl PickupHandle {
-    /// Resolves this GTA SA pickup handle back to a pickup-pool index.
-    pub fn to_id(self, samp: Samp) -> Result<Option<u16>, SampClientSdkResult> {
-        samp.api().pickup_id_by_handle(self.get() as i32)
+    /// Resolves a GTA SA pickup handle back to a pickup-pool index.
+    pub fn id_by_handle(self, handle: PickupHandle) -> Result<Option<u16>, SampClientSdkResult> {
+        self.api.pickup_id_by_handle(handle.get())
     }
 }
 
@@ -309,15 +308,16 @@ impl Vehicles {
     pub fn handle(self, id: VehicleId) -> Result<Option<VehicleHandle>, SampClientSdkResult> {
         self.api
             .vehicle_handle(id.get())
-            .map(|handle| handle.and_then(|handle| VehicleHandle::new(handle as u32)))
+            .map(|handle| handle.and_then(VehicleHandle::new))
     }
-}
 
-impl VehicleHandle {
-    /// Resolves this GTA SA vehicle handle back to a checked vehicle-pool ID.
-    pub fn to_id(self, samp: Samp) -> Result<Option<VehicleId>, SampClientSdkResult> {
-        samp.api()
-            .vehicle_id_by_handle(self.get() as i32)
+    /// Resolves a GTA SA vehicle handle back to a checked vehicle-pool ID.
+    pub fn id_by_handle(
+        self,
+        handle: VehicleHandle,
+    ) -> Result<Option<VehicleId>, SampClientSdkResult> {
+        self.api
+            .vehicle_id_by_handle(handle.get())
             .map(|id| id.and_then(VehicleId::new))
     }
 }
@@ -340,6 +340,7 @@ impl Gangzones {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Samp;
 
     fn samp() -> Samp {
         Samp::from_api(crate::events::test_support::test_api())

@@ -40,11 +40,19 @@ pub struct GameSpec {
     pub process: AbsoluteAddress,
 }
 
+/// Verified GTA `CPools` reference-conversion targets.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GtaPoolSpec {
+    pub get_ped_ref: AbsoluteAddress,
+    pub get_vehicle_ref: AbsoluteAddress,
+}
+
 /// Data-only profile specification for one GTA executable target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GtaProfileSpec {
     pub identity: GtaIdentity,
     pub game: GameSpec,
+    pub pools: GtaPoolSpec,
 }
 
 /// Selected GTA executable profile.
@@ -74,6 +82,10 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
     },
     game: GameSpec {
         process: AbsoluteAddress::new(0x53BEE0),
+    },
+    pools: GtaPoolSpec {
+        get_ped_ref: AbsoluteAddress::new(0x54FF60),
+        get_vehicle_ref: AbsoluteAddress::new(0x54FFC0),
     },
 };
 
@@ -127,5 +139,12 @@ mod tests {
         assert_eq!(profile.spec.identity.name, "GTA SA 1.0 US");
         assert_eq!(profile.module_base, 0x0040_0000);
         assert_eq!(profile.spec.game.process.get(), 0x53BEE0);
+    }
+
+    #[test]
+    fn gta_sa_10_us_owns_the_verified_cpools_ref_targets() {
+        let profile = GtaProfile::select(0x0040_0000, GTA_SA_10_US_SHA256).unwrap();
+        assert_eq!(profile.spec.pools.get_ped_ref.get(), 0x54FF60);
+        assert_eq!(profile.spec.pools.get_vehicle_ref.get(), 0x54FFC0);
     }
 }

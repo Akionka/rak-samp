@@ -5,16 +5,13 @@ use super::{
     profile::{FieldOffset, NativeClientProfile, PoolGetterAbi},
 };
 use crate::runtime::{DirectClientError, GangzoneSnapshot};
+use gta_sa_native::{CpoolRefAbi, GtaProfile, cpool_ref};
 use std::{ffi::c_void, mem};
 
 type R1PoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type ClassicPoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
 type R1VehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type ClassicVehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-
-const GTA_CPOOLS_GET_VEHICLE_REF: usize = 0x54_FFC0;
 
 impl NativeClientProfile {
     pub(crate) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
@@ -205,22 +202,19 @@ impl NativeClientProfile {
         }
         .filter(|pointer| !pointer.is_null() && readable_range(*pointer, 1))
         .ok_or(DirectClientError::NotReady)?;
-        if !readable_range(GTA_CPOOLS_GET_VEHICLE_REF as *const u8, 1) {
-            return Err(DirectClientError::NotReady);
-        }
-        let handle = unsafe {
-            match self.spec.strategies.pool_getter_abi {
-                PoolGetterAbi::R1 => {
-                    let function: R1CpoolRefFn = mem::transmute(GTA_CPOOLS_GET_VEHICLE_REF);
-                    function(game_object.cast())
-                }
-                PoolGetterAbi::Classic => {
-                    let function: ClassicCpoolRefFn = mem::transmute(GTA_CPOOLS_GET_VEHICLE_REF);
-                    function(game_object.cast())
-                }
-            }
+        let abi = match self.spec.strategies.pool_getter_abi {
+            PoolGetterAbi::R1 => CpoolRefAbi::R1,
+            PoolGetterAbi::Classic => CpoolRefAbi::Classic,
         };
-        Ok((handle != 0).then_some(handle))
+        let handle = unsafe {
+            cpool_ref(
+                GtaProfile::gta_sa_10_us().spec.pools.get_vehicle_ref,
+                abi,
+                game_object.cast(),
+            )
+        }
+        .map_err(|_| DirectClientError::NotReady)?;
+        Ok(handle)
     }
 
     /// Finds a vehicle ID by its GTA handle.

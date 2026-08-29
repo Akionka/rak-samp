@@ -56,12 +56,20 @@
   restore their original page protection. The crate contains no GTA/SA-MP
   addresses or profile constants, and only it and the native backends depend on
   `windows-sys`/MinHook.
-- `crates/gta-sa-native/` owns the first GTA-native foundation: an exact
+- `crates/gta-sa-native/` owns the GTA-native foundation: an exact
   SHA-256 and image-base gated GTA SA 1.0 US profile with the
-  `CGame::Process` target `0x53BEE0`, the detour/trampoline and failure-aware
-  restoration lifecycle, game-thread identity, and the ordered
-  mark/snapshot/original/post-pump phases. The SA-MP backend registers as a
-  host-internal participant; no plugin-facing GTA service exists yet.
+  verified `CGame::Process` target `0x53BEE0`, the failure-aware
+  detour/trampoline restoration lifecycle, game-thread identity, the
+  ordered mark/snapshot/original/post-pump phases, and the verified
+  `CPools::GetPedRef`/`GetVehicleRef` reference-conversion targets. The SA-MP
+  backend registers as a host-internal participant and calls the GTA `cpool_ref`
+  wrapper for ped/vehicle handle conversion instead of holding its own GTA
+  absolute addresses; no plugin-facing GTA service exists yet.
+- `crates/gta-sa/` owns the plugin-side typed GTA entity handles
+  (`ObjectHandle`, `PickupHandle`, `VehicleHandle`, `PedHandle`) as private
+  `NonZero<i32>` tokens that reject zero and negative raw values. It contains no
+  fixed native addresses and no direct memory dereferences. SA-MP facades
+  re-export these types and perform the SA-MP-to-GTA mappings.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while one shared `NativeClientProfile`

@@ -70,10 +70,10 @@ pub(super) fn verify_entity_handles(samp: Samp) -> Result<(), SampClientSdkResul
                 Ok(Some(ped_handle)),
             ) => {
                 let reverse_results = (
-                    object_handle.to_id(samp),
-                    vehicle_handle.to_id(samp),
-                    pickup_handle.to_id(samp),
-                    ped_handle.to_id(samp),
+                    samp.objects().id_by_handle(object_handle),
+                    samp.vehicles().id_by_handle(vehicle_handle),
+                    samp.pickups().id_by_handle(pickup_handle),
+                    samp.players().id_by_ped_handle(ped_handle),
                 );
                 match reverse_results {
                     (

@@ -26,6 +26,7 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
+    "crates/gta-sa",
     "crates/gta-sa-native",
     "crates/modkit-abi",
     "crates/modkit-runtime",
