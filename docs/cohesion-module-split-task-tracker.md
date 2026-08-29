@@ -30,7 +30,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P6 | Reduce Win32 composition root | P5 recommended | [x] |
 | P7 | Split native-client players/UI | P0 + live-validation decision | [x] |
 | P8 | Split SDK ABI source | P0 | [x] |
-| P9 | Redistribute large tests | relevant production phase | [ ] |
+| P9 | Redistribute large tests | relevant production phase | [x] |
 | P10 | Split common network probe | P7 recommended | [ ] |
 | P11 | Documentation and final acceptance | P2–P10 as selected | [ ] |
 
@@ -782,52 +782,96 @@ Do this only after the production owner for each test is stable.
 
 ### SDK tests
 
-- [ ] **P9-01 — Create `sdk/src/tests/` module shell.**
+- [x] **P9-01 — Create `sdk/src/tests/` module shell.**
   - Keep existing private test access.
 
-- [ ] **P9-02 — Extract ABI/default/layout tests.**
+  Evidence (2026-08-29): `7735b9a`; `tests/mod.rs` remains private and
+  owns only shared codecs, synchronization, and fixtures.
+
+- [x] **P9-02 — Extract ABI/default/layout tests.**
   - `tests/abi.rs`.
 
-- [ ] **P9-03 — Extract host API/facade conversion tests.**
+  Evidence (2026-08-29): `fa9ddeb`.
+
+- [x] **P9-03 — Extract host API/facade conversion tests.**
   - `tests/host_api.rs`.
 
-- [ ] **P9-04 — Extract Protocol send/convenience tests.**
+  Evidence (2026-08-29): `4453a8b`.
+
+- [x] **P9-04 — Extract Protocol send/convenience tests.**
   - `tests/protocol.rs`.
 
-- [ ] **P9-05 — Extract typed/raw callback and replacement tests.**
+  Evidence (2026-08-29): `a992c30`.
+
+- [x] **P9-05 — Extract typed/raw callback and replacement tests.**
   - `tests/callbacks.rs`.
   - Preserve exact-bit and failure-atomic replacement coverage.
 
-- [ ] **P9-06 — Extract subscription lifecycle tests.**
+  Evidence (2026-08-29): `86f9d5b`; exact-bit, malformed-source,
+  replacement-encode, and host-rejection cases remain present and pass.
+
+- [x] **P9-06 — Extract subscription lifecycle tests.**
   - `tests/subscriptions.rs`.
 
-- [ ] **P9-07 — Extract resolution/probe tests if enough material exists.**
+  Evidence (2026-08-29): `1e4ee47`.
+
+- [x] **P9-07 — Extract resolution/probe tests if enough material exists.**
   - `tests/resolution.rs`; otherwise leave them in `tests/mod.rs` rather than creating a tiny file.
+
+  Evidence (2026-08-29): no `tests/resolution.rs` was created. The three
+  resolution tests already belong to `sdk/src/resolve.rs`; `tests/mod.rs`
+  contains no resolution tests.
 
 ### Win32 tests
 
-- [ ] **P9-08 — Convert `vtable_tests.rs` to a directory module.**
+- [x] **P9-08 — Convert `vtable_tests.rs` to a directory module.**
   - Create a narrow shared `fixtures.rs` only for backend/profile construction helpers used across multiple groups.
 
-- [ ] **P9-09 — Extract cache/request tests.**
+  Evidence (2026-08-29): `11f62df` and `6986568`. The shared fixture file
+  contains only backend/profile construction and reusable owned values.
+
+- [x] **P9-09 — Extract cache/request tests.**
   - Group cache publication/invalidation separately from bounded request queue behavior where practical.
 
-- [ ] **P9-10 — Extract command/tick tests.**
+  Evidence (2026-08-29): cache `43bcc0c`; request queues `b7bb9ab`.
+
+- [x] **P9-10 — Extract command/tick tests.**
   - Preserve cross-module queue-to-tick-to-completion tests at the parent test layer if needed.
 
-- [ ] **P9-11 — Extract hook/native lifecycle tests.**
+  Evidence (2026-08-29): `15e8a80`; the group retains queue, native tick,
+  completion, reconnect, and wait-rejection coverage.
+
+- [x] **P9-11 — Extract hook/native lifecycle tests.**
   - Hook patch/restore, captured originals, readiness/failure visibility.
 
-- [ ] **P9-12 — Reassess `profile_layout_tests.rs`.**
+  Evidence (2026-08-29): `51d9d4e`; hook-only fake vtable state is local to
+  `hooks_native.rs`.
+
+- [x] **P9-12 — Reassess `profile_layout_tests.rs`.**
   - Split only if navigation benefit is real.
   - If split, share assertions and separate profile data without duplication.
 
-- [ ] **P9-13 — Run full test suite and compare test count/coverage intent.**
+  Evidence (2026-08-29): left intact. It is one cohesive independent C++
+  layout fixture; a split would duplicate assertion and fixture structure.
+
+- [x] **P9-13 — Run full test suite and compare test count/coverage intent.**
   - No test may disappear merely because of module movement.
+
+  Evidence (2026-08-29): `cargo make quality` passed, including workspace
+  format, check, tests, Clippy, docs, release hygiene, and package checks.
+  SDK remains 100 tests and host remains 173 tests. `cargo make build-release`
+  produced `target/i686-pc-windows-msvc/release/samp_client_sdk.dll`; its only
+  exports are `DllMain` and `SampClientSdk_GetApiV1`.
 
 ### P9 gate
 
-- [ ] Large test roots are easier to navigate and no new monolithic `test_support` dumping ground exists.
+- [x] Large test roots are easier to navigate and no new monolithic `test_support` dumping ground exists.
+
+  Physical/nonblank LOC: SDK `mod.rs` 114/94, `abi.rs` 719/709,
+  `host_api.rs` 514/487, `protocol.rs` 256/243, `callbacks.rs` 849/777,
+  `subscriptions.rs` 134/122; Win32 `mod.rs` 10/9, `fixtures.rs` 191/182,
+  `cache.rs` 1,053/979, `requests.rs` 386/360, `commands_tick.rs` 237/205,
+  `hooks_native.rs` 147/126.
 
 ---
 
