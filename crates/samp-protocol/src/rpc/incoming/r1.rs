@@ -366,89 +366,34 @@ struct DisableVehicleCollisionsCodec;
 struct ToggleCameraTargetNotifyingCodec;
 struct ActorAnimationCodec;
 
-macro_rules! descriptor_value {
-    (InitGameCodec) => {
-        InitGame
-    };
-    (RequestClassResponseCodec) => {
-        RequestClassResponse
-    };
-    (PlayerStreamInCodec) => {
-        PlayerStreamIn
-    };
-    (SpawnInfoCodec) => {
-        SpawnInfo
-    };
-    (PlayerAnimationCodec) => {
-        PlayerAnimation
-    };
-    (EnableStuntBonusCodec) => {
-        bool
-    };
-    (CrimeReportCodec) => {
-        CrimeReport
-    };
-    (PlayerAttachedObjectCodec) => {
-        PlayerAttachedObject
-    };
-    (TogglePlayerSpectatingCodec) => {
-        bool
-    };
-    (ScoresAndPingsCodec) => {
-        ScoresAndPings
-    };
-    (InitMenuCodec) => {
-        InitMenu
-    };
-    (InterpolateCameraCodec) => {
-        InterpolateCamera
-    };
-    (ToggleSelectTextDrawCodec) => {
-        ToggleSelectTextDraw
-    };
-    (EnterEditObjectCodec) => {
-        EnterEditObject
-    };
-    (ShowTextDrawCodec) => {
-        ShowTextDraw
-    };
-    (TextDrawHideCodec) => {
-        u16
-    };
-    (VehicleStreamInCodec) => {
-        VehicleStreamIn
-    };
-    (DisableVehicleCollisionsCodec) => {
-        bool
-    };
-    (ToggleCameraTargetNotifyingCodec) => {
-        bool
-    };
-    (ActorAnimationCodec) => {
-        ActorAnimation
-    };
-}
-
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ident, $policy:ident) => {
+    ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty, $policy:ident) => {
         crate::wire::nominal_descriptor!(
             incoming rpc,
             $name,
             $constant,
             $id,
             $codec,
-            descriptor_value!($codec),
+            $value,
             $policy
         );
     };
 }
 
-descriptor!(InitGameRpc, INIT_GAME, 139, InitGameCodec, ExactBitsPolicy);
+descriptor!(
+    InitGameRpc,
+    INIT_GAME,
+    139,
+    InitGameCodec,
+    InitGame,
+    ExactBitsPolicy
+);
 descriptor!(
     RequestClassResponseRpc,
     REQUEST_CLASS_RESPONSE,
     128,
     RequestClassResponseCodec,
+    RequestClassResponse,
     ExactBitsPolicy
 );
 descriptor!(
@@ -456,6 +401,7 @@ descriptor!(
     PLAYER_STREAM_IN,
     32,
     PlayerStreamInCodec,
+    PlayerStreamIn,
     ExactBitsPolicy
 );
 descriptor!(
@@ -463,6 +409,7 @@ descriptor!(
     SET_SPAWN_INFO,
     68,
     SpawnInfoCodec,
+    SpawnInfo,
     ExactBitsPolicy
 );
 descriptor!(
@@ -470,6 +417,7 @@ descriptor!(
     APPLY_PLAYER_ANIMATION,
     86,
     PlayerAnimationCodec,
+    PlayerAnimation,
     ExactBitsPolicy
 );
 descriptor!(
@@ -477,6 +425,7 @@ descriptor!(
     ENABLE_STUNT_BONUS,
     104,
     EnableStuntBonusCodec,
+    bool,
     ExactBitsPolicy
 );
 descriptor!(
@@ -484,6 +433,7 @@ descriptor!(
     PLAY_CRIME_REPORT,
     112,
     CrimeReportCodec,
+    CrimeReport,
     ExactBitsPolicy
 );
 descriptor!(
@@ -491,6 +441,7 @@ descriptor!(
     SET_PLAYER_ATTACHED_OBJECT,
     113,
     PlayerAttachedObjectCodec,
+    PlayerAttachedObject,
     ExactBitsPolicy
 );
 descriptor!(
@@ -498,6 +449,7 @@ descriptor!(
     TOGGLE_PLAYER_SPECTATING,
     124,
     TogglePlayerSpectatingCodec,
+    bool,
     ExactBitsPolicy
 );
 descriptor!(
@@ -505,14 +457,23 @@ descriptor!(
     UPDATE_SCORES_AND_PINGS,
     155,
     ScoresAndPingsCodec,
+    ScoresAndPings,
     ExactBitsPolicy
 );
-descriptor!(InitMenuRpc, INIT_MENU, 76, InitMenuCodec, ExactBytesPolicy);
+descriptor!(
+    InitMenuRpc,
+    INIT_MENU,
+    76,
+    InitMenuCodec,
+    InitMenu,
+    ExactBytesPolicy
+);
 descriptor!(
     InterpolateCameraRpc,
     INTERPOLATE_CAMERA,
     82,
     InterpolateCameraCodec,
+    InterpolateCamera,
     ExactBitsPolicy
 );
 descriptor!(
@@ -520,6 +481,7 @@ descriptor!(
     TOGGLE_SELECT_TEXT_DRAW,
     83,
     ToggleSelectTextDrawCodec,
+    ToggleSelectTextDraw,
     ExactBitsPolicy
 );
 descriptor!(
@@ -527,6 +489,7 @@ descriptor!(
     ENTER_EDIT_OBJECT,
     117,
     EnterEditObjectCodec,
+    EnterEditObject,
     ExactBitsPolicy
 );
 descriptor!(
@@ -534,6 +497,7 @@ descriptor!(
     SHOW_TEXT_DRAW,
     134,
     ShowTextDrawCodec,
+    ShowTextDraw,
     ExactBytesPolicy
 );
 descriptor!(
@@ -541,6 +505,7 @@ descriptor!(
     TEXT_DRAW_HIDE,
     135,
     TextDrawHideCodec,
+    u16,
     ExactBytesPolicy
 );
 descriptor!(
@@ -548,6 +513,7 @@ descriptor!(
     VEHICLE_STREAM_IN,
     164,
     VehicleStreamInCodec,
+    VehicleStreamIn,
     ExactBytesPolicy
 );
 descriptor!(
@@ -555,6 +521,7 @@ descriptor!(
     DISABLE_VEHICLE_COLLISIONS,
     167,
     DisableVehicleCollisionsCodec,
+    bool,
     ExactBitsPolicy
 );
 descriptor!(
@@ -562,6 +529,7 @@ descriptor!(
     TOGGLE_CAMERA_TARGET_NOTIFYING,
     170,
     ToggleCameraTargetNotifyingCodec,
+    bool,
     ExactBitsPolicy
 );
 descriptor!(
@@ -569,6 +537,7 @@ descriptor!(
     APPLY_ACTOR_ANIMATION,
     173,
     ActorAnimationCodec,
+    ActorAnimation,
     ExactBitsPolicy
 );
 

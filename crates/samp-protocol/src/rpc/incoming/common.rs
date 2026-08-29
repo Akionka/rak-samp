@@ -578,478 +578,499 @@ struct VehicleParamsCodec;
 struct PlayerEnterVehicleCodec;
 struct PlayerExitVehicleCodec;
 
-macro_rules! descriptor_value {
-    (Empty) => {
-        ()
-    };
-    (U8) => {
-        u8
-    };
-    (U16) => {
-        u16
-    };
-    (I32) => {
-        i32
-    };
-    (F32) => {
-        f32
-    };
-    (Bool8) => {
-        bool
-    };
-    (Vector3Codec) => {
-        Vector3
-    };
-    (ServerMessageCodec) => {
-        ServerMessage
-    };
-    (GameTextCodec) => {
-        GameText
-    };
-    (PlaySoundCodec) => {
-        PlaySound
-    };
-    (CheckpointCodec) => {
-        Checkpoint
-    };
-    (ChatMessageCodec) => {
-        ChatMessage
-    };
-    (ChatBubbleCodec) => {
-        ChatBubble
-    };
-    (PlayerJoinCodec) => {
-        PlayerJoin
-    };
-    (PlayerQuitCodec) => {
-        PlayerQuit
-    };
-    (PlayerNameCodec) => {
-        PlayerName
-    };
-    (PlayerTimeCodec) => {
-        PlayerTime
-    };
-    (WorldBoundsCodec) => {
-        WorldBounds
-    };
-    (PlayerWeaponCodec) => {
-        PlayerWeapon
-    };
-    (PlayerTeamCodec) => {
-        PlayerTeam
-    };
-    (PlayerSkinCodec) => {
-        PlayerSkin
-    };
-    (PutPlayerInVehicleCodec) => {
-        PutPlayerInVehicle
-    };
-    (VehiclePositionCodec) => {
-        VehiclePosition
-    };
-    (VehicleAngleCodec) => {
-        VehicleAngle
-    };
-    (VehicleHealthCodec) => {
-        VehicleHealth
-    };
-    (RaceCheckpointCodec) => {
-        RaceCheckpoint
-    };
-    (AudioStreamCodec) => {
-        AudioStream
-    };
-    (ObjectPositionCodec) => {
-        ObjectPosition
-    };
-    (ObjectRotationCodec) => {
-        ObjectRotation
-    };
-    (PlayerDeathNotificationCodec) => {
-        PlayerDeathNotification
-    };
-    (MapIconCodec) => {
-        MapIcon
-    };
-    (VehicleComponentCodec) => {
-        VehicleComponent
-    };
-    (VehicleInteriorCodec) => {
-        VehicleInterior
-    };
-    (PlayerColorCodec) => {
-        PlayerColor
-    };
-    (FixedString32Codec) => {
-        [u8; 32]
-    };
-    (PlayerSkillCodec) => {
-        PlayerSkill
-    };
-    (RemoveBuildingCodec) => {
-        RemoveBuilding
-    };
-    (AttachObjectToPlayerCodec) => {
-        AttachObjectToPlayer
-    };
-    (ExplosionCodec) => {
-        Explosion
-    };
-    (PlayerNameTagCodec) => {
-        PlayerNameTag
-    };
-    (ClientCheckCodec) => {
-        ClientCheck
-    };
-    (VehicleParamsExCodec) => {
-        VehicleParamsEx
-    };
-    (VehicleTuningNotificationCodec) => {
-        VehicleTuningNotification
-    };
-    (U16U8Codec) => {
-        (u16, u8)
-    };
-    (VehicleDamageStatusCodec) => {
-        VehicleDamageStatus
-    };
-    (ActorCodec) => {
-        Actor
-    };
-    (ActorAngleCodec) => {
-        ActorAngle
-    };
-    (ActorPositionCodec) => {
-        ActorPosition
-    };
-    (ActorHealthCodec) => {
-        ActorHealth
-    };
-    (PlayerFightingStyleCodec) => {
-        PlayerFightingStyle
-    };
-    (VehicleVelocityCodec) => {
-        VehicleVelocity
-    };
-    (PickupCodec) => {
-        Pickup
-    };
-    (MoveObjectCodec) => {
-        MoveObject
-    };
-    (TextDrawStringCodec) => {
-        TextDrawString
-    };
-    (GangZoneCodec) => {
-        GangZone
-    };
-    (U16I32Codec) => {
-        (u16, i32)
-    };
-    (VehicleNumberPlateCodec) => {
-        VehicleNumberPlate
-    };
-    (SpectateCodec) => {
-        Spectate
-    };
-    (WeaponAmmoCodec) => {
-        WeaponAmmo
-    };
-    (TrailerAttachmentCodec) => {
-        TrailerAttachment
-    };
-    (CameraLookAtCodec) => {
-        CameraLookAt
-    };
-    (VehicleParamsCodec) => {
-        VehicleParams
-    };
-    (PlayerEnterVehicleCodec) => {
-        PlayerEnterVehicle
-    };
-    (PlayerExitVehicleCodec) => {
-        PlayerExitVehicle
-    };
-}
-
 macro_rules! descriptor {
-    ($name:ident, $constant:ident, $id:literal, $codec:ident) => {
+    ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty) => {
         crate::wire::nominal_descriptor!(
             incoming rpc,
             $name,
             $constant,
             $id,
             $codec,
-            descriptor_value!($codec),
+            $value,
             ExactBytesPolicy
         );
     };
 }
 
-descriptor!(ServerMessageRpc, SERVER_MESSAGE, 93, ServerMessageCodec);
-descriptor!(DisplayGameText, DISPLAY_GAME_TEXT, 73, GameTextCodec);
-descriptor!(SetPlayerPos, SET_PLAYER_POS, 12, Vector3Codec);
-descriptor!(SetPlayerPosFindZ, SET_PLAYER_POS_FIND_Z, 13, Vector3Codec);
-descriptor!(SetPlayerHealth, SET_PLAYER_HEALTH, 14, F32);
-descriptor!(SetPlayerArmour, SET_PLAYER_ARMOUR, 66, F32);
-descriptor!(SetPlayerFacingAngle, SET_PLAYER_FACING_ANGLE, 19, F32);
+descriptor!(
+    ServerMessageRpc,
+    SERVER_MESSAGE,
+    93,
+    ServerMessageCodec,
+    ServerMessage
+);
+descriptor!(
+    DisplayGameText,
+    DISPLAY_GAME_TEXT,
+    73,
+    GameTextCodec,
+    GameText
+);
+descriptor!(SetPlayerPos, SET_PLAYER_POS, 12, Vector3Codec, Vector3);
+descriptor!(
+    SetPlayerPosFindZ,
+    SET_PLAYER_POS_FIND_Z,
+    13,
+    Vector3Codec,
+    Vector3
+);
+descriptor!(SetPlayerHealth, SET_PLAYER_HEALTH, 14, F32, f32);
+descriptor!(SetPlayerArmour, SET_PLAYER_ARMOUR, 66, F32, f32);
+descriptor!(SetPlayerFacingAngle, SET_PLAYER_FACING_ANGLE, 19, F32, f32);
 descriptor!(
     TogglePlayerControllable,
     TOGGLE_PLAYER_CONTROLLABLE,
     15,
-    Bool8
+    Bool8,
+    bool
 );
-descriptor!(PlaySoundRpc, PLAY_SOUND, 16, PlaySoundCodec);
-descriptor!(SetCheckpoint, SET_CHECKPOINT, 107, CheckpointCodec);
-descriptor!(ChatMessageRpc, CHAT_MESSAGE, 101, ChatMessageCodec);
-descriptor!(ChatBubbleRpc, CHAT_BUBBLE, 59, ChatBubbleCodec);
-descriptor!(PlayerJoinRpc, PLAYER_JOIN, 137, PlayerJoinCodec);
-descriptor!(PlayerQuitRpc, PLAYER_QUIT, 138, PlayerQuitCodec);
-descriptor!(SetPlayerName, SET_PLAYER_NAME, 11, PlayerNameCodec);
-descriptor!(SetPlayerTime, SET_PLAYER_TIME, 29, PlayerTimeCodec);
-descriptor!(SetWorldBounds, SET_WORLD_BOUNDS, 17, WorldBoundsCodec);
-descriptor!(GivePlayerMoney, GIVE_PLAYER_MONEY, 18, I32);
-descriptor!(GivePlayerWeapon, GIVE_PLAYER_WEAPON, 22, PlayerWeaponCodec);
-descriptor!(SetWorldTime, SET_WORLD_TIME, 94, U8);
-descriptor!(SetWeather, SET_WEATHER, 152, U8);
-descriptor!(SetPlayerSkin, SET_PLAYER_SKIN, 153, PlayerSkinCodec);
-descriptor!(SetInterior, SET_INTERIOR, 156, U8);
-descriptor!(SetPlayerArmedWeapon, SET_PLAYER_ARMED_WEAPON, 67, I32);
-descriptor!(SetPlayerWantedLevel, SET_PLAYER_WANTED_LEVEL, 133, U8);
-descriptor!(SetPlayerTeam, SET_PLAYER_TEAM, 69, PlayerTeamCodec);
+descriptor!(PlaySoundRpc, PLAY_SOUND, 16, PlaySoundCodec, PlaySound);
+descriptor!(
+    SetCheckpoint,
+    SET_CHECKPOINT,
+    107,
+    CheckpointCodec,
+    Checkpoint
+);
+descriptor!(
+    ChatMessageRpc,
+    CHAT_MESSAGE,
+    101,
+    ChatMessageCodec,
+    ChatMessage
+);
+descriptor!(ChatBubbleRpc, CHAT_BUBBLE, 59, ChatBubbleCodec, ChatBubble);
+descriptor!(PlayerJoinRpc, PLAYER_JOIN, 137, PlayerJoinCodec, PlayerJoin);
+descriptor!(PlayerQuitRpc, PLAYER_QUIT, 138, PlayerQuitCodec, PlayerQuit);
+descriptor!(
+    SetPlayerName,
+    SET_PLAYER_NAME,
+    11,
+    PlayerNameCodec,
+    PlayerName
+);
+descriptor!(
+    SetPlayerTime,
+    SET_PLAYER_TIME,
+    29,
+    PlayerTimeCodec,
+    PlayerTime
+);
+descriptor!(
+    SetWorldBounds,
+    SET_WORLD_BOUNDS,
+    17,
+    WorldBoundsCodec,
+    WorldBounds
+);
+descriptor!(GivePlayerMoney, GIVE_PLAYER_MONEY, 18, I32, i32);
+descriptor!(
+    GivePlayerWeapon,
+    GIVE_PLAYER_WEAPON,
+    22,
+    PlayerWeaponCodec,
+    PlayerWeapon
+);
+descriptor!(SetWorldTime, SET_WORLD_TIME, 94, U8, u8);
+descriptor!(SetWeather, SET_WEATHER, 152, U8, u8);
+descriptor!(
+    SetPlayerSkin,
+    SET_PLAYER_SKIN,
+    153,
+    PlayerSkinCodec,
+    PlayerSkin
+);
+descriptor!(SetInterior, SET_INTERIOR, 156, U8, u8);
+descriptor!(SetPlayerArmedWeapon, SET_PLAYER_ARMED_WEAPON, 67, I32, i32);
+descriptor!(SetPlayerWantedLevel, SET_PLAYER_WANTED_LEVEL, 133, U8, u8);
+descriptor!(
+    SetPlayerTeam,
+    SET_PLAYER_TEAM,
+    69,
+    PlayerTeamCodec,
+    PlayerTeam
+);
 descriptor!(
     PutPlayerInVehicleRpc,
     PUT_PLAYER_IN_VEHICLE,
     70,
-    PutPlayerInVehicleCodec
+    PutPlayerInVehicleCodec,
+    PutPlayerInVehicle
 );
-descriptor!(PlayerStreamOut, PLAYER_STREAM_OUT, 163, U16);
-descriptor!(VehicleStreamOut, VEHICLE_STREAM_OUT, 165, U16);
+descriptor!(PlayerStreamOut, PLAYER_STREAM_OUT, 163, U16, u16);
+descriptor!(VehicleStreamOut, VEHICLE_STREAM_OUT, 165, U16, u16);
 descriptor!(
     SetVehiclePosition,
     SET_VEHICLE_POSITION,
     159,
-    VehiclePositionCodec
+    VehiclePositionCodec,
+    VehiclePosition
 );
-descriptor!(SetVehicleAngle, SET_VEHICLE_ANGLE, 160, VehicleAngleCodec);
+descriptor!(
+    SetVehicleAngle,
+    SET_VEHICLE_ANGLE,
+    160,
+    VehicleAngleCodec,
+    VehicleAngle
+);
 descriptor!(
     SetVehicleHealth,
     SET_VEHICLE_HEALTH,
     147,
-    VehicleHealthCodec
+    VehicleHealthCodec,
+    VehicleHealth
 );
-descriptor!(ResetPlayerMoney, RESET_PLAYER_MONEY, 20, Empty);
-descriptor!(ResetPlayerWeapons, RESET_PLAYER_WEAPONS, 21, Empty);
-descriptor!(CancelEdit, CANCEL_EDIT, 28, Empty);
-descriptor!(SetToggleClock, SET_TOGGLE_CLOCK, 30, Bool8);
-descriptor!(SetPlayerDrunk, SET_PLAYER_DRUNK, 35, I32);
+descriptor!(ResetPlayerMoney, RESET_PLAYER_MONEY, 20, Empty, ());
+descriptor!(ResetPlayerWeapons, RESET_PLAYER_WEAPONS, 21, Empty, ());
+descriptor!(CancelEdit, CANCEL_EDIT, 28, Empty, ());
+descriptor!(SetToggleClock, SET_TOGGLE_CLOCK, 30, Bool8, bool);
+descriptor!(SetPlayerDrunk, SET_PLAYER_DRUNK, 35, I32, i32);
 descriptor!(
     SetRaceCheckpoint,
     SET_RACE_CHECKPOINT,
     38,
-    RaceCheckpointCodec
+    RaceCheckpointCodec,
+    RaceCheckpoint
 );
-descriptor!(PlayAudioStream, PLAY_AUDIO_STREAM, 41, AudioStreamCodec);
+descriptor!(
+    PlayAudioStream,
+    PLAY_AUDIO_STREAM,
+    41,
+    AudioStreamCodec,
+    AudioStream
+);
 descriptor!(
     SetObjectPosition,
     SET_OBJECT_POSITION,
     45,
-    ObjectPositionCodec
+    ObjectPositionCodec,
+    ObjectPosition
 );
 descriptor!(
     SetObjectRotation,
     SET_OBJECT_ROTATION,
     46,
-    ObjectRotationCodec
+    ObjectRotationCodec,
+    ObjectRotation
 );
-descriptor!(DestroyObject, DESTROY_OBJECT, 47, U16);
+descriptor!(DestroyObject, DESTROY_OBJECT, 47, U16, u16);
 descriptor!(
     PlayerDeathNotificationRpc,
     PLAYER_DEATH_NOTIFICATION,
     55,
-    PlayerDeathNotificationCodec
+    PlayerDeathNotificationCodec,
+    PlayerDeathNotification
 );
-descriptor!(SetMapIcon, SET_MAP_ICON, 56, MapIconCodec);
+descriptor!(SetMapIcon, SET_MAP_ICON, 56, MapIconCodec, MapIcon);
 descriptor!(
     RemoveVehicleComponent,
     REMOVE_VEHICLE_COMPONENT,
     57,
-    VehicleComponentCodec
+    VehicleComponentCodec,
+    VehicleComponent
 );
-descriptor!(Remove3DTextLabel, REMOVE_3D_TEXT_LABEL, 58, U16);
-descriptor!(UpdateGlobalTimer, UPDATE_GLOBAL_TIMER, 60, I32);
-descriptor!(DestroyPickup, DESTROY_PICKUP, 63, I32);
+descriptor!(Remove3DTextLabel, REMOVE_3D_TEXT_LABEL, 58, U16, u16);
+descriptor!(UpdateGlobalTimer, UPDATE_GLOBAL_TIMER, 60, I32, i32);
+descriptor!(DestroyPickup, DESTROY_PICKUP, 63, I32, i32);
 descriptor!(
     LinkVehicleToInterior,
     LINK_VEHICLE_TO_INTERIOR,
     65,
-    VehicleInteriorCodec
+    VehicleInteriorCodec,
+    VehicleInterior
 );
-descriptor!(SetPlayerColor, SET_PLAYER_COLOR, 72, PlayerColorCodec);
-descriptor!(RequestSpawnResponse, REQUEST_SPAWN_RESPONSE, 129, Bool8);
-descriptor!(SetShopName, SET_SHOP_NAME, 33, FixedString32Codec);
+descriptor!(
+    SetPlayerColor,
+    SET_PLAYER_COLOR,
+    72,
+    PlayerColorCodec,
+    PlayerColor
+);
+descriptor!(
+    RequestSpawnResponse,
+    REQUEST_SPAWN_RESPONSE,
+    129,
+    Bool8,
+    bool
+);
+descriptor!(SetShopName, SET_SHOP_NAME, 33, FixedString32Codec, [u8; 32]);
 descriptor!(
     SetPlayerSkillLevel,
     SET_PLAYER_SKILL_LEVEL,
     34,
-    PlayerSkillCodec
+    PlayerSkillCodec,
+    PlayerSkill
 );
-descriptor!(RemoveBuildingRpc, REMOVE_BUILDING, 43, RemoveBuildingCodec);
+descriptor!(
+    RemoveBuildingRpc,
+    REMOVE_BUILDING,
+    43,
+    RemoveBuildingCodec,
+    RemoveBuilding
+);
 descriptor!(
     AttachObjectToPlayerRpc,
     ATTACH_OBJECT_TO_PLAYER,
     75,
-    AttachObjectToPlayerCodec
+    AttachObjectToPlayerCodec,
+    AttachObjectToPlayer
 );
-descriptor!(ShowMenu, SHOW_MENU, 77, U8);
-descriptor!(HideMenu, HIDE_MENU, 78, U8);
-descriptor!(CreateExplosion, CREATE_EXPLOSION, 79, ExplosionCodec);
+descriptor!(ShowMenu, SHOW_MENU, 77, U8, u8);
+descriptor!(HideMenu, HIDE_MENU, 78, U8, u8);
+descriptor!(
+    CreateExplosion,
+    CREATE_EXPLOSION,
+    79,
+    ExplosionCodec,
+    Explosion
+);
 descriptor!(
     ShowPlayerNameTag,
     SHOW_PLAYER_NAME_TAG,
     80,
-    PlayerNameTagCodec
+    PlayerNameTagCodec,
+    PlayerNameTag
 );
-descriptor!(ClientCheckRpc, CLIENT_CHECK, 103, ClientCheckCodec);
+descriptor!(
+    ClientCheckRpc,
+    CLIENT_CHECK,
+    103,
+    ClientCheckCodec,
+    ClientCheck
+);
 descriptor!(
     SetVehicleParamsEx,
     SET_VEHICLE_PARAMS_EX,
     24,
-    VehicleParamsExCodec
+    VehicleParamsExCodec,
+    VehicleParamsEx
 );
 descriptor!(
     VehicleTuningNotificationRpc,
     VEHICLE_TUNING_NOTIFICATION,
     96,
-    VehicleTuningNotificationCodec
+    VehicleTuningNotificationCodec,
+    VehicleTuningNotification
 );
-descriptor!(SetVehicleTires, SET_VEHICLE_TIRES, 98, U16U8Codec);
+descriptor!(
+    SetVehicleTires,
+    SET_VEHICLE_TIRES,
+    98,
+    U16U8Codec,
+    (u16, u8)
+);
 descriptor!(
     VehicleDamageStatusUpdate,
     VEHICLE_DAMAGE_STATUS_UPDATE,
     106,
-    VehicleDamageStatusCodec
+    VehicleDamageStatusCodec,
+    VehicleDamageStatus
 );
-descriptor!(ToggleWidescreen, TOGGLE_WIDESCREEN, 111, Bool8);
-descriptor!(DestroyActor, DESTROY_ACTOR, 172, U16);
-descriptor!(DestroyWeaponPickup, DESTROY_WEAPON_PICKUP, 151, U8);
-descriptor!(EditAttachedObject, EDIT_ATTACHED_OBJECT, 116, I32);
-descriptor!(EnterSelectObject, ENTER_SELECT_OBJECT, 27, Empty);
+descriptor!(ToggleWidescreen, TOGGLE_WIDESCREEN, 111, Bool8, bool);
+descriptor!(DestroyActor, DESTROY_ACTOR, 172, U16, u16);
+descriptor!(DestroyWeaponPickup, DESTROY_WEAPON_PICKUP, 151, U8, u8);
+descriptor!(EditAttachedObject, EDIT_ATTACHED_OBJECT, 116, I32, i32);
+descriptor!(EnterSelectObject, ENTER_SELECT_OBJECT, 27, Empty, ());
 descriptor!(
     ServerStatisticsResponse,
     SERVER_STATISTICS_RESPONSE,
     102,
-    Empty
+    Empty,
+    ()
 );
-descriptor!(SetPlayerDrunkVisuals, SET_PLAYER_DRUNK_VISUALS, 92, I32);
-descriptor!(SetPlayerDrunkHandling, SET_PLAYER_DRUNK_HANDLING, 150, I32);
-descriptor!(CreateActor, CREATE_ACTOR, 171, ActorCodec);
-descriptor!(ClearActorAnimation, CLEAR_ACTOR_ANIMATION, 174, U16);
+descriptor!(
+    SetPlayerDrunkVisuals,
+    SET_PLAYER_DRUNK_VISUALS,
+    92,
+    I32,
+    i32
+);
+descriptor!(
+    SetPlayerDrunkHandling,
+    SET_PLAYER_DRUNK_HANDLING,
+    150,
+    I32,
+    i32
+);
+descriptor!(CreateActor, CREATE_ACTOR, 171, ActorCodec, Actor);
+descriptor!(ClearActorAnimation, CLEAR_ACTOR_ANIMATION, 174, U16, u16);
 descriptor!(
     SetActorFacingAngle,
     SET_ACTOR_FACING_ANGLE,
     175,
-    ActorAngleCodec
+    ActorAngleCodec,
+    ActorAngle
 );
 descriptor!(
     SetActorPosition,
     SET_ACTOR_POSITION,
     176,
-    ActorPositionCodec
+    ActorPositionCodec,
+    ActorPosition
 );
-descriptor!(SetActorHealth, SET_ACTOR_HEALTH, 178, ActorHealthCodec);
+descriptor!(
+    SetActorHealth,
+    SET_ACTOR_HEALTH,
+    178,
+    ActorHealthCodec,
+    ActorHealth
+);
 descriptor!(
     SetPlayerObjectNoCameraCol,
     SET_PLAYER_OBJECT_NO_CAMERA_COL,
     169,
-    U16
+    U16,
+    u16
 );
-descriptor!(DisableCheckpoint, DISABLE_CHECKPOINT, 37, Empty);
-descriptor!(DisableRaceCheckpoint, DISABLE_RACE_CHECKPOINT, 39, Empty);
-descriptor!(GamemodeRestart, GAMEMODE_RESTART, 40, Empty);
-descriptor!(StopAudioStream, STOP_AUDIO_STREAM, 42, Empty);
+descriptor!(DisableCheckpoint, DISABLE_CHECKPOINT, 37, Empty, ());
+descriptor!(
+    DisableRaceCheckpoint,
+    DISABLE_RACE_CHECKPOINT,
+    39,
+    Empty,
+    ()
+);
+descriptor!(GamemodeRestart, GAMEMODE_RESTART, 40, Empty, ());
+descriptor!(StopAudioStream, STOP_AUDIO_STREAM, 42, Empty, ());
 descriptor!(
     RemovePlayerFromVehicle,
     REMOVE_PLAYER_FROM_VEHICLE,
     71,
-    Empty
+    Empty,
+    ()
 );
-descriptor!(ForceClassSelection, FORCE_CLASS_SELECTION, 74, Empty);
-descriptor!(SetCameraBehind, SET_CAMERA_BEHIND, 162, Empty);
-descriptor!(AttachCameraToObject, ATTACH_CAMERA_TO_OBJECT, 81, U16);
-descriptor!(GangZoneStopFlash, GANG_ZONE_STOP_FLASH, 85, U16);
-descriptor!(ClearPlayerAnimation, CLEAR_PLAYER_ANIMATION, 87, U16);
-descriptor!(SetPlayerSpecialAction, SET_PLAYER_SPECIAL_ACTION, 88, U8);
+descriptor!(ForceClassSelection, FORCE_CLASS_SELECTION, 74, Empty, ());
+descriptor!(SetCameraBehind, SET_CAMERA_BEHIND, 162, Empty, ());
+descriptor!(AttachCameraToObject, ATTACH_CAMERA_TO_OBJECT, 81, U16, u16);
+descriptor!(GangZoneStopFlash, GANG_ZONE_STOP_FLASH, 85, U16, u16);
+descriptor!(ClearPlayerAnimation, CLEAR_PLAYER_ANIMATION, 87, U16, u16);
+descriptor!(
+    SetPlayerSpecialAction,
+    SET_PLAYER_SPECIAL_ACTION,
+    88,
+    U8,
+    u8
+);
 descriptor!(
     SetPlayerFightingStyle,
     SET_PLAYER_FIGHTING_STYLE,
     89,
-    PlayerFightingStyleCodec
+    PlayerFightingStyleCodec,
+    PlayerFightingStyle
 );
-descriptor!(SetPlayerVelocity, SET_PLAYER_VELOCITY, 90, Vector3Codec);
+descriptor!(
+    SetPlayerVelocity,
+    SET_PLAYER_VELOCITY,
+    90,
+    Vector3Codec,
+    Vector3
+);
 descriptor!(
     SetVehicleVelocity,
     SET_VEHICLE_VELOCITY,
     91,
-    VehicleVelocityCodec
+    VehicleVelocityCodec,
+    VehicleVelocity
 );
-descriptor!(CreatePickup, CREATE_PICKUP, 95, PickupCodec);
-descriptor!(MoveObjectRpc, MOVE_OBJECT, 99, MoveObjectCodec);
+descriptor!(CreatePickup, CREATE_PICKUP, 95, PickupCodec, Pickup);
+descriptor!(MoveObjectRpc, MOVE_OBJECT, 99, MoveObjectCodec, MoveObject);
 descriptor!(
     TextDrawSetString,
     TEXT_DRAW_SET_STRING,
     105,
-    TextDrawStringCodec
+    TextDrawStringCodec,
+    TextDrawString
 );
-descriptor!(CreateGangZone, CREATE_GANG_ZONE, 108, GangZoneCodec);
-descriptor!(GangZoneDestroy, GANG_ZONE_DESTROY, 120, U16);
-descriptor!(GangZoneFlash, GANG_ZONE_FLASH, 121, U16I32Codec);
-descriptor!(StopObject, STOP_OBJECT, 122, U16);
+descriptor!(
+    CreateGangZone,
+    CREATE_GANG_ZONE,
+    108,
+    GangZoneCodec,
+    GangZone
+);
+descriptor!(GangZoneDestroy, GANG_ZONE_DESTROY, 120, U16, u16);
+descriptor!(GangZoneFlash, GANG_ZONE_FLASH, 121, U16I32Codec, (u16, i32));
+descriptor!(StopObject, STOP_OBJECT, 122, U16, u16);
 descriptor!(
     SetVehicleNumberPlate,
     SET_VEHICLE_NUMBER_PLATE,
     123,
-    VehicleNumberPlateCodec
+    VehicleNumberPlateCodec,
+    VehicleNumberPlate
 );
-descriptor!(SpectatePlayer, SPECTATE_PLAYER, 126, SpectateCodec);
-descriptor!(SpectateVehicle, SPECTATE_VEHICLE, 127, SpectateCodec);
-descriptor!(ConnectionRejected, CONNECTION_REJECTED, 130, U8);
-descriptor!(RemoveMapIcon, REMOVE_MAP_ICON, 144, U8);
-descriptor!(SetWeaponAmmo, SET_WEAPON_AMMO, 145, WeaponAmmoCodec);
-descriptor!(SetGravity, SET_GRAVITY, 146, F32);
+descriptor!(
+    SpectatePlayer,
+    SPECTATE_PLAYER,
+    126,
+    SpectateCodec,
+    Spectate
+);
+descriptor!(
+    SpectateVehicle,
+    SPECTATE_VEHICLE,
+    127,
+    SpectateCodec,
+    Spectate
+);
+descriptor!(ConnectionRejected, CONNECTION_REJECTED, 130, U8, u8);
+descriptor!(RemoveMapIcon, REMOVE_MAP_ICON, 144, U8, u8);
+descriptor!(
+    SetWeaponAmmo,
+    SET_WEAPON_AMMO,
+    145,
+    WeaponAmmoCodec,
+    WeaponAmmo
+);
+descriptor!(SetGravity, SET_GRAVITY, 146, F32, f32);
 descriptor!(
     AttachTrailerToVehicle,
     ATTACH_TRAILER_TO_VEHICLE,
     148,
-    TrailerAttachmentCodec
+    TrailerAttachmentCodec,
+    TrailerAttachment
 );
 descriptor!(
     DetachTrailerFromVehicle,
     DETACH_TRAILER_FROM_VEHICLE,
     149,
-    U16
+    U16,
+    u16
 );
-descriptor!(SetCameraPosition, SET_CAMERA_POSITION, 157, Vector3Codec);
-descriptor!(SetCameraLookAt, SET_CAMERA_LOOK_AT, 158, CameraLookAtCodec);
+descriptor!(
+    SetCameraPosition,
+    SET_CAMERA_POSITION,
+    157,
+    Vector3Codec,
+    Vector3
+);
+descriptor!(
+    SetCameraLookAt,
+    SET_CAMERA_LOOK_AT,
+    158,
+    CameraLookAtCodec,
+    CameraLookAt
+);
 descriptor!(
     SetVehicleParams,
     SET_VEHICLE_PARAMS,
     161,
-    VehicleParamsCodec
+    VehicleParamsCodec,
+    VehicleParams
 );
-descriptor!(PlayerDeath, PLAYER_DEATH, 166, U16);
+descriptor!(PlayerDeath, PLAYER_DEATH, 166, U16, u16);
 descriptor!(
     PlayerEnterVehicleRpc,
     PLAYER_ENTER_VEHICLE,
     26,
-    PlayerEnterVehicleCodec
+    PlayerEnterVehicleCodec,
+    PlayerEnterVehicle
 );
 descriptor!(
     PlayerExitVehicleRpc,
     PLAYER_EXIT_VEHICLE,
     154,
-    PlayerExitVehicleCodec
+    PlayerExitVehicleCodec,
+    PlayerExitVehicle
 );
 
 macro_rules! wire_codec {
