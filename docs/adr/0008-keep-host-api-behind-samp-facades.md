@@ -2,9 +2,9 @@
 
 `samp-client-sdk` exposes Host resolution and supported operations through the
 root `Samp` facade and its subsystem facades. `HostApi`, its resolver and
-construction paths, and Host-backed descriptor encoding machinery remain
-internal because exposing them would couple plugins to ABI wrapper details and
-temporary pre-Protocol architecture; custom typed encoding belongs to
+construction paths, and the narrow Host encoded-string adapter remain internal
+because exposing them would couple plugins to ABI wrapper details. All Wire
+descriptors, Protocol encoding, and exact-bit payload values belong to
 `samp-protocol`, while manual transport belongs to explicit raw APIs.
 
 ## Verification

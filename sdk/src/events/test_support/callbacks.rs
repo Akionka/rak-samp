@@ -14,11 +14,12 @@ pub(crate) struct TestEvent {
 }
 
 impl TestEvent {
-    pub(crate) fn new(id: u8, payload: EncodedPayload) -> Self {
+    pub(crate) fn new(id: u8, payload: EncodedBits) -> Self {
+        let (bytes, bit_len) = payload.into_parts();
         Self {
             id,
-            bytes: payload.bytes,
-            bit_len: payload.bit_len,
+            bytes,
+            bit_len,
             read_offset: 0,
             reset_read_result: SampClientSdkResult::Ok,
             replace_result: SampClientSdkResult::Ok,
@@ -28,7 +29,7 @@ impl TestEvent {
 
     pub(crate) fn with_results(
         id: u8,
-        payload: EncodedPayload,
+        payload: EncodedBits,
         reset_read_result: SampClientSdkResult,
         replace_result: SampClientSdkResult,
     ) -> Self {
@@ -236,16 +237,19 @@ pub(super) unsafe extern "system" fn test_encoded_string(
     } else {
         unsafe { std::slice::from_raw_parts(value, value_len) }
     };
-    let mut writer = PayloadWriter::new();
-    writer.u16(value_len as u16);
-    writer.bytes(value);
-    let encoded = writer.finish_bits();
-    if encoded.bytes.len() > output_capacity {
+    let mut stream = samp_protocol::BitStream::new();
+    stream
+        .write_u16(value_len as u16)
+        .expect("test string length fits the Protocol bitstream");
+    stream
+        .write_bytes(value)
+        .expect("test string fits the Protocol bitstream");
+    if stream.as_bytes().len() > output_capacity {
         return SampClientSdkResult::PayloadTooLarge;
     }
     unsafe {
-        ptr::copy_nonoverlapping(encoded.bytes.as_ptr(), output, encoded.bytes.len());
-        bit_len.write(encoded.bit_len);
+        ptr::copy_nonoverlapping(stream.as_bytes().as_ptr(), output, stream.as_bytes().len());
+        bit_len.write(stream.len_bits());
     }
     SampClientSdkResult::Ok
 }

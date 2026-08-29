@@ -5,7 +5,8 @@
 - `sdk/` is the public Rust package imported as `samp_client_sdk` by ASI
   plugins; its public paths follow cohesive modules rather than compatibility
   aliases. `Net` projects every descriptor through one sealed typed callback
-  model. Direction and Packet/RPC kind stay
+  model. The SDK owns no legacy Protocol descriptor, codec, payload writer, or
+  encoded payload value. Direction and Packet/RPC kind stay
   type-level, while decode, replacement, callback lifetime, and Host mutation
   remain private SDK adaptation. Typed failures are classified and diagnosed
   without payload data before fail-open conversion. Protocol replacements use

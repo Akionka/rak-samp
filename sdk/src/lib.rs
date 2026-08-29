@@ -35,7 +35,7 @@
 //! use samp_client_sdk::HostApi;
 //! ```
 //!
-//! Host-backed payload construction is also private:
+//! Protocol payload values come from the direct `samp-protocol` dependency, not the SDK:
 //!
 //! ```compile_fail
 //! use samp_client_sdk::events::EncodedPayload;

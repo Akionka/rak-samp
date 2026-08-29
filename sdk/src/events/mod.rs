@@ -13,12 +13,7 @@ pub(crate) use callback::{
 };
 pub use callback::{Incoming, Outgoing, PacketKind, RpcKind, TypedCallbackDescriptor};
 pub(crate) use callback::{handle as handle_typed_callback, registration as callback_registration};
-#[cfg(test)]
-pub(crate) use core::EncodedPayload;
-pub use core::{
-    Event, EventError, IncomingPacket, IncomingRpc, MAX_STRING32_BYTES, OutgoingPacket,
-    OutgoingRpc, ProtocolAction, Vector2, Vector3,
-};
+pub use core::{Event, EventError, ProtocolAction};
 pub(crate) use core::{handle_encoded_string_protocol, handle_protocol};
 
 #[cfg(test)]

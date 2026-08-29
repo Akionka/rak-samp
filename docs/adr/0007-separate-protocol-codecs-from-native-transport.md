@@ -53,9 +53,9 @@ without changing Cargo's target directory.
   `ID`; Protocol identity and wire/framing semantics remain Protocol-owned, and
   Host adaptation remains in a private supertrait. Direction and kind stay
   type-level, with no runtime adapter switching or external implementations.
-  Parameterized private sealing permits one blanket projection per Protocol
-  directional trait, so SDK forwards Protocol `Value` and `ID` without copying
-  built-in metadata; only legacy SDK descriptors need explicit implementations.
+  Parameterized private sealing projects Protocol directional traits directly,
+  so SDK forwards Protocol `Value` and `ID` without copying built-in metadata or
+  retaining legacy SDK descriptor implementations.
 - Canonical descriptor encoding returns exact codec bits for `ExactBits`, rejects
   non-byte-aligned `ExactBytes` output, and returns meaningful unpadded bits for
   `TerminalAlignmentPadding`. The latter decoder accepts only the exact number

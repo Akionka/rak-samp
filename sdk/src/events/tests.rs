@@ -941,7 +941,7 @@ fn typed_helpers_reject_trailing_bits_before_invoking_the_callback() {
     let api = test_api();
     let mut raw = TestEvent::new(
         protocol_r1::EnableStuntBonusRpc::ID,
-        EncodedPayload::from_bits(vec![0b1000_0000], 2).unwrap(),
+        samp_protocol::EncodedBits::from_bits(vec![0b1000_0000], 2).unwrap(),
     );
     let mut event = unsafe {
         Event::from_callback(
@@ -993,7 +993,7 @@ fn protocol_replacement_validates_canonical_framing_before_host_mutation() {
 
     type Descriptor = IncomingRpc<201, NonByteAlignedCodec, ExactBytesPolicy>;
 
-    let original = EncodedPayload::from_bits(vec![0x80], 8).unwrap();
+    let original = samp_protocol::EncodedBits::from_bits(vec![0x80], 8).unwrap();
     let mut raw = TestEvent::new(201, original);
     let mut event = unsafe {
         Event::from_callback(
@@ -1053,7 +1053,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     let mut bytes = canonical.as_bytes().to_vec();
     // The packet transport can leave its terminal byte's unused bits unspecified.
     *bytes.last_mut().expect("marker payload has a final byte") |= 0x40;
-    let padded = EncodedPayload::from_bits(bytes, 56)
+    let padded = samp_protocol::EncodedBits::from_bits(bytes, 56)
         .expect("the rounded marker payload remains in its buffer");
     let mut raw = TestEvent::new(protocol_packet::MarkersSyncPacket::ID, padded);
     let mut event = unsafe {
@@ -1078,7 +1078,7 @@ fn marker_sync_accepts_terminal_byte_alignment_padding() {
     bytes.push(0);
     let mut raw = TestEvent::new(
         protocol_packet::MarkersSyncPacket::ID,
-        EncodedPayload::from_bits(bytes, 57).expect("the malformed suffix fits"),
+        samp_protocol::EncodedBits::from_bits(bytes, 57).expect("the malformed suffix fits"),
     );
     let mut event = unsafe {
         Event::from_callback(

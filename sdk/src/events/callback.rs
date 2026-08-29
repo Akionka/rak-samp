@@ -1,9 +1,5 @@
 pub(crate) use super::core::CallbackFailurePhase;
-use super::{
-    Event, IncomingPacket as LegacyIncomingPacket, IncomingRpc as LegacyIncomingRpc,
-    OutgoingPacket as LegacyOutgoingPacket, OutgoingRpc as LegacyOutgoingRpc, ProtocolAction,
-    handle_encoded_string_protocol, handle_protocol,
-};
+use super::{Event, ProtocolAction, handle_encoded_string_protocol, handle_protocol};
 use crate::SampClientSdkHookAction;
 
 #[cfg(test)]
@@ -305,56 +301,6 @@ where
         <D::Capability as IncomingRpcCapability<D>>::handle(event, handler)
     }
 }
-
-macro_rules! legacy_adapter {
-    ($descriptor:ident, $direction:ty, $kind:ty, $direction_name:literal, $kind_name:literal) => {
-        impl<T: 'static> private::CallbackAdapter<$direction, $kind> for $descriptor<T> {
-            type Value = T;
-            type State = Self;
-
-            const DIRECTION: &'static str = $direction_name;
-            const KIND: &'static str = $kind_name;
-
-            fn id(&self) -> u8 {
-                (*self).id()
-            }
-
-            fn into_state(self) -> Self::State {
-                self
-            }
-
-            fn handle<F>(
-                state: &Self::State,
-                event: &mut Event<'_>,
-                handler: F,
-            ) -> Result<SampClientSdkHookAction, CallbackFailurePhase>
-            where
-                F: FnOnce(Self::Value) -> ProtocolAction<Self::Value>,
-            {
-                (*state)
-                    .handle_classified(event, handler)
-                    .map_err(|(phase, _)| phase)
-            }
-        }
-    };
-}
-
-legacy_adapter!(
-    LegacyIncomingPacket,
-    Incoming,
-    PacketKind,
-    "incoming",
-    "packet"
-);
-legacy_adapter!(
-    LegacyOutgoingPacket,
-    Outgoing,
-    PacketKind,
-    "outgoing",
-    "packet"
-);
-legacy_adapter!(LegacyIncomingRpc, Incoming, RpcKind, "incoming", "rpc");
-legacy_adapter!(LegacyOutgoingRpc, Outgoing, RpcKind, "outgoing", "rpc");
 
 impl<D, Direction, Kind> TypedCallbackDescriptor<Direction, Kind> for D
 where

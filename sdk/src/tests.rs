@@ -1,5 +1,6 @@
 use super::*;
-use crate::events::{EncodedPayload, ProtocolAction, test_support};
+use crate::events::{ProtocolAction, test_support};
+use samp_protocol::EncodedBits;
 use samp_protocol::rpc::incoming::{common as protocol_common, r1 as protocol_r1};
 use std::sync::{
     Arc, Mutex,
@@ -62,6 +63,33 @@ impl samp_protocol::WireCodec for ThreeBitCodec {
 
 type NonByteAlignedOutgoingRpc =
     samp_protocol::OutgoingRpc<201, ThreeBitCodec, samp_protocol::ExactBytesPolicy>;
+
+struct ByteCodec;
+
+impl samp_protocol::WireCodec for ByteCodec {
+    type Value = u8;
+
+    fn decode<R: samp_protocol::BitRead>(
+        reader: &mut R,
+    ) -> Result<Self::Value, samp_protocol::DecodeError<R::Error>> {
+        reader
+            .read_left_aligned_bits(8)
+            .map(|bits| bits[0])
+            .map_err(samp_protocol::DecodeError::Source)
+    }
+
+    fn encode<W: samp_protocol::BitWrite>(
+        writer: &mut W,
+        value: &Self::Value,
+    ) -> Result<(), samp_protocol::EncodeError<W::Error>> {
+        writer
+            .write_left_aligned_bits(&[*value], 8)
+            .map_err(samp_protocol::EncodeError::Source)
+    }
+}
+
+type CustomOutgoingPacket =
+    samp_protocol::OutgoingPacket<204, ByteCodec, samp_protocol::ExactBitsPolicy>;
 
 struct DropCounter(Arc<AtomicUsize>);
 
@@ -1432,11 +1460,11 @@ fn additional_typed_protocol_actions_preserve_their_wire_vectors() {
     );
     assert_eq!(api.send_rcon_command(b"rcon"), Ok(()));
     assert_eq!(
-        api.send_rcon_command(&[b'x'; events::MAX_STRING32_BYTES + 1]),
+        api.send_rcon_command(&[b'x'; samp_protocol::limits::MAX_STRING32_BYTES + 1]),
         Err(ProtocolSendError::Encode(
             samp_protocol::EncodeError::LengthExceedsLimit {
-                length: events::MAX_STRING32_BYTES + 1,
-                limit: events::MAX_STRING32_BYTES,
+                length: samp_protocol::limits::MAX_STRING32_BYTES + 1,
+                limit: samp_protocol::limits::MAX_STRING32_BYTES,
             }
         ))
     );
@@ -1670,7 +1698,7 @@ fn protocol_callback_decodes_matching_descriptor_and_fails_open() {
     assert_eq!(
         test_support::invoke_registered_callback_with_payload(
             protocol_r1::EnableStuntBonusRpc::ID,
-            EncodedPayload::from_bits(
+            EncodedBits::from_bits(
                 protocol_r1::EnableStuntBonusRpc::encode_bits(&true)
                     .expect("the Protocol test payload must encode")
                     .as_bytes()
@@ -1720,8 +1748,8 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
         let bits = samp_protocol::rpc::outgoing::chat::SendChat::encode_bits(&value.to_vec())
             .expect("test payload must encode");
         let (bytes, bit_len) = bits.into_parts();
-        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-            .expect("test payload must fit its storage");
+        let payload =
+            EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
         assert_eq!(
             test_support::invoke_registered_callback_with_payload(101, payload),
             Some(expected)
@@ -1731,8 +1759,8 @@ fn protocol_chat_callback_preserves_continue_block_and_replacement() {
     let bits = samp_protocol::rpc::outgoing::chat::SendChat::encode_bits(&b"replace".to_vec())
         .expect("test payload must encode");
     let (bytes, bit_len) = bits.into_parts();
-    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-        .expect("test payload must fit its storage");
+    let payload =
+        EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
     assert_eq!(
         test_support::invoke_registered_callback_with_replacement(101, payload),
         Some((
@@ -1785,8 +1813,8 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
         })
         .expect("test payload must encode");
         let (bytes, bit_len) = bits.into_parts();
-        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-            .expect("test payload must fit its storage");
+        let payload =
+            EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
         assert_eq!(
             test_support::invoke_registered_callback_with_payload(62, payload),
             Some(expected)
@@ -1801,8 +1829,8 @@ fn protocol_common_outgoing_callback_preserves_continue_block_and_replacement() 
     })
     .expect("test payload must encode");
     let (bytes, bit_len) = bits.into_parts();
-    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-        .expect("test payload must fit its storage");
+    let payload =
+        EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
     assert_eq!(
         test_support::invoke_registered_callback_with_replacement(62, payload),
         Some((
@@ -1857,8 +1885,8 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
         })
         .expect("test payload must encode");
         let (bytes, bit_len) = bits.into_parts();
-        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-            .expect("test payload must fit its storage");
+        let payload =
+            EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
         assert_eq!(
             test_support::invoke_registered_callback_with_payload(34, payload),
             Some(expected)
@@ -1873,8 +1901,8 @@ fn protocol_common_packet_callback_preserves_continue_block_and_replacement() {
     })
     .expect("test payload must encode");
     let (bytes, bit_len) = bits.into_parts();
-    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-        .expect("test payload must fit its storage");
+    let payload =
+        EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
     assert_eq!(
         test_support::invoke_registered_callback_with_replacement(34, payload),
         Some((
@@ -1923,7 +1951,7 @@ fn malformed_typed_packet_is_diagnosed_before_fail_open() {
     .unwrap();
     let mut bytes = bits.as_bytes().to_vec();
     bytes.push(0);
-    let payload = EncodedPayload::from_bits(bytes, bits.len_bits() + 8).unwrap();
+    let payload = EncodedBits::from_bits(bytes, bits.len_bits() + 8).unwrap();
 
     assert_eq!(
         test_support::invoke_registered_callback_with_payload(34, payload),
@@ -1964,7 +1992,7 @@ fn typed_source_failure_is_warned_before_fail_open() {
             ProtocolAction::Continue
         })
         .unwrap();
-    let payload = EncodedPayload::from_bits(vec![7, 0, 0, 0], 32).unwrap();
+    let payload = EncodedBits::from_bits(vec![7, 0, 0, 0], 32).unwrap();
 
     let outcome = test_support::invoke_registered_callback_with_source_failure(
         35,
@@ -2007,7 +2035,7 @@ fn replacement_encode_failure_preserves_payload_without_host_mutation() {
     let subscription = net
         .on_incoming_typed_rpc(FailingIncomingRpc::new(), ProtocolAction::Replace)
         .unwrap();
-    let original = EncodedPayload::from_bits(vec![0x80], 8).unwrap();
+    let original = EncodedBits::from_bits(vec![0x80], 8).unwrap();
 
     let outcome = test_support::invoke_registered_callback_with_host_replacement(
         201,
@@ -2057,7 +2085,7 @@ fn host_rejection_preserves_incoming_rpc_and_packet_payloads() {
     let original = SetPlayerDrunk::encode_bits(&7).unwrap();
     let original_bytes = original.as_bytes().to_vec();
     let original_bit_len = original.len_bits();
-    let payload = EncodedPayload::from_bits(original_bytes.clone(), original_bit_len).unwrap();
+    let payload = EncodedBits::from_bits(original_bytes.clone(), original_bit_len).unwrap();
 
     let outcome = test_support::invoke_registered_callback_with_host_replacement(
         35,
@@ -2100,7 +2128,7 @@ fn host_rejection_preserves_incoming_rpc_and_packet_payloads() {
     .unwrap();
     let original_bytes = original.as_bytes().to_vec();
     let original_bit_len = original.len_bits();
-    let payload = EncodedPayload::from_bits(original_bytes.clone(), original_bit_len).unwrap();
+    let payload = EncodedBits::from_bits(original_bytes.clone(), original_bit_len).unwrap();
 
     let outcome = test_support::invoke_registered_callback_with_host_replacement(
         34,
@@ -2152,7 +2180,7 @@ fn successful_non_byte_aligned_replacement_uses_one_host_call() {
     let original = r1::MarkersSyncPacket::encode_bits(&value).unwrap();
     assert_eq!(original.len_bits(), 49);
     let payload =
-        EncodedPayload::from_bits(original.as_bytes().to_vec(), original.len_bits()).unwrap();
+        EncodedBits::from_bits(original.as_bytes().to_vec(), original.len_bits()).unwrap();
 
     let outcome = test_support::invoke_registered_callback_with_host_replacement(
         r1::MarkersSyncPacket::ID,
@@ -2222,7 +2250,7 @@ fn normal_typed_protocol_callback_preserves_all_actions() {
         )
         .expect("Protocol typed registration must succeed");
     let payload = || {
-        EncodedPayload::from_bits(
+        EncodedBits::from_bits(
             vec![
                 0x9A, 0x09, 0x00, 0x00, 0x40, 0x1F, 0x8C, 0x00, 0x00, 0x00, 0x04, 0x80, 0x00, 0x00,
                 0x00,
@@ -2264,15 +2292,14 @@ fn normal_typed_protocol_callback_preserves_all_actions() {
 }
 
 #[test]
-fn normal_typed_legacy_packet_callback_preserves_all_actions() {
+fn custom_protocol_packet_callback_preserves_all_actions() {
     let _serial = REGISTRATION_TEST_LOCK
         .lock()
         .unwrap_or_else(|error| error.into_inner());
     test_support::reset_registration();
     let calls = Arc::new(AtomicUsize::new(0));
     let observed = Arc::clone(&calls);
-    let descriptor =
-        events::OutgoingPacket::new(204, |event| event.read_u8(), |value| Ok(vec![value]));
+    let descriptor = CustomOutgoingPacket::new();
     let subscription = Samp::from_api(test_support::test_api())
         .net()
         .on_outgoing_typed_packet(descriptor, move |value| {
@@ -2283,8 +2310,8 @@ fn normal_typed_legacy_packet_callback_preserves_all_actions() {
                 _ => unreachable!("test invokes exactly three actions"),
             }
         })
-        .expect("legacy typed Packet registration must succeed");
-    let payload = || EncodedPayload::from_bits(vec![7], 8).expect("test payload must be valid");
+        .expect("custom typed Packet registration must succeed");
+    let payload = || EncodedBits::from_bits(vec![7], 8).expect("test payload must be valid");
 
     assert_eq!(test_support::registration_stats().registered_callbacks, 1);
     assert_eq!(
@@ -2340,8 +2367,8 @@ fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
         })
         .expect("test payload must encode");
         let (bytes, bit_len) = bits.into_parts();
-        let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-            .expect("test payload must fit its storage");
+        let payload =
+            EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
         assert_eq!(
             test_support::invoke_registered_callback_with_payload(93, payload),
             Some(expected)
@@ -2354,8 +2381,8 @@ fn protocol_server_message_callback_preserves_continue_block_and_replacement() {
     })
     .expect("test payload must encode");
     let (bytes, bit_len) = bits.into_parts();
-    let payload = crate::events::EncodedPayload::from_bits(bytes, bit_len)
-        .expect("test payload must fit its storage");
+    let payload =
+        EncodedBits::from_bits(bytes, bit_len).expect("test payload must fit its storage");
     assert_eq!(
         test_support::invoke_registered_callback_with_replacement(93, payload),
         Some((

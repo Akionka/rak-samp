@@ -88,9 +88,24 @@ try {
         throw "Repository contains migration taxonomy outside historical records"
     }
     $publicImplementationTypes = Get-ChildItem "sdk/src" -Recurse -File -Filter "*.rs" |
-        Select-String -Pattern "^pub\s+(struct|enum|type|trait)\s+(HostApi|RpcEncoder|PayloadWriter|EncodedPayload|Packet)\b"
+        Select-String -Pattern "^pub\s+(struct|enum|type|trait)\s+(HostApi|Packet)\b"
     if ($publicImplementationTypes) {
         throw "SDK source exposes a forbidden implementation type"
+    }
+    $legacyProtocolDefinitions = Get-ChildItem "sdk/src" -Recurse -File -Filter "*.rs" |
+        Select-String -Pattern "^(?:pub(?:\([^)]*\))?\s+)?(?:const|struct|enum|type|trait)\s+(RpcEncoder|PayloadWriter|EncodedPayload|IncomingPacket|OutgoingPacket|IncomingRpc|OutgoingRpc|MAX_STRING32_BYTES)\b"
+    if ($legacyProtocolDefinitions) {
+        throw "SDK source contains a superseded Protocol definition"
+    }
+    $legacyProtocolValueDefinitions = Get-ChildItem "sdk/src/events" -Recurse -File -Filter "*.rs" |
+        Select-String -Pattern "^(?:pub(?:\([^)]*\))?\s+)?struct\s+(Vector2|Vector3)\b"
+    if ($legacyProtocolValueDefinitions) {
+        throw "SDK events contain a superseded Protocol value definition"
+    }
+    $protocolReexports = Get-ChildItem "sdk/src" -Recurse -File -Filter "*.rs" |
+        Select-String -Pattern "^\s*pub\s+use\s+(?:::)?samp_protocol\b"
+    if ($protocolReexports) {
+        throw "SDK source re-exports samp-protocol"
     }
 
     $target = "i686-pc-windows-msvc"
@@ -99,7 +114,7 @@ try {
         throw "Public SDK documentation index is missing: $publicIndex"
     }
 
-    $forbiddenPublicItems = "HostApi", "Rpc", "RpcEncoder", "PayloadWriter", "EncodedPayload", "Packet"
+    $forbiddenPublicItems = "HostApi", "Rpc", "RpcEncoder", "PayloadWriter", "EncodedPayload", "Packet", "IncomingPacket", "OutgoingPacket", "IncomingRpc", "OutgoingRpc", "Vector2", "MAX_STRING32_BYTES"
     $publicIndexText = Get-Content -Raw $publicIndex
     foreach ($item in $forbiddenPublicItems) {
         if ($publicIndexText -match ">(?:[^<]*::)?$([regex]::Escape($item))</a>") {

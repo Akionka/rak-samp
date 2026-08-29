@@ -10,27 +10,6 @@
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkResult};
 use core::{fmt, marker::PhantomData};
 
-/// Maximum supported length for a `string32` field in the initial helper set.
-///
-/// This covers the documented 4096-byte SA-MP dialog/info limit while preventing a malformed
-/// server packet from requesting an unbounded allocation in a plugin.
-pub const MAX_STRING32_BYTES: usize = 4096;
-
-/// A three-dimensional SA-MP coordinate or velocity.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Vector3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-/// A two-dimensional SA-MP coordinate.
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Vector2 {
-    pub x: f32,
-    pub y: f32,
-}
-
 /// The typed decision returned by a Packet or RPC helper callback.
 #[derive(Clone, Debug, PartialEq)]
 pub enum ProtocolAction<T> {
@@ -55,10 +34,6 @@ pub enum EventError {
     NullEvent,
     /// An exact bit length exceeded the supplied byte buffer.
     InvalidBitLength { bit_len: usize, byte_len: usize },
-    /// A fixed-layout helper received a payload with an unexpected bit length.
-    UnexpectedBitLength { bit_len: usize, expected: usize },
-    /// A tagged protocol field contained a value not defined by the R1 layout.
-    InvalidDiscriminant { value: u8 },
 }
 
 impl fmt::Display for EventError {
@@ -86,13 +61,6 @@ impl fmt::Display for EventError {
                 formatter,
                 "bit length {bit_len} exceeds the {byte_len}-byte payload"
             ),
-            Self::UnexpectedBitLength { bit_len, expected } => write!(
-                formatter,
-                "event has {bit_len} bits, but the fixed layout requires {expected}"
-            ),
-            Self::InvalidDiscriminant { value } => {
-                write!(formatter, "invalid SA-MP R1 discriminant {value}")
-            }
         }
     }
 }
@@ -375,370 +343,72 @@ impl<'callback> samp_protocol::EncodedStringRead for Event<'callback> {
     }
 }
 
-pub(super) struct PayloadWriter {
-    bytes: Vec<u8>,
-    bit_len: usize,
-}
-
-impl PayloadWriter {
-    pub(super) fn new() -> Self {
-        Self {
-            bytes: Vec::new(),
-            bit_len: 0,
-        }
-    }
-
-    #[cfg(test)]
-    pub(super) fn finish_bits(self) -> EncodedPayload {
-        EncodedPayload {
-            bytes: self.bytes,
-            bit_len: self.bit_len,
-        }
-    }
-
-    #[cfg(test)]
-    pub(super) fn u16(&mut self, value: u16) {
-        self.bytes(&value.to_le_bytes());
-    }
-
-    #[cfg(test)]
-    pub(super) fn bytes(&mut self, value: &[u8]) {
-        self.bits(value, value.len() * u8::BITS as usize);
-    }
-
-    pub(super) fn bits(&mut self, value: &[u8], bit_len: usize) {
-        debug_assert!(bit_len <= value.len() * u8::BITS as usize);
-        for bit_offset in 0..bit_len {
-            self.bit(value[bit_offset / 8] & (0x80 >> (bit_offset % 8)) != 0);
-        }
-    }
-
-    pub(super) fn bit(&mut self, value: bool) {
-        let byte_index = self.bit_len / u8::BITS as usize;
-        let bit_index = self.bit_len % u8::BITS as usize;
-        if byte_index == self.bytes.len() {
-            self.bytes.push(0);
-        }
-        if value {
-            self.bytes[byte_index] |= 0x80 >> bit_index;
-        }
-        self.bit_len += 1;
-    }
-
-    pub(super) fn encoded_string(&mut self, api: HostApi, value: &[u8]) -> Result<(), EventError> {
-        self.encoded_string_with_limit(api, value, samp_protocol::limits::MAX_ENCODED_STRING_BYTES)
-    }
-
-    pub(super) fn encoded_string_with_limit(
-        &mut self,
-        api: HostApi,
-        value: &[u8],
-        limit: usize,
-    ) -> Result<(), EventError> {
-        if value.len() > limit {
-            return Err(EventError::ValueOutOfRange {
-                value: value.len(),
-                maximum: limit,
-            });
-        }
-        let encoded = api.encode_string(value).map_err(EventError::Host)?;
-        self.bits(encoded.as_bytes(), encoded.len_bits());
-        Ok(())
-    }
-}
-
-impl samp_protocol::BitWrite for PayloadWriter {
-    type Error = EventError;
-
-    fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
-        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
-            return Err(EventError::InvalidBitLength {
-                bit_len,
-                byte_len: bytes.len(),
-            });
-        }
-        self.bits(bytes, bit_len);
-        Ok(())
-    }
-}
-
-pub(super) struct EncodedStringPayloadWriter {
+pub(super) struct HostEncodedStringWriter {
     api: HostApi,
-    payload: PayloadWriter,
+    stream: samp_protocol::BitStream,
 }
 
-impl EncodedStringPayloadWriter {
+impl HostEncodedStringWriter {
     pub(super) fn new(api: HostApi) -> Self {
         Self {
             api,
-            payload: PayloadWriter::new(),
+            stream: samp_protocol::BitStream::new(),
         }
+    }
+
+    fn write_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), EventError> {
+        samp_protocol::BitWrite::write_left_aligned_bits(&mut self.stream, bytes, bit_len).map_err(
+            |error| match error {
+                samp_protocol::BitStreamError::InvalidBitLength { bit_len, byte_len } => {
+                    EventError::InvalidBitLength { bit_len, byte_len }
+                }
+                samp_protocol::BitStreamError::OutOfBounds {
+                    requested_bits,
+                    available_bits,
+                } => EventError::ValueOutOfRange {
+                    value: requested_bits,
+                    maximum: available_bits,
+                },
+                samp_protocol::BitStreamError::PayloadTooLarge { requested_bits } => {
+                    EventError::ValueOutOfRange {
+                        value: requested_bits,
+                        maximum: samp_protocol::MAX_BIT_STREAM_BITS,
+                    }
+                }
+            },
+        )
     }
 }
 
-impl samp_protocol::BitWrite for EncodedStringPayloadWriter {
+impl samp_protocol::BitWrite for HostEncodedStringWriter {
     type Error = EventError;
 
     fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
-        samp_protocol::BitWrite::write_left_aligned_bits(&mut self.payload, bytes, bit_len)
+        self.write_bits(bytes, bit_len)
     }
 }
 
-impl samp_protocol::EncodedStringWrite for EncodedStringPayloadWriter {
+impl samp_protocol::EncodedStringWrite for HostEncodedStringWriter {
     fn write_encoded_string(&mut self, value: &[u8]) -> Result<(), Self::Error> {
-        self.payload.encoded_string(self.api, value)
+        if value.len() > samp_protocol::limits::MAX_ENCODED_STRING_BYTES {
+            return Err(EventError::ValueOutOfRange {
+                value: value.len(),
+                maximum: samp_protocol::limits::MAX_ENCODED_STRING_BYTES,
+            });
+        }
+        let encoded = self.api.encode_string(value).map_err(EventError::Host)?;
+        self.write_bits(encoded.as_bytes(), encoded.len_bits())
     }
 
     fn finish_encoded_bits(
         self,
     ) -> Result<samp_protocol::EncodedBits, samp_protocol::EncodedBitsError> {
-        samp_protocol::EncodedBits::from_bits(self.payload.bytes, self.payload.bit_len)
+        samp_protocol::EncodedBits::from_bits(
+            self.stream.as_bytes().to_vec(),
+            self.stream.len_bits(),
+        )
     }
 }
-
-/// A complete callback replacement with an exact bit length.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub(crate) struct EncodedPayload {
-    pub(super) bytes: Vec<u8>,
-    pub(super) bit_len: usize,
-}
-
-impl EncodedPayload {
-    pub(crate) fn from_bytes(bytes: Vec<u8>) -> Result<Self, EventError> {
-        let bit_len =
-            bytes
-                .len()
-                .checked_mul(u8::BITS as usize)
-                .ok_or(EventError::ValueOutOfRange {
-                    value: bytes.len(),
-                    maximum: usize::MAX / u8::BITS as usize,
-                })?;
-        Ok(Self { bytes, bit_len })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn from_bits(bytes: Vec<u8>, bit_len: usize) -> Result<Self, EventError> {
-        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
-            return Err(EventError::InvalidBitLength {
-                bit_len,
-                byte_len: bytes.len(),
-            });
-        }
-        Ok(Self { bytes, bit_len })
-    }
-
-    #[must_use]
-    pub(crate) fn as_bytes(&self) -> &[u8] {
-        &self.bytes
-    }
-
-    #[must_use]
-    pub(crate) const fn len_bits(&self) -> usize {
-        self.bit_len
-    }
-}
-
-pub(super) enum RpcEncoder<T> {
-    Bytes(fn(T) -> Result<Vec<u8>, EventError>),
-    Bits(fn(HostApi, T) -> Result<EncodedPayload, EventError>),
-}
-
-impl<T> Copy for RpcEncoder<T> {}
-
-impl<T> Clone for RpcEncoder<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-/// A typed RPC descriptor with its SA-MP RPC ID and read/write layout.
-pub(crate) struct Rpc<T> {
-    pub(super) id: u8,
-    pub(super) decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-    pub(super) encode: RpcEncoder<T>,
-}
-
-impl<T> Copy for Rpc<T> {}
-
-impl<T> Clone for Rpc<T> {
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Rpc<T> {
-    /// Creates a descriptor for one RPC ID.
-    pub(crate) const fn new(
-        id: u8,
-        decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-        encode: fn(T) -> Result<Vec<u8>, EventError>,
-    ) -> Self {
-        Self {
-            id,
-            decode,
-            encode: RpcEncoder::Bytes(encode),
-        }
-    }
-
-    /// Creates a descriptor whose replacement serializer can use host codecs and exact bits.
-    pub(crate) const fn new_bits(
-        id: u8,
-        decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-        encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
-    ) -> Self {
-        Self {
-            id,
-            decode,
-            encode: RpcEncoder::Bits(encode),
-        }
-    }
-
-    /// Returns this descriptor's SA-MP RPC ID.
-    #[must_use]
-    pub const fn id(self) -> u8 {
-        self.id
-    }
-
-    /// Serializes one complete payload without mutating a callback event.
-    pub(crate) fn encode(self, api: HostApi, value: T) -> Result<EncodedPayload, EventError> {
-        match self.encode {
-            RpcEncoder::Bytes(encode) => EncodedPayload::from_bytes(encode(value)?),
-            RpcEncoder::Bits(encode) => encode(api, value),
-        }
-    }
-
-    /// Handles this RPC when `event` has the matching ID.
-    ///
-    /// A non-matching event passes through without invoking `handler`. Decode failures are returned
-    /// to the plugin so it can fail open and report the incompatible payload if appropriate.
-    pub(crate) fn handle(
-        self,
-        event: &mut Event<'_>,
-        handler: impl FnOnce(T) -> ProtocolAction<T>,
-    ) -> Result<SampClientSdkHookAction, EventError> {
-        self.handle_classified(event, handler)
-            .map_err(|(_, error)| error)
-    }
-
-    pub(crate) fn handle_classified(
-        self,
-        event: &mut Event<'_>,
-        handler: impl FnOnce(T) -> ProtocolAction<T>,
-    ) -> Result<SampClientSdkHookAction, (CallbackFailurePhase, EventError)> {
-        if event.id() != self.id {
-            return Ok(SampClientSdkHookAction::Continue);
-        }
-        event
-            .reset_read()
-            .map_err(|error| (CallbackFailurePhase::DecodeSource, error))?;
-        let value = (self.decode)(event).map_err(|error| {
-            let phase = if matches!(&error, EventError::Host(_)) {
-                CallbackFailurePhase::DecodeSource
-            } else {
-                CallbackFailurePhase::DecodeMalformed
-            };
-            (phase, error)
-        })?;
-        if event.remaining_bits() != 0 {
-            return Err((
-                CallbackFailurePhase::DecodeMalformed,
-                EventError::UnexpectedBitLength {
-                    bit_len: event.remaining_bits(),
-                    expected: 0,
-                },
-            ));
-        }
-        match handler(value) {
-            ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
-            ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
-            ProtocolAction::Replace(value) => {
-                let payload = self
-                    .encode(event.api, value)
-                    .map_err(|error| (CallbackFailurePhase::ReplacementEncode, error))?;
-                event
-                    .replace_bits(payload.as_bytes(), payload.len_bits())
-                    .map_err(|error| (CallbackFailurePhase::ReplacementHost, error))?;
-                Ok(SampClientSdkHookAction::Continue)
-            }
-        }
-    }
-}
-
-macro_rules! directional_descriptor {
-    ($name:ident) => {
-        #[doc = concat!("A typed ", stringify!($name), " descriptor.")]
-        pub struct $name<T>(Rpc<T>);
-
-        impl<T> Copy for $name<T> {}
-
-        impl<T> Clone for $name<T> {
-            fn clone(&self) -> Self {
-                *self
-            }
-        }
-
-        #[allow(
-            dead_code,
-            reason = "legacy descriptor directions share one private adapter shape"
-        )]
-        impl<T> $name<T> {
-            /// Creates a descriptor for one ID with a byte-aligned payload.
-            pub(crate) const fn new(
-                id: u8,
-                decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-                encode: fn(T) -> Result<Vec<u8>, EventError>,
-            ) -> Self {
-                Self(Rpc::new(id, decode, encode))
-            }
-
-            /// Creates a descriptor with an exact-bit payload.
-            pub(crate) const fn new_bits(
-                id: u8,
-                decode: fn(&mut Event<'_>) -> Result<T, EventError>,
-                encode: fn(HostApi, T) -> Result<EncodedPayload, EventError>,
-            ) -> Self {
-                Self(Rpc::new_bits(id, decode, encode))
-            }
-
-            /// Returns this descriptor's packet or RPC ID.
-            #[must_use]
-            pub const fn id(self) -> u8 {
-                self.0.id()
-            }
-
-            /// Serializes one complete payload without mutating a callback event.
-            pub(crate) fn encode(
-                self,
-                api: HostApi,
-                value: T,
-            ) -> Result<EncodedPayload, EventError> {
-                self.0.encode(api, value)
-            }
-
-            /// Handles this descriptor when `event` has the matching ID.
-            pub(crate) fn handle(
-                self,
-                event: &mut Event<'_>,
-                handler: impl FnOnce(T) -> ProtocolAction<T>,
-            ) -> Result<SampClientSdkHookAction, EventError> {
-                self.0.handle(event, handler)
-            }
-
-            pub(crate) fn handle_classified(
-                self,
-                event: &mut Event<'_>,
-                handler: impl FnOnce(T) -> ProtocolAction<T>,
-            ) -> Result<SampClientSdkHookAction, (CallbackFailurePhase, EventError)> {
-                self.0.handle_classified(event, handler)
-            }
-        }
-    };
-}
-
-directional_descriptor!(IncomingPacket);
-directional_descriptor!(OutgoingPacket);
-directional_descriptor!(IncomingRpc);
-directional_descriptor!(OutgoingRpc);
 
 /// Handles one Protocol Packet or RPC descriptor from a raw callback event.
 ///
@@ -796,39 +466,12 @@ where
         ProtocolAction::Continue => Ok(SampClientSdkHookAction::Continue),
         ProtocolAction::Block => Ok(SampClientSdkHookAction::Block),
         ProtocolAction::Replace(value) => {
-            let payload = D::encode_bits(EncodedStringPayloadWriter::new(event.api), &value)
+            let payload = D::encode_bits(HostEncodedStringWriter::new(event.api), &value)
                 .map_err(ProtocolEventError::ReplacementEncodedStringEncode)?;
             event
                 .replace_bits(payload.as_bytes(), payload.len_bits())
                 .map_err(ProtocolEventError::ReplacementHost)?;
             Ok(SampClientSdkHookAction::Continue)
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn payload_writer_preserves_partial_bit_lengths() {
-        let mut writer = PayloadWriter::new();
-        writer.bits(&[0xA5], 8);
-        writer.bits(&[0b1100_0000], 3);
-        let payload = writer.finish_bits();
-
-        assert_eq!(payload.len_bits(), 11);
-        assert_eq!(payload.as_bytes(), &[0xA5, 0b1100_0000]);
-    }
-
-    #[test]
-    fn encoded_payload_rejects_bits_outside_its_buffer() {
-        assert!(matches!(
-            EncodedPayload::from_bits(vec![0], 9),
-            Err(EventError::InvalidBitLength {
-                bit_len: 9,
-                byte_len: 1
-            })
-        ));
     }
 }

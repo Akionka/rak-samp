@@ -1,7 +1,7 @@
 # Protocol / SDK boundary completion
 
-**Status: GREEN.** Issues #22 and #39 are complete on the Rust 1.98
-acceptance baseline. The blocking work from #37 and #38 is included. The
+**Status: GREEN.** Issues #6, #21, #22, and #39 are complete on the Rust 1.98
+acceptance baseline. Their blocking work is included. The
 [P0 architecture gate](p0-architecture-gate.md) stayed green while the P1/P2
 semantic namespace, facade, package, and documentation work landed.
 
@@ -10,9 +10,10 @@ semantic namespace, facade, package, and documentation work landed.
 - `samp-protocol` owns platform-independent values, Wire primitives,
   descriptors, framing, and structured codec errors. Stable built-ins use
   semantic `common`, `r1`, and feature namespaces.
-- `samp-client-sdk` projects Protocol and remaining Host-backed descriptors
-  into the typed `Net` API. Plugins resolve `Samp` and use subsystem facades;
-  the Host wrapper and payload encoders remain private.
+- `samp-client-sdk` projects Protocol descriptors into the typed `Net` API.
+  Plugins resolve `Samp` and use subsystem facades. The SDK owns no legacy
+  Protocol descriptors, codecs, payload writer, or encoded payload value. Its
+  private encoded-string Host adapter writes through the Protocol bitstream.
 - The SDK depends on the workspace Protocol crate at exactly
   `=0.1.0-alpha.4`. Package verification checks the normalized SDK manifest
   and requires exactly one `samp-protocol` entry in its packaged lockfile.
@@ -29,9 +30,9 @@ and inspects the generated SDK public item index.
 | --- | --- |
 | `on_*_protocol_*` | Absent from production source. The four typed `Net` methods are the public registration surface. |
 | `fixed`, `phase15` | Absent from current Packet/RPC production taxonomy. Historical split documents label removed `fixed` paths as historical. |
-| Direction-neutral descriptor paths | Protocol exposes only the generic `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and `OutgoingRpc` wrappers. The old neutral `Packet`/`Rpc` descriptors and the SDK `events::Packet` alias are absent; the Host-backed `Rpc` carrier is crate-private. |
+| Direction-neutral descriptor paths | Protocol exposes only the generic `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and `OutgoingRpc` wrappers. The old neutral `Packet`/`Rpc` descriptors and every SDK-owned directional descriptor are absent. |
 | `HostApi` | Private; absent from the generated public item index. The crate-level `compile_fail` example remains a privacy guard. |
-| `RpcEncoder`, `PayloadWriter`, `EncodedPayload` | Private; absent from the generated public item index. |
+| Legacy SDK Protocol definitions | `RpcEncoder`, `PayloadWriter`, `EncodedPayload`, SDK directional descriptors, duplicate vectors, and duplicate limits are absent from SDK source. The hygiene audit rejects their return under `sdk/src/events`. |
 | Incoming RPC ownership | Protocol uses `rpc::incoming::common` and `rpc::incoming::r1`. The SDK injects Host encoded-string operations and owns no duplicate incoming RPC descriptors or payloads. |
 | Neutral bit booleans | `WireReadExt::read_bit_bool` and `WireWriteExt::write_bit_bool` are the single canonical MSB-first implementation used by R1 Packet and RPC codecs. Protocol bounds failures stay distinct from reader/writer source failures. |
 
@@ -63,7 +64,7 @@ The completion validation passed with:
 | `cargo test -p samp-protocol --target x86_64-unknown-linux-gnu --locked` | Pass in WSL Linux |
 | `cargo clippy -p samp-protocol --target x86_64-unknown-linux-gnu --all-targets --locked -- -D warnings` | Pass in WSL Linux |
 
-This closes the P1/P2 Definition of Done for #22. Future message migrations use
-directional Protocol wrappers and semantic SDK paths without new registration
-methods, macro forms, public codec carriers, primitive mini-codecs, or
-migration-named modules.
+This closes the Phase 1 expand-contract migration for #6 and #21. Future
+messages use directional Protocol wrappers and semantic SDK paths without new
+registration methods, macro forms, SDK codec carriers, primitive mini-codecs,
+or migration-named modules.

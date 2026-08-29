@@ -1,6 +1,7 @@
-use super::{EncodedPayload, Event, ProtocolAction, core::PayloadWriter};
+use super::{Event, ProtocolAction};
 use crate::{HostApi, SampClientSdkEventV1, SampClientSdkHookAction, SampClientSdkResult};
 use ::core::{mem, ptr};
+use samp_protocol::EncodedBits;
 use std::{
     cell::{Cell, RefCell},
     sync::Mutex,
@@ -110,13 +111,13 @@ pub(crate) fn registration_stats() -> RegistrationStats {
 }
 
 pub(crate) fn invoke_registered_callback(id: u8) -> Option<SampClientSdkHookAction> {
-    let payload = EncodedPayload::from_bits(Vec::new(), 0).expect("an empty payload is valid");
+    let payload = EncodedBits::from_bits(Vec::new(), 0).expect("an empty payload is valid");
     invoke_registered_callback_with_payload(id, payload)
 }
 
 pub(crate) fn invoke_registered_callback_with_payload(
     id: u8,
-    payload: EncodedPayload,
+    payload: EncodedBits,
 ) -> Option<SampClientSdkHookAction> {
     let callback = *REGISTRATION
         .lock()
@@ -134,7 +135,7 @@ pub(crate) fn invoke_registered_callback_with_payload(
 
 pub(crate) fn invoke_registered_callback_with_replacement(
     id: u8,
-    payload: EncodedPayload,
+    payload: EncodedBits,
 ) -> Option<(SampClientSdkHookAction, Vec<u8>, usize)> {
     invoke_registered_callback_with_host_replacement(id, payload, SampClientSdkResult::Ok)
         .map(|outcome| (outcome.action, outcome.bytes, outcome.bit_len))
@@ -150,7 +151,7 @@ pub(crate) struct CallbackInvocation {
 
 pub(crate) fn invoke_registered_callback_with_host_replacement(
     id: u8,
-    payload: EncodedPayload,
+    payload: EncodedBits,
     replace_result: SampClientSdkResult,
 ) -> Option<CallbackInvocation> {
     invoke_registered_callback_with_results(id, payload, SampClientSdkResult::Ok, replace_result)
@@ -158,7 +159,7 @@ pub(crate) fn invoke_registered_callback_with_host_replacement(
 
 pub(crate) fn invoke_registered_callback_with_source_failure(
     id: u8,
-    payload: EncodedPayload,
+    payload: EncodedBits,
     source_result: SampClientSdkResult,
 ) -> Option<CallbackInvocation> {
     invoke_registered_callback_with_results(id, payload, source_result, SampClientSdkResult::Ok)
@@ -166,7 +167,7 @@ pub(crate) fn invoke_registered_callback_with_source_failure(
 
 fn invoke_registered_callback_with_results(
     id: u8,
-    payload: EncodedPayload,
+    payload: EncodedBits,
     reset_read_result: SampClientSdkResult,
     replace_result: SampClientSdkResult,
 ) -> Option<CallbackInvocation> {
@@ -2085,7 +2086,7 @@ where
 {
     let api = test_api();
     let encoded = D::encode_bits(&value).expect("test payload must encode");
-    let payload = EncodedPayload::from_bits(encoded.as_bytes().to_vec(), encoded.len_bits())
+    let payload = EncodedBits::from_bits(encoded.as_bytes().to_vec(), encoded.len_bits())
         .expect("encoded protocol payload must fit the callback event");
     let mut raw = TestEvent::new(D::ID, payload);
     let mut event = unsafe {
@@ -2116,9 +2117,9 @@ pub(crate) fn assert_encoded_string_protocol_replacement_round_trip<D>(
     D::Value: Clone + ::core::fmt::Debug + PartialEq,
 {
     let api = test_api();
-    let bits = D::encode_bits(super::core::EncodedStringPayloadWriter::new(api), &value)
+    let bits = D::encode_bits(super::core::HostEncodedStringWriter::new(api), &value)
         .expect("test payload must encode");
-    let encoded = EncodedPayload::from_bits(bits.as_bytes().to_vec(), bits.len_bits())
+    let encoded = EncodedBits::from_bits(bits.as_bytes().to_vec(), bits.len_bits())
         .expect("encoded protocol payload must fit the callback event");
     let mut raw = TestEvent::new(D::ID, encoded.clone());
     let mut event = unsafe {

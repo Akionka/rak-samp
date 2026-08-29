@@ -102,7 +102,8 @@ SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
 
 `samp_protocol::BitStream` is owned and bounded. Protocol values and Wire
 descriptors come directly from `samp-protocol`; the SDK does not re-export
-them. Typed events, Protocol catalogs, exact sends, and incoming emulation
+them or provide legacy Protocol descriptors, codecs, payload writers, or
+encoded payload values. Typed events, Protocol catalogs, exact sends, and incoming emulation
 retain exact-bit and exactly-once dispatch semantics. Direct state reads are
 copied into Host-owned snapshots; plugins never dereference Native client
 memory through the safe API.

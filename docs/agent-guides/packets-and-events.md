@@ -26,8 +26,8 @@
   `HostApi`, callback events, and ABI actions in its private adapter supertrait.
 - Parameterize private callback sealing by the same direction and kind markers.
   Forward Protocol `Value` and `ID` through one blanket implementation per
-  Protocol directional trait; do not duplicate built-in IDs in the SDK. Give
-  only remaining legacy SDK descriptors explicit metadata implementations.
+  Protocol directional trait; do not duplicate built-in IDs or retain legacy
+  descriptor metadata implementations in the SDK.
 - Preserve direction and kind through type-level `Incoming`, `Outgoing`,
   `PacketKind`, and `RpcKind` bounds. Do not use runtime adapter switching, and
   do not let custom-message authors implement the SDK metadata trait directly.
@@ -100,12 +100,11 @@
 - Use `common` only for profile-neutral wire semantics and `r1` only for explicit
   R1 semantics. Do not use migration phases, batches, or status as production
   module taxonomy, and do not hide ownership with broad re-exports.
-- Keep Host-backed descriptor construction, encoding, payload writers, and
-  encoded payload representations internal when they have no independent public
-  use. A legacy descriptor may remain public for typed registration without
-  exposing its Host encoding machinery.
+- Keep the Host encoded-string adapter private and backed by the Protocol
+  bitstream. Do not add SDK-owned Wire descriptors, Protocol codecs, payload
+  writers, or encoded payload representations.
 - Never retain callback-local events.
-- Keep SDK protocol codecs and bit streams independent of the native host so
-  they remain testable without a live client.
+- Keep Protocol codecs and Protocol bitstreams in `samp-protocol`, independent
+  of the Native Host and testable without a live client.
 - Route `Local` protocol actions through the same typed `Net` operations; do
   not imply that a server-bound send also performs a local GTA state change.
