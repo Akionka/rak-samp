@@ -26,8 +26,8 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P2 | Split incoming `common` RPCs | P1 | [x] |
 | P3 | Split incoming `r1` RPCs | P1 | [x] |
 | P4 | Split `Runtime` | P0 | [x] |
-| P5 | Split/domainize game-thread commands | P0 | [ ] |
-| P6 | Reduce Win32 composition root | P5 recommended | [ ] |
+| P5 | Split/domainize game-thread commands | P0 | [x] |
+| P6 | Reduce Win32 composition root | P5 recommended | [x] |
 | P7 | Split native-client players/UI | P0 + live-validation decision | [ ] |
 | P8 | Split SDK ABI source | P0 | [ ] |
 | P9 | Redistribute large tests | relevant production phase | [ ] |
@@ -509,15 +509,13 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
   environment-sensitive singleton test skipped, Clippy with warnings denied,
   format check, and `git diff --check` passed.
 
-- [ ] **P5-17 — Run full host/workspace gate.**
+- [x] **P5-17 — Run full host/workspace gate.**
   - Record Stage A and Stage B commit hashes separately.
 
-  Partial evidence (2026-08-29): Stage A final `1e6478a`; Stage B final
-  `2ec8fcb`. Workspace check and Clippy passed. Workspace tests passed with
-  only `r3_death_window_requires_a_readable_singleton` skipped. The unskipped
-  full host run passed 172 of 173 tests and failed only that previously
-  recorded environment condition. Keep this task open until the full unskipped
-  test gate passes.
+  Evidence (2026-08-29): Stage A final `1e6478a`; Stage B final `2ec8fcb`.
+  The environment-sensitive singleton condition cleared without a test change.
+  The unskipped host gate passed all 173 tests, and the full workspace format,
+  check, test, and Clippy gates passed.
 
   Current physical/nonblank LOC: `mod.rs` 87/81, `network.rs` 206/193,
   `connection.rs` 108/103, `ui.rs` 511/486, `text_labels.rs` 314/303,
@@ -525,7 +523,7 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
 
 ### P5 gate
 
-- [ ] Command ownership is domain-based, but queue/tick/completion invariants still have one owner.
+- [x] Command ownership is domain-based, but queue/tick/completion invariants still have one owner.
 
 ---
 
@@ -533,40 +531,71 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
 
 Keep `BackendState`, `BackendContext`, and cache-entry types root-owned in this phase.
 
-- [ ] **P6-01 — Extract `lifecycle.rs`.**
+- [x] **P6-01 — Extract `lifecycle.rs`.**
   - Move `attach` and attach-time construction.
   - Move game-process/dialog/constructor/client hook installation orchestration.
   - Move active-backend publication/clearing and loaded-module lookup where appropriate.
   - Keep exported/root API path stable through a narrow re-export.
 
-- [ ] **P6-02 — Extract `tick.rs`.**
+  Evidence (2026-08-29): `ecf2c97`
+  (`ecf2c97f7a5acc50bad3f8cf9c380e948e34dcf4`).
+
+- [x] **P6-02 — Extract `tick.rs`.**
   - Move `prepare_game_tick`, `pump_game_tick`, game-thread publication/checking, and tick orchestration helpers.
   - Preserve original-call exactly-once behavior and command snapshot ordering.
 
-- [ ] **P6-03 — Extract `cache_lifecycle.rs`.**
+  Evidence (2026-08-29): `a404e7c`
+  (`a404e7cd7e8c3c141d8a3a2b7118d3b57cd12fe8`).
+
+- [x] **P6-03 — Extract `cache_lifecycle.rs`.**
   - Move local snapshot publication, every cache-clear helper, disconnect invalidation, connection-boundary invalidation, cache publication/generation helpers, and boundary predicate.
   - Do not move state fields.
 
-- [ ] **P6-04 — Extract `native_abi.rs`.**
+  Evidence (2026-08-29): `1b93510`
+  (`1b93510701d37b63d318268af07dcbe74f8264c5`).
+
+- [x] **P6-04 — Extract `native_abi.rs`.**
   - Move raw packet/player-ID mirrors, native function aliases, and priority/reliability conversion helpers.
   - Use only the visibility needed by `hooks.rs`/`packets.rs`/root.
   - Do not merge ABI aliases as part of the move.
 
-- [ ] **P6-05 — Audit root ownership.**
+  Evidence (2026-08-29): `bac46be`
+  (`bac46be12fc54732760ce77c81ba03f939bc9ff1`). Independent C++ ABI layout
+  fixtures passed without layout or alias changes.
+
+- [x] **P6-05 — Audit root ownership.**
   - `mod.rs` should retain shared constants, `Backend`, `BackendContext`, `BackendState`, cache-entry enums, and module wiring.
   - Do not create `state.rs` if it requires broad field visibility changes.
 
-- [ ] **P6-06 — Re-run lifecycle/tick/cache/hook tests.**
+  Evidence (2026-08-29): `mod.rs` retains `Backend`, `BackendContext`,
+  `BackendState`, cache-entry enums, shared constants, module wiring, and
+  narrow imports/re-exports. State fields remain private and root-owned.
+
+- [x] **P6-06 — Re-run lifecycle/tick/cache/hook tests.**
   - Explicitly run tests covering original call count, game-thread ID, disconnect invalidation, captured client/reconnect, hook replacement/restore, and incoming-emulation readiness.
 
-- [ ] **P6-07 — Verify DLL exports after module wiring.**
+  Evidence (2026-08-29): the unskipped 173-test host suite passed, including
+  the named game-tick, disconnect, active-backend, vtable replacement/restore,
+  client-hook failure, and incoming-emulation readiness tests.
+
+- [x] **P6-07 — Verify DLL exports after module wiring.**
   - Compare against P0 export baseline where available.
 
-- [ ] **P6-08 — Run full host/workspace gate and record LOC.**
+  Evidence (2026-08-29): `dumpbin /exports` on local
+  `target/i686-pc-windows-msvc/release/samp_client_sdk.dll` reported exactly
+  `DllMain` and `SampClientSdk_GetApiV1`, matching P0.
+
+- [x] **P6-08 — Run full host/workspace gate and record LOC.**
+
+  Evidence (2026-08-29): `cargo make format-check`, `check`, `test`, `clippy`,
+  `release-hygiene`, `package-published`, and `build-release` passed. Release
+  hygiene was updated in `af758bb` for the directory-module Protocol layout.
+  Physical/nonblank LOC: `mod.rs` 502/458, `lifecycle.rs` 522/503, `tick.rs`
+  94/89, `cache_lifecycle.rs` 415/383, `native_abi.rs` 68/61.
 
 ### P6 gate
 
-- [ ] Win32 root remains the state composition root without carrying unrelated implementation bodies.
+- [x] Win32 root remains the state composition root without carrying unrelated implementation bodies.
 
 ---
 
@@ -855,10 +884,12 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P2 split common incoming RPCs | `cohesion-module-split` | `49795a9c0fa74d5c54eecca168b0f798963b9df7` | 80 Protocol tests, Clippy, format, diff check passed | Flat public imports preserved through explicit re-exports |
 | 2026-08-29 | P3 split R1 incoming RPCs | `cohesion-module-split` | `4102db7110f17f1d6bafa174bdf31b734511be8e` | 80 Protocol tests, Clippy, format, diff check passed | Framing policies and flat public imports preserved |
 | 2026-08-29 | P4 split Runtime facade | `cohesion-module-split` | `19e36987c41fa7a48d6b637505dd5acc318a89b4` | 173 host tests; workspace check, tests, Clippy, format, diff check passed | `runtime/mod.rs` reduced to lifecycle and composition |
+| 2026-08-29 | P5 domainize game-thread commands | `cohesion-module-split` | `2ec8fcbefbdafa04f144bcbfcaf8773f102dd214` | 173 host tests; full workspace format, check, tests, and Clippy passed | Stage A final `1e6478a`; one queue and outer completion owner preserved |
+| 2026-08-29 | P6 reduce Win32 composition root | `cohesion-module-split` | `bac46be12fc54732760ce77c81ba03f939bc9ff1` | Full repository gate and local release DLL export audit passed | State remains private and root-owned; release-hygiene fix `af758bb` |
 
 ## Blockers / decisions log
 
 | Date | Task | Decision or blocker | Owner/next action | Status |
 | --- | --- | --- | --- | --- |
 | 2026-08-29 | P0-04 | Use `split-before-live-validation`; prior live stage remains pending | Run all four live validators after final native-facing structural changes | Decided |
-| 2026-08-29 | P5-10 | Unrelated singleton test assumes `0x17aa70` is unreadable, but the address is readable in the current process | Re-run the full host gate after the environment changes; do not modify the test as part of P5 | Open |
+| 2026-08-29 | P5-10 | Unrelated singleton test assumed `0x17aa70` was unreadable, but the address was temporarily readable in the process | The environment condition cleared; the unchanged test passed in the 173-test unskipped host gate | Resolved |
