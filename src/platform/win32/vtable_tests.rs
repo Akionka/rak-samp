@@ -611,7 +611,7 @@ fn dialog_editbox_text_command_is_bounded_and_queued() {
     assert_eq!(snapshot[0].id, id);
     assert!(matches!(
         &snapshot[0].command,
-        GameCommand::SetDialogEditboxText(text) if text == b"fixture"
+        GameCommand::Ui(UiCommand::SetDialogEditboxText(text)) if text == b"fixture"
     ));
 }
 
@@ -862,19 +862,19 @@ fn game_command_queue_is_shared_fifo_and_bounded() {
     assert_eq!(snapshot.len(), GAME_COMMAND_QUEUE_CAPACITY);
     assert!(matches!(
         &snapshot[0].command,
-        GameCommand::ShowDialog(request) if request.id == 7
+        GameCommand::Ui(UiCommand::ShowDialog(request)) if request.id == 7
     ));
     assert!(matches!(
         &snapshot[1].command,
-        GameCommand::AddChatMessage(_)
+        GameCommand::Ui(UiCommand::AddChatMessage(_))
     ));
     assert!(matches!(
         &snapshot[2].command,
-        GameCommand::AddDeathMessage(_)
+        GameCommand::Ui(UiCommand::AddDeathMessage(_))
     ));
     assert!(matches!(
         &snapshot[3].command,
-        GameCommand::ShowDialog(request) if request.id == 3
+        GameCommand::Ui(UiCommand::ShowDialog(request)) if request.id == 3
     ));
 }
 
@@ -956,7 +956,7 @@ fn game_tick_calls_original_once_and_marks_the_game_thread() {
 fn game_tick_leaves_commands_pending_until_the_rak_client_is_ready() {
     let state = test_backend_state();
     let id = state
-        .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
+        .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
         .unwrap();
 
     unsafe { state.run_game_process_tick(fake_game_process) };
@@ -969,7 +969,7 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
     let state = test_backend_state();
     state.rak_client.store(1, Ordering::Release);
     let id = state
-        .submit_game_command(GameCommand::ShowDialog(test_dialog(1)))
+        .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
         .unwrap();
 
     unsafe { state.run_game_process_tick(fake_game_process) };
@@ -1023,7 +1023,7 @@ fn command_wait_is_rejected_on_the_published_game_thread() {
         .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
     let id = state
         .game_commands
-        .submit(GameCommand::ShowDialog(test_dialog(1)))
+        .submit(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
         .unwrap();
     let backend = Backend {
         state: Arc::clone(&state),
