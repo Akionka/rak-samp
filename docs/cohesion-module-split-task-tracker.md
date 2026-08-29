@@ -23,7 +23,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | --- | --- | --- | --- |
 | P0 | Baseline and safety freeze | — | [x] |
 | P1 | Protocol descriptor-helper cleanup | P0 | [x] |
-| P2 | Split incoming `common` RPCs | P1 | [ ] |
+| P2 | Split incoming `common` RPCs | P1 | [x] |
 | P3 | Split incoming `r1` RPCs | P1 | [ ] |
 | P4 | Split `Runtime` | P0 | [ ] |
 | P5 | Split/domainize game-thread commands | P0 | [ ] |
@@ -152,7 +152,7 @@ Target tree: `crates/samp-protocol/src/rpc/incoming/common/`.
 
 ### Module shell
 
-- [ ] **P2-01 — Convert `common.rs` to a directory module.**
+- [x] **P2-01 — Convert `common.rs` to a directory module.**
   - Create `common/mod.rs` and private `common/wire.rs`.
   - Move only shared scalar/empty/bool/vector/fixed/tuple codec mechanics to `wire.rs`.
   - Keep all semantic descriptors in `mod.rs` temporarily if needed for the first compiling step.
@@ -160,59 +160,87 @@ Target tree: `crates/samp-protocol/src/rpc/incoming/common/`.
 
 ### Semantic extraction slices
 
-- [ ] **P2-02 — Extract `session.rs`.**
+- [x] **P2-02 — Extract `session.rs`.**
   - Move join/quit, spawn/class/session/control descriptors assigned by the handoff.
   - Move each payload + semantic codec + descriptor + read/write functions together.
   - Keep current IDs and framing unchanged.
 
-- [ ] **P2-03 — Extract `player.rs`.**
+- [x] **P2-03 — Extract `player.rs`.**
   - Move player state, attributes, weapons, death, animation/special-action/fighting/velocity families.
   - Keep player-only wire helpers local unless another domain genuinely uses them.
 
-- [ ] **P2-04 — Extract `vehicle.rs`.**
+- [x] **P2-04 — Extract `vehicle.rs`.**
   - Move vehicle stream/state/params/damage/trailer and player-vehicle transition descriptors.
   - Preserve exact field order and scalar widths.
 
-- [ ] **P2-05 — Extract `world.rs`.**
+- [x] **P2-05 — Extract `world.rs`.**
   - Move checkpoints, time/weather/clock, audio, map icons, pickups, explosion, gangzones, gravity, building/label removal, and other world-state descriptors.
 
-- [ ] **P2-06 — Extract `object.rs`.**
+- [x] **P2-06 — Extract `object.rs`.**
   - Move object position/rotation/destroy/edit/select/move/stop/attachment descriptors.
 
-- [ ] **P2-07 — Extract `ui.rs`.**
+- [x] **P2-07 — Extract `ui.rs`.**
   - Move `SHOW_DIALOG` including its encoded-string codec/capability as one unit.
   - Move server/game text, chat/bubble, menu, widescreen, and textdraw-string descriptors.
 
-- [ ] **P2-08 — Extract `camera.rs`.**
+- [x] **P2-08 — Extract `camera.rs`.**
   - Move camera position/look-at/behind, attach-camera, and spectate descriptors.
 
-- [ ] **P2-09 — Extract `actor.rs`.**
+- [x] **P2-09 — Extract `actor.rs`.**
   - Move actor create/destroy/animation/position/angle/health descriptors.
 
 ### API and cleanup
 
-- [ ] **P2-10 — Make `common/mod.rs` an ownership map, not a second catalog.**
+- [x] **P2-10 — Make `common/mod.rs` an ownership map, not a second catalog.**
   - Keep module declarations, shared macro wiring if still needed, and explicit `pub use` lists.
   - Remove stale duplicated imports/helpers from the old file conversion.
   - Do not use `pub use module::*` in production.
 
-- [ ] **P2-11 — Audit descriptor colocation.**
+- [x] **P2-11 — Audit descriptor colocation.**
   - For every semantic descriptor, verify payload type, descriptor declaration, semantic codec marker/impl, and decode/encode helpers live in the same domain module.
   - Exceptions allowed only for generic `wire.rs` primitives.
 
-- [ ] **P2-12 — Validate all existing common API paths.**
+- [x] **P2-12 — Validate all existing common API paths.**
   - Existing `incoming_common.rs` and `incoming_common_world.rs` must compile unchanged unless only import formatting changes.
   - `incoming_encoded_strings.rs` must continue exercising `SHOW_DIALOG` through the same public path.
 
-- [ ] **P2-13 — Run Protocol gate and record final common LOC.**
+- [x] **P2-13 — Run Protocol gate and record final common LOC.**
   - Run Protocol tests/Clippy/format.
   - Record LOC per new module and note any module still unusually large with justification.
   - Evidence: commit hashes per slice plus final phase hash.
 
+  Evidence (2026-08-29): module shell `bdc1a6a`; wire `56befc5`;
+  actor `8a257dd`; session `f5be84a`; camera `d446395`; object
+  `6bb45dc`; vehicle `be91f04`; player `be30baa`; world `76c08e1`;
+  UI `7b6c11d`; final ownership/import cleanup `49795a9`
+  (`49795a9c0fa74d5c54eecca168b0f798963b9df7`). All 80 Protocol tests, Clippy with warnings
+  denied, format check, and `git diff --check` passed. Existing flat imports
+  remain unchanged. The nominal-identity test now expects the physical private
+  domain declaration path reported by `type_name`; this does not change the
+  public re-export path.
+
+  Final physical/nonblank LOC:
+
+  | Module | Physical | Nonblank |
+  | --- | ---: | ---: |
+  | `common/mod.rs` | 112 | 101 |
+  | `common/wire.rs` | 156 | 136 |
+  | `common/session.rs` | 141 | 118 |
+  | `common/player.rs` | 487 | 407 |
+  | `common/vehicle.rs` | 669 | 575 |
+  | `common/world.rs` | 477 | 395 |
+  | `common/object.rs` | 193 | 163 |
+  | `common/ui.rs` | 289 | 242 |
+  | `common/camera.rs` | 97 | 81 |
+  | `common/actor.rs` | 159 | 133 |
+
+  `vehicle.rs` is the largest remaining module because its 19 descriptor
+  families share the same vehicle-state reason to change; it is still cohesive.
+
 ### P2 gate
 
-- [ ] No semantic common descriptor is still spread across independent file regions.
-- [ ] Flat `samp_protocol::rpc::incoming::common::*` paths remain valid through explicit re-exports.
+- [x] No semantic common descriptor is still spread across independent file regions.
+- [x] Flat `samp_protocol::rpc::incoming::common::*` paths remain valid through explicit re-exports.
 
 ---
 
@@ -722,6 +750,7 @@ Append one row per completed slice rather than editing historical rows.
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-29 | P0 baseline and safety freeze | `cohesion-module-split` | `77edf87119f051bb9853f27e1c02b305e67e068f` | All static gates passed; two DLL exports recorded | Live policy: `split-before-live-validation` |
 | 2026-08-29 | P1 descriptor-helper cleanup | `cohesion-module-split` | `23f85114e1e5475890837603951c5d7f90d4b985` | 80 Protocol tests, Clippy, format, diff check passed | Explicit value types; no descriptor movement |
+| 2026-08-29 | P2 split common incoming RPCs | `cohesion-module-split` | `49795a9c0fa74d5c54eecca168b0f798963b9df7` | 80 Protocol tests, Clippy, format, diff check passed | Flat public imports preserved through explicit re-exports |
 
 ## Blockers / decisions log
 
