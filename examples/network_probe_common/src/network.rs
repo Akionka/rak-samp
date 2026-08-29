@@ -2,6 +2,21 @@
 
 use super::*;
 
+#[cfg(feature = "r1-probe")]
+pub(super) const R1_EXACT_BIT_TEST_ID: u8 = 0xFE;
+#[cfg(feature = "r1-probe")]
+pub(super) const R1_EXACT_BIT_PAYLOAD: [u8; 1] = [0b1010_0000];
+#[cfg(feature = "r1-probe")]
+pub(super) const R1_EXACT_BIT_COUNT: usize = 3;
+#[cfg(feature = "r1-probe")]
+pub(super) const R1_CODEC_VALUE: &[u8] = b"samp-client-sdk-r1-network-probe";
+#[cfg(feature = "r1-probe")]
+pub(super) static R1_CODEC_ROUND_TRIP: AtomicBool = AtomicBool::new(false);
+#[cfg(feature = "r1-probe")]
+pub(super) static R1_PACKET_EXACT_BITS: AtomicBool = AtomicBool::new(false);
+#[cfg(feature = "r1-probe")]
+pub(super) static R1_RPC_EXACT_BITS: AtomicBool = AtomicBool::new(false);
+
 pub(super) fn register_listeners(samp: Samp) -> Result<SubscriptionSet, SampClientSdkResult> {
     let reply_subscription = samp
         .net()

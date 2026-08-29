@@ -41,21 +41,6 @@ pub(super) const SYNC_INDEX_PASSENGER: usize = 5;
 pub(super) const SYNC_INDEX_UNOCCUPIED: usize = 6;
 pub(super) const SYNC_INDEX_TRAILER: usize = 7;
 
-#[cfg(feature = "r1-probe")]
-pub(super) const R1_EXACT_BIT_TEST_ID: u8 = 0xFE;
-#[cfg(feature = "r1-probe")]
-pub(super) const R1_EXACT_BIT_PAYLOAD: [u8; 1] = [0b1010_0000];
-#[cfg(feature = "r1-probe")]
-pub(super) const R1_EXACT_BIT_COUNT: usize = 3;
-#[cfg(feature = "r1-probe")]
-pub(super) const R1_CODEC_VALUE: &[u8] = b"samp-client-sdk-r1-network-probe";
-#[cfg(feature = "r1-probe")]
-pub(super) static R1_CODEC_ROUND_TRIP: AtomicBool = AtomicBool::new(false);
-#[cfg(feature = "r1-probe")]
-pub(super) static R1_PACKET_EXACT_BITS: AtomicBool = AtomicBool::new(false);
-#[cfg(feature = "r1-probe")]
-pub(super) static R1_RPC_EXACT_BITS: AtomicBool = AtomicBool::new(false);
-
 pub(super) struct PluginState {
     pub(super) subscriptions: Option<SubscriptionSet>,
     pub(super) initializing: bool,
