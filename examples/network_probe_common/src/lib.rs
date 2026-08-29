@@ -8,6 +8,7 @@
 compile_error!("samp-client-sdk network probes support only 32-bit Windows x86 targets");
 
 mod config;
+mod state;
 
 use config::*;
 #[cfg(test)]
@@ -29,6 +30,7 @@ use samp_protocol::{
     },
     rpc::incoming::common::SERVER_MESSAGE,
 };
+use state::*;
 use std::{
     ffi::c_void,
     fs, ptr,
@@ -114,143 +116,6 @@ pub const STATUS_OUTBOUND_RECEIPT: u32 = 1 << 4;
 pub const STATUS_REPLY_OBSERVED: u32 = 1 << 5;
 /// An initialization, command, or reply stage failed.
 pub const STATUS_FAILED: u32 = 1 << 31;
-
-static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
-static INITIALIZATION_FINISHED: Condvar = Condvar::new();
-static STATUS: AtomicU32 = AtomicU32::new(0);
-static FAILURE: AtomicU32 = AtomicU32::new(SampClientSdkResult::Ok as u32);
-static SCALAR_OBSERVATION: Mutex<Option<ScalarObservation>> = Mutex::new(None);
-static PLAYER_POOL_OBSERVATION: Mutex<Option<PlayerPoolObservation>> = Mutex::new(None);
-static RECONNECT_OBSERVATION: Mutex<Option<ReconnectObservation>> = Mutex::new(None);
-static ENTITY_IDS: Mutex<Option<EntityIds>> = Mutex::new(None);
-static CHAT_COMMAND_INVOKED: AtomicBool = AtomicBool::new(false);
-static SYNC_PACKETS_OBSERVED: AtomicU32 = AtomicU32::new(0);
-static SYNC_PACKET_COUNTS: [AtomicU32; 8] = [const { AtomicU32::new(0) }; 8];
-static TEXT_LABEL_PHASE: Mutex<&'static str> = Mutex::new("none");
-static TEXT_LABEL_INITIAL_FIELDS: AtomicU32 = AtomicU32::new(0);
-static TEXT_LABEL_INITIAL_RESULT: AtomicU32 = AtomicU32::new(0);
-static TEXTDRAW_PHASE: Mutex<&'static str> = Mutex::new("none");
-static TEXTDRAW_SNAPSHOT_FIELDS: AtomicU32 = AtomicU32::new(0);
-static TEXTDRAW_SNAPSHOT_RESULT: AtomicU32 = AtomicU32::new(0);
-static VEHICLE_PHASE: Mutex<&'static str> = Mutex::new("none");
-static VEHICLE_PHASES: Mutex<VehiclePhases> = Mutex::new(VehiclePhases::new());
-static RECONNECT_REQUESTED: AtomicBool = AtomicBool::new(false);
-static INCOMING_REPLY_COUNT: AtomicU32 = AtomicU32::new(0);
-
-const SYNC_PACKET_AIM: u32 = 1 << 0;
-const SYNC_PACKET_ONFOOT: u32 = 1 << 1;
-const SYNC_PACKET_STATS: u32 = 1 << 2;
-const SYNC_PACKET_WEAPONS: u32 = 1 << 3;
-const SYNC_PACKET_VEHICLE: u32 = 1 << 4;
-const SYNC_PACKET_PASSENGER: u32 = 1 << 5;
-const SYNC_PACKET_UNOCCUPIED: u32 = 1 << 6;
-const SYNC_PACKET_TRAILER: u32 = 1 << 7;
-const SYNC_INDEX_AIM: usize = 0;
-const SYNC_INDEX_ONFOOT: usize = 1;
-const SYNC_INDEX_STATS: usize = 2;
-const SYNC_INDEX_WEAPONS: usize = 3;
-const SYNC_INDEX_VEHICLE: usize = 4;
-const SYNC_INDEX_PASSENGER: usize = 5;
-const SYNC_INDEX_UNOCCUPIED: usize = 6;
-const SYNC_INDEX_TRAILER: usize = 7;
-
-#[cfg(feature = "r1-probe")]
-const R1_EXACT_BIT_TEST_ID: u8 = 0xFE;
-#[cfg(feature = "r1-probe")]
-const R1_EXACT_BIT_PAYLOAD: [u8; 1] = [0b1010_0000];
-#[cfg(feature = "r1-probe")]
-const R1_EXACT_BIT_COUNT: usize = 3;
-#[cfg(feature = "r1-probe")]
-const R1_CODEC_VALUE: &[u8] = b"samp-client-sdk-r1-network-probe";
-#[cfg(feature = "r1-probe")]
-static R1_CODEC_ROUND_TRIP: AtomicBool = AtomicBool::new(false);
-#[cfg(feature = "r1-probe")]
-static R1_PACKET_EXACT_BITS: AtomicBool = AtomicBool::new(false);
-#[cfg(feature = "r1-probe")]
-static R1_RPC_EXACT_BITS: AtomicBool = AtomicBool::new(false);
-
-struct PluginState {
-    subscriptions: Option<SubscriptionSet>,
-    initializing: bool,
-    shutting_down: bool,
-}
-
-/// A bounded copied snapshot emitted only by this opt-in local validation probe.
-struct ScalarObservation {
-    game_state: i32,
-    address: Vec<u8>,
-    hostname: Vec<u8>,
-    port: u16,
-}
-
-/// The copied player-pool values observed only by this opt-in local probe.
-struct PlayerPoolObservation {
-    including_npcs: u16,
-    excluding_npcs: u16,
-    max_id: Option<u16>,
-}
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-struct ReconnectObservation {
-    server_ready: bool,
-    local_ready: bool,
-    game_state: Option<i32>,
-    spawned: Option<bool>,
-    incoming_ready: bool,
-}
-
-#[derive(Clone, Copy)]
-struct ProbePhaseStatus {
-    text_label_phase: &'static str,
-    text_label_initial_fields: u32,
-    text_label_initial_result: u32,
-    textdraw_phase: &'static str,
-    textdraw_snapshot_fields: u32,
-    textdraw_snapshot_result: u32,
-    vehicle_phase: &'static str,
-}
-
-#[derive(Clone, Copy)]
-struct EntityIds {
-    object: u16,
-    vehicle: u16,
-    pickup: u16,
-    gangzone: u16,
-}
-
-#[derive(Clone, Copy)]
-struct VehiclePair {
-    vehicle: u16,
-    trailer: u16,
-}
-
-struct VehiclePhases {
-    local_driver: Option<u16>,
-    local_passenger: Option<u16>,
-    local_trailer: Option<VehiclePair>,
-    cleanup: bool,
-}
-
-impl VehiclePhases {
-    const fn new() -> Self {
-        Self {
-            local_driver: None,
-            local_passenger: None,
-            local_trailer: None,
-            cleanup: false,
-        }
-    }
-}
-
-impl PluginState {
-    const fn new() -> Self {
-        Self {
-            subscriptions: None,
-            initializing: false,
-            shutting_down: false,
-        }
-    }
-}
 
 struct InitializationGuard;
 
