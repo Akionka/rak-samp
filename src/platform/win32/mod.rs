@@ -58,7 +58,8 @@ use crate::{
         ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
     },
 };
-use hooks::{HookStorage, InlineHook, VtableHook};
+use hooks::{HookStorage, VtableHook};
+use modkit_win32::InlineHook;
 #[cfg(test)]
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
@@ -73,7 +74,7 @@ use std::{
     },
     time::Duration,
 };
-use windows_sys::Win32::System::{LibraryLoader::GetModuleHandleA, Threading::GetCurrentThreadId};
+use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 
 const ID_TIMESTAMP: u8 = 40;
 const ID_RPC: u8 = 20;

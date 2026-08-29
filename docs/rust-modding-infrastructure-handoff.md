@@ -2061,20 +2061,20 @@ feat(sdk): add plugin-side host and service resolver
 
 ### Tasks
 
-- [ ] Create `crates/modkit-win32` as Windows x86 host-internal crate.
-- [ ] Move generic PE/module helpers.
-- [ ] Move generic `VirtualQuery` range validation.
-- [ ] Introduce `ReadableRegion`/`WritableRegion` abstraction.
-- [ ] Move generic inline hook wrapper around MinHook.
-- [ ] Keep SA-MP-specific detour functions in their current location initially.
-- [ ] Add tests for null/overflow/page protection and owned-memory reads/writes.
-- [ ] Ensure public plugin crates do not depend on `modkit-win32`.
+- [x] Create `crates/modkit-win32` as Windows x86 host-internal crate.
+- [x] Move generic PE/module helpers.
+- [x] Move generic `VirtualQuery` range validation.
+- [x] Introduce `ReadableRegion`/`WritableRegion` abstraction.
+- [x] Move generic inline hook wrapper around MinHook.
+- [x] Keep SA-MP-specific detour functions in their current location initially.
+- [x] Add tests for null/overflow/page protection and owned-memory reads/writes.
+- [x] Ensure public plugin crates do not depend on `modkit-win32`.
 
 ### Acceptance criteria
 
-- Current SA-MP host still installs all hooks and reads profiles successfully.
-- Memory tests retain existing safety behavior.
-- No profile-specific constant moves accidentally into generic Win32 code.
+- [x] Current SA-MP host still installs all hooks and reads profiles successfully.
+- [x] Memory tests retain existing safety behavior.
+- [x] No profile-specific constant moves accidentally into generic Win32 code.
 
 ### Suggested commit
 

@@ -72,6 +72,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "modkit-win32"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "log",
+ "minhook",
+ "windows-sys",
+]
+
+[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -158,6 +167,7 @@ dependencies = [
  "minhook",
  "modkit-abi",
  "modkit-runtime",
+ "modkit-win32",
  "samp-client-sdk",
  "simplelog",
  "windows-sys",

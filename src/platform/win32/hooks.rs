@@ -8,9 +8,7 @@ use super::{
     remaining_stream_bounded,
 };
 use crate::{AttachError, BitStream, Direction, event::HookAction};
-use minhook::MinHook;
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
-use windows_sys::Win32::System::Memory::{PAGE_READWRITE, VirtualProtect};
 
 pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
 
@@ -415,10 +413,10 @@ pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
 
 #[derive(Default)]
 pub(super) struct HookStorage {
-    pub(super) constructor: Option<InlineHook>,
-    pub(super) incoming_rpc: Option<InlineHook>,
-    pub(super) game_process: Option<InlineHook>,
-    pub(super) dialog_close: Option<InlineHook>,
+    pub(super) constructor: Option<modkit_win32::InlineHook>,
+    pub(super) incoming_rpc: Option<modkit_win32::InlineHook>,
+    pub(super) game_process: Option<modkit_win32::InlineHook>,
+    pub(super) dialog_close: Option<modkit_win32::InlineHook>,
     pub(super) vtable: Option<VtableHook>,
 }
 
@@ -432,72 +430,6 @@ struct VtableEntry {
     slot: usize,
     original: usize,
     detour: usize,
-}
-
-pub(super) struct InlineHook {
-    name: &'static str,
-    target: usize,
-    detour: usize,
-    trampoline: usize,
-    enabled: bool,
-}
-
-impl InlineHook {
-    pub(super) fn create(
-        name: &'static str,
-        target: usize,
-        detour: usize,
-    ) -> Result<(Self, usize), ()> {
-        let trampoline = unsafe {
-            MinHook::create_hook(target as *mut c_void, detour as *mut c_void).map_err(|_| ())?
-        };
-        Ok((
-            Self {
-                name,
-                target,
-                detour,
-                trampoline: trampoline as usize,
-                enabled: false,
-            },
-            trampoline as usize,
-        ))
-    }
-
-    pub(super) fn enable(&mut self) -> Result<(), ()> {
-        unsafe { MinHook::enable_hook(self.target as *mut c_void) }.map_err(|_| ())?;
-        self.enabled = true;
-        log::debug!(
-            "enabled MinHook inline hook {name}: target=0x{target:08X}, detour=0x{detour:08X}, trampoline=0x{trampoline:08X}",
-            name = self.name,
-            target = self.target,
-            detour = self.detour,
-            trampoline = self.trampoline,
-        );
-        Ok(())
-    }
-
-    pub(super) fn disable(mut self) {
-        self.remove();
-    }
-
-    fn remove(&mut self) {
-        if self.target == 0 {
-            return;
-        }
-        let target = self.target as *mut c_void;
-        if self.enabled {
-            let _ = unsafe { MinHook::disable_hook(target) };
-        }
-        let _ = unsafe { MinHook::remove_hook(target) };
-        self.target = 0;
-        self.enabled = false;
-    }
-}
-
-impl Drop for InlineHook {
-    fn drop(&mut self) {
-        self.remove();
-    }
 }
 
 impl VtableHook {
@@ -554,9 +486,13 @@ impl VtableHook {
             .store(entries[2].original, Ordering::Release);
 
         for (index, entry) in entries.iter().enumerate() {
-            if unsafe { write_protected(vtable.add(entry.slot), entry.detour) }.is_err() {
+            if unsafe { modkit_win32::write_protected(vtable.add(entry.slot), entry.detour) }
+                .is_err()
+            {
                 for restore in entries[..index].iter().rev() {
-                    let _ = unsafe { write_protected(vtable.add(restore.slot), restore.original) };
+                    let _ = unsafe {
+                        modkit_win32::write_protected(vtable.add(restore.slot), restore.original)
+                    };
                 }
                 return Err(AttachError::HookInstallFailed("patching RakClient vtable"));
             }
@@ -575,36 +511,10 @@ impl Drop for VtableHook {
         for entry in self.entries.iter().rev() {
             let slot = unsafe { vtable.add(entry.slot) };
             if unsafe { slot.read() } == entry.detour {
-                let _ = unsafe { write_protected(slot, entry.original) };
+                let _ = unsafe { modkit_win32::write_protected(slot, entry.original) };
             }
         }
     }
-}
-
-unsafe fn write_protected<T>(address: *mut T, value: T) -> Result<(), AttachError> {
-    let mut old_protection = 0;
-    if unsafe {
-        VirtualProtect(
-            address.cast(),
-            mem::size_of::<T>(),
-            PAGE_READWRITE,
-            &mut old_protection,
-        )
-    } == 0
-    {
-        return Err(AttachError::HookInstallFailed("changing vtable protection"));
-    }
-    unsafe { address.write(value) };
-    let mut ignored = 0;
-    let _ = unsafe {
-        VirtualProtect(
-            address.cast(),
-            mem::size_of::<T>(),
-            old_protection,
-            &mut ignored,
-        )
-    };
-    Ok(())
 }
 
 #[cfg(test)]

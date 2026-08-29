@@ -11,7 +11,8 @@ pub(super) static ACTIVE_BACKEND: OnceLock<Mutex<Option<Weak<BackendState>>>> = 
 
 pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     let module_base = loaded_samp_module()?;
-    let entry_point = unsafe { pe_entry_point(module_base)? };
+    let entry_point = unsafe { modkit_win32::pe_entry_point(module_base) }
+        .ok_or(AttachError::UnsupportedClient { entry_point: 0 })?;
     let version = SampVersion::from_entry_point(entry_point)
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
@@ -497,26 +498,5 @@ pub(super) fn clear_active_backend(target: &BackendState) {
 }
 
 fn loaded_samp_module() -> Result<usize, AttachError> {
-    let handle = unsafe { GetModuleHandleA(c"samp.dll".as_ptr().cast()) };
-    if handle.is_null() {
-        Err(AttachError::SampNotLoaded)
-    } else {
-        Ok(handle as usize)
-    }
-}
-
-unsafe fn pe_entry_point(base: usize) -> Result<u32, AttachError> {
-    let image = base as *const u8;
-    if unsafe { image.cast::<u16>().read_unaligned() } != 0x5A4D {
-        return Err(AttachError::UnsupportedClient { entry_point: 0 });
-    }
-    let nt_offset = unsafe { image.add(0x3C).cast::<u32>().read_unaligned() } as usize;
-    let nt_header = unsafe { image.add(nt_offset) };
-    if unsafe { nt_header.cast::<u32>().read_unaligned() } != 0x0000_4550 {
-        return Err(AttachError::UnsupportedClient { entry_point: 0 });
-    }
-    if unsafe { nt_header.add(24).cast::<u16>().read_unaligned() } != 0x10B {
-        return Err(AttachError::UnsupportedClient { entry_point: 0 });
-    }
-    Ok(unsafe { nt_header.add(40).cast::<u32>().read_unaligned() })
+    modkit_win32::loaded_module("samp.dll").ok_or(AttachError::SampNotLoaded)
 }

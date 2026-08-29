@@ -35,6 +35,19 @@ resolver, unload-safe example, and generic `GameContext` token foundation are
 implemented. Native callback delivery remains Phase 9. See
 [Phase 3 evidence](docs/evidence/phase-3-modkit-service-discovery.md).
 
+### Phase 4 — extract `modkit-win32`
+
+- [x] Create `crates/modkit-win32` as a Windows x86 host-internal crate.
+- [x] Move generic PE/module helpers (`loaded_module`, `pe_entry_point`).
+- [x] Move generic `VirtualQuery` range validation
+  (`readable_range`/`writable_range`).
+- [x] Introduce `ReadableRegion`/`WritableRegion` validated region abstraction.
+- [x] Move the generic inline-hook wrapper around MinHook (`InlineHook`,
+  `write_protected`).
+- [x] Keep SA-MP-specific detour functions in their current location.
+- [x] Add tests for null/overflow/page protection and owned-memory reads/writes.
+- [x] Ensure public plugin crates do not depend on `modkit-win32`.
+
 ### Structural split tracker
 
 - [x] Extract root tests plus SDK types, resolution, subscriptions, and host

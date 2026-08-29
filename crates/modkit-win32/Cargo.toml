@@ -1,0 +1,22 @@
+[package]
+name = "modkit-win32"
+version = "0.1.0-alpha.4"
+edition = "2024"
+rust-version = "1.98"
+description = "Windows x86 implementation primitives for the modkit host"
+license = "MIT"
+repository = "https://github.com/Akionka/samp-client-sdk"
+
+[lib]
+name = "modkit_win32"
+
+[dependencies]
+log = "0.4"
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Memory",
+] }
+
+[target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
+minhook = "0.9"

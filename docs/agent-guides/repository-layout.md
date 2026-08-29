@@ -11,6 +11,7 @@
 | Explicit unsafe native-address API | `sdk/src/raw.rs` |
 | Typed RPC and packet helpers | `sdk/src/events/` |
 | Platform-independent protocol and bitstreams | `crates/samp-protocol/` |
+| Windows x86 implementation primitives | `crates/modkit-win32/` |
 | Minimal and chat-command plugins | `examples/` |
 | Independent ABI layout oracle | `tests/fixtures/raknet_layout.cpp` |
 

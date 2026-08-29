@@ -49,6 +49,11 @@
   performs exact-version `query_service`, and exposes safe Core service facades
   plus the callback-scoped `GameContext` shell.
   It never falls back to `SampClientSdk_GetApiV1`.
+- `crates/modkit-win32/` owns the generic Windows x86 implementation primitives
+  reused by the host backends: guarded native-memory reads/writes, validated
+  `ReadableRegion`/`WritableRegion` views, PE/module helpers, and the generic
+  MinHook `InlineHook` wrapper. It contains no GTA/SA-MP addresses or profile
+  constants, and only it and the native backends depend on `windows-sys`/MinHook.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while one shared `NativeClientProfile`
