@@ -442,9 +442,9 @@ mod tests {
             (
                 SampClientSdkClientVersion::R5_1,
                 0x0CBC90,
+                15,
                 5,
-                5,
-                b"SDK R5 loopback probe".as_slice()
+                b"SA-MP".as_slice()
             )
         );
     }
@@ -643,6 +643,30 @@ mod tests {
 
         assert_eq!(value, 37);
         assert_eq!(attempts, 3);
+    }
+
+    #[test]
+    fn retries_transient_condition_mismatches() {
+        let mut attempts = 0;
+        wait_for_condition(Duration::from_millis(500), || {
+            attempts += 1;
+            Ok(attempts == 3)
+        })
+        .expect("a later matching snapshot should complete the wait");
+
+        assert_eq!(attempts, 3);
+    }
+
+    #[test]
+    fn condition_errors_remain_terminal() {
+        let mut attempts = 0;
+        let result = wait_for_condition(Duration::from_millis(500), || {
+            attempts += 1;
+            Err(SampClientSdkResult::NativeCallFailed)
+        });
+
+        assert_eq!(result, Err(SampClientSdkResult::NativeCallFailed));
+        assert_eq!(attempts, 1);
     }
 
     #[test]

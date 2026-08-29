@@ -131,31 +131,25 @@ pub(super) fn verify_entity_handles(samp: Samp) -> Result<(), SampClientSdkResul
 }
 
 pub(super) fn verify_cached_cnetgame_scalars(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
-    loop {
-        if is_shutting_down() {
-            return Err(SampClientSdkResult::ShuttingDown);
-        }
+    wait_for_condition(SCALAR_CACHE_TIMEOUT, || {
         match (samp.game_state(), samp.server().info()) {
             (Ok(game_state), Ok(info)) => {
                 record_scalar_observation(game_state, &info);
-                if game_state == PROFILE_INITIAL_GAME_STATE
-                    && info.address == b"127.0.0.1"
-                    && info.hostname == PROFILE_SERVER_HOSTNAME
-                    && info.port == 7777
-                {
-                    return Ok(());
-                }
-                return Err(SampClientSdkResult::NativeCallFailed);
+                Ok(scalar_snapshot_matches(game_state, &info))
             }
-            (Err(SampClientSdkResult::NotReady), _) | (_, Err(SampClientSdkResult::NotReady)) => {}
-            (Err(error), _) | (_, Err(error)) => return Err(error),
+            (Err(SampClientSdkResult::NotReady), _) | (_, Err(SampClientSdkResult::NotReady)) => {
+                Ok(false)
+            }
+            (Err(error), _) | (_, Err(error)) => Err(error),
         }
-        if deadline.saturating_duration_since(Instant::now()).is_zero() {
-            return Err(SampClientSdkResult::TimedOut);
-        }
-        thread::sleep(RETRY_DELAY);
-    }
+    })
+}
+
+pub(super) fn scalar_snapshot_matches(game_state: i32, info: &samp_client_sdk::ServerInfo) -> bool {
+    game_state == PROFILE_INITIAL_GAME_STATE
+        && info.address == b"127.0.0.1"
+        && info.hostname == PROFILE_SERVER_HOSTNAME
+        && info.port == 7777
 }
 
 pub(super) fn record_scalar_observation(game_state: i32, info: &samp_client_sdk::ServerInfo) {
@@ -170,28 +164,11 @@ pub(super) fn record_scalar_observation(game_state: i32, info: &samp_client_sdk:
 }
 
 pub(super) fn verify_cached_local_player(samp: Samp) -> Result<(), SampClientSdkResult> {
-    let deadline = Instant::now() + SCALAR_CACHE_TIMEOUT;
-    loop {
-        if is_shutting_down() {
-            return Err(SampClientSdkResult::ShuttingDown);
-        }
-        match samp.local().player() {
-            Ok(player) => {
-                if !local_player_snapshot_is_valid(&player) {
-                    return Err(SampClientSdkResult::NativeCallFailed);
-                }
-                if player.spawned {
-                    return Ok(());
-                }
-            }
-            Err(SampClientSdkResult::NotReady) => {}
-            Err(error) => return Err(error),
-        }
-        if deadline.saturating_duration_since(Instant::now()).is_zero() {
-            return Err(SampClientSdkResult::TimedOut);
-        }
-        thread::sleep(RETRY_DELAY);
-    }
+    wait_for_condition(SCALAR_CACHE_TIMEOUT, || match samp.local().player() {
+        Ok(player) => Ok(local_player_snapshot_is_valid(&player) && player.spawned),
+        Err(SampClientSdkResult::NotReady) => Ok(false),
+        Err(error) => Err(error),
+    })
 }
 
 pub(super) fn local_player_snapshot_is_valid(player: &samp_client_sdk::LocalPlayer) -> bool {

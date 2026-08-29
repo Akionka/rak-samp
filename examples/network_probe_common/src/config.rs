@@ -197,11 +197,11 @@ pub(super) const STATUS_FILE: &str = profile_value!(
 pub(super) const PROFILE_ENTRY_POINT_RVA: u32 =
     profile_value!(0x0CBC90, 0x31DF13, 0x0CC4D0, 0x0FDB60);
 /// State observed after the first incoming RPC, before the local player is spawned.
-pub(super) const PROFILE_INITIAL_GAME_STATE: i32 = profile_value!(5, 14, 15, 5);
+pub(super) const PROFILE_INITIAL_GAME_STATE: i32 = profile_value!(15, 14, 15, 5);
 /// State required after a reconnect has spawned the local player.
 pub(super) const PROFILE_CONNECTED_STATE: i32 = profile_value!(5, 14, 14, 5);
 pub(super) const PROFILE_SERVER_HOSTNAME: &[u8] = profile_value!(
-    b"SDK R5 loopback probe",
+    b"SA-MP",
     b"SDK R1 loopback probe",
     b"SA-MP",
     b"SDK DL loopback probe"
