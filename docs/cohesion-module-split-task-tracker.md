@@ -901,27 +901,52 @@ Do not start while the live-validation contract is still changing.
   R1/R3/R5/DL probe suites each remain 9/9 and all four pass Clippy with
   warnings denied.
 
-- [ ] **P10-04 — Extract `network.rs`.**
+- [x] **P10-04 — Extract `network.rs`.**
   - Listener registration, exact-bit/codec checks, inbound/outbound checks.
 
-- [ ] **P10-05 — Extract `entities.rs`.**
+  Evidence (2026-08-29): `d598682`; listener registration preserves callback
+  order and retains partial subscriptions on failure. R1-only network state was
+  localized in `1181e54`.
+
+- [x] **P10-05 — Extract `entities.rs`.**
   - Entity ID parsing, handles, player pools, object/pickup/vehicle checks.
 
-- [ ] **P10-06 — Extract `ui.rs`.**
+  Evidence (2026-08-29): `c29f133`.
+
+- [x] **P10-06 — Extract `ui.rs`.**
   - Dialog/chat/input/scoreboard/cursor/text-label/textdraw validation.
 
-- [ ] **P10-07 — Extract `sync.rs`.**
+  Evidence (2026-08-29): `7894e92`.
+
+- [x] **P10-07 — Extract `sync.rs`.**
   - Sync snapshots, force-sync receipts, vehicle phases.
 
-- [ ] **P10-08 — Extract `reconnect.rs`.**
+  Evidence (2026-08-29): `41f9240`.
+
+- [x] **P10-08 — Extract `reconnect.rs`.**
   - Disconnect invalidation, reconnect request, restored-state checks.
 
-- [ ] **P10-09 — Keep `lib.rs` as orchestration.**
+  Evidence (2026-08-29): `691bb6b`.
+
+- [x] **P10-09 — Keep `lib.rs` as orchestration.**
   - Plugin entry/init, `run_probe`, ordered phase execution, final status.
   - Do not duplicate one file per client profile.
 
+  Evidence (2026-08-29): `lib.rs` now owns module wiring, DLL lifecycle,
+  initialization, ordered `run_probe`, shared retry orchestration, exports, and
+  nine small cross-capability tests. All four profile crates use the same
+  capability modules.
+
 - [ ] **P10-10 — Re-run every required live validator after the final probe refactor.**
   - Record final binaries/hashes/status/failure results.
+
+  Static evidence (2026-08-29): `cargo make quality` and `cargo make
+  build-release` passed. Repository-local release probe SHA-256 values:
+  R1 `c926b1f2b3a6cd5b5f19aa337677b4b65d0c91b840a3c4b4245a8caa1b456310`,
+  R3 `9e81b96f4f05569cd7b6a18ed7347860436276f4cee14886dc889571e9ffcf3e`,
+  R5 `807ee1cdf8413559738c165e2bc2d5a6b5d5a811755efff1e40a8f034119bc3f`,
+  DL `16681ac07cd877027ba696ac4728fbaed6c2b72c7011784ee0d69435f80075bd`.
+  Four-profile in-game status/failure evidence is still required.
 
 ### P10 gate
 
