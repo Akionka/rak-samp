@@ -6,11 +6,12 @@ Baseline reviewed: `master` at `f3fa5e5` (`refactor(protocol-sdk)!: inject encod
 
 Companion tracker: [cohesion-module-split-task-tracker.md](cohesion-module-split-task-tracker.md).
 
-Implementation checkpoint (2026-08-29): P0-P9 are complete through
-`51d9d4e`. The full repository quality gate passes. The release host DLL is
+Implementation checkpoint (2026-08-29): P0-P9 are complete, and P10-01 through
+P10-03 are complete through `895dd91`. The full P9 repository quality gate passes. The release host DLL is
 built in the repository-local `target/i686-pc-windows-msvc/release` directory
 and still exports only `DllMain` and `SampClientSdk_GetApiV1`. Continue with
-the P10 justification decision, then P11 documentation and final acceptance.
+P10-04 (`network.rs`), then the remaining capability modules and P11 final
+acceptance.
 
 ## 1. Objective
 

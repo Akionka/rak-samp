@@ -31,7 +31,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P7 | Split native-client players/UI | P0 + live-validation decision | [x] |
 | P8 | Split SDK ABI source | P0 | [x] |
 | P9 | Redistribute large tests | relevant production phase | [x] |
-| P10 | Split common network probe | P7 recommended | [ ] |
+| P10 | Split common network probe | P7 recommended | [-] |
 | P11 | Documentation and final acceptance | P2–P10 as selected | [ ] |
 
 ---
@@ -879,14 +879,27 @@ Do this only after the production owner for each test is stable.
 
 Do not start while the live-validation contract is still changing.
 
-- [ ] **P10-01 — Confirm probe split is still justified.**
+- [x] **P10-01 — Confirm probe split is still justified.**
   - If the file remains cohesive enough after native work, document it as an exception and skip P10.
 
-- [ ] **P10-02 — Extract `config.rs`.**
+  Evidence (2026-08-29): split remains justified. The 2,784-line common
+  harness still combines configuration, state/reporting, network, entity, UI,
+  sync, reconnect, and orchestration ownership. The four profile wrappers
+  continue to include the same common source.
+
+- [x] **P10-02 — Extract `config.rs`.**
   - Profile marker/status constants, timeouts, entry-point identity, profile-specific expected values.
 
-- [ ] **P10-03 — Extract `state.rs` and `status.rs`.**
+  Evidence (2026-08-29): `62c30b5`; every profile-selected value and `cfg`
+  arm moved without value changes.
+
+- [x] **P10-03 — Extract `state.rs` and `status.rs`.**
   - Shared probe state/observations/phase state and status-file/reporting logic.
+
+  Evidence (2026-08-29): state `9cbdae8`; status `895dd91`. Public
+  `MAIN_SUCCESS_STATUS` and `FULL_SUCCESS_STATUS` re-exports remain unchanged.
+  R1/R3/R5/DL probe suites each remain 9/9 and all four pass Clippy with
+  warnings denied.
 
 - [ ] **P10-04 — Extract `network.rs`.**
   - Listener registration, exact-bit/codec checks, inbound/outbound checks.
