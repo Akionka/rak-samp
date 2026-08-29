@@ -2,6 +2,9 @@
 
 use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
 use crate::{command::CommandError, platform::bounded_c_string};
+use modkit_runtime::callback::{
+    CallbackContext, CallbackContextGuard, CallbackGate, CallbackGateGuard,
+};
 use sdk_abi::{
     SampClientSdkChatCommandCallbackV1, SampClientSdkCommandReceipt, SampClientSdkResult,
     SampClientSdkSubscription,
@@ -11,8 +14,8 @@ use std::{
     ffi::c_void,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        Arc, Condvar, Mutex,
-        atomic::{AtomicBool, AtomicUsize, Ordering},
+        Arc, Mutex,
+        atomic::{AtomicBool, Ordering},
     },
     time::Duration,
 };
@@ -21,13 +24,9 @@ const MAX_CHAT_COMMANDS: usize = 144;
 const MAX_CHAT_COMMAND_NAME_BYTES: usize = 32;
 const MAX_CHAT_COMMAND_ARGUMENT_BYTES: usize = 128;
 
-thread_local! {
-    static CHAT_COMMAND_CALLBACK_DEPTH: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-}
-
 /// Returns whether the current thread is executing one local chat-command callback.
 pub(crate) fn is_dispatching_on_current_thread() -> bool {
-    CHAT_COMMAND_CALLBACK_DEPTH.with(|depth| depth.get() != 0)
+    CallbackContext::is_active_on_current_thread()
 }
 
 pub(super) struct ChatCommandRegistry {
@@ -45,10 +44,7 @@ struct ChatCommandEntry {
     callback: SampClientSdkChatCommandCallbackV1,
     user_data: usize,
     registered: AtomicBool,
-    active: AtomicBool,
-    dispatches: AtomicUsize,
-    no_dispatches: Condvar,
-    dispatch_lock: Mutex<()>,
+    gate: CallbackGate,
 }
 
 impl ChatCommandRegistry {
@@ -81,10 +77,7 @@ impl ChatCommandRegistry {
             callback,
             user_data,
             registered: AtomicBool::new(false),
-            active: AtomicBool::new(true),
-            dispatches: AtomicUsize::new(0),
-            no_dispatches: Condvar::new(),
-            dispatch_lock: Mutex::new(()),
+            gate: CallbackGate::new(),
         });
         state.slots[slot] = Some(id);
         state.entries.insert(id, Arc::clone(&entry));
@@ -120,7 +113,7 @@ impl ChatCommandRegistry {
         if succeeded {
             entry.registered.store(true, Ordering::Release);
         } else {
-            entry.active.store(false, Ordering::Release);
+            entry.gate.set_allowed(false);
             let _ = self.remove(id);
         }
     }
@@ -130,69 +123,42 @@ impl ChatCommandRegistry {
             return;
         };
         if succeeded {
-            entry.active.store(false, Ordering::Release);
+            entry.gate.set_allowed(false);
             let _ = self.remove(id);
         } else {
-            entry.active.store(true, Ordering::Release);
+            entry.gate.set_allowed(true);
         }
     }
 }
 
 impl ChatCommandEntry {
     fn enter_dispatch(&self) -> Option<ChatCommandDispatch<'_>> {
-        if !self.registered.load(Ordering::Acquire) || !self.active.load(Ordering::Acquire) {
+        if !self.registered.load(Ordering::Acquire) {
             return None;
         }
-        let guard = self
-            .dispatch_lock
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        if !self.registered.load(Ordering::Acquire) || !self.active.load(Ordering::Acquire) {
-            return None;
-        }
-        self.dispatches.fetch_add(1, Ordering::AcqRel);
-        drop(guard);
-        CHAT_COMMAND_CALLBACK_DEPTH.with(|depth| depth.set(depth.get() + 1));
-        Some(ChatCommandDispatch { entry: self })
+        let gate = self.gate.enter()?;
+        let context = CallbackContext::enter();
+        Some(ChatCommandDispatch { context, gate })
     }
 
     fn deactivate(&self) {
-        let _guard = self
-            .dispatch_lock
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        self.active.store(false, Ordering::Release);
+        self.gate.set_allowed(false);
     }
 
     fn reactivate(&self) {
-        self.active.store(true, Ordering::Release);
+        self.gate.set_allowed(true);
     }
 
     fn synchronize_dispatches(&self) {
-        let mut guard = self
-            .dispatch_lock
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        while self.dispatches.load(Ordering::Acquire) != 0 {
-            guard = self
-                .no_dispatches
-                .wait(guard)
-                .unwrap_or_else(|error| error.into_inner());
-        }
+        self.gate.wait_until_drained();
     }
 }
 
 struct ChatCommandDispatch<'entry> {
-    entry: &'entry ChatCommandEntry,
-}
-
-impl Drop for ChatCommandDispatch<'_> {
-    fn drop(&mut self) {
-        CHAT_COMMAND_CALLBACK_DEPTH.with(|depth| depth.set(depth.get() - 1));
-        if self.entry.dispatches.fetch_sub(1, Ordering::AcqRel) == 1 {
-            self.entry.no_dispatches.notify_all();
-        }
-    }
+    #[allow(dead_code)] // Held only to leave the callback context and gate on drop.
+    context: CallbackContextGuard,
+    #[allow(dead_code)] // Held only to leave the callback context and gate on drop.
+    gate: CallbackGateGuard<'entry>,
 }
 
 pub(super) unsafe extern "system" fn submit_register_chat_command(

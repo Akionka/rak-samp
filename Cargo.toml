@@ -26,6 +26,7 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
+    "crates/modkit-runtime",
     "crates/samp-protocol",
     "sdk",
     "examples/chat_command_plugin",
@@ -45,6 +46,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4"
+modkit-runtime = { path = "crates/modkit-runtime" }
 sdk_abi = { package = "samp-client-sdk", version = "=0.1.0-alpha.4", path = "sdk" }
 simplelog = "0.12"
 

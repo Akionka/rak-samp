@@ -47,6 +47,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "modkit-runtime"
+version = "0.1.0-alpha.4"
+
+[[package]]
 name = "num-conv"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -131,6 +135,7 @@ dependencies = [
  "cc",
  "log",
  "minhook",
+ "modkit-runtime",
  "samp-client-sdk",
  "simplelog",
  "windows-sys",

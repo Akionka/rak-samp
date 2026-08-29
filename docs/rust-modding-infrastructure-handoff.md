@@ -1111,9 +1111,11 @@ based on the caller's thread.
 
 ## 6.1 Extract `CommandQueue`
 
-Move/generalize `src/command.rs` into `modkit-runtime` with behavior unchanged first.
+Moved `src/command.rs` into `modkit-runtime` with behavior unchanged; the host
+re-exports it through `src/command.rs`. The queue was not redesigned during the
+extraction.
 
-Required tests to preserve:
+Required tests preserved (all in `crates/modkit-runtime/src/command.rs`):
 
 - FIFO snapshot;
 - new commands deferred to next snapshot;
@@ -1123,8 +1125,6 @@ Required tests to preserve:
 - wait rejection does not consume receipt;
 - shutdown completes receipts;
 - ID wraparound never reuses an active receipt.
-
-Do not simultaneously redesign the queue while extracting it.
 
 After behavior-preserving extraction, use one Host work sequence for all new
 off-thread native reads and mutations. One tick snapshot executes that work in
@@ -1840,7 +1840,7 @@ Use this map when moving code.
 
 | Current path | Target ownership | Notes |
 | --- | --- | --- |
-| `src/command.rs` | `modkit-runtime` | Move behavior unchanged first. |
+| `src/command.rs` | `modkit-runtime` | Moved to `crates/modkit-runtime/src/command.rs`; host re-exports via `src/command.rs`. |
 | `sdk/src/subscriptions.rs` | `modkit-sdk` + generic runtime support | Keep safe RAII wrapper; generalize host-side lifecycle separately. |
 | `sdk/src/raknet.rs` | `samp-protocol` | Pure owned bitstream. |
 | `sdk/src/events/**` pure codecs | `samp-protocol` | Separate from callback transport. |
@@ -1963,16 +1963,16 @@ platform-independent extension is approved.
 
 ### Tasks
 
-- [ ] Create `crates/modkit-runtime`.
-- [ ] Move `CommandQueue<C, R>` with semantics unchanged.
-- [ ] Move/shared-define command ID and generic queue errors.
-- [ ] Add/retain all queue behavior tests.
-- [ ] Identify host-side subscription lifecycle state that is generic across event types.
-- [ ] Extract generic in-flight callback counting/waiting primitives without changing current public SDK yet.
-- [ ] Add non-blocking Deferred reclamation for dropped subscription callback state; invoke its plugin-provided release callback exactly once after drain.
-- [ ] Keep plugin-side existing `Subscription` facade working through compatibility glue.
-- [ ] Define an internal callback-context guard that marks “inside host callback” for wait rejection.
-- [ ] Define generic active-scope state for runtime-validated `GameContext` tokens without depending on GTA or SA-MP addresses.
+- [x] Create `crates/modkit-runtime`.
+- [x] Move `CommandQueue<C, R>` with semantics unchanged.
+- [x] Move/shared-define command ID and generic queue errors.
+- [x] Add/retain all queue behavior tests.
+- [x] Identify host-side subscription lifecycle state that is generic across event types.
+- [x] Extract generic in-flight callback counting/waiting primitives without changing current public SDK yet.
+- [x] Add non-blocking Deferred reclamation for dropped subscription callback state; invoke its plugin-provided release callback exactly once after drain.
+- [x] Keep plugin-side existing `Subscription` facade working through compatibility glue.
+- [x] Define an internal callback-context guard that marks “inside host callback” for wait rejection.
+- [x] Define generic active-scope state for runtime-validated `GameContext` tokens without depending on GTA or SA-MP addresses.
 
 ### Acceptance criteria
 

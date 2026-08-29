@@ -1,9 +1,9 @@
 use crate::BitStream;
+use modkit_runtime::callback::DispatchGate;
 use std::{
     collections::BTreeMap,
     panic::{AssertUnwindSafe, catch_unwind},
-    sync::{Arc, Condvar, Mutex, Weak},
-    thread::{self, ThreadId},
+    sync::{Arc, Mutex, Weak},
 };
 
 /// The direction in which SA-MP traffic crosses the client boundary.
@@ -133,84 +133,6 @@ impl Drop for ListenerHandle {
 pub(crate) struct Registry {
     dispatch_gate: DispatchGate,
     state: Mutex<RegistryState>,
-}
-
-struct DispatchGate {
-    state: Mutex<DispatchGateState>,
-    ready: Condvar,
-}
-
-#[derive(Default)]
-struct DispatchGateState {
-    owner: Option<ThreadId>,
-    depth: usize,
-}
-
-struct DispatchGuard<'gate> {
-    gate: &'gate DispatchGate,
-}
-
-impl DispatchGate {
-    fn new() -> Self {
-        Self {
-            state: Mutex::new(DispatchGateState::default()),
-            ready: Condvar::new(),
-        }
-    }
-
-    fn enter(&self) -> DispatchGuard<'_> {
-        let current = thread::current().id();
-        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
-        loop {
-            match state.owner.as_ref() {
-                None => {
-                    state.owner = Some(current);
-                    state.depth = 1;
-                    break;
-                }
-                Some(owner) if owner == &current => {
-                    state.depth += 1;
-                    break;
-                }
-                Some(_) => {
-                    state = self
-                        .ready
-                        .wait(state)
-                        .unwrap_or_else(|error| error.into_inner());
-                }
-            }
-        }
-        DispatchGuard { gate: self }
-    }
-
-    fn is_owned_by_current_thread(&self) -> bool {
-        let current = thread::current().id();
-        self.state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .owner
-            .as_ref()
-            == Some(&current)
-    }
-}
-
-impl Drop for DispatchGuard<'_> {
-    fn drop(&mut self) {
-        let current = thread::current().id();
-        let mut state = self
-            .gate
-            .state
-            .lock()
-            .unwrap_or_else(|error| error.into_inner());
-        debug_assert_eq!(state.owner.as_ref(), Some(&current));
-        if state.depth > 1 {
-            state.depth -= 1;
-        } else {
-            state.depth = 0;
-            state.owner = None;
-            self.gate.ready.notify_one();
-        }
-    }
 }
 
 struct RegistryState {
