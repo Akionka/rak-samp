@@ -12,95 +12,26 @@ mod ui;
 use connection::ConnectionCommand;
 pub(in crate::platform::win32) use network::NetworkCommand;
 pub(in crate::platform::win32) use text_labels::TextLabelCommand;
+use textdraws::TextdrawCommand;
 pub(in crate::platform::win32) use ui::UiCommand;
 #[derive(Debug)]
 pub(super) enum GameCommand {
     Ui(UiCommand),
     Connection(ConnectionCommand),
     TextLabel(TextLabelCommand),
-    CreateTextdraw {
-        id: u16,
-        text: Vec<u8>,
-        x: f32,
-        y: f32,
-    },
-    DeleteTextdraw(u16),
-    SetTextdrawPosition {
-        id: u16,
-        x: f32,
-        y: f32,
-    },
-    SetTextdrawStyle {
-        id: u16,
-        style: i32,
-    },
-    SetTextdrawLetterStyle {
-        id: u16,
-        width: f32,
-        height: f32,
-        colour: u32,
-    },
-    SetTextdrawProportional {
-        id: u16,
-        proportional: bool,
-    },
-    SetTextdrawShadow {
-        id: u16,
-        shadow: u8,
-        colour: u32,
-    },
-    SetTextdrawOutline {
-        id: u16,
-        outline: u8,
-        colour: u32,
-    },
-    SetTextdrawBox {
-        id: u16,
-        enabled: bool,
-        colour: u32,
-        width: f32,
-        height: f32,
-    },
-    SetTextdrawAlignment {
-        id: u16,
-        alignment: u8,
-    },
-    SetTextdrawString {
-        id: u16,
-        text: Vec<u8>,
-    },
-    SetTextdrawModelStyle {
-        id: u16,
-        rotation: crate::runtime::Vector3,
-        zoom: f32,
-        colour1: u16,
-        colour2: u16,
-    },
+    Textdraw(TextdrawCommand),
     SpawnLocalPlayer,
     SetLocalPlayerSpecialAction(u8),
     SetLocalPlayerName(Vec<u8>),
-    ForceUnoccupiedSync {
-        vehicle: u16,
-        seat: u8,
-    },
+    ForceUnoccupiedSync { vehicle: u16, seat: u8 },
     ForceAimSync,
     ForceOnfootSync,
     ForceStatsSync,
-    ForceTrailerSync {
-        trailer: u16,
-    },
-    ForcePassengerSync {
-        vehicle: u16,
-        seat: u8,
-    },
+    ForceTrailerSync { trailer: u16 },
+    ForcePassengerSync { vehicle: u16, seat: u8 },
     ForceWeaponsSync,
-    ForceVehicleSync {
-        vehicle: u16,
-    },
-    SetPlayerColour {
-        id: u16,
-        colour: u32,
-    },
+    ForceVehicleSync { vehicle: u16 },
+    SetPlayerColour { id: u16, colour: u32 },
     Network(NetworkCommand),
 }
 
@@ -132,150 +63,10 @@ impl BackendState {
             let result = match queued.command {
                 GameCommand::Ui(command) => self.execute_ui_command(command),
                 GameCommand::Connection(command) => self.execute_connection_command(command),
-                GameCommand::DeleteTextdraw(id) => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .delete_textdraw(id)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.publish_deleted_textdraw(id);
-                        Ok(())
-                    }),
-                GameCommand::CreateTextdraw { id, text, x, y } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .create_textdraw(id, &text, x, y)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.publish_created_textdraw(id);
-                        Ok(())
-                    }),
+                GameCommand::Textdraw(command) => self.execute_textdraw_command(command),
                 GameCommand::TextLabel(command) => {
                     self.execute_text_label_command(queued.id, command)
                 }
-                GameCommand::SetTextdrawPosition { id, x, y } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_position(id, x, y)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawStyle { id, style } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_style(id, style)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawLetterStyle {
-                    id,
-                    width,
-                    height,
-                    colour,
-                } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_letter_style(id, width, height, colour)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawProportional { id, proportional } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_proportional(id, proportional)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawShadow { id, shadow, colour } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_shadow(id, shadow, colour)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawOutline {
-                    id,
-                    outline,
-                    colour,
-                } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_outline(id, outline, colour)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawBox {
-                    id,
-                    enabled,
-                    colour,
-                    width,
-                    height,
-                } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_box(id, enabled, colour, width, height)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawAlignment { id, alignment } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_alignment(id, alignment)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawString { id, text } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_string(id, &text)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
-                GameCommand::SetTextdrawModelStyle {
-                    id,
-                    rotation,
-                    zoom,
-                    colour1,
-                    colour2,
-                } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_textdraw_model_style(id, rotation, zoom, colour1, colour2)
-                            .map_err(|_| CommandError::NativeFailure)?;
-                        self.invalidate_textdraw_snapshot(id);
-                        Ok(())
-                    }),
                 GameCommand::SpawnLocalPlayer => self
                     .connection_profile()
                     .ok_or(CommandError::NativeFailure)
