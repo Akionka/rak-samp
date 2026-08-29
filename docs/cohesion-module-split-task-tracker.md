@@ -397,35 +397,43 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
 
 ### Stage A — mechanical module split
 
-- [ ] **P5-01 — Convert `commands.rs` to `commands/mod.rs`.**
+- [x] **P5-01 — Convert `commands.rs` to `commands/mod.rs`.**
   - Move the existing flat `GameCommand` enum from `win32/mod.rs` into `commands/mod.rs` unchanged.
   - Update imports only.
   - Keep `CommandQueue<GameCommand, ()>` exactly as-is.
 
-- [ ] **P5-02 — Extract network command producers.**
+- [x] **P5-02 — Extract network command producers.**
   - Create `commands/network.rs`.
   - Move packet/RPC send/emulation producer methods and send-rate submission.
 
-- [ ] **P5-03 — Extract connection command producers.**
+- [x] **P5-03 — Extract connection command producers.**
   - Create `commands/connection.rs` for game-state/connect/disconnect submission.
 
-- [ ] **P5-04 — Extract UI command producers.**
+- [x] **P5-04 — Extract UI command producers.**
   - Create `commands/ui.rs` for dialog/chat/death/chat-input/chat-command/cursor/scoreboard producer methods.
 
-- [ ] **P5-05 — Extract text-label command producers/results.**
+- [x] **P5-05 — Extract text-label command producers/results.**
   - Create `commands/text_labels.rs`.
   - Move create/delete/update/auto-create and take/wait/forget helpers.
   - Preserve `auto_text_label_creates` semantics.
 
-- [ ] **P5-06 — Extract textdraw command producers.**
+- [x] **P5-06 — Extract textdraw command producers.**
   - Create `commands/textdraws.rs` for create/delete/style/string/model mutations.
 
-- [ ] **P5-07 — Extract player command producers.**
+- [x] **P5-07 — Extract player command producers.**
   - Create `commands/players.rs` for spawn/special-action/name/colour and force-sync submissions.
 
-- [ ] **P5-08 — Validate Stage A before enum redesign.**
+- [x] **P5-08 — Validate Stage A before enum redesign.**
   - `GameCommand` variants and the execution `match` must still be byte-for-byte/semantically equivalent.
   - Run command queue, tick, receipt, text-label, network command, and connection-boundary tests.
+
+  Evidence (2026-08-29): command ownership move `b234f4c`
+  (`b234f4ca72bd4360f03affb9fac6b9398e6ae205`); producer domain split
+  `1e6478a` (`1e6478a85dce8275c78868184f410b901e78b043`). The flat
+  53-variant `GameCommand`, its execution match, the single
+  `CommandQueue<GameCommand, ()>`, and tick orchestration remain unchanged.
+  All 173 host tests and host Clippy with warnings denied passed. Format check
+  and `git diff --check` passed.
 
 ### Stage B — domain enums and execution
 
