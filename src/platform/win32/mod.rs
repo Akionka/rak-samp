@@ -8,7 +8,7 @@ mod chat_entries;
 mod commands;
 use commands::GameCommand;
 #[cfg(test)]
-use commands::{NetworkCommand, UiCommand};
+use commands::{NetworkCommand, TextLabelCommand, UiCommand};
 mod gangzones;
 mod handles;
 mod hooks;

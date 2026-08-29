@@ -883,7 +883,7 @@ fn typed_text_label_receipt_returns_the_game_thread_selected_id() {
     let state = test_backend_state();
     let command = state
         .game_commands
-        .submit(GameCommand::DeleteTextLabel(0))
+        .submit(GameCommand::TextLabel(TextLabelCommand::DeleteTextLabel(0)))
         .unwrap();
     state
         .auto_text_label_creates
@@ -909,7 +909,8 @@ fn text_label_text_update_copies_nonempty_text_into_the_game_command() {
     let snapshot = state.game_commands.take_tick_snapshot();
     assert!(matches!(
         &snapshot[0].command,
-        GameCommand::SetTextLabelText { id: 7, text } if text.as_slice() == b"updated"
+        GameCommand::TextLabel(TextLabelCommand::SetTextLabelText { id: 7, text })
+            if text.as_slice() == b"updated"
     ));
     assert_eq!(
         state.submit_set_text_label_text(7, Vec::new()),

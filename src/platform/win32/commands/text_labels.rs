@@ -1,6 +1,40 @@
 use super::*;
 
+#[derive(Debug)]
+pub(in crate::platform::win32) enum TextLabelCommand {
+    DeleteTextLabel(u16),
+    CreateTextLabel {
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    },
+    CreateTextLabelAuto {
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    },
+    SetTextLabelText {
+        id: u16,
+        text: Vec<u8>,
+    },
+}
+
 impl BackendState {
+    fn queue_text_label_command(
+        &self,
+        command: TextLabelCommand,
+    ) -> Result<CommandId, DirectClientError> {
+        self.queue_game_command(GameCommand::TextLabel(command))
+    }
     pub(in crate::platform::win32) fn submit_delete_text_label(
         &self,
         id: u16,
@@ -11,7 +45,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_TEXT_LABELS {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::DeleteTextLabel(id))
+        self.queue_text_label_command(TextLabelCommand::DeleteTextLabel(id))
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -38,7 +72,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::CreateTextLabel {
+        self.queue_text_label_command(TextLabelCommand::CreateTextLabel {
             id,
             text,
             colour,
@@ -76,7 +110,7 @@ impl BackendState {
             .auto_text_label_creates
             .lock()
             .unwrap_or_else(|error| error.into_inner());
-        let id = self.queue_game_command(GameCommand::CreateTextLabelAuto {
+        let id = self.queue_text_label_command(TextLabelCommand::CreateTextLabelAuto {
             text,
             colour,
             position,
@@ -105,7 +139,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SetTextLabelText { id, text })
+        self.queue_text_label_command(TextLabelCommand::SetTextLabelText { id, text })
     }
 
     pub(in crate::platform::win32) fn try_take_created_text_label(
@@ -169,5 +203,112 @@ impl BackendState {
             .lock()
             .unwrap_or_else(|error| error.into_inner())
             .remove(&command);
+    }
+
+    pub(super) fn execute_text_label_command(
+        &self,
+        command_id: CommandId,
+        command: TextLabelCommand,
+    ) -> Result<(), CommandError> {
+        match command {
+            TextLabelCommand::DeleteTextLabel(id) => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .delete_text_label(id)
+                        .map_err(|_| CommandError::NativeFailure)?;
+                    self.publish_deleted_text_label(id);
+                    Ok(())
+                }),
+            TextLabelCommand::CreateTextLabel {
+                id,
+                text,
+                colour,
+                position,
+                draw_distance,
+                behind_walls,
+                attached_player_id,
+                attached_vehicle_id,
+            } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .create_text_label(
+                            id,
+                            &text,
+                            colour,
+                            position,
+                            draw_distance,
+                            behind_walls,
+                            attached_player_id,
+                            attached_vehicle_id,
+                        )
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            TextLabelCommand::CreateTextLabelAuto {
+                text,
+                colour,
+                position,
+                draw_distance,
+                behind_walls,
+                attached_player_id,
+                attached_vehicle_id,
+            } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    let id = profile
+                        .first_free_text_label_id()
+                        .map_err(|_| CommandError::NativeFailure)?;
+                    profile
+                        .create_text_label(
+                            id,
+                            &text,
+                            colour,
+                            position,
+                            draw_distance,
+                            behind_walls,
+                            attached_player_id,
+                            attached_vehicle_id,
+                        )
+                        .map_err(|_| CommandError::NativeFailure)?;
+                    let snapshot = profile
+                        .text_label(id)
+                        .map_err(|_| CommandError::NativeFailure)?
+                        .ok_or(CommandError::NativeFailure)?;
+                    self.publish_created_text_label(id, snapshot);
+                    self.complete_created_text_label(command_id, id);
+                    Ok(())
+                }),
+            TextLabelCommand::SetTextLabelText { id, text } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    let label = profile
+                        .text_label(id)
+                        .map_err(|_| CommandError::NativeFailure)?
+                        .ok_or(CommandError::NativeFailure)?;
+                    profile
+                        .create_text_label(
+                            id,
+                            &text,
+                            label.colour,
+                            label.position,
+                            label.draw_distance,
+                            label.behind_walls,
+                            label.attached_player_id.unwrap_or(u16::MAX),
+                            label.attached_vehicle_id.unwrap_or(u16::MAX),
+                        )
+                        .map_err(|_| CommandError::NativeFailure)?;
+                    let snapshot = profile
+                        .text_label(id)
+                        .map_err(|_| CommandError::NativeFailure)?
+                        .ok_or(CommandError::NativeFailure)?;
+                    self.publish_created_text_label(id, snapshot);
+                    Ok(())
+                }),
+        }
     }
 }
