@@ -4,8 +4,23 @@ use super::*;
 
 impl BackendState {
     pub(super) fn prepare_game_tick(&self) -> Option<Vec<QueuedCommand<GameCommand>>> {
-        (self.rak_client.load(Ordering::Acquire) != 0)
-            .then(|| self.game_commands.take_tick_snapshot())
+        let commands = (self.rak_client.load(Ordering::Acquire) != 0)
+            .then(|| self.game_commands.take_tick_snapshot());
+        if let Some(commands) = commands.as_ref().filter(|commands| !commands.is_empty())
+            && !self
+                .game_command_snapshot_diagnostic_logged
+                .swap(true, Ordering::AcqRel)
+        {
+            let first_id = commands[0].id;
+            let last_id = commands.last().map_or(first_id, |command| command.id);
+            // Snapshot metadata proves the game-thread boundary without
+            // exposing plugin command payloads.
+            log::debug!(
+                "captured first game command snapshot: count={}, first_id={first_id}, last_id={last_id}",
+                commands.len(),
+            );
+        }
+        commands
     }
 
     /// Executes one post-process game tick. `commands` is captured before the
@@ -62,32 +77,25 @@ impl BackendState {
     }
 
     pub(super) fn is_game_thread(&self) -> bool {
-        let game_thread = self.game_thread_id.load(Ordering::Acquire);
-        game_thread != 0 && game_thread == unsafe { GetCurrentThreadId() }
+        self.game_tick.is_game_thread()
+    }
+}
+
+impl GameTickParticipant for BackendState {
+    fn before_game_process(&self) {
+        *self
+            .pending_game_tick
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = self.prepare_game_tick();
     }
 
-    pub(super) unsafe fn run_game_process_tick(&self, original: GameProcessFn) {
-        // Publish this before entering GTA so a plugin reached from the native
-        // process path cannot block the game thread on its own command receipt.
-        self.game_thread_id
-            .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
-        let commands = self.prepare_game_tick();
-        if let Some(commands) = commands.as_ref().filter(|commands| !commands.is_empty())
-            && !self
-                .game_command_snapshot_diagnostic_logged
-                .swap(true, Ordering::AcqRel)
+    fn after_game_process(&self) {
+        if let Some(commands) = self
+            .pending_game_tick
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take()
         {
-            let first_id = commands[0].id;
-            let last_id = commands.last().map_or(first_id, |command| command.id);
-            // Snapshot metadata lets a live smoke prove the command crossed
-            // the game-thread boundary without exposing plugin payloads.
-            log::debug!(
-                "captured first game command snapshot: count={}, first_id={first_id}, last_id={last_id}",
-                commands.len(),
-            );
-        }
-        unsafe { original() };
-        if let Some(commands) = commands {
             self.pump_game_tick(commands);
         }
     }

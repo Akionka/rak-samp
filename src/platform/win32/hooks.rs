@@ -2,9 +2,9 @@
 
 use super::players::MARKERS_SYNC_PACKET_ID;
 use super::{
-    BackendState, ClientHookInstallState, DEALLOCATE_PACKET_SLOT, GameProcessFn,
-    INCOMING_PACKET_SLOT, IncomingRpcFn, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT, OutgoingPacketFn,
-    OutgoingRpcFn, RawBitStream, RawPacket, RpcPlayerId, active_state, packet_stream, packets,
+    BackendState, ClientHookInstallState, DEALLOCATE_PACKET_SLOT, INCOMING_PACKET_SLOT,
+    IncomingRpcFn, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT, OutgoingPacketFn, OutgoingRpcFn,
+    RawBitStream, RawPacket, RpcPlayerId, active_state, packet_stream, packets,
     remaining_stream_bounded,
 };
 use crate::{AttachError, BitStream, Direction, event::HookAction};
@@ -343,24 +343,6 @@ pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }
 
-pub(super) unsafe extern "C" fn game_process_detour() {
-    let Some(state) = active_state() else {
-        return;
-    };
-    let trampoline = state.game_process_trampoline.load(Ordering::Acquire);
-    if trampoline == 0 {
-        return;
-    }
-    let original: GameProcessFn = unsafe { mem::transmute(trampoline) };
-    if !state
-        .game_process_diagnostic_logged
-        .swap(true, Ordering::AcqRel)
-    {
-        log::debug!("entered CGame::Process detour for the first time");
-    }
-    unsafe { state.run_game_process_tick(original) };
-}
-
 pub(super) unsafe extern "thiscall" fn dialog_close_detour(dialog: *mut c_void, button: u8) {
     let Some(state) = active_state() else {
         return;
@@ -415,7 +397,6 @@ pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
 pub(super) struct HookStorage {
     pub(super) constructor: Option<modkit_win32::InlineHook>,
     pub(super) incoming_rpc: Option<modkit_win32::InlineHook>,
-    pub(super) game_process: Option<modkit_win32::InlineHook>,
     pub(super) dialog_close: Option<modkit_win32::InlineHook>,
     pub(super) vtable: Option<VtableHook>,
 }

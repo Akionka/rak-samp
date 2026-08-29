@@ -26,7 +26,6 @@ pub(super) struct RawPacket {
     pub(super) delete_data: bool,
 }
 
-pub(super) type GameProcessFn = unsafe extern "C" fn();
 pub(super) type StringWriteEncoderFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, i32, *mut RawBitStream, i32);
 pub(super) type StringReadDecoderFn =

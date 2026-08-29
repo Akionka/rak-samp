@@ -26,6 +26,7 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
+    "crates/gta-sa-native",
     "crates/modkit-abi",
     "crates/modkit-runtime",
     "crates/modkit-sdk",
@@ -59,6 +60,7 @@ simplelog = "0.12"
 cc = "1.4"
 
 [target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
+gta-sa-native = { path = "crates/gta-sa-native" }
 minhook = "0.9"
 modkit-win32 = { path = "crates/modkit-win32" }
 windows-sys = { version = "0.61", features = [

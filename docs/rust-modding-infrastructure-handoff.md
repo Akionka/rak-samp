@@ -2093,16 +2093,23 @@ refactor(win32): extract guarded memory and hook primitives
 
 ### Tasks
 
-- [ ] Create `crates/gta-sa-native`.
-- [ ] Define initial `GtaProfile`/`GtaProfileSpec` for the currently verified GTA SA 1.0 US target.
-- [ ] Move ownership of `CGame::Process` target `0x53BEE0` into the GTA profile/runtime.
-- [ ] Move the game-process detour function and trampoline ownership into GTA runtime or host composition.
-- [ ] Preserve exact ordering: mark thread -> snapshot -> original once -> post-pump.
-- [ ] Provide an internal mechanism for SA-MP backend to register/run its post-game-process pump.
-- [ ] Do not expose a public GTA API yet beyond profile/status if not needed.
-- [ ] Move game-thread ID ownership into GTA runtime.
-- [ ] Move generic wait-rejection query (`is_game_thread`) behind runtime/Core service.
-- [ ] Update tests proving original call count and command frame boundaries.
+- [x] Create `crates/gta-sa-native`.
+- [x] Define initial `GtaProfile`/`GtaProfileSpec` for the currently verified GTA SA 1.0 US target.
+- [x] Move ownership of `CGame::Process` target `0x53BEE0` into the GTA profile/runtime.
+- [x] Move the game-process detour function and trampoline ownership into GTA runtime or host composition.
+- [x] Preserve exact ordering: mark thread -> snapshot -> original once -> post-pump.
+- [x] Provide an internal mechanism for SA-MP backend to register/run its post-game-process pump.
+- [x] Do not expose a public GTA API yet beyond profile/status if not needed.
+- [x] Move game-thread ID ownership into GTA runtime.
+- [x] Move generic wait-rejection query (`is_game_thread`) behind runtime/Core service.
+- [x] Update tests proving original call count and command frame boundaries.
+
+Completed: 2026-08-30. `crates/gta-sa-native` owns the initial GTA SA 1.0 US
+profile, `CGame::Process` hook/trampoline, detour diagnostics, and game-thread
+identity. The existing SA-MP backend registers as a `GameTickParticipant`; the
+GTA runtime preserves mark -> snapshot -> original once -> post-pump ordering.
+The Core wait path reaches the GTA-owned thread query through the existing host
+runtime, without changing the frozen `CoreServiceV1` layout.
 
 ### Implementation note
 

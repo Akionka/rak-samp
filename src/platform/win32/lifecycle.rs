@@ -2,11 +2,6 @@
 
 use super::*;
 
-/// GTA SA 1.0 US `CGame::Process`. This target is independent of SA-MP's
-/// module base and is supported only for the fixed GTA executable selected by
-/// the host's R1/GTA configuration.
-const GTA_SA_10_US_CGAME_PROCESS: usize = 0x53BEE0;
-
 pub(super) static ACTIVE_BACKEND: OnceLock<Mutex<Option<Weak<BackendState>>>> = OnceLock::new();
 
 pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
@@ -38,6 +33,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             addresses,
             native_client_profile: selected_profile,
         },
+        game_tick: GameTickRuntime::new(GtaProfile::gta_sa_10_us()),
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),
@@ -47,19 +43,17 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         player_port: AtomicU16::new(0),
         constructor_trampoline: AtomicUsize::new(0),
         incoming_rpc_trampoline: AtomicUsize::new(0),
-        game_process_trampoline: AtomicUsize::new(0),
         dialog_close_trampoline: AtomicUsize::new(0),
-        game_thread_id: AtomicU32::new(0),
         outgoing_packet_original: AtomicUsize::new(0),
         incoming_packet_original: AtomicUsize::new(0),
         deallocate_packet_original: AtomicUsize::new(0),
         outgoing_rpc_original: AtomicUsize::new(0),
         client_hook_status: AtomicU32::new(ClientHookInstallState::Pending.as_raw()),
         incoming_packet_diagnostic_logged: AtomicBool::new(false),
-        game_process_diagnostic_logged: AtomicBool::new(false),
         game_command_snapshot_diagnostic_logged: AtomicBool::new(false),
         game_command_completion_diagnostic_logged: AtomicBool::new(false),
         string_codec: Mutex::new(()),
+        pending_game_tick: Mutex::new(None),
         game_commands: CommandQueue::new(),
         auto_text_label_creates: Mutex::new(HashMap::new()),
         local_player_snapshot: Mutex::new(None),
@@ -193,6 +187,11 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
     *active = Some(Arc::downgrade(&state));
     drop(active);
 
+    let participant: Arc<dyn GameTickParticipant> = Arc::clone(&state) as Arc<_>;
+    state
+        .game_tick
+        .register_participant(Arc::downgrade(&participant));
+
     if let Err(error) = state.install_game_process_hook() {
         clear_active_backend(&state);
         return Err(error);
@@ -210,27 +209,14 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 
 impl BackendState {
     pub(super) fn install_game_process_hook(&self) -> Result<(), AttachError> {
-        let (mut detour, trampoline) = unsafe {
-            InlineHook::create(
-                "CGame::Process",
-                GTA_SA_10_US_CGAME_PROCESS,
-                hooks::game_process_detour as *const () as usize,
-            )
-        }
-        .map_err(|_| AttachError::HookInstallFailed("CGame::Process detour"))?;
-        self.game_process_trampoline
-            .store(trampoline, Ordering::Release);
-        if detour.enable().is_err() {
-            self.game_process_trampoline.store(0, Ordering::Release);
-            return Err(AttachError::HookInstallFailed(
-                "enabling CGame::Process detour",
-            ));
-        }
-        self.hooks
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .game_process = Some(detour);
-        Ok(())
+        self.game_tick.install().map_err(|error| match error {
+            gta_sa_native::GameTickInstallError::CreateHook => {
+                AttachError::HookInstallFailed("CGame::Process detour")
+            }
+            gta_sa_native::GameTickInstallError::EnableHook => {
+                AttachError::HookInstallFailed("enabling CGame::Process detour")
+            }
+        })
     }
 
     pub(super) fn install_dialog_close_hook(&self) -> Result<(), AttachError> {
@@ -348,9 +334,7 @@ impl BackendState {
     pub(super) fn shutdown(&self) {
         let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
         hooks.vtable.take();
-        if let Some(detour) = hooks.game_process.take() {
-            detour.disable();
-        }
+        self.game_tick.shutdown();
         if let Some(detour) = hooks.dialog_close.take() {
             detour.disable();
         }
@@ -362,11 +346,10 @@ impl BackendState {
         }
         drop(hooks);
 
-        // No new native calls can enter our detours after the vtable and inline
-        // hooks have been removed. Existing detour calls hold an Arc from
-        // active_state and can still reach their original functions safely.
+        // No new native calls can enter after the GTA runtime, vtable, and
+        // SA-MP inline hooks have been removed. Existing detours retain their
+        // runtime/backend state until their captured originals return.
         clear_active_backend(self);
-        self.game_thread_id.store(0, Ordering::Release);
         self.dialog_close_trampoline.store(0, Ordering::Release);
         self.rak_client.store(0, Ordering::Release);
         self.raw_player_pool.store(0, Ordering::Release);

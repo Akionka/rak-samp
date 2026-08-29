@@ -25,6 +25,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d45db016d36b838f563236e9193d0ee6ce38f3f68b6c94e914b4929c96bbb890"
 
 [[package]]
+name = "gta-sa-native"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "log",
+ "modkit-win32",
+ "windows-sys",
+]
+
+[[package]]
 name = "libc"
 version = "0.2.189"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -163,6 +172,7 @@ name = "samp-client-sdk-host"
 version = "0.1.0-alpha.4"
 dependencies = [
  "cc",
+ "gta-sa-native",
  "log",
  "minhook",
  "modkit-abi",

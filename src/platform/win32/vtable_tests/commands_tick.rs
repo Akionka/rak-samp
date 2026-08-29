@@ -159,7 +159,7 @@ fn game_tick_calls_original_once_and_marks_the_game_thread() {
     let state = test_backend_state();
     GAME_PROCESS_CALLS.store(0, Ordering::Release);
 
-    unsafe { state.run_game_process_tick(fake_game_process) };
+    unsafe { state.game_tick.run_tick(&state, fake_game_process) };
 
     assert_eq!(GAME_PROCESS_CALLS.load(Ordering::Acquire), 1);
     assert!(state.is_game_thread());
@@ -172,7 +172,7 @@ fn game_tick_leaves_commands_pending_until_the_rak_client_is_ready() {
         .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
         .unwrap();
 
-    unsafe { state.run_game_process_tick(fake_game_process) };
+    unsafe { state.game_tick.run_tick(&state, fake_game_process) };
 
     assert_eq!(state.game_commands.try_take(id), Ok(None));
 }
@@ -185,7 +185,7 @@ fn game_tick_completes_commands_after_the_rak_client_is_ready() {
         .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
         .unwrap();
 
-    unsafe { state.run_game_process_tick(fake_game_process) };
+    unsafe { state.game_tick.run_tick(&state, fake_game_process) };
 
     assert_eq!(
         state.game_commands.try_take(id),
@@ -219,9 +219,7 @@ fn disconnect_invalidation_preserves_the_captured_rak_client_for_reconnect() {
 #[test]
 fn command_wait_is_rejected_on_the_published_game_thread() {
     let state = Arc::new(test_backend_state());
-    state
-        .game_thread_id
-        .store(unsafe { GetCurrentThreadId() }, Ordering::Release);
+    state.game_tick.mark_current_game_thread();
     let id = state
         .game_commands
         .submit(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))

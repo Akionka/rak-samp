@@ -39,9 +39,9 @@ use lifecycle::{ACTIVE_BACKEND, clear_active_backend};
 #[cfg(test)]
 use native_abi::PacketPlayerId;
 use native_abi::{
-    AllocatePacketFn, GameProcessFn, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn,
-    QueueWriteLockFn, QueueWriteUnlockFn, RawPacket, RpcPlayerId, StringReadDecoderFn,
-    StringWriteEncoderFn, priority_value, reliability_value,
+    AllocatePacketFn, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn, QueueWriteLockFn,
+    QueueWriteUnlockFn, RawPacket, RpcPlayerId, StringReadDecoderFn, StringWriteEncoderFn,
+    priority_value, reliability_value,
 };
 pub(crate) use sampfuncs::{SampfuncsLogError, sampfuncs_loaded, sampfuncs_log_console};
 
@@ -58,6 +58,7 @@ use crate::{
         ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
     },
 };
+use gta_sa_native::{GameTickParticipant, GameTickRuntime, GtaProfile};
 use hooks::{HookStorage, VtableHook};
 use modkit_win32::InlineHook;
 #[cfg(test)]
@@ -74,7 +75,6 @@ use std::{
     },
     time::Duration,
 };
-use windows_sys::Win32::System::Threading::GetCurrentThreadId;
 
 const ID_TIMESTAMP: u8 = 40;
 const ID_RPC: u8 = 20;
@@ -209,6 +209,7 @@ impl BackendContext {
 
 struct BackendState {
     context: BackendContext,
+    game_tick: GameTickRuntime,
     rak_client: AtomicUsize,
     raw_player_pool: AtomicUsize,
     raw_vehicle_pool: AtomicUsize,
@@ -218,19 +219,17 @@ struct BackendState {
     player_port: AtomicU16,
     constructor_trampoline: AtomicUsize,
     incoming_rpc_trampoline: AtomicUsize,
-    game_process_trampoline: AtomicUsize,
     dialog_close_trampoline: AtomicUsize,
-    game_thread_id: AtomicU32,
     outgoing_packet_original: AtomicUsize,
     incoming_packet_original: AtomicUsize,
     deallocate_packet_original: AtomicUsize,
     outgoing_rpc_original: AtomicUsize,
     client_hook_status: AtomicU32,
     incoming_packet_diagnostic_logged: AtomicBool,
-    game_process_diagnostic_logged: AtomicBool,
     game_command_snapshot_diagnostic_logged: AtomicBool,
     game_command_completion_diagnostic_logged: AtomicBool,
     string_codec: Mutex<()>,
+    pending_game_tick: Mutex<Option<Vec<QueuedCommand<GameCommand>>>>,
     game_commands: CommandQueue<GameCommand, ()>,
     auto_text_label_creates: Mutex<HashMap<CommandId, Option<u16>>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,

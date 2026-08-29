@@ -56,6 +56,11 @@
   restore their original page protection. The crate contains no GTA/SA-MP
   addresses or profile constants, and only it and the native backends depend on
   `windows-sys`/MinHook.
+- `crates/gta-sa-native/` owns the first GTA-native foundation: a data-only GTA
+  SA 1.0 US exact-build profile with the `CGame::Process` target `0x53BEE0`, the
+  detour/trampoline and restoration lifecycle, game-thread identity, and the
+  ordered mark/snapshot/original/post-pump phases. The SA-MP backend registers
+  as a host-internal participant; no plugin-facing GTA service exists yet.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while one shared `NativeClientProfile`
@@ -78,11 +83,12 @@
   keep packet ownership and RPC receiver/player publication in `hooks.rs`;
   malformed RPC envelopes fail open to the captured trampoline. Outgoing
   detours call captured originals through non-owning ABI wrappers after
-  synchronous listener dispatch. The game-process detour forwards into the
-  root-owned tick executor, and the constructor detour forwards into
-  root-owned client-hook setup. Hook installation and restoration remain
-  root-owned, and every enabled MinHook target logs its name, target, detour,
-  and trampoline. Host ABI entry points and the ordered V1 table remain in
+  synchronous listener dispatch. The GTA-native game-process runtime marks the
+  game thread, drives the SA-MP participant snapshot, calls the captured
+  original exactly once, and then drives the SA-MP command/cache pump. The
+  constructor detour still forwards into root-owned client-hook setup. Every
+  enabled MinHook target logs its name, target, detour, and trampoline. Host ABI
+  entry points and the ordered V1 table remain in
   `host_api/mod.rs`; `host_api/conversions.rs` converts owned runtime snapshots
   into fixed C-compatible output storage, while `host_api/raw.rs` owns the
   opaque native-address entry points and `host_api/events.rs` owns event

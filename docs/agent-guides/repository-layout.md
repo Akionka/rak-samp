@@ -12,6 +12,7 @@
 | Typed RPC and packet helpers | `sdk/src/events/` |
 | Platform-independent protocol and bitstreams | `crates/samp-protocol/` |
 | Windows x86 implementation primitives | `crates/modkit-win32/` |
+| GTA SA profile and game-process runtime | `crates/gta-sa-native/` |
 | Minimal and chat-command plugins | `examples/` |
 | Independent ABI layout oracle | `tests/fixtures/raknet_layout.cpp` |
 
