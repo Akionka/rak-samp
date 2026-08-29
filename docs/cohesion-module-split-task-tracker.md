@@ -24,7 +24,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P0 | Baseline and safety freeze | — | [x] |
 | P1 | Protocol descriptor-helper cleanup | P0 | [x] |
 | P2 | Split incoming `common` RPCs | P1 | [x] |
-| P3 | Split incoming `r1` RPCs | P1 | [ ] |
+| P3 | Split incoming `r1` RPCs | P1 | [x] |
 | P4 | Split `Runtime` | P0 | [ ] |
 | P5 | Split/domainize game-thread commands | P0 | [ ] |
 | P6 | Reduce Win32 composition root | P5 recommended | [ ] |
@@ -250,56 +250,82 @@ Target tree: `crates/samp-protocol/src/rpc/incoming/r1/`.
 
 ### Module shell
 
-- [ ] **P3-01 — Convert `r1.rs` to a directory module.**
+- [x] **P3-01 — Convert `r1.rs` to a directory module.**
   - Create `r1/mod.rs` and private `r1/wire.rs` for only genuinely shared R1 primitive helpers.
   - Preserve all public flat `r1::*` paths with explicit re-exports.
 
 ### Semantic extraction slices
 
-- [ ] **P3-02 — Extract `session.rs`.**
+- [x] **P3-02 — Extract `session.rs`.**
   - `INIT_GAME`, `REQUEST_CLASS_RESPONSE`, `SET_SPAWN_INFO`, `UPDATE_SCORES_AND_PINGS`, `ENABLE_STUNT_BONUS` and supporting values.
   - Preserve bit-level field ordering and current trailing policies.
 
-- [ ] **P3-03 — Extract `player.rs`.**
+- [x] **P3-03 — Extract `player.rs`.**
   - `PLAYER_STREAM_IN`, `APPLY_PLAYER_ANIMATION`, `PLAY_CRIME_REPORT`, `SET_PLAYER_ATTACHED_OBJECT`, `TOGGLE_PLAYER_SPECTATING`.
 
-- [ ] **P3-04 — Extract `vehicle.rs`.**
+- [x] **P3-04 — Extract `vehicle.rs`.**
   - `VEHICLE_STREAM_IN`, `DISABLE_VEHICLE_COLLISIONS` and their supporting values.
 
-- [ ] **P3-05 — Extract `object.rs`.**
+- [x] **P3-05 — Extract `object.rs`.**
   - `ENTER_EDIT_OBJECT`, encoded `CREATE_OBJECT`, encoded `SET_OBJECT_MATERIAL`.
   - Keep object material limits and encoded-string behavior local to this domain where possible.
 
-- [ ] **P3-06 — Extract `text_labels.rs`.**
+- [x] **P3-06 — Extract `text_labels.rs`.**
   - encoded `CREATE_3D_TEXT` and `TextLabel3D`.
 
-- [ ] **P3-07 — Extract `ui.rs`.**
+- [x] **P3-07 — Extract `ui.rs`.**
   - `INIT_MENU`, `TOGGLE_SELECT_TEXT_DRAW`, `SHOW_TEXT_DRAW`, `TEXT_DRAW_HIDE` and supporting menu/textdraw values.
 
-- [ ] **P3-08 — Extract `camera.rs`.**
+- [x] **P3-08 — Extract `camera.rs`.**
   - `INTERPOLATE_CAMERA`, `TOGGLE_CAMERA_TARGET_NOTIFYING`.
 
-- [ ] **P3-09 — Extract `actor.rs`.**
+- [x] **P3-09 — Extract `actor.rs`.**
   - `APPLY_ACTOR_ANIMATION`.
 
 ### Framing/capability audit
 
-- [ ] **P3-10 — Audit trailing policies one descriptor at a time.**
+- [x] **P3-10 — Audit trailing policies one descriptor at a time.**
   - Compare every R1 descriptor against the pre-split version.
   - No `ExactBitsPolicy`/`ExactBytesPolicy` drift is allowed.
 
-- [ ] **P3-11 — Audit encoded-string capability ownership.**
+- [x] **P3-11 — Audit encoded-string capability ownership.**
   - `CREATE_3D_TEXT`, `CREATE_OBJECT`, and `SET_OBJECT_MATERIAL` must remain encoded-string descriptors.
   - No host/native string codec dependency may enter Protocol.
 
-- [ ] **P3-12 — Run R1 Protocol vectors and exact-bit tests.**
+- [x] **P3-12 — Run R1 Protocol vectors and exact-bit tests.**
   - Run the existing R1/world/UI/encoded-string Protocol tests.
   - Run full Protocol tests/Clippy/format.
   - Record final R1 module LOC.
 
+  Evidence (2026-08-29): module shell `329d4ce`; wire `d816faf`;
+  player `9276cb7`; actor `17b2817`; session `4d7efb9`; vehicle
+  `8b6174b`; UI `8b7c3b1`; camera `853bf87`; object `9e6c7d2`;
+  text labels `236460b`; final ownership/import cleanup `4102db7`
+  (`4102db7110f17f1d6bafa174bdf31b734511be8e`). All 80 Protocol
+  tests, Clippy with warnings denied, format check, and `git diff --check`
+  passed. Existing flat imports remain unchanged. The descriptor audit found
+  20 plain descriptors: 16 use `ExactBitsPolicy` and 4 use
+  `ExactBytesPolicy`. All 3 encoded-string descriptors retain their encoded
+  capability. No wildcard imports or re-exports remain in the R1 module.
+
+  Final physical/nonblank LOC:
+
+  | Module | Physical | Nonblank |
+  | --- | ---: | ---: |
+  | `r1/mod.rs` | 127 | 105 |
+  | `r1/wire.rs` | 60 | 50 |
+  | `r1/session.rs` | 357 | 327 |
+  | `r1/player.rs` | 323 | 290 |
+  | `r1/vehicle.rs` | 117 | 107 |
+  | `r1/object.rs` | 318 | 288 |
+  | `r1/text_labels.rs` | 62 | 56 |
+  | `r1/ui.rs` | 313 | 284 |
+  | `r1/camera.rs` | 72 | 63 |
+  | `r1/actor.rs` | 44 | 38 |
+
 ### P3 gate
 
-- [ ] Flat `samp_protocol::rpc::incoming::r1::*` paths remain valid and every descriptor retains its exact framing policy.
+- [x] Flat `samp_protocol::rpc::incoming::r1::*` paths remain valid and every descriptor retains its exact framing policy.
 
 ---
 
@@ -751,6 +777,7 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P0 baseline and safety freeze | `cohesion-module-split` | `77edf87119f051bb9853f27e1c02b305e67e068f` | All static gates passed; two DLL exports recorded | Live policy: `split-before-live-validation` |
 | 2026-08-29 | P1 descriptor-helper cleanup | `cohesion-module-split` | `23f85114e1e5475890837603951c5d7f90d4b985` | 80 Protocol tests, Clippy, format, diff check passed | Explicit value types; no descriptor movement |
 | 2026-08-29 | P2 split common incoming RPCs | `cohesion-module-split` | `49795a9c0fa74d5c54eecca168b0f798963b9df7` | 80 Protocol tests, Clippy, format, diff check passed | Flat public imports preserved through explicit re-exports |
+| 2026-08-29 | P3 split R1 incoming RPCs | `cohesion-module-split` | `4102db7110f17f1d6bafa174bdf31b734511be8e` | 80 Protocol tests, Clippy, format, diff check passed | Framing policies and flat public imports preserved |
 
 ## Blockers / decisions log
 
