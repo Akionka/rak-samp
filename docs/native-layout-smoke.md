@@ -51,9 +51,23 @@ reconnect, or hook-restoration checklists.
 
 | Build | Observed result | Status |
 | --- | --- | --- |
-| R3-1 | The host reported the public R3-1 identity and matching module PE entry; the codec plus blocked exact-bit packet/RPC smoke passed (`0x0000007F`, `failure=0`); copied game/server/local-player/player-pool/chat-input/chat-display/dialog-active/scoreboard-open/cursor-mode caches passed fixture and interactive loopback checks (`0x0000FFFF`, `failure=0`); and a loopback outbound RPC was acknowledged by the server and surfaced through both the typed callback and SA-MP's normal chat handler. | Partial pass: broader layout, reconnect, and hook-restoration proof remain |
+| R3-1 | The initial attach passed, and the later full profile probe completed the UI, player, pool, entity-handle, text-label, textdraw, sync, vehicle, disconnect, reconnect, and post-reconnect network paths. | Full direct-profile pass; live unload is unavailable in the active loader |
 | R5-1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent R5 layouts, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
 | DL R1 | The full profile probe passed (`0x3FFFFFFF`, `failure=0`) with independent DL layouts, its 2100-object pool, complete UI/player/pool/sync lifecycles, exact-bit network paths, and disconnect/reconnect delivery. | Full direct-profile pass |
+
+## Final four-profile matrix (2026-08-29)
+
+The final shared host and capability-oriented probes completed independently
+on R1, R3-1, R5-1, and DL-R1. Every profile reported
+`status=0x3FFFFFFF`, `failure=0`, ready server/local/incoming state after
+reconnect, and a spawned local player. The exact deployed host/probe hashes,
+DL RVA corrections, R1 FSR environment note, and status fields are recorded in
+[P10-10 of the cohesion split tracker](cohesion-module-split-task-tracker.md#p10--split-the-common-live-validation-probe-optionaldeferred).
+
+The matrix proves only the capability surface exercised by the probes. It does
+not close unresolved facts in the
+[Native Profile Unverified Values register](native-profile-unverified-values.md)
+or prove live DLL unload, which the active ASI loader does not perform.
 
 ## R3-1 full profile pass (2026-08-25)
 
@@ -338,17 +352,20 @@ Pinned artifact: installed `samp.dll`, SHA-256
   [`examples/r1_network_probe`](../examples/r1_network_probe/README.md).
   The validator verifies RVA `0x31DF13`, R1 states `15`/`14`, codec, exact
   three-bit packet/RPC emulation, raw-address invalidation, and reconnect in
-  one status file. It is not a live-pass record.
-- [ ] Confirm the PE entry-point RVA is `0x31DF13` and the logged fingerprint
+  one status file. The final run is recorded in the matrix above.
+- [x] Confirm the PE entry-point RVA is `0x31DF13` and the logged fingerprint
   matches the pinned hash.
-- [ ] Attach, join an isolated server, and verify constructor/RPC hooks and
-  RakClient vtable restoration on unload.
-- [ ] Exercise packet/RPC send, receive emulation, string codec, and exact-bit
+- [x] Attach, join an isolated server, and verify constructor/RPC hook
+  readiness.
+- [x] Exercise packet/RPC send, receive emulation, string codec, and exact-bit
   read/write paths.
-- [ ] Exercise the existing R1 cache, dialog, chat, command, player/pool,
+- [x] Exercise the existing R1 cache, dialog, chat, command, player/pool,
   textdraw, text-label, and local-sync helpers.
-- [ ] Disconnect, reconnect, unload the host, and confirm no stale callback,
-  vtable patch, or native pointer remains.
+- [x] Disconnect, reconnect, and confirm connection-bound caches and captured
+  raw addresses are invalidated and restored.
+- [ ] Verify RakClient vtable restoration during live host unload. The active
+  ASI loader does not unload the host before process exit; process-exit cleanup
+  remains covered by the owned hook-lifecycle tests.
 
 ## SA-MP 0.3.7 R3-1
 
@@ -374,9 +391,12 @@ Pinned artifact: `sa-mp-0.3.7-R3-1-install.exe` → `samp.dll`, SHA-256
   command lookup on the game thread, with a `CInput` fixture gate and interactive loopback smoke.
 - [x] Publish and read the R3 dialog active flag on the game thread, with a
   `CDialog` fixture gate and server-dialog loopback smoke.
-- [ ] For each newly enabled UI, cache, pool, player, or sync helper, validate
-  its complete layout family and run the corresponding in-game interaction.
-- [ ] Disconnect, reconnect, unload the host, and confirm all hooks restore.
+- [x] For each helper enabled in the final probe surface, validate its complete
+  layout family and run the corresponding in-game interaction.
+- [x] Disconnect, reconnect, and confirm post-reconnect network/cache readiness.
+- [ ] Confirm hook restoration during live host unload. The active ASI loader
+  does not expose that lifecycle; process-exit cleanup remains covered by the
+  owned hook-lifecycle tests.
 
 ## SA-MP 0.3.7 R5-1
 

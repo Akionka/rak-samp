@@ -1,5 +1,9 @@
 # Native Profile Unification Handoff
 
+Status: complete. Structural migration, four-profile live validation, and
+final acceptance finished on 2026-08-29; detailed artifact evidence is in the
+[cohesion split tracker](cohesion-module-split-task-tracker.md#p10--split-the-common-live-validation-probe-optionaldeferred).
+
 ## Objective
 
 Replace the version-shaped native backends with one data-driven native client:
@@ -15,8 +19,8 @@ R1, R3-1, R5-1, and DL-R1 must be equal profiles. Shared operations must have
 one implementation. Version modules must contain only verified identity data,
 layouts, RVAs, limits, and narrowly scoped ABI or behavior strategies.
 
-This document is planning-only. Do not start the refactor from this handoff
-without first checking the current branch and working tree.
+This document preserves the implementation plan and completion evidence. Do
+not interpret its historical starting paths as the current repository layout.
 
 ## Confirmed decisions
 
@@ -30,29 +34,22 @@ without first checking the current branch and working tree.
   return `NotReady` for the affected operation, and research it after the
   structural migration. Never add a guessed value or silent fallback.
 
-## Current state
+## Final state
 
-The existing design has two implementations:
+`src/platform/win32/native_client/profile.rs` defines the single
+`NativeClientProfile`. Attach-time selection chooses exactly one of four static
+specifications from `native_client/profiles/`: R1, R3-1, R5-1, or DL-R1.
+Shared connection, singleton, pool, player, sync, UI, text-label, textdraw,
+handle, colour, and memory operations consume the selected specification
+without a version-shaped operation dispatcher. The later cohesion split moved
+player and UI operations into capability-oriented directory modules without
+changing this model.
 
-- `src/platform/win32/r1_client.rs` plus `r1_client/`: focused R1 modules.
-- `src/platform/win32/r3_client.rs`: a monolithic
-  `ClassicClientProfile` covering R3, R5, and DL through `ClassicVersion` and
-  `build_value(r3, r5, dl)`.
-
-`src/platform/win32/native_profile.rs` defines `NativeProfile::{R1,R3,R5,Dl}`
-and contains a large forwarding layer. Almost every variant exposes the same
-operation surface. Selection happens during `win32::attach`, and the selected
-profile is stored in `BackendContext`.
-
-The latest verified baseline includes:
+The historical starting baseline included:
 
 - `448a8bc fix(r1): correct label and textdraw mutations`
 - `3e03ca8 fix(probes): report profile-specific validation`
 - R1 live result: `status=0x3FFFFFFF`, `failure=0`
-
-The working tree may contain unrelated user files, including `TODO.md`,
-`.serena/memories/*`, and `docs/r1-native-profile-unification-handoff.md`.
-Do not stage, rewrite, or remove them.
 
 ## Work log
 
@@ -60,22 +57,31 @@ Do not stage, rewrite, or remove them.
 | --- | --- | --- | --- | --- |
 | 2026-08-16 | `feature/helpers` | `3e03ca846cab383e2cc172dab2f1675d4d91d792` | `TODO.md`; `.serena/memories/dl_binary_layout_corrections.md`; `.serena/memories/dl_exact_rva_reports.md`; `.serena/memories/dl_implementation_checkpoint.md`; `.serena/memories/dl_player_rvas.md`; `.serena/memories/dl_support_handoff.md`; `docs/native-profile-unification-handoff.md`; `docs/r1-native-profile-unification-handoff.md` | `cargo test --workspace` passed; `cargo clippy --workspace -- -D warnings` passed |
 
-## Target module structure
+## Final module structure
 
 ```text
 src/platform/win32/native_client/
   mod.rs
   profile.rs
   memory.rs
-  native_types.rs
+  connection.rs
+  colours.rs
   singletons.rs
-  players.rs
-  handles.rs
+  players/
+    mod.rs
+    animation.rs
+    pool.rs
+    sync.rs
+    control.rs
   pools.rs
-  ui.rs
+  ui/
+    mod.rs
+    dialog.rs
+    chat.rs
+    input.rs
+    display.rs
   text_labels.rs
   textdraws.rs
-  sync.rs
   profiles/
     mod.rs
     r1.rs
@@ -93,8 +99,8 @@ Responsibilities:
 - Operation modules: one implementation per public/native operation.
 - `memory.rs`: guarded reads/writes and bounded string helpers that are valid
   for all profiles.
-- `native_types.rs`: checked function signatures. Keep distinct aliases when
-  the ABI is not proven identical.
+- Native function aliases remain beside their checked call sites. Distinct
+  aliases stay separate when ABI equality is not proven.
 
 Do not create a single flat `ProfileSpec` with hundreds of unrelated fields.
 Use nested subsystem specs so ownership and fixture coverage remain visible.
@@ -668,7 +674,9 @@ samp-client-sdk-host --lib -- --test-threads=1` (198 passed).
 - [x] Add layout, capacity, setter, and lifecycle tests for all profiles.
 - [x] Remove superseded textdraw implementations.
 
-Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo test -p samp-client-sdk-host --lib -- --test-threads=1`, 200 passed)
+Evidence/commit: `575aa9f` (`refactor(native-client): share textdraw
+operations`); strict workspace Clippy and 200 host tests passed at the phase
+checkpoint.
 
 ### 16. Remaining shared operations
 
@@ -678,7 +686,9 @@ Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo te
 - [x] Audit the complete old forwarding surface for omissions.
 - [x] Add operation-surface parity coverage.
 
-Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo test -p samp-client-sdk-host --lib -- --test-threads=1`, 199 passed)
+Evidence/commit: `9111794` (`refactor(native-client): share animation
+catalog`); strict workspace Clippy and 199 host tests passed at the phase
+checkpoint.
 
 ### 17. Remove the old architecture
 
@@ -692,7 +702,7 @@ Evidence/commit: _pending_ (`cargo clippy --workspace -- -D warnings`; `cargo te
 - [x] Confirm no R1/R3/R5/DL version branch remains in shared operations.
 - [x] Confirm no version-specific cache field remains.
 
-Evidence/commit: _pending_
+Evidence/commit: `c39022b` (`refactor(native-client): remove legacy profiles`).
 
 ### 18. Documentation and static completion
 
@@ -708,35 +718,45 @@ Evidence/commit: _pending_
 - [x] Run `git diff --check`.
 - [x] Confirm unrelated user files remain untouched.
 
-Evidence/commit: _pending_
+Evidence/commit: `6ff9d8c` (`docs: record cohesion split acceptance`); the
+final quality, release, export, ABI/native, and repository-hygiene results are
+recorded in tracker P11.
 
 ### 19. Separate live-validation stage
 
-- [ ] Confirm the structural refactor is complete before starting this stage.
-- [ ] Build and deploy the shared host and R1 validator.
-- [ ] Complete R1 live validation with the full status mask and zero failure.
-- [ ] Build and deploy the R3 validator.
-- [ ] Complete R3 live validation with the full status mask and zero failure.
-- [ ] Build and deploy the R5 validator.
-- [ ] Complete R5 live validation with the full status mask and zero failure.
-- [ ] Build and deploy the DL validator.
-- [ ] Complete DL live validation with the full status mask and zero failure.
-- [ ] Record hashes, status records, and relevant logs for all four profiles.
-- [ ] Resolve every live regression before declaring completion.
+- [x] Confirm the structural refactor is complete before starting this stage.
+- [x] Build and deploy the shared host and R1 validator.
+- [x] Complete R1 live validation with the full status mask and zero failure.
+- [x] Build and deploy the R3 validator.
+- [x] Complete R3 live validation with the full status mask and zero failure.
+- [x] Build and deploy the R5 validator.
+- [x] Complete R5 live validation with the full status mask and zero failure.
+- [x] Build and deploy the DL validator.
+- [x] Complete DL live validation with the full status mask and zero failure.
+- [x] Record hashes, status records, and relevant logs for all four profiles.
+- [x] Resolve every live regression before declaring completion.
 
-Evidence/commit: _pending_
+Evidence/commits: `f80fc8f` pins the independent DL pool function RVAs;
+`a0e36ea` corrects DL public connection-state expectations; `6ff9d8c` records
+final acceptance. Exact host/probe hashes and all four `0x3FFFFFFF`, failure 0
+results are in tracker P10-10. The unrelated R1 FSR crash is isolated in the
+same evidence record.
 
 ### 20. Final acceptance
 
-- [ ] Exactly one runtime native-profile type remains.
-- [ ] Exactly four equal static profile specs remain.
-- [ ] Every shared operation has one implementation.
-- [ ] Profile modules contain only data and narrow verified strategies.
-- [ ] No guessed RVA, offset, ABI, or fallback exists.
-- [ ] Every remaining evidence gap is registered.
-- [ ] All static gates pass.
-- [ ] All four live validators pass independently.
-- [ ] Final commits follow Conventional Commits.
-- [ ] The handoff, checklist, and architecture documentation match the code.
+- [x] Exactly one runtime native-profile type remains.
+- [x] Exactly four equal static profile specs remain.
+- [x] Every shared operation has one implementation.
+- [x] Profile modules contain only data and narrow verified strategies.
+- [x] No unregistered guessed RVA, offset, ABI, or fallback exists.
+- [x] Every remaining evidence gap is registered.
+- [x] All static gates pass.
+- [x] All four live validators pass independently for their named probe
+  surfaces.
+- [x] Final commits follow Conventional Commits.
+- [x] The handoff, checklist, capability matrix, and architecture documentation
+  match the code and recorded evidence.
 
-Final evidence/commits: _pending_
+Final evidence/commits: native completion through `c39022b`; final DL
+correction `f80fc8f`; probe correction `a0e36ea`; accepted documentation and
+quality/live evidence `6ff9d8c`.
