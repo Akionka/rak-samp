@@ -92,3 +92,34 @@ impl LocalChatMessageStyle {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{LocalChatMessageStyle, LocalDialogStyle};
+
+    #[test]
+    fn direct_dialog_style_accepts_only_the_six_native_values() {
+        assert_eq!(
+            LocalDialogStyle::from_raw(0),
+            Some(LocalDialogStyle::MessageBox)
+        );
+        assert_eq!(
+            LocalDialogStyle::from_raw(5),
+            Some(LocalDialogStyle::HeadersList)
+        );
+        assert_eq!(LocalDialogStyle::from_raw(6), None);
+    }
+
+    #[test]
+    fn direct_chat_style_accepts_only_the_three_native_values() {
+        assert_eq!(
+            LocalChatMessageStyle::from_raw(2),
+            Some(LocalChatMessageStyle::Chat)
+        );
+        assert_eq!(
+            LocalChatMessageStyle::from_raw(8),
+            Some(LocalChatMessageStyle::Debug)
+        );
+        assert_eq!(LocalChatMessageStyle::from_raw(1), None);
+    }
+}

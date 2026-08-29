@@ -11,7 +11,6 @@ mod snapshots;
 
 pub use errors::{AttachError, SendError};
 pub(crate) use errors::{CodecError, DirectClientError};
-use options::validate_packet_options;
 pub use options::{PacketPriority, PacketReliability, SendOptions};
 pub(crate) use requests::{
     LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest, LocalDialogRequest,
@@ -55,54 +54,5 @@ impl Runtime {
 impl Drop for Runtime {
     fn drop(&mut self) {
         self.backend.shutdown();
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        LocalChatMessageStyle, LocalDialogStyle, PacketPriority, PacketReliability, SendError,
-        SendOptions, validate_packet_options,
-    };
-
-    #[test]
-    fn timestamped_packet_options_are_explicitly_unsupported() {
-        let options = SendOptions {
-            priority: PacketPriority::High,
-            reliability: PacketReliability::ReliableOrdered,
-            ordering_channel: 0,
-            timestamp: true,
-        };
-
-        assert_eq!(
-            validate_packet_options(options),
-            Err(SendError::TimestampedPacketUnsupported)
-        );
-    }
-
-    #[test]
-    fn direct_dialog_style_accepts_only_the_six_native_values() {
-        assert_eq!(
-            LocalDialogStyle::from_raw(0),
-            Some(LocalDialogStyle::MessageBox)
-        );
-        assert_eq!(
-            LocalDialogStyle::from_raw(5),
-            Some(LocalDialogStyle::HeadersList)
-        );
-        assert_eq!(LocalDialogStyle::from_raw(6), None);
-    }
-
-    #[test]
-    fn direct_chat_style_accepts_only_the_three_native_values() {
-        assert_eq!(
-            LocalChatMessageStyle::from_raw(2),
-            Some(LocalChatMessageStyle::Chat)
-        );
-        assert_eq!(
-            LocalChatMessageStyle::from_raw(8),
-            Some(LocalChatMessageStyle::Debug)
-        );
-        assert_eq!(LocalChatMessageStyle::from_raw(1), None);
     }
 }

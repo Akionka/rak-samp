@@ -1,6 +1,5 @@
-use super::{
-    ClientHookStatus, CodecError, Runtime, SendError, SendOptions, validate_packet_options,
-};
+use super::options::validate_packet_options;
+use super::{ClientHookStatus, CodecError, Runtime, SendError, SendOptions};
 use crate::{
     BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, SampVersion, command::CommandId,
 };
@@ -153,5 +152,26 @@ impl Runtime {
         output: &mut [u8],
     ) -> Result<usize, CodecError> {
         self.backend.decode_string(payload, output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_packet_options;
+    use crate::runtime::{PacketPriority, PacketReliability, SendError, SendOptions};
+
+    #[test]
+    fn timestamped_packet_options_are_explicitly_unsupported() {
+        let options = SendOptions {
+            priority: PacketPriority::High,
+            reliability: PacketReliability::ReliableOrdered,
+            ordering_channel: 0,
+            timestamp: true,
+        };
+
+        assert_eq!(
+            validate_packet_options(options),
+            Err(SendError::TimestampedPacketUnsupported)
+        );
     }
 }
