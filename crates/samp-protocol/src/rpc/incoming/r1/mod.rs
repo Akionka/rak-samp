@@ -1,5 +1,12 @@
 //! R1 incoming RPC codecs.
 
+mod wire;
+
+use wire::{
+    decode_bit_bool, decode_bool32, encode_bit_bool, encode_bool32, read_bool8, read_bool32,
+    read_fixed, write_bool8, write_bool32,
+};
+
 use crate::limits::{MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES};
 use crate::types::{Vector2, Vector3};
 use crate::{
@@ -892,14 +899,6 @@ fn encode_animation<W: BitWrite>(
     writer.write_i32_le(value.time)
 }
 
-fn decode_bit_bool<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    reader.read_bit_bool()
-}
-
-fn encode_bit_bool<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeError<W::Error>> {
-    writer.write_bit_bool(*value)
-}
-
 fn decode_crime_report<R: BitRead>(reader: &mut R) -> Result<CrimeReport, DecodeError<R::Error>> {
     Ok(CrimeReport {
         suspect_id: reader.read_u16_le()?,
@@ -977,22 +976,6 @@ fn encode_attached_object<W: BitWrite>(
     writer.write_vector3_le(&value.scale)?;
     writer.write_i32_le(value.color1)?;
     writer.write_i32_le(value.color2)
-}
-
-fn decode_bool32<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(reader.read_u32_le()? != 0)
-}
-
-fn encode_bool32<W: BitWrite>(writer: &mut W, value: &bool) -> Result<(), EncodeError<W::Error>> {
-    write_bool32(writer, *value)
-}
-
-fn read_bool32<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(reader.read_u32_le()? != 0)
-}
-
-fn write_bool32<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u32_le(u32::from(value))
 }
 
 fn decode_scores_and_pings<R: BitRead>(
@@ -1329,27 +1312,6 @@ fn encode_actor_animation<W: BitWrite>(
 ) -> Result<(), EncodeError<W::Error>> {
     writer.write_u16_le(value.actor_id)?;
     encode_animation(writer, &value.animation)
-}
-
-fn read_bool8<R: BitRead>(reader: &mut R) -> Result<bool, DecodeError<R::Error>> {
-    Ok(reader.read_u8()? != 0)
-}
-
-fn write_bool8<W: BitWrite>(writer: &mut W, value: bool) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u8(u8::from(value))
-}
-
-fn read_fixed<R: BitRead, const LENGTH: usize>(
-    reader: &mut R,
-) -> Result<[u8; LENGTH], DecodeError<R::Error>> {
-    let bytes = reader.read_bytes(LENGTH)?;
-    match bytes.try_into() {
-        Ok(bytes) => Ok(bytes),
-        Err(_) => Err(DecodeError::OutOfBounds {
-            requested_bits: LENGTH * u8::BITS as usize,
-            available_bits: 0,
-        }),
-    }
 }
 
 struct Create3DTextCodec;
