@@ -28,7 +28,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P4 | Split `Runtime` | P0 | [x] |
 | P5 | Split/domainize game-thread commands | P0 | [x] |
 | P6 | Reduce Win32 composition root | P5 recommended | [x] |
-| P7 | Split native-client players/UI | P0 + live-validation decision | [ ] |
+| P7 | Split native-client players/UI | P0 + live-validation decision | [x] |
 | P8 | Split SDK ABI source | P0 | [ ] |
 | P9 | Redistribute large tests | relevant production phase | [ ] |
 | P10 | Split common network probe | P7 recommended | [ ] |
@@ -605,59 +605,110 @@ Dependency: **P0-04 live-validation policy must be decided first.**
 
 ### Players
 
-- [ ] **P7-01 — Convert `players.rs` to a directory module.**
+- [x] **P7-01 — Convert `players.rs` to a directory module.**
   - Create `players/mod.rs` plus child modules without changing behavior.
 
-- [ ] **P7-02 — Extract `players/animation.rs`.**
+  Evidence (2026-08-29): `3f96554`
+  (`3f965542e5c3daae901bdd7f8969a28424c950a0`).
+
+- [x] **P7-02 — Extract `players/animation.rs`.**
   - Move animation catalog parsing/read and associated profile-boundary tests.
 
-- [ ] **P7-03 — Extract `players/pool.rs`.**
+  Evidence (2026-08-29): `35c3bd5`
+  (`35c3bd55285ba36305870d0ef70efeb8f238200c`).
+
+- [x] **P7-03 — Extract `players/pool.rs`.**
   - Move counts/max/local/remote/player-state/player-stat operations and tightly coupled pool helpers.
   - Keep player ID/count validation behavior unchanged.
 
-- [ ] **P7-04 — Extract `players/sync.rs`.**
+  Evidence (2026-08-29): `3212c00`
+  (`3212c009e9697aaeefde077fc068127d37313237`).
+
+- [x] **P7-04 — Extract `players/sync.rs`.**
   - Move on-foot/in-car/passenger/trailer/aim reads.
   - Move sync-record address/write/reset helpers and all force-sync operations.
   - Preserve `ForceSyncReset` strategy behavior.
 
-- [ ] **P7-05 — Extract `players/control.rs`.**
+  Evidence (2026-08-29): `d04b30b`
+  (`d04b30baed5dac5e9093d9fea81531384e9ecbb2`).
+
+- [x] **P7-05 — Extract `players/control.rs`.**
   - Move spawn, special action, local name, player colour, send rate, and their native aliases/call helpers.
 
-- [ ] **P7-06 — Audit native aliases and profile dispatch.**
+  Evidence (2026-08-29): `19b6f83`
+  (`19b6f83a8bd09d8cd2939b599d0927a14f4f84f8`).
+
+- [x] **P7-06 — Audit native aliases and profile dispatch.**
   - Operation-specific aliases live with call sites.
   - No new R1/R3/R5/DL runtime branch exists.
   - No guessed RVA/offset/value introduced.
 
+  Evidence (2026-08-29): `9d5f616`
+  (`9d5f616a0fb0689c8458c0a3a267554c6d0d58a3`). Pool, sync, and control
+  aliases are colocated with call sites; shared pool aliases have narrow
+  sibling visibility. Existing `R1`/`Classic` dispatch remains unchanged.
+
 ### UI
 
-- [ ] **P7-07 — Convert `ui.rs` to a directory module.**
+- [x] **P7-07 — Convert `ui.rs` to a directory module.**
   - Create `ui/mod.rs`, `dialog.rs`, `chat.rs`, `input.rs`, `display.rs`.
 
-- [ ] **P7-08 — Extract `ui/dialog.rs`.**
+  Evidence (2026-08-29): `063191a`
+  (`063191a4c1b070a4f55be0be648685ff500cd328`).
+
+- [x] **P7-08 — Extract `ui/dialog.rs`.**
   - Dialog show/close/response/client-side/selection/editbox/state/list-item behavior.
   - Preserve `ListItemTextLayout` strategy.
 
-- [ ] **P7-09 — Extract `ui/chat.rs`.**
+  Evidence (2026-08-29): `88bcac7`
+  (`88bcac740af0e24a0fce06965d124f00a348eafb`).
+
+- [x] **P7-09 — Extract `ui/chat.rs`.**
   - Chat/death-window messages, chat entry/history, display mode.
 
-- [ ] **P7-10 — Extract `ui/input.rs`.**
+  Evidence (2026-08-29): `14f7894`
+  (`14f78945b864373e0891012b0432591ecd5e6fa0`).
+
+- [x] **P7-10 — Extract `ui/input.rs`.**
   - Chat input read/write/enable/process and chat-command registration lifecycle.
   - Preserve input bounds and callback/trampoline behavior.
 
-- [ ] **P7-11 — Extract `ui/display.rs`.**
+  Evidence (2026-08-29): `9a3c2da`
+  (`9a3c2da456d7f6cee5acc4fca5a5aa39ad74390a`).
+
+- [x] **P7-11 — Extract `ui/display.rs`.**
   - Cursor and scoreboard operations.
 
-- [ ] **P7-12 — Run all native profile parity/layout unit tests.**
+  Evidence (2026-08-29): `6079814`
+  (`60798146537bd6795d7b6a43ae2752f5b67d25ff`).
+
+- [x] **P7-12 — Run all native profile parity/layout unit tests.**
   - Every supported profile remains covered.
   - Record unit-test count/results and commit hashes.
 
-- [ ] **P7-13 — Satisfy the live-validation evidence rule.**
+  Evidence (2026-08-29): the unskipped host suite passed 173/173, including
+  all native profile and independent C++ layout tests. Full workspace format,
+  check, test, Clippy, release hygiene, package, and release-build gates passed.
+  The local release DLL still exports exactly `DllMain` and
+  `SampClientSdk_GetApiV1`.
+
+- [x] **P7-13 — Satisfy the live-validation evidence rule.**
   - If split-before-live-validation: record this phase's final hash as the binary source for later R1/R3/R5/DL validation.
   - If revalidate-after-split: repeat all four live validators and record hashes/status/failure/log evidence.
 
+  Evidence (2026-08-29): under the decided `split-before-live-validation`
+  policy, record `60798146537bd6795d7b6a43ae2752f5b67d25ff` as the P7 final
+  native-facing source hash. R1/R3/R5/DL live validation remains deferred to
+  the final native-facing binary.
+
+  Physical/nonblank LOC: `players/mod.rs` 138/128, `animation.rs` 45/42,
+  `pool.rs` 833/811, `sync.rs` 504/472, `control.rs` 200/193; `ui/mod.rs`
+  149/140, `dialog.rs` 436/423, `chat.rs` 272/264, `input.rs` 309/299,
+  `display.rs` 90/83.
+
 ### P7 gate
 
-- [ ] One shared `NativeClientProfile` implementation model remains and live evidence applies to the final native-facing code.
+- [x] One shared `NativeClientProfile` implementation model remains and live evidence applies to the final native-facing code.
 
 ---
 
@@ -886,6 +937,7 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P4 split Runtime facade | `cohesion-module-split` | `19e36987c41fa7a48d6b637505dd5acc318a89b4` | 173 host tests; workspace check, tests, Clippy, format, diff check passed | `runtime/mod.rs` reduced to lifecycle and composition |
 | 2026-08-29 | P5 domainize game-thread commands | `cohesion-module-split` | `2ec8fcbefbdafa04f144bcbfcaf8773f102dd214` | 173 host tests; full workspace format, check, tests, and Clippy passed | Stage A final `1e6478a`; one queue and outer completion owner preserved |
 | 2026-08-29 | P6 reduce Win32 composition root | `cohesion-module-split` | `bac46be12fc54732760ce77c81ba03f939bc9ff1` | Full repository gate and local release DLL export audit passed | State remains private and root-owned; release-hygiene fix `af758bb` |
+| 2026-08-29 | P7 split native-client players/UI | `cohesion-module-split` | `60798146537bd6795d7b6a43ae2752f5b67d25ff` | 173 host tests; full repository gate; local DLL export audit passed | Final native-facing source hash recorded for deferred R1/R3/R5/DL live validation |
 
 ## Blockers / decisions log
 
