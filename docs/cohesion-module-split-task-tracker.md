@@ -22,7 +22,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | Phase | Scope | Depends on | Status |
 | --- | --- | --- | --- |
 | P0 | Baseline and safety freeze | — | [x] |
-| P1 | Protocol descriptor-helper cleanup | P0 | [ ] |
+| P1 | Protocol descriptor-helper cleanup | P0 | [x] |
 | P2 | Split incoming `common` RPCs | P1 | [ ] |
 | P3 | Split incoming `r1` RPCs | P1 | [ ] |
 | P4 | Split `Runtime` | P0 | [ ] |
@@ -115,29 +115,34 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 
 Goal: remove the global descriptor-to-value synchronization map before distributing descriptors across files.
 
-- [ ] **P1-01 — Make `common` descriptor value types explicit.**
+- [x] **P1-01 — Make `common` descriptor value types explicit.**
   - Replace `descriptor_value!` use in `incoming/common.rs` with a descriptor helper that takes the value type directly.
   - Preserve descriptor type names, constants, IDs, capabilities, and `ExactBytesPolicy`.
   - Do not move descriptors to new files in this task.
 
-- [ ] **P1-02 — Make `r1` descriptor value types explicit.**
+- [x] **P1-02 — Make `r1` descriptor value types explicit.**
   - Apply the same pattern to the plain R1 descriptor helper.
   - Preserve every existing `ExactBitsPolicy` / `ExactBytesPolicy` selection exactly.
   - Leave encoded-string descriptor capability behavior unchanged.
 
-- [ ] **P1-03 — Verify no descriptor/value mapping table remains.**
+- [x] **P1-03 — Verify no descriptor/value mapping table remains.**
   - Search both incoming modules for `descriptor_value!` or equivalent centralized mappings.
   - Confirm each descriptor invocation names its value type directly or uses a self-contained encoded-string descriptor declaration.
 
-- [ ] **P1-04 — Validate Protocol helper cleanup.**
+- [x] **P1-04 — Validate Protocol helper cleanup.**
   - `cargo test -p samp-protocol --all-targets --locked`
   - `cargo clippy -p samp-protocol --all-targets --locked -- -D warnings`
   - `cargo fmt --all -- --check`
   - Evidence: command results and commit hash.
 
+  Evidence (2026-08-29): commit `23f85114e1e5475890837603951c5d7f90d4b985`. All 80
+  `samp-protocol` tests passed, including common/R1 framing and encoded-string
+  vectors. Protocol Clippy with warnings denied, format check, and
+  `git diff --check` passed. No `descriptor_value` mapping remains.
+
 ### P1 gate
 
-- [ ] Both incoming files still behave identically and are ready for mechanical domain extraction.
+- [x] Both incoming files still behave identically and are ready for mechanical domain extraction.
 
 ---
 
@@ -716,6 +721,7 @@ Append one row per completed slice rather than editing historical rows.
 | Date | Task | Branch | Commit | Validation/evidence | Notes |
 | --- | --- | --- | --- | --- | --- |
 | 2026-08-29 | P0 baseline and safety freeze | `cohesion-module-split` | `77edf87119f051bb9853f27e1c02b305e67e068f` | All static gates passed; two DLL exports recorded | Live policy: `split-before-live-validation` |
+| 2026-08-29 | P1 descriptor-helper cleanup | `cohesion-module-split` | `23f85114e1e5475890837603951c5d7f90d4b985` | 80 Protocol tests, Clippy, format, diff check passed | Explicit value types; no descriptor movement |
 
 ## Blockers / decisions log
 
