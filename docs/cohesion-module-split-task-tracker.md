@@ -437,15 +437,26 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
 
 ### Stage B — domain enums and execution
 
-- [ ] **P5-09 — Introduce `NetworkCommand` wrapper.**
+- [x] **P5-09 — Introduce `NetworkCommand` wrapper.**
   - Move only network/send-rate variants from flat `GameCommand` into `GameCommand::Network(NetworkCommand)`.
   - Add private execution returning `Result<(), CommandError>`.
   - Keep outer queue completion centralized.
   - Validate before proceeding.
 
-- [ ] **P5-10 — Introduce `ConnectionCommand` wrapper.**
+  Evidence (2026-08-29): `06a9e9c`. All 173 host tests and host Clippy
+  with warnings denied passed. The network payload-copy/detached-receipt test
+  now inspects the domain wrapper.
+
+- [x] **P5-10 — Introduce `ConnectionCommand` wrapper.**
   - Move set-state/connect/disconnect variants and execution.
   - Validate before proceeding.
+
+  Evidence (2026-08-29): `e0ef006`. All 6 connection-filtered tests and
+  all 4 game-tick-filtered tests passed; host Clippy with warnings denied
+  passed. The full host run passed 172 of 173 tests; the unrelated
+  `r3_death_window_requires_a_readable_singleton` memory-probe test failed
+  because address `0x17aa70` was readable in this process, and the isolated
+  rerun reproduced the environment condition.
 
 - [ ] **P5-11 — Introduce `UiCommand` wrapper.**
   - Move UI/chat/input/dialog/cursor/scoreboard variants and execution.
@@ -819,3 +830,4 @@ Append one row per completed slice rather than editing historical rows.
 | Date | Task | Decision or blocker | Owner/next action | Status |
 | --- | --- | --- | --- | --- |
 | 2026-08-29 | P0-04 | Use `split-before-live-validation`; prior live stage remains pending | Run all four live validators after final native-facing structural changes | Decided |
+| 2026-08-29 | P5-10 | Unrelated singleton test assumes `0x17aa70` is unreadable, but the address is readable in the current process | Re-run the full host gate after the environment changes; do not modify the test as part of P5 | Open |
