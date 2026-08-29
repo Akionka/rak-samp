@@ -1,5 +1,10 @@
 //! Guarded player-pool reads shared by immutable client profiles.
 
+mod animation;
+mod control;
+mod pool;
+mod sync;
+
 use super::{
     memory::{
         bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
