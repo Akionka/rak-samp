@@ -1,0 +1,20 @@
+[package]
+name = "modkit-sdk"
+version = "0.1.0-alpha.4"
+edition = "2024"
+rust-version = "1.98"
+description = "Plugin-side safe connection to the modkit host and service discovery"
+license = "MIT"
+repository = "https://github.com/Akionka/samp-client-sdk"
+
+[lib]
+name = "modkit_sdk"
+
+[dependencies]
+modkit-abi = { version = "=0.1.0-alpha.4", path = "../modkit-abi" }
+
+[target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+] }
