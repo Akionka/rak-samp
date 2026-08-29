@@ -443,7 +443,7 @@ mod tests {
                 SampClientSdkClientVersion::R5_1,
                 0x0CBC90,
                 15,
-                5,
+                14,
                 b"SA-MP".as_slice()
             )
         );
