@@ -14,6 +14,7 @@ mod gangzones;
 mod handles;
 mod hooks;
 mod lifecycle;
+mod native_abi;
 mod native_bitstream;
 pub(crate) mod native_client;
 mod objects;
@@ -35,6 +36,13 @@ use lifecycle::active_state;
 pub(crate) use lifecycle::attach;
 #[cfg(test)]
 use lifecycle::{ACTIVE_BACKEND, clear_active_backend};
+#[cfg(test)]
+use native_abi::PacketPlayerId;
+use native_abi::{
+    AllocatePacketFn, GameProcessFn, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn,
+    QueueWriteLockFn, QueueWriteUnlockFn, RawPacket, RpcPlayerId, StringReadDecoderFn,
+    StringWriteEncoderFn, priority_value, reliability_value,
+};
 pub(crate) use sampfuncs::{SampfuncsLogError, sampfuncs_loaded, sampfuncs_log_console};
 
 use crate::{
@@ -443,30 +451,6 @@ fn cached_direct_client_value<T>(
     }
 }
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-struct RpcPlayerId {
-    binary_address: u32,
-    port: u16,
-}
-
-#[repr(C, packed)]
-#[derive(Clone, Copy)]
-struct PacketPlayerId {
-    binary_address: u32,
-    port: u16,
-}
-
-#[repr(C, packed)]
-struct RawPacket {
-    player_index: u16,
-    player_id: PacketPlayerId,
-    length: u32,
-    bit_size: u32,
-    data: *mut u8,
-    delete_data: bool,
-}
-
 #[cfg(test)]
 mod layout_tests;
 
@@ -478,27 +462,6 @@ mod vtable_tests;
 
 #[cfg(test)]
 mod inline_hook_tests;
-
-type GameProcessFn = unsafe extern "C" fn();
-type StringWriteEncoderFn =
-    unsafe extern "thiscall" fn(*mut c_void, *const i8, i32, *mut RawBitStream, i32);
-type StringReadDecoderFn =
-    unsafe extern "thiscall" fn(*mut c_void, *mut i8, i32, *mut RawBitStream, i32) -> bool;
-type OutgoingPacketFn =
-    unsafe extern "thiscall" fn(*mut c_void, *mut RawBitStream, i32, i32, i8) -> bool;
-type OutgoingRpcFn = unsafe extern "thiscall" fn(
-    *mut c_void,
-    *mut i32,
-    *mut RawBitStream,
-    i32,
-    i32,
-    i8,
-    bool,
-) -> bool;
-type IncomingRpcFn = unsafe extern "thiscall" fn(*mut c_void, *mut u8, i32, RpcPlayerId) -> bool;
-type AllocatePacketFn = unsafe extern "C" fn(i32) -> *mut RawPacket;
-type QueueWriteLockFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut *mut RawPacket;
-type QueueWriteUnlockFn = unsafe extern "thiscall" fn(*mut c_void);
 
 #[cfg(test)]
 mod native_packet_bit_length_tests;
@@ -535,24 +498,5 @@ fn copy_remaining(stream: &mut BitStream, bit_len: usize, payload: &mut BitStrea
         if let Ok(bit) = stream.read_bool() {
             let _ = payload.write_bool(bit);
         }
-    }
-}
-
-const fn priority_value(priority: PacketPriority) -> i32 {
-    match priority {
-        PacketPriority::System => 0,
-        PacketPriority::High => 1,
-        PacketPriority::Medium => 2,
-        PacketPriority::Low => 3,
-    }
-}
-
-const fn reliability_value(reliability: PacketReliability) -> i32 {
-    match reliability {
-        PacketReliability::Unreliable => 6,
-        PacketReliability::UnreliableSequenced => 7,
-        PacketReliability::Reliable => 8,
-        PacketReliability::ReliableOrdered => 9,
-        PacketReliability::ReliableSequenced => 10,
     }
 }
