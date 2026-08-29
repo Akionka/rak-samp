@@ -22,43 +22,6 @@ use crate::runtime::{
 };
 use std::{ffi::c_void, mem};
 
-type R1PlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
-type ClassicPlayerPoolGetCountFn = unsafe extern "thiscall" fn(*mut c_void, i32) -> i32;
-type R1PlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-type ClassicPlayerPoolGetLocalPlayerFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-type R1PlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
-type ClassicPlayerPoolGetNameFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *const u8;
-type R1PlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type ClassicPlayerPoolGetLocalStatFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type R1LocalPlayerGetPedFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
-type R1LocalPlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
-type ClassicLocalPlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
-type R1PedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
-type ClassicPedGetStatFn = unsafe extern "thiscall" fn(*mut c_void) -> f32;
-type R1PlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type ClassicPlayerPoolPlayerBooleanFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type R1PlayerPoolGetRemotePlayerFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
-type ClassicPlayerPoolGetRemotePlayerFn =
-    unsafe extern "thiscall" fn(*mut c_void, u16) -> *mut c_void;
-type R1PlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type ClassicPlayerPoolGetPlayerStatFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
-type R1RemotePlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
-type ClassicRemotePlayerGetColourFn = unsafe extern "thiscall" fn(*mut c_void) -> u32;
-type R1RemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type ClassicRemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type R1RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type ClassicRemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
-type R1LocalPlayerSendUnoccupiedFn = unsafe extern "thiscall" fn(*mut c_void, u16, i32);
-type ClassicLocalPlayerSendUnoccupiedFn = unsafe extern "thiscall" fn(*mut c_void, u16, i32);
-type R1LocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
-type ClassicLocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
-type R1LocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
-type ClassicLocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
-type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-
-const GTA_CPOOLS_GET_PED_REF: usize = 0x54_FF60;
-
 impl NativeClientProfile {
     fn player_function_target(self, rva: usize) -> Result<usize, DirectClientError> {
         self.module_base

@@ -1,5 +1,9 @@
 //! Local-player and player control operations.
 
+use super::pool::{
+    ClassicPlayerPoolGetRemotePlayerFn, ClassicPlayerPoolPlayerBooleanFn,
+    R1PlayerPoolGetRemotePlayerFn, R1PlayerPoolPlayerBooleanFn,
+};
 use super::*;
 
 type R1LocalPlayerSpawnFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;

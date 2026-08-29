@@ -3,6 +3,13 @@
 use super::super::profile;
 use super::*;
 
+type R1LocalPlayerSendUnoccupiedFn = unsafe extern "thiscall" fn(*mut c_void, u16, i32);
+type ClassicLocalPlayerSendUnoccupiedFn = unsafe extern "thiscall" fn(*mut c_void, u16, i32);
+type R1LocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
+type ClassicLocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
+type R1LocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
+type ClassicLocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
+
 impl NativeClientProfile {
     /// Copies one on-foot record from the selected local or remote player.
     pub(crate) fn onfoot_sync(
