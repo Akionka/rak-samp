@@ -7,6 +7,8 @@ mod backend;
 mod chat_entries;
 mod commands;
 use commands::GameCommand;
+#[cfg(test)]
+use commands::NetworkCommand;
 mod gangzones;
 mod handles;
 mod hooks;

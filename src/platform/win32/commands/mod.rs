@@ -8,6 +8,8 @@ mod players;
 mod text_labels;
 mod textdraws;
 mod ui;
+
+pub(in crate::platform::win32) use network::NetworkCommand;
 #[derive(Debug)]
 pub(super) enum GameCommand {
     ShowDialog(LocalDialogRequest),
@@ -153,28 +155,7 @@ pub(super) enum GameCommand {
         id: u16,
         colour: u32,
     },
-    SetSendRate {
-        kind: u8,
-        milliseconds: u32,
-    },
-    SendPacket {
-        id: u8,
-        payload: BitStream,
-        options: SendOptions,
-    },
-    SendRpc {
-        id: u8,
-        payload: BitStream,
-        options: SendOptions,
-    },
-    EmulateIncomingPacket {
-        id: u8,
-        payload: BitStream,
-    },
-    EmulateIncomingRpc {
-        id: u8,
-        payload: BitStream,
-    },
+    Network(NetworkCommand),
 }
 
 impl BackendState {
@@ -741,38 +722,7 @@ impl BackendState {
                             .set_player_colour(id, colour)
                             .map_err(|_| CommandError::NativeFailure)
                     }),
-                GameCommand::SetSendRate { kind, milliseconds } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_send_rate(kind, milliseconds)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::SendPacket {
-                    id,
-                    payload,
-                    options,
-                } => self
-                    .send_packet_native(id, &payload, options)
-                    .and_then(sent_game_command_result)
-                    .map_err(|_| CommandError::NativeFailure),
-                GameCommand::SendRpc {
-                    id,
-                    payload,
-                    options,
-                } => self
-                    .send_rpc_native(id, &payload, options)
-                    .and_then(sent_game_command_result)
-                    .map_err(|_| CommandError::NativeFailure),
-                GameCommand::EmulateIncomingPacket { id, payload } => self
-                    .emulate_incoming_packet_native(id, payload)
-                    .map(|_| ())
-                    .map_err(|_| CommandError::NativeFailure),
-                GameCommand::EmulateIncomingRpc { id, payload } => self
-                    .emulate_incoming_rpc_native(id, payload)
-                    .map(|_| ())
-                    .map_err(|_| CommandError::NativeFailure),
+                GameCommand::Network(command) => self.execute_network_command(command),
             };
             if !self
                 .game_command_completion_diagnostic_logged

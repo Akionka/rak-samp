@@ -933,11 +933,11 @@ fn network_commands_copy_payloads_and_detach_the_legacy_waiter() {
     assert_eq!(snapshot.len(), 1);
     assert!(matches!(
         &snapshot[0].command,
-        GameCommand::SendPacket {
+        GameCommand::Network(NetworkCommand::SendPacket {
             id: 99,
             payload: queued,
             options: SendOptions { .. },
-        } if queued.as_bytes() == [0xAB]
+        }) if queued.as_bytes() == [0xAB]
     ));
 }
 
