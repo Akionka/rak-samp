@@ -1,4 +1,7 @@
-use super::*;
+use super::wire::{Empty, I32, U16};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt, types::Vector3,
+};
 
 /// MoonLoader's `onSetObjectPosition` payload (RPC 45).
 #[derive(Clone, Copy, Debug, PartialEq)]

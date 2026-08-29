@@ -18,16 +18,18 @@ pub(super) struct U16I32Codec;
 
 macro_rules! wire_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
-        impl WireCodec for $codec {
+        impl $crate::WireCodec for $codec {
             type Value = $value;
-            fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+            fn decode<R: $crate::BitRead>(
+                reader: &mut R,
+            ) -> Result<Self::Value, $crate::DecodeError<R::Error>> {
                 $decode(reader)
             }
 
-            fn encode<W: BitWrite>(
+            fn encode<W: $crate::BitWrite>(
                 writer: &mut W,
                 value: &Self::Value,
-            ) -> Result<(), EncodeError<W::Error>> {
+            ) -> Result<(), $crate::EncodeError<W::Error>> {
                 $encode(writer, value)
             }
         }

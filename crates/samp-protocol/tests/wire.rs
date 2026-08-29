@@ -76,11 +76,11 @@ fn built_in_descriptors_have_nominal_public_identities() {
     );
     assert_eq!(
         type_name::<ServerMessageRpc>(),
-        "samp_protocol::rpc::incoming::common::ServerMessageRpc"
+        "samp_protocol::rpc::incoming::common::ui::ServerMessageRpc"
     );
     assert_eq!(
         type_name::<AttachCameraToObject>(),
-        "samp_protocol::rpc::incoming::common::AttachCameraToObject"
+        "samp_protocol::rpc::incoming::common::camera::AttachCameraToObject"
     );
     assert_eq!(
         type_name::<InitGameRpc>(),

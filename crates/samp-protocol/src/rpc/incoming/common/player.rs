@@ -1,4 +1,7 @@
-use super::*;
+use super::wire::{Bool8, Empty, F32, I32, U8, U16, Vector3Codec, read_bool8, write_bool8};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt, types::Vector3,
+};
 
 /// MoonLoader's `onSetPlayerName` payload (RPC 11).
 #[derive(Clone, Debug, PartialEq)]

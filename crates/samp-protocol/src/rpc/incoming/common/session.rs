@@ -1,4 +1,5 @@
-use super::*;
+use super::wire::{Bool8, Empty, U8, read_bool8, write_bool8};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// MoonLoader's `onPlayerJoin` payload (RPC 137).
 #[derive(Clone, Debug, PartialEq)]

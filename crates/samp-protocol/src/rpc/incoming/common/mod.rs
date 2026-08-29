@@ -3,23 +3,6 @@
 #[macro_use]
 mod wire;
 
-use wire::{
-    Bool8, Empty, F32, FixedString32Codec, I32, U8, U16, U16I32Codec, U16U8Codec, Vector3Codec,
-    read_bool8, read_fixed, write_bool8,
-};
-
-use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec,
-    EncodedStringWireDescriptor, EncodedStringWrite, ExactBytesPolicy, TrailingPolicy, WireCodec,
-    WireKind, WireReadExt, WireWriteExt,
-};
-
-use crate::{
-    encoded_string::{read_encoded_string, write_encoded_string},
-    limits::{MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES},
-    types::{Vector2, Vector3},
-};
-
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty) => {
         crate::wire::nominal_descriptor!(
@@ -29,7 +12,7 @@ macro_rules! descriptor {
             $id,
             $codec,
             $value,
-            ExactBytesPolicy
+            $crate::ExactBytesPolicy
         );
     };
 }

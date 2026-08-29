@@ -1,4 +1,11 @@
-use super::*;
+use super::wire::{Bool8, U8};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec,
+    EncodedStringWireDescriptor, EncodedStringWrite, TrailingPolicy, WireKind, WireReadExt,
+    WireWriteExt,
+    encoded_string::{read_encoded_string, write_encoded_string},
+    limits::{MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES},
+};
 
 /// MoonLoader's `onShowDialog` payload (RPC 61).
 #[derive(Clone, Debug, PartialEq)]

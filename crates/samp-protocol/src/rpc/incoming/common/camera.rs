@@ -1,4 +1,7 @@
-use super::*;
+use super::wire::{Empty, U16, Vector3Codec};
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt, types::Vector3,
+};
 
 /// MoonLoader's `onSpectatePlayer` / `onSpectateVehicle` payload.
 #[derive(Clone, Copy, Debug, PartialEq)]
