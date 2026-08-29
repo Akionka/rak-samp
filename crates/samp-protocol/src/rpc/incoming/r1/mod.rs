@@ -280,13 +280,6 @@ pub struct VehicleStreamIn {
     pub vehicle: StreamedVehicle,
 }
 
-/// R1's `onApplyActorAnimation` payload (RPC 173).
-#[derive(Clone, Debug, PartialEq)]
-pub struct ActorAnimation {
-    pub actor_id: u16,
-    pub animation: Animation,
-}
-
 struct InitGameCodec;
 struct RequestClassResponseCodec;
 struct SpawnInfoCodec;
@@ -301,8 +294,6 @@ struct TextDrawHideCodec;
 struct VehicleStreamInCodec;
 struct DisableVehicleCollisionsCodec;
 struct ToggleCameraTargetNotifyingCodec;
-struct ActorAnimationCodec;
-
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty, $policy:ident) => {
         crate::wire::nominal_descriptor!(
@@ -429,15 +420,6 @@ descriptor!(
     bool,
     ExactBitsPolicy
 );
-descriptor!(
-    ApplyActorAnimationRpc,
-    APPLY_ACTOR_ANIMATION,
-    173,
-    ActorAnimationCodec,
-    ActorAnimation,
-    ExactBitsPolicy
-);
-
 macro_rules! r1_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
         impl WireCodec for $codec {
@@ -525,13 +507,6 @@ r1_codec!(
     decode_bit_bool,
     encode_bit_bool
 );
-r1_codec!(
-    ActorAnimationCodec,
-    ActorAnimation,
-    decode_actor_animation,
-    encode_actor_animation
-);
-
 fn decode_init_game<R: BitRead>(reader: &mut R) -> Result<InitGame, DecodeError<R::Error>> {
     let mut settings = GameSettings {
         zone_names: reader.read_bit_bool()?,
@@ -994,23 +969,6 @@ fn encode_vehicle_stream_in<W: BitWrite>(
     writer.write_i32_le(vehicle.interior_color2)
 }
 
-fn decode_actor_animation<R: BitRead>(
-    reader: &mut R,
-) -> Result<ActorAnimation, DecodeError<R::Error>> {
-    Ok(ActorAnimation {
-        actor_id: reader.read_u16_le()?,
-        animation: decode_animation(reader)?,
-    })
-}
-
-fn encode_actor_animation<W: BitWrite>(
-    writer: &mut W,
-    value: &ActorAnimation,
-) -> Result<(), EncodeError<W::Error>> {
-    writer.write_u16_le(value.actor_id)?;
-    encode_animation(writer, &value.animation)
-}
-
 struct Create3DTextCodec;
 struct CreateObjectCodec;
 struct SetObjectMaterialCodec;
@@ -1267,6 +1225,9 @@ macro_rules! encoded_string_rpc_descriptor {
     };
 }
 
+mod actor;
+
+pub use actor::{APPLY_ACTOR_ANIMATION, ActorAnimation, ApplyActorAnimationRpc};
 mod player;
 
 pub use player::{
