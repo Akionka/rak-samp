@@ -1,4 +1,11 @@
-use super::*;
+use super::wire::{read_bool8, write_bool8};
+use crate::encoded_string::{read_encoded_string, write_encoded_string};
+use crate::limits::MAX_ENCODED_STRING_BYTES;
+use crate::types::Vector3;
+use crate::{
+    DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec, EncodedStringWrite,
+    WireReadExt, WireWriteExt,
+};
 
 /// MoonLoader's `onCreate3DText` payload (RPC 36).
 #[derive(Clone, Debug, PartialEq)]

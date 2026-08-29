@@ -1,4 +1,10 @@
-use super::*;
+use super::wire::{read_bool8, write_bool8};
+use crate::encoded_string::{read_encoded_string, write_encoded_string};
+use crate::types::Vector3;
+use crate::{
+    BitRead, BitWrite, DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec,
+    EncodedStringWrite, WireReadExt, WireWriteExt,
+};
 
 /// SA-MP objects expose at most sixteen material slots.
 pub const MAX_OBJECT_MATERIALS: usize = 16;

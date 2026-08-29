@@ -84,7 +84,7 @@ fn built_in_descriptors_have_nominal_public_identities() {
     );
     assert_eq!(
         type_name::<InitGameRpc>(),
-        "samp_protocol::rpc::incoming::r1::InitGameRpc"
+        "samp_protocol::rpc::incoming::r1::session::InitGameRpc"
     );
     assert_eq!(
         type_name::<SendDeathNotification>(),

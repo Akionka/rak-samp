@@ -1,4 +1,6 @@
-use super::*;
+use super::wire::{decode_bool32, encode_bool32, read_bool32, write_bool32};
+use crate::types::Vector3;
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// R1's `onPlayerStreamIn` payload (RPC 32).
 #[derive(Clone, Copy, Debug, PartialEq)]

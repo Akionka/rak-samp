@@ -1,4 +1,9 @@
-use super::*;
+use super::wire::{
+    decode_bit_bool, encode_bit_bool, read_bool8, read_bool32, read_fixed, write_bool8,
+    write_bool32,
+};
+use crate::types::Vector3;
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// The server can send at most one score/ping entry for each R1 player slot.
 pub const MAX_SCORE_PING_ENTRIES: usize = 1_000;

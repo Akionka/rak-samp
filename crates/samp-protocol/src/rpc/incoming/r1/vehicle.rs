@@ -1,4 +1,6 @@
-use super::*;
+use super::wire::{decode_bit_bool, encode_bit_bool, read_fixed};
+use crate::types::Vector3;
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// R1's `onVehicleStreamIn` vehicle data (RPC 164).
 #[derive(Clone, Copy, Debug, PartialEq)]

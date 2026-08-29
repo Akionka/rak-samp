@@ -1,4 +1,5 @@
-use super::*;
+use super::player::{Animation, decode_animation, encode_animation};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// R1's `onApplyActorAnimation` payload (RPC 173).
 #[derive(Clone, Debug, PartialEq)]

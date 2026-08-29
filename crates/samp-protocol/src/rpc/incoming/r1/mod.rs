@@ -2,46 +2,34 @@
 
 mod wire;
 
-use wire::{
-    decode_bit_bool, decode_bool32, encode_bit_bool, encode_bool32, read_bool8, read_bool32,
-    read_fixed, write_bool8, write_bool32,
-};
-
-use crate::limits::{MAX_ENCODED_STRING_BYTES, MAX_STRING32_BYTES};
-use crate::types::{Vector2, Vector3};
-use crate::{
-    BitRead, BitWrite, DecodeError, EncodeError, EncodedStringRead, EncodedStringWireCodec,
-    EncodedStringWireDescriptor, EncodedStringWrite, ExactBitsPolicy, ExactBytesPolicy,
-    TrailingPolicy, WireCodec, WireKind, WireReadExt, WireWriteExt,
-    encoded_string::{read_encoded_string, write_encoded_string},
-};
-
 macro_rules! descriptor {
     ($name:ident, $constant:ident, $id:literal, $codec:ident, $value:ty, $policy:ident) => {
-        crate::wire::nominal_descriptor!(
+        $crate::wire::nominal_descriptor!(
             incoming rpc,
             $name,
             $constant,
             $id,
             $codec,
             $value,
-            $policy
+            $crate::$policy
         );
     };
 }
 
 macro_rules! r1_codec {
     ($codec:ident, $value:ty, $decode:ident, $encode:ident) => {
-        impl WireCodec for $codec {
+        impl $crate::WireCodec for $codec {
             type Value = $value;
-            fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
+            fn decode<R: $crate::BitRead>(
+                reader: &mut R,
+            ) -> Result<Self::Value, $crate::DecodeError<R::Error>> {
                 $decode(reader)
             }
 
-            fn encode<W: BitWrite>(
+            fn encode<W: $crate::BitWrite>(
                 writer: &mut W,
                 value: &Self::Value,
-            ) -> Result<(), EncodeError<W::Error>> {
+            ) -> Result<(), $crate::EncodeError<W::Error>> {
                 $encode(writer, value)
             }
         }
@@ -55,34 +43,34 @@ macro_rules! encoded_string_rpc_descriptor {
 
         pub const $constant: $name = $name;
 
-        impl crate::encoded_string::sealed::EncodedStringWireDescriptor<$value> for $name {
-            fn decode<R: EncodedStringRead>(
+        impl $crate::encoded_string::sealed::EncodedStringWireDescriptor<$value> for $name {
+            fn decode<R: $crate::EncodedStringRead>(
                 reader: &mut R,
-            ) -> Result<$value, DecodeError<R::Error>> {
-                <$codec as EncodedStringWireCodec>::decode(reader)
+            ) -> Result<$value, $crate::DecodeError<R::Error>> {
+                <$codec as $crate::EncodedStringWireCodec>::decode(reader)
             }
 
-            fn encode<W: EncodedStringWrite>(
+            fn encode<W: $crate::EncodedStringWrite>(
                 writer: &mut W,
                 value: &$value,
-            ) -> Result<(), EncodeError<W::Error>> {
-                <$codec as EncodedStringWireCodec>::encode(writer, value)
+            ) -> Result<(), $crate::EncodeError<W::Error>> {
+                <$codec as $crate::EncodedStringWireCodec>::encode(writer, value)
             }
         }
 
-        impl EncodedStringWireDescriptor for $name {
+        impl $crate::EncodedStringWireDescriptor for $name {
             type Value = $value;
 
             const ID: u8 = $id;
-            const KIND: WireKind = WireKind::Rpc;
-            const TRAILING_POLICY: TrailingPolicy = TrailingPolicy::ExactBits;
+            const KIND: $crate::WireKind = $crate::WireKind::Rpc;
+            const TRAILING_POLICY: $crate::TrailingPolicy = $crate::TrailingPolicy::ExactBits;
         }
 
-        impl crate::wire::sealed::IncomingRpcDescriptor for $name {}
+        impl $crate::wire::sealed::IncomingRpcDescriptor for $name {}
 
-        impl crate::IncomingRpcDescriptor for $name {
+        impl $crate::IncomingRpcDescriptor for $name {
             type Value = $value;
-            type Capability = crate::EncodedStringWire;
+            type Capability = $crate::EncodedStringWire;
 
             const ID: u8 = $id;
         }
@@ -137,5 +125,3 @@ pub use player::{
     PlayerAttachedObjectRpc, PlayerStreamIn, PlayerStreamInRpc, SET_PLAYER_ATTACHED_OBJECT,
     TOGGLE_PLAYER_SPECTATING, TogglePlayerSpectatingRpc,
 };
-
-use player::{decode_animation, encode_animation};

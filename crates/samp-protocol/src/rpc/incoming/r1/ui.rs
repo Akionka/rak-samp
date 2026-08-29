@@ -1,4 +1,7 @@
-use super::*;
+use super::wire::{read_bool32, read_fixed, write_bool32};
+use crate::limits::MAX_STRING32_BYTES;
+use crate::types::{Vector2, Vector3};
+use crate::{BitRead, BitWrite, DecodeError, EncodeError, WireReadExt, WireWriteExt};
 
 /// The maximum number of rows that R1 menus can expose per column.
 pub const MAX_MENU_ROWS: usize = 12;
