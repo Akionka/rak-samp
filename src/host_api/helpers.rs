@@ -75,6 +75,7 @@ pub(super) fn host() -> &'static HostState {
     HOST.get_or_init(|| HostState {
         status: AtomicU32::new(STATUS_WAITING),
         bootstrap_started: AtomicBool::new(false),
+        shutting_down: AtomicBool::new(false),
         runtime: OnceLock::new(),
         chat_commands: super::chat_commands::ChatCommandRegistry::new(),
         subscriptions: Mutex::new(HashMap::new()),

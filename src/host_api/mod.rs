@@ -13,6 +13,7 @@ mod listeners;
 mod local_commands;
 mod local_state;
 mod messages;
+pub(crate) mod modkit;
 mod network;
 mod player_commands;
 mod players;
@@ -70,6 +71,7 @@ const STATUS_FAILED: u32 = SampClientSdkHostStatus::Failed as u32;
 struct HostState {
     status: AtomicU32,
     bootstrap_started: AtomicBool,
+    shutting_down: AtomicBool,
     runtime: OnceLock<Arc<Runtime>>,
     chat_commands: chat_commands::ChatCommandRegistry,
     subscriptions: Mutex<HashMap<u64, ListenerHandle>>,
@@ -148,7 +150,7 @@ pub extern "system" fn SampClientSdk_GetApiV1(requested_version: u32) -> *const 
     }
 }
 
-static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
+pub(crate) static SAMP_CLIENT_SDK_API_V1: SampClientSdkApiV1 = SampClientSdkApiV1 {
     abi_version: ABI_VERSION_V1,
     size: std::mem::size_of::<SampClientSdkApiV1>() as u32,
     host_status,

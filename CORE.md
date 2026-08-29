@@ -37,6 +37,16 @@
   `EncodedBits` with the exact bit length.
   Plugins that need these values depend on it directly; the legacy SDK does
   not re-export it.
+- `crates/modkit-abi/` is the platform-independent Rust package for the stable
+  C ABI primitives shared by host and plugin crates: the `ModResult` newtype and
+  its numeric constants, fixed-width `ServiceId`/`SubscriptionId`/
+  `CommandReceiptId`, `ServiceHeader`, the `ModHostApiV1` bootstrap table, the
+  `CoreServiceV1` table, and the migration-only `LegacySampServiceV1` wrapper.
+  It has no Windows, MinHook, GTA, or SA-MP native dependency.
+- `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
+  resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
+  performs exact-version `query_service`, and exposes safe Core service facades.
+  It never falls back to `SampClientSdk_GetApiV1`.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control, while one shared `NativeClientProfile`
@@ -130,6 +140,14 @@ GTA ASI loader
  └─ feature-b.asi ─┴─> samp-client-sdk ─> SampClientSdk_GetApiV1 ─> host
 ```
 
+New plugins may instead connect through the modkit bootstrap:
+
+```text
+GTA ASI loader
+ ├─ samp_client_sdk.asi (samp-client-sdk-host)
+ └─ modkit-plugin.asi ─> modkit-sdk ─> GtaModHost_GetApiV1 ─> query_service
+```
+
 ## Lifecycle
 
 1. `DllMain` starts a bootstrap worker and returns.
@@ -138,5 +156,6 @@ GTA ASI loader
 3. RakClient construction installs the owned networking hooks. The bootstrap
    worker publishes ready state only after those hooks report ready.
 4. Plugin workers resolve `SampClientSdk_GetApiV1`, validate the table, and
-   register owned subscriptions.
+   register owned subscriptions. New plugins may instead resolve
+   `GtaModHost_GetApiV1` and query exact-version service tables.
 5. Plugin workers unregister and wait for callbacks before their DLL unloads.

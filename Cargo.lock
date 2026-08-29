@@ -47,8 +47,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "modkit-abi"
+version = "0.1.0-alpha.4"
+
+[[package]]
+name = "modkit-connect-plugin"
+version = "0.1.0"
+dependencies = [
+ "modkit-abi",
+ "modkit-sdk",
+ "windows-sys",
+]
+
+[[package]]
 name = "modkit-runtime"
 version = "0.1.0-alpha.4"
+
+[[package]]
+name = "modkit-sdk"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "modkit-abi",
+ "windows-sys",
+]
 
 [[package]]
 name = "num-conv"
@@ -135,6 +156,7 @@ dependencies = [
  "cc",
  "log",
  "minhook",
+ "modkit-abi",
  "modkit-runtime",
  "samp-client-sdk",
  "simplelog",

@@ -28,6 +28,24 @@ of the renamed public API.
   reducing large Rust roots without changing public paths, ABI/native layouts,
   or runtime behavior.
 
+### Phase 3 — modkit ABI and service discovery
+
+- [x] Create `crates/modkit-abi` with `ModResult`, fixed-width IDs,
+  `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`, and the
+  migration-only `LegacySampServiceV1` wrapper.
+- [x] Export `GtaModHost_GetApiV1` in the host and implement exact-version
+  `query_service` with distinct `NotFound`/`UnsupportedVersion`/`ShuttingDown`
+  results.
+- [x] Implement Core service v1 (host status, shared subscription/receipt/log
+  primitives) and register the Legacy SA-MP service wrapper.
+- [x] Keep `SampClientSdk_GetApiV1` unchanged.
+- [x] Create `crates/modkit-sdk` with `Host::connect`/`connect_to` based only on
+  the new export; never fall back to `SampClientSdk_GetApiV1`.
+- [x] Add the `modkit_connect_plugin` example that connects via
+  `GtaModHost_GetApiV1` and queries Core + Legacy services.
+- [ ] Define the opaque ABI token carried by plugin-side `GameContext<'scope>`
+  and test wrong-thread, stale-scope, and wrong-phase rejection (Phase 9).
+
 ### Structural split tracker
 
 - [x] Extract root tests plus SDK types, resolution, subscriptions, and host

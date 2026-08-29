@@ -1994,20 +1994,29 @@ refactor(runtime): extract reusable command and subscription primitives
 
 ### Tasks
 
-- [ ] Create `crates/modkit-abi`.
-- [ ] Implement the exact `ModResult` newtype and numeric constants from Section 4.1.
-- [ ] Define `ServiceId`, `SubscriptionId`, `CommandReceiptId`, `ServiceHeader`, and bootstrap ABI exactly as specified in Section 4.
+- [x] Create `crates/modkit-abi`.
+- [x] Implement the exact `ModResult` newtype and numeric constants from Section 4.1.
+- [x] Define `ServiceId`, `SubscriptionId`, `CommandReceiptId`, `ServiceHeader`, and bootstrap ABI exactly as specified in Section 4.
 - [ ] Define the opaque ABI token carried by plugin-side `GameContext<'scope>` and test wrong-thread, stale-scope, and wrong-phase rejection.
-- [ ] Add `GtaModHost_GetApiV1` export in the current host crate with documented out-pointer clearing/error behavior.
-- [ ] Implement exact-version `query_service` with distinct `NotFound`, `UnsupportedVersion`, registry-level `NotReady`, and `ShuttingDown` results; discovered tables do not depend on native backend readiness.
-- [ ] Implement Core service v1 with host status plus shared subscription/receipt/log primitives; freeze its layout only after its null/thread/lifetime tests exist.
-- [ ] Implement callback-context tracking needed for `CALLBACK_SAFE` and wait-rejection rules.
-- [ ] Register the migration-only header-prefixed `LegacySampServiceV1` wrapper containing a pointer to the existing API table.
-- [ ] Keep `SampClientSdk_GetApiV1` unchanged.
-- [ ] Add ABI size/alignment, numeric-code, nullability, pointer-lifetime, service-lookup, ID-lifecycle, callback-drain, and wait-rejection tests from Section 14.4.
-- [ ] Create `crates/modkit-sdk` with `Host::connect` / `Host::connect_to` resolution logic based only on the new export; do not fall back to `SampClientSdk_GetApiV1`.
-- [ ] The safe SDK must preserve unknown raw result codes for diagnostics instead of constructing invalid enums.
-- [ ] Formalize host lifetime: host API/service pointers remain immutable and valid for process lifetime; host hot-unload is not supported.
+- [x] Add `GtaModHost_GetApiV1` export in the current host crate with documented out-pointer clearing/error behavior.- [x] Implement exact-version `query_service` with distinct `NotFound`, `UnsupportedVersion`, registry-level `NotReady`, and `ShuttingDown` results; discovered tables do not depend on native backend readiness.
+- [x] Implement Core service v1 with host status plus shared subscription/receipt/log primitives; freeze its layout only after its null/thread/lifetime tests exist.
+- [x] Implement callback-context tracking needed for `CALLBACK_SAFE` and wait-rejection rules.
+- [x] Register the migration-only header-prefixed `LegacySampServiceV1` wrapper containing a pointer to the existing API table.
+- [x] Keep `SampClientSdk_GetApiV1` unchanged.
+- [x] Add ABI size/alignment, numeric-code, nullability, pointer-lifetime, service-lookup, ID-lifecycle, callback-drain, and wait-rejection tests from Section 14.4.
+- [x] Create `crates/modkit-sdk` with `Host::connect` / `Host::connect_to` resolution logic based only on the new export; do not fall back to `SampClientSdk_GetApiV1`.
+- [x] The safe SDK must preserve unknown raw result codes for diagnostics instead of constructing invalid enums.
+- [x] Formalize host lifetime: host API/service pointers remain immutable and valid for process lifetime; host hot-unload is not supported.
+
+Completed: 2026-08-29. `crates/modkit-abi` defines the `ModResult` newtype,
+the fixed-width ID types, `ServiceHeader`, the `ModHostApiV1` bootstrap table,
+the `CoreServiceV1` table, and the migration-only `LegacySampServiceV1`
+wrapper. The host exports `GtaModHost_GetApiV1` and implements exact-version
+`query_service` with distinct `NotFound`/`UnsupportedVersion`/`ShuttingDown`
+results. `crates/modkit-sdk` provides `Host::connect`/`connect_to` based only
+on the new export. The legacy `SampClientSdk_GetApiV1` export is unchanged.
+The `modkit_connect_plugin` example connects via the new export and queries
+Core + Legacy services.
 
 ### Acceptance criteria
 

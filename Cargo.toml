@@ -26,11 +26,14 @@ targets = ["i686-pc-windows-msvc"]
 
 [workspace]
 members = [
+    "crates/modkit-abi",
     "crates/modkit-runtime",
+    "crates/modkit-sdk",
     "crates/samp-protocol",
     "sdk",
     "examples/chat_command_plugin",
     "examples/dl_network_probe",
+    "examples/modkit_connect_plugin",
     "examples/network_smoke_plugin",
     "examples/r1_network_probe",
     "examples/r3_network_probe",
@@ -46,6 +49,7 @@ crate-type = ["cdylib"]
 
 [dependencies]
 log = "0.4"
+modkit-abi = { path = "crates/modkit-abi" }
 modkit-runtime = { path = "crates/modkit-runtime" }
 sdk_abi = { package = "samp-client-sdk", version = "=0.1.0-alpha.4", path = "sdk" }
 simplelog = "0.12"

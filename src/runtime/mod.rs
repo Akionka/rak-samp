@@ -53,6 +53,7 @@ impl Runtime {
 
 impl Drop for Runtime {
     fn drop(&mut self) {
+        crate::host_api::modkit::begin_shutdown();
         self.backend.shutdown();
     }
 }
