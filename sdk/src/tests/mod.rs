@@ -1,3 +1,9 @@
+mod abi;
+mod callbacks;
+mod host_api;
+mod protocol;
+mod subscriptions;
+
 use super::*;
 use crate::events::{ProtocolAction, test_support};
 use samp_protocol::EncodedBits;
