@@ -1,26 +1,33 @@
 # Cohesion-Oriented Module Split Handoff
 
-Status: in progress; P0-P10 complete, P11 final acceptance in progress.
+Status: complete; P0-P11 accepted.
 
 Baseline reviewed: `master` at `f3fa5e5` (`refactor(protocol-sdk)!: inject encoded-string codecs`), 2026-08-29.
 
 Companion tracker: [cohesion-module-split-task-tracker.md](cohesion-module-split-task-tracker.md).
 
-Implementation checkpoint (2026-08-29): P0-P10 are complete through
-`a0e36ea`. The final host is built in the repository-local
-`target/i686-pc-windows-msvc/release` directory and has SHA-256
+Final checkpoint (2026-08-29): P0-P11 are complete. Architecture documentation
+landed in `0a05e85`; `cargo make quality`, `cargo make build-release`, export,
+ABI/native, game-thread, LOC, and repository-hygiene audits passed. The
+live-deployed host had SHA-256
 `F511FE9695DF11182892A0D8ED51EF9A6FB114E0CBD36C5B732AF4D6586F2E0F`.
 R1, R3, R5, and DL each completed connected and reconnect validation with
 `status=0x3FFFFFFF` and `failure=0` against that host. Final probe hashes and
-status details are recorded under P10-10 in the companion tracker.
+status details are recorded under P10-10 in the companion tracker. A later
+post-quality host rebuild has SHA-256
+`F6C3F3BC95053E65BF496F8CFF65B8942EE9F7AF88816F130F1DE3D84F16DF9D`;
+it differs only in PE/debug timestamps and PDB GUID, while executable and
+runtime data sections are identical.
 
 The R1 environment required `gta_sa_fsr.asi` to be disabled after its crash
 handler recorded a null-object access violation in `gta_sa.exe`, with FSR
 frames and no SDK/probe frame in the captured stack. DL validation exposed an
 independent inherited-RVA regression; `f80fc8f` pins DL pool getter/existence
-RVAs and `a0e36ea` corrects DL public connection-state expectations. Continue
-with P11 static, ABI/native, game-thread, documentation, and repository-hygiene
-acceptance.
+RVAs and `a0e36ea` corrects DL public connection-state expectations. P11
+static, ABI/native, game-thread, documentation, and repository-hygiene
+acceptance is complete. The temporary bisect worktree was removed and DL
+`SAMPFUNCS.asi` was restored; the crashing R1 FSR plugin remains recoverably
+disabled.
 
 ## 1. Objective
 

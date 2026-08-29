@@ -1,6 +1,6 @@
 # Cohesion-Oriented Module Split Task Tracker
 
-Status: in progress.
+Status: complete.
 
 Handoff: [cohesion-module-split-handoff.md](cohesion-module-split-handoff.md).
 
@@ -32,7 +32,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P8 | Split SDK ABI source | P0 | [x] |
 | P9 | Redistribute large tests | relevant production phase | [x] |
 | P10 | Split common network probe | P7 recommended | [x] |
-| P11 | Documentation and final acceptance | P2–P10 as selected | [-] |
+| P11 | Documentation and final acceptance | P2–P10 as selected | [x] |
 
 ---
 
@@ -1015,12 +1015,16 @@ Do not start while the live-validation contract is still changing.
   baseline and links this handoff. `structural-split-plan.md` already carries
   the required historical note. Historical baseline tables were not rewritten.
 
-- [ ] **P11-06 — Update this tracker with final evidence.**
+- [x] **P11-06 — Update this tracker with final evidence.**
   - Every completed phase has commit hashes and validation results.
   - Every skipped optional phase has a reason.
   - Every remaining blocker has an owner/next action.
 
-- [ ] **P11-07 — Run complete static acceptance.**
+  Evidence (2026-08-29): architecture and ownership documentation commit
+  `0a05e85` records the final tree, LOC, P10 hashes, and live results. No
+  blocker remains.
+
+- [x] **P11-07 — Run complete static acceptance.**
   - `cargo make format-check`
   - `cargo make check`
   - `cargo make test`
@@ -1030,7 +1034,13 @@ Do not start while the live-validation contract is still changing.
   - `cargo make build-release`
   - `git diff --check`
 
-- [ ] **P11-08 — Verify public/ABI/native invariants.**
+  Evidence (2026-08-29): `cargo make quality` passed all six repository tasks:
+  format, workspace check/tests, strict Clippy, documentation, release hygiene,
+  and published-package checks. `cargo make build-release` and
+  `git diff --check` passed. The suites included 100 SDK tests, 174 host tests,
+  and 11 tests for each profile probe.
+
+- [x] **P11-08 — Verify public/ABI/native invariants.**
   - Protocol flat incoming paths preserved.
   - SDK crate-root exports preserved.
   - ABI table size/offset/order preserved.
@@ -1038,7 +1048,13 @@ Do not start while the live-validation contract is still changing.
   - Host DLL exports preserved.
   - No new version dispatcher in `NativeClientProfile` operations.
 
-- [ ] **P11-09 — Verify game-thread invariants.**
+  Evidence (2026-08-29): Protocol integration tests compile through the flat
+  explicit `common::*` and `r1::*` surfaces; SDK root and 580-byte, 145-field
+  ABI table tests pass; independent four-profile layout tests pass. The final
+  x86 host exports exactly `DllMain` and `SampClientSdk_GetApiV1`. Source audit
+  found only the intended profile selection match and no operation dispatcher.
+
+- [x] **P11-09 — Verify game-thread invariants.**
   - Single bounded queue.
   - FIFO.
   - Tick snapshot before original call.
@@ -1047,32 +1063,50 @@ Do not start while the live-validation contract is still changing.
   - Cache refresh/invalidation ordering unchanged.
   - Receipt lifecycle unchanged.
 
-- [ ] **P11-10 — Verify final live evidence where required.**
+  Evidence (2026-08-29): the full host suite and the focused
+  `vtable_tests::commands_tick` suite (11/11) pass. Source/test audit confirms
+  the single bounded FIFO queue, pre-original snapshot, one original call,
+  post-original execution, one cache-generation bracket, connection-boundary
+  invalidation, and unchanged receipt wait/timeout/detach/shutdown behavior.
+
+- [x] **P11-10 — Verify final live evidence where required.**
   - R1 pass recorded.
   - R3 pass recorded.
   - R5 pass recorded.
   - DL pass recorded.
   - Evidence hashes correspond to the final native-facing code.
 
-- [ ] **P11-11 — Final repository hygiene.**
+  Evidence (2026-08-29): P10-10 records R1/R3/R5/DL full passes against the
+  live-deployed host `F511FE...F2E0F`. A later post-quality host rebuild has
+  SHA-256 `F6C3F3BC95053E65BF496F8CFF65B8942EE9F7AF88816F130F1DE3D84F16DF9D`;
+  byte and PE-section comparison proves that it differs only in COFF/debug
+  timestamps and the PDB GUID. `.text`, `.data`, and `.reloc` are identical.
+
+- [x] **P11-11 — Final repository hygiene.**
   - No temporary compatibility modules.
   - No wildcard ownership-hiding re-exports added.
   - No duplicate old/new implementation remains.
   - No unrelated user file modified or staged.
   - Conventional Commit history is reviewable by semantic slice.
 
+  Evidence (2026-08-29): old single-file roots and duplicate implementations
+  are absent; only intentional SDK crate-root wildcard exports remain. The
+  temporary DL bisect worktree and stale review worktree metadata were removed.
+  DL `SAMPFUNCS.asi` was restored. R1 `gta_sa_fsr.asi` remains recoverably
+  disabled because it caused the independently recorded crash.
+
 ### Final acceptance
 
-- [ ] Incoming Protocol descriptors are colocated by semantic domain.
-- [ ] `Runtime` is a composition root rather than a mixed facade implementation file.
-- [ ] Game-thread command domains are separated while completion/tick semantics remain centralized.
-- [ ] Win32 state remains root-owned without lifecycle/tick/cache/native-ABI implementation bloat.
-- [ ] Native player/UI operation files have capability ownership and one profile-independent implementation path.
-- [ ] SDK ABI source is split without changing the flat API table or public exports.
-- [ ] Tests/probes are split only where the new boundary improves ownership.
-- [ ] Static gates pass.
-- [ ] Required live gates pass against the final code.
-- [ ] Documentation matches the landed implementation.
+- [x] Incoming Protocol descriptors are colocated by semantic domain.
+- [x] `Runtime` is a composition root rather than a mixed facade implementation file.
+- [x] Game-thread command domains are separated while completion/tick semantics remain centralized.
+- [x] Win32 state remains root-owned without lifecycle/tick/cache/native-ABI implementation bloat.
+- [x] Native player/UI operation files have capability ownership and one profile-independent implementation path.
+- [x] SDK ABI source is split without changing the flat API table or public exports.
+- [x] Tests/probes are split only where the new boundary improves ownership.
+- [x] Static gates pass.
+- [x] Required live gates pass against the final code.
+- [x] Documentation matches the landed implementation.
 
 ## Evidence log
 
@@ -1089,12 +1123,15 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P6 reduce Win32 composition root | `cohesion-module-split` | `bac46be12fc54732760ce77c81ba03f939bc9ff1` | Full repository gate and local release DLL export audit passed | State remains private and root-owned; release-hygiene fix `af758bb` |
 | 2026-08-29 | P7 split native-client players/UI | `cohesion-module-split` | `60798146537bd6795d7b6a43ae2752f5b67d25ff` | 173 host tests; full repository gate; local DLL export audit passed | Final native-facing source hash recorded for deferred R1/R3/R5/DL live validation |
 | 2026-08-29 | P8 split SDK ABI source | `cohesion-module-split` | `f70352b0bd53becee2a0b4743059a7f69061f6ee` | 100 SDK tests; full workspace and public-hygiene gates passed | Flat 145-field, 580-byte x86 API table and crate-root exports preserved |
+| 2026-08-29 | P9 redistribute large tests | `cohesion-module-split` | `51d9d4e4cb2d1b75f5c6b815e5a5ea8492b3c188` | 100 SDK and 173 host tests; full quality and release gate passed | SDK and Win32 test roots split by stable behavior domains |
 | 2026-08-29 | P10 final native correction | `cohesion-module-split` | `f80fc8f232c418b0732107487dc43f2ef8362304` | 174 host tests, strict host Clippy, four-profile RVA matrix, DL live pass | Pin DL pool getter/existence RVAs independently from R3 |
 | 2026-08-29 | P10 final probe and live matrix | `cohesion-module-split` | `a0e36ea84c225628e5a3ba5324a58d0cbbf33fec` | Four probe suites and strict Clippy passed; R1/R3/R5/DL each reported `0x3FFFFFFF`, failure 0 | Final host and probe hashes recorded in P10-10 |
+| 2026-08-29 | P11 documentation and acceptance | `cohesion-module-split` | `0a05e85842b8d6c44a132a4cba934314d23fde40` | Full quality/release gate, export audit, focused tick tests, LOC and hygiene audits passed | Architecture, core, agent layout, live evidence, and historical-plan status synchronized |
 
 ## Blockers / decisions log
 
 | Date | Task | Decision or blocker | Owner/next action | Status |
 | --- | --- | --- | --- | --- |
-| 2026-08-29 | P0-04 | Use `split-before-live-validation`; prior live stage remains pending | Run all four live validators after final native-facing structural changes | Decided |
+| 2026-08-29 | P0-04 | Use `split-before-live-validation`; prior live stage was pending | Completed by the final P10 four-profile live matrix | Resolved |
 | 2026-08-29 | P5-10 | Unrelated singleton test assumed `0x17aa70` was unreadable, but the address was temporarily readable in the process | The environment condition cleared; the unchanged test passed in the 173-test unskipped host gate | Resolved |
+| 2026-08-29 | P10-10 | Final R1/R3/R5/DL live validation required one exclusive probe server on UDP 7777 | All four final probes passed; server sessions were isolated during the matrix | Resolved |
