@@ -425,8 +425,8 @@ mod tests {
             (
                 SampClientSdkClientVersion::Dl,
                 0x0FDB60,
-                5,
-                5,
+                14,
+                14,
                 b"SDK DL loopback probe".as_slice()
             )
         );
