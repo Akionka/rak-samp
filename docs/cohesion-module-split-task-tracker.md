@@ -458,30 +458,42 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
   because address `0x17aa70` was readable in this process, and the isolated
   rerun reproduced the environment condition.
 
-- [ ] **P5-11 — Introduce `UiCommand` wrapper.**
+- [x] **P5-11 — Introduce `UiCommand` wrapper.**
   - Move UI/chat/input/dialog/cursor/scoreboard variants and execution.
   - Keep payload-free logging.
   - Validate before proceeding.
 
-- [ ] **P5-12 — Introduce `TextLabelCommand` wrapper.**
+  Evidence (2026-08-29): `58984b2` (`58984b2a8cf0a8aeec69deef8bb6caf166401999`).
+  All 62 Win32 vtable tests and host Clippy passed.
+
+- [x] **P5-12 — Introduce `TextLabelCommand` wrapper.**
   - Move text-label variants and execution.
   - Preserve auto-create selected ID publication and command receipt ordering.
   - Validate before proceeding.
 
-- [ ] **P5-13 — Introduce `TextdrawCommand` wrapper.**
+  Evidence (2026-08-29): `5b09113` (`5b091135a82da9a214f51df111133960dca152a1`).
+  All 7 text-label tests, the shared queue test, and host Clippy passed.
+
+- [x] **P5-13 — Introduce `TextdrawCommand` wrapper.**
   - Move textdraw variants and cache invalidation behavior unchanged.
   - Validate before proceeding.
 
-- [ ] **P5-14 — Introduce `PlayerCommand` wrapper.**
+  Evidence (2026-08-29): `aad2cc5` (`aad2cc5e607df9bbccfac308062658aa774dc979`).
+  All 8 textdraw tests, all 4 game-tick tests, and host Clippy passed.
+
+- [x] **P5-14 — Introduce `PlayerCommand` wrapper.**
   - Move local-player/player-colour/force-sync variants and execution.
   - Preserve native profile calls exactly.
   - Validate before proceeding.
 
-- [ ] **P5-15 — Shrink the outer `execute_game_commands`.**
+  Evidence (2026-08-29): `2ec8fcb` (`2ec8fcbefbdafa04f144bcbfcaf8773f102dd214`).
+  All 62 Win32 vtable tests and host Clippy passed.
+
+- [x] **P5-15 — Shrink the outer `execute_game_commands`.**
   - Outer loop dispatches to domain execution and remains sole owner of queue completion/logging.
   - No domain executor may directly complete a queued command.
 
-- [ ] **P5-16 — Audit command invariants.**
+- [x] **P5-16 — Audit command invariants.**
   - FIFO remains unchanged.
   - Queue bound remains 256.
   - Tick snapshot semantics unchanged.
@@ -489,8 +501,27 @@ Target tree: `src/runtime/` with existing `errors.rs` and `options.rs` retained.
   - Shutdown completes pending receipts.
   - Failure mapping remains equivalent.
 
+  Evidence (2026-08-29): `commands/mod.rs` is 87 physical/81 nonblank
+  lines. `GameCommand` has exactly 6 domain variants. Only the outer executor
+  calls `game_commands.complete`; domain executors return
+  `Result<(), CommandError>`. The single queue field remains
+  `CommandQueue<GameCommand, ()>`. Workspace check, tests with the known
+  environment-sensitive singleton test skipped, Clippy with warnings denied,
+  format check, and `git diff --check` passed.
+
 - [ ] **P5-17 — Run full host/workspace gate.**
   - Record Stage A and Stage B commit hashes separately.
+
+  Partial evidence (2026-08-29): Stage A final `1e6478a`; Stage B final
+  `2ec8fcb`. Workspace check and Clippy passed. Workspace tests passed with
+  only `r3_death_window_requires_a_readable_singleton` skipped. The unskipped
+  full host run passed 172 of 173 tests and failed only that previously
+  recorded environment condition. Keep this task open until the full unskipped
+  test gate passes.
+
+  Current physical/nonblank LOC: `mod.rs` 87/81, `network.rs` 206/193,
+  `connection.rs` 108/103, `ui.rs` 511/486, `text_labels.rs` 314/303,
+  `textdraws.rs` 455/441, `players.rs` 271/259.
 
 ### P5 gate
 
