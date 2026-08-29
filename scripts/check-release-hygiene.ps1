@@ -29,11 +29,11 @@ try {
     if (Get-ChildItem "sdk/src/events/rpc" -Recurse -File -Filter "*.rs" -ErrorAction SilentlyContinue) {
         throw "SDK still contains a duplicate incoming RPC catalog"
     }
-    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/common.rs")) {
-        throw "Protocol production taxonomy does not contain incoming/common.rs"
+    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/common/mod.rs")) {
+        throw "Protocol production taxonomy does not contain incoming/common/mod.rs"
     }
-    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/r1.rs")) {
-        throw "Protocol production taxonomy does not contain incoming/r1.rs"
+    if (-not (Test-Path "crates/samp-protocol/src/rpc/incoming/r1/mod.rs")) {
+        throw "Protocol production taxonomy does not contain incoming/r1/mod.rs"
     }
     if (Select-String -Quiet -Path "sdk/src/events/core.rs" -Pattern "^pub type Packet<") {
         throw "The migration-only public Packet alias remains"
