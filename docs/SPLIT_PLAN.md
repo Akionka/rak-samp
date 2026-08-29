@@ -4,6 +4,11 @@ Status: complete. Rust API paths may change when a clearer
 module boundary justifies it. ABI, native layouts, and runtime behavior remain
 unchanged unless a separate change explicitly says otherwise.
 
+Historical note: this plan records the first split baseline. The completed
+follow-up structure is tracked in
+[cohesion-module-split-handoff.md](cohesion-module-split-handoff.md); do not
+interpret the paths below as the current repository layout.
+
 ## 1. Motivation
 
 Several files mix state ownership, native access, protocol handling, ABI

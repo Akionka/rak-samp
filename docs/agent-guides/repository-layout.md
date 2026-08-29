@@ -2,13 +2,15 @@
 
 | Area | Location |
 | --- | --- |
-| Bootstrap, exported ABI, and logging | `src/lib.rs`, `src/host_api.rs`, `src/logging.rs` |
-| Runtime events and bit streams | `src/runtime.rs`, `src/event.rs`, `src/bitstream.rs` |
+| Bootstrap, exported ABI, and logging | `src/lib.rs`, `src/host_api/`, `src/logging.rs` |
+| Runtime facade, values, and events | `src/runtime/`, `src/event.rs`, `src/bitstream.rs` |
 | Networking offsets | `src/client.rs` |
-| Native hooks and profiles | `src/platform/win32.rs`, `src/platform/win32/native_client/` |
-| Public SDK and safe facades | `sdk/src/lib.rs`, `sdk/src/facade/mod.rs`, `sdk/src/facade/local_player.rs`, `sdk/src/facade/network.rs`, `sdk/src/facade/pools.rs`, `sdk/src/facade/ui.rs`, `sdk/src/raknet.rs` |
+| Native hooks, commands, and profiles | `src/platform/win32/`, `src/platform/win32/commands/`, `src/platform/win32/native_client/` |
+| Native player and UI operations | `src/platform/win32/native_client/players/`, `src/platform/win32/native_client/ui/` |
+| Public SDK ABI, safe facades, and tests | `sdk/src/abi/`, `sdk/src/facade/`, `sdk/src/host_api/`, `sdk/src/tests/` |
 | Explicit unsafe native-address API | `sdk/src/raw.rs` |
 | Typed RPC and packet helpers | `sdk/src/events/` |
+| Platform-independent protocol and bitstreams | `crates/samp-protocol/` |
 | Minimal and chat-command plugins | `examples/` |
 | Independent ABI layout oracle | `tests/fixtures/raknet_layout.cpp` |
 

@@ -1,6 +1,9 @@
 //! Game-thread cache refresh and publication helpers.
 
-use super::*;
+use super::{
+    cache_lifecycle::{crosses_connection_boundary, is_connected_game_state},
+    *,
+};
 
 impl BackendState {
     pub(super) fn refresh_local_player_snapshot(&self, profile: Option<NativeClientProfile>) {

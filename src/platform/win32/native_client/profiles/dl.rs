@@ -35,6 +35,8 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
     },
     net_game: NetGameSpec {
         singleton_rva: rva(0x2ACA24),
+        get_player_pool_rva: rva(0x1170),
+        get_vehicle_pool_rva: rva(0x1180),
         shutdown_for_restart_rva: rva(0xA230),
         pools: NetGamePoolSpec {
             pickup_offset: offset(0x10),
@@ -60,6 +62,10 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
         object: ObjectPoolLayout {
             objects_offset: offset(0x20D4),
             ..R3_SPEC.pools.object
+        },
+        vehicle: VehiclePoolLayout {
+            does_exist_rva: rva(0x1150),
+            ..R3_SPEC.pools.vehicle
         },
         ..R3_SPEC.pools
     },
