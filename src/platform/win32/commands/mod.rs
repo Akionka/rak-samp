@@ -9,6 +9,7 @@ mod text_labels;
 mod textdraws;
 mod ui;
 
+use connection::ConnectionCommand;
 pub(in crate::platform::win32) use network::NetworkCommand;
 #[derive(Debug)]
 pub(super) enum GameCommand {
@@ -42,12 +43,7 @@ pub(super) enum GameCommand {
     SetDialogClientSide(bool),
     SetDialogSelectedItem(i32),
     SetDialogEditboxText(Vec<u8>),
-    SetGameState(i32),
-    ConnectToServer {
-        address: Vec<u8>,
-        port: u16,
-    },
-    DisconnectWithReason(u32),
+    Connection(ConnectionCommand),
     DeleteTextLabel(u16),
     CreateTextLabel {
         id: u16,
@@ -350,43 +346,7 @@ impl BackendState {
                             .set_dialog_editbox_text(&text)
                             .map_err(|_| CommandError::NativeFailure)
                     }),
-                GameCommand::SetGameState(state) => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_game_state(state)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ConnectToServer { address, port } => {
-                    let result = self
-                        .connection_profile()
-                        .ok_or(CommandError::NativeFailure)
-                        .and_then(|profile| {
-                            profile
-                                .connect_to_server(&address, port)
-                                .map_err(|_| CommandError::NativeFailure)
-                        });
-                    if result.is_ok() {
-                        self.invalidate_connection_state();
-                    }
-                    result
-                }
-                GameCommand::DisconnectWithReason(block_duration) => {
-                    let rak_client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
-                    let result = self
-                        .connection_profile()
-                        .ok_or(CommandError::NativeFailure)
-                        .and_then(|profile| {
-                            profile
-                                .disconnect_with_reason(rak_client, block_duration)
-                                .map_err(|_| CommandError::NativeFailure)
-                        });
-                    if result.is_ok() {
-                        self.invalidate_after_disconnect();
-                    }
-                    result
-                }
+                GameCommand::Connection(command) => self.execute_connection_command(command),
                 GameCommand::DeleteTextdraw(id) => self
                     .connection_profile()
                     .ok_or(CommandError::NativeFailure)

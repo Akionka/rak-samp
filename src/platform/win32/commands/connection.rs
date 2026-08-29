@@ -1,5 +1,12 @@
 use super::*;
 
+#[derive(Debug)]
+pub(in crate::platform::win32) enum ConnectionCommand {
+    SetGameState(i32),
+    ConnectToServer { address: Vec<u8>, port: u16 },
+    DisconnectWithReason(u32),
+}
+
 impl BackendState {
     pub(in crate::platform::win32) fn submit_samp_game_state(
         &self,
@@ -13,7 +20,9 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SetGameState(state))
+        self.queue_game_command(GameCommand::Connection(ConnectionCommand::SetGameState(
+            state,
+        )))
     }
 
     pub(in crate::platform::win32) fn submit_connect_to_server(
@@ -32,7 +41,9 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ConnectToServer { address, port })
+        self.queue_game_command(GameCommand::Connection(
+            ConnectionCommand::ConnectToServer { address, port },
+        ))
     }
 
     pub(in crate::platform::win32) fn submit_disconnect_with_reason(
@@ -45,6 +56,53 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::DisconnectWithReason(block_duration))
+        self.queue_game_command(GameCommand::Connection(
+            ConnectionCommand::DisconnectWithReason(block_duration),
+        ))
+    }
+
+    pub(super) fn execute_connection_command(
+        &self,
+        command: ConnectionCommand,
+    ) -> Result<(), CommandError> {
+        match command {
+            ConnectionCommand::SetGameState(state) => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .set_game_state(state)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            ConnectionCommand::ConnectToServer { address, port } => {
+                let result = self
+                    .connection_profile()
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .connect_to_server(&address, port)
+                            .map_err(|_| CommandError::NativeFailure)
+                    });
+                if result.is_ok() {
+                    self.invalidate_connection_state();
+                }
+                result
+            }
+            ConnectionCommand::DisconnectWithReason(block_duration) => {
+                let rak_client = self.rak_client.load(Ordering::Acquire) as *mut c_void;
+                let result = self
+                    .connection_profile()
+                    .ok_or(CommandError::NativeFailure)
+                    .and_then(|profile| {
+                        profile
+                            .disconnect_with_reason(rak_client, block_duration)
+                            .map_err(|_| CommandError::NativeFailure)
+                    });
+                if result.is_ok() {
+                    self.invalidate_after_disconnect();
+                }
+                result
+            }
+        }
     }
 }
