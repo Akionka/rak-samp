@@ -29,7 +29,7 @@ Do not batch unrelated task IDs into one commit unless the first task cannot com
 | P5 | Split/domainize game-thread commands | P0 | [x] |
 | P6 | Reduce Win32 composition root | P5 recommended | [x] |
 | P7 | Split native-client players/UI | P0 + live-validation decision | [x] |
-| P8 | Split SDK ABI source | P0 | [ ] |
+| P8 | Split SDK ABI source | P0 | [x] |
 | P9 | Redistribute large tests | relevant production phase | [ ] |
 | P10 | Split common network probe | P7 recommended | [ ] |
 | P11 | Documentation and final acceptance | P2–P10 as selected | [ ] |
@@ -714,36 +714,65 @@ Dependency: **P0-04 live-validation policy must be decided first.**
 
 ## P8 — Split SDK ABI source organization
 
-- [ ] **P8-01 — Convert `sdk/src/abi.rs` to `sdk/src/abi/mod.rs`.**
+- [x] **P8-01 — Convert `sdk/src/abi.rs` to `sdk/src/abi/mod.rs`.**
   - Preserve `mod abi;` in `sdk/src/lib.rs` and `pub use abi::*` behavior.
 
-- [ ] **P8-02 — Extract `abi/values.rs`.**
+  Evidence (2026-08-29): `3855585`
+  (`3855585ab5c93fcd15f66e511bc7d00281f5f4ce`).
+
+- [x] **P8-02 — Extract `abi/values.rs`.**
   - Move owned/output `repr(C)` snapshot/value structs without changing fields/derives/defaults.
 
-- [ ] **P8-03 — Extract `abi/control.rs`.**
+  Evidence (2026-08-29): `e826dc5`
+  (`e826dc5bf5c80b5d607af7d7f4afb6579553a51b`). Zero-default ABI tests
+  passed without field, derive, or default changes.
+
+- [x] **P8-03 — Extract `abi/control.rs`.**
   - Move result/status/version/direction/action enums, subscription/receipt types, send options, encoded-string/event/callback ABI declarations.
 
-- [ ] **P8-04 — Extract `abi/table.rs`.**
+  Evidence (2026-08-29): `4c215a1`
+  (`4c215a1f395b70d3c2bba8c5c811ae237bd259ca`). Send-option defaults and
+  the `Busy = 14` discriminant tests passed.
+
+- [x] **P8-04 — Extract `abi/table.rs`.**
   - Move the entire `SampClientSdkApiV1` declaration as one uninterrupted struct.
   - Move `SampClientSdkGetApiV1` with it.
   - Do not macro-generate or nest API-table groups.
 
-- [ ] **P8-05 — Explicitly re-export ABI items from `abi/mod.rs`.**
+  Evidence (2026-08-29): `f70352b`
+  (`f70352b0bd53becee2a0b4743059a7f69061f6ee`). The complete 145-field
+  table and getter moved together as one flat declaration.
+
+- [x] **P8-05 — Explicitly re-export ABI items from `abi/mod.rs`.**
   - Preserve all crate-root public names.
   - Avoid adding a new public `abi` namespace unless separately intended; `abi` remains private as today.
 
-- [ ] **P8-06 — Run ABI/default/layout tests immediately.**
+  Evidence (2026-08-29): `abi/mod.rs` explicitly re-exports all control,
+  value, table, and getter names. `sdk/src/lib.rs` remains unchanged with
+  private `mod abi;` and crate-root `pub use abi::*`.
+
+- [x] **P8-06 — Run ABI/default/layout tests immediately.**
   - Include append-order and offset/size assertions.
   - Confirm `SampClientSdkApiV1` is unchanged.
 
-- [ ] **P8-07 — Run SDK/workspace gate and public API hygiene.**
+  Evidence (2026-08-29): all 100 SDK tests passed. The append-order test
+  confirms 145 x86 four-byte fields, 4-byte alignment, 580-byte total size,
+  exact `index * 4` offsets, and final `incoming_emulation_ready` position.
+
+- [x] **P8-07 — Run SDK/workspace gate and public API hygiene.**
   - `cargo make release-hygiene`
   - `cargo make package-published`
   - Record commit hash and any generated public API diff; expected semantic diff is none.
 
+  Evidence (2026-08-29): workspace format, check, tests, Clippy, release
+  hygiene, and published-package checks passed. Existing crate-root imports
+  compiled unchanged in all workspace consumers; no semantic public API diff
+  was introduced. Physical/nonblank LOC: `mod.rs` 28/24, `values.rs` 427/403,
+  `control.rs` 196/175, `table.rs` 632/629.
+
 ### P8 gate
 
-- [ ] ABI source is navigable while the ABI table remains flat, complete, and byte-layout equivalent.
+- [x] ABI source is navigable while the ABI table remains flat, complete, and byte-layout equivalent.
 
 ---
 
@@ -938,6 +967,7 @@ Append one row per completed slice rather than editing historical rows.
 | 2026-08-29 | P5 domainize game-thread commands | `cohesion-module-split` | `2ec8fcbefbdafa04f144bcbfcaf8773f102dd214` | 173 host tests; full workspace format, check, tests, and Clippy passed | Stage A final `1e6478a`; one queue and outer completion owner preserved |
 | 2026-08-29 | P6 reduce Win32 composition root | `cohesion-module-split` | `bac46be12fc54732760ce77c81ba03f939bc9ff1` | Full repository gate and local release DLL export audit passed | State remains private and root-owned; release-hygiene fix `af758bb` |
 | 2026-08-29 | P7 split native-client players/UI | `cohesion-module-split` | `60798146537bd6795d7b6a43ae2752f5b67d25ff` | 173 host tests; full repository gate; local DLL export audit passed | Final native-facing source hash recorded for deferred R1/R3/R5/DL live validation |
+| 2026-08-29 | P8 split SDK ABI source | `cohesion-module-split` | `f70352b0bd53becee2a0b4743059a7f69061f6ee` | 100 SDK tests; full workspace and public-hygiene gates passed | Flat 145-field, 580-byte x86 API table and crate-root exports preserved |
 
 ## Blockers / decisions log
 
