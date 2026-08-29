@@ -1942,7 +1942,7 @@ architecture roadmap; its unchecked future-service items do not reopen that
 program. Native encoded strings intentionally remain Host-backed until a
 separate platform-independent extension is approved.
 
-### Historical task list (completed)
+### Historical task list (completed; checkboxes intentionally preserved)
 
 The unchecked boxes below preserve the original plan shape; they are not the
 current completion status.

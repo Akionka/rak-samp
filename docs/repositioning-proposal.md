@@ -1,6 +1,7 @@
 # Repositioning Proposal: `rak-samp` → `samp-client-sdk`
 
-Status: approved. Decisions locked 2026-08-04; work has not started yet.
+Status: implemented. Decisions were locked 2026-08-04; final cohesion and
+acceptance landed through PR #40 as `6d4e9e4` on 2026-08-29.
 
 ## 1. Motivation
 
@@ -37,11 +38,12 @@ Two pillars, one invariant:
 - Invariant: cached state is refreshed and mutations execute on the game
   thread, never on plugin threads.
 
-Gone: the provisional `[~]` system, fingerprint gates, "pending live
-validation" language, and every "excluded from the safe ABI" permanent
-exclusion. Every SAMPFUNCS/SF.lua function is implemented in some form — as a
-struct method, a projection, a queued mutation, a handle operation, or an
-explicit `unsafe` escape hatch. No function is left unclassified.
+Gone: the provisional `[~]` system, fingerprint gates, and permanent implicit
+exclusions. Every baseline SAMPFUNCS/SF.lua function is classified as a struct
+method, projection, queued mutation, handle operation, explicit `unsafe`
+escape hatch, or documented `N/A`. The SAMPFUNCS-only
+`sampSetClientCommandDescription` capability remains intentionally unsupported
+because SA-MP exposes no corresponding command-description API or storage.
 
 ## 3. What gets removed
 

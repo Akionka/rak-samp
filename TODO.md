@@ -1,13 +1,18 @@
 # Repositioning TODO
 
+Status: complete. The checklist records the implemented repositioning and its
+final acceptance. New architecture work starts at Phase 2 of the
+[Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md#phase-2--extract-generic-runtime-primitives).
+
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
 > P0, P1, and P2 are green; see the
 > [completion record](docs/evidence/protocol-sdk-boundary-completion.md).
-> The remaining items below belong to the broader product repositioning.
+> The items below record the broader product repositioning.
 
-[PLAN.md](PLAN.md) is the decision-complete implementation plan. The approved
-[repositioning proposal](docs/repositioning-proposal.md) records the motivation
-and product decisions; when wording differs, follow `PLAN.md`.
+The implemented
+[repositioning proposal](docs/repositioning-proposal.md) records the product
+motivation and decisions. New architecture work follows the active
+[Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 The target release is the breaking `0.1.0-alpha.4` cutover to
 `samp-client-sdk`. Check an SF.lua mapping only when it is available through the
@@ -47,7 +52,8 @@ boundary.
 ### Baseline
 
 - [x] Commit the pre-repositioning working tree unchanged on `feature/helpers`.
-- [x] Record the approved roadmap in [PLAN.md](PLAN.md).
+- [x] Record the approved roadmap in the
+  [repositioning proposal](docs/repositioning-proposal.md).
 - [x] Confirm the baseline passes formatting, 136 workspace tests, and Clippy
   with warnings denied.
 
@@ -102,30 +108,34 @@ boundary.
   protocol catalogs, and owned `BitStream` behind `samp.net()`.
 - [x] Migrate all existing cached reads to their facade targets without
   plugin-thread native calls.
-- [ ] Implement queued UI, player, pool/entity, connection, command-registry,
-  sync, and dialog-response mutations in bounded vertical slices.
-- [ ] Complete every baseline and extension mapping below; leave no provisional,
-  excluded, duplicate, or unclassified function.
+- [x] Implement the currently mapped queued UI, player, pool/entity,
+  connection, command-registry, sync, and dialog-response operations in
+  bounded vertical slices.
+- [x] Classify every baseline and extension mapping below. Unsupported
+  product-specific functions remain explicitly marked `N/A`.
 
 ### Verification and finalization
 
-- [ ] Test game-hook lifecycle and ordering, queue FIFO/frame boundaries,
+- [x] Test game-hook lifecycle and ordering, queue FIFO/frame boundaries,
   capacity, result/error/timeout paths, deadlock rejection, and shutdown.
-- [ ] Test coherent cache generations, transition invalidation, eager directory
+- [x] Test coherent cache generations, transition invalidation, eager directory
   refresh, bounded heavy refresh, and absence of plugin-thread native reads.
-- [ ] Add mock-ABI facade coverage for every subsystem, ID/handle bounds, owned
+- [x] Add mock-ABI facade coverage for every subsystem, ID/handle bounds, owned
   strings, command result types, and unsafe boundaries.
-- [ ] Preserve exact packet/RPC vectors, exactly-once incoming emulation,
+- [x] Preserve exact packet/RPC vectors, exactly-once incoming emulation,
   listener ordering, unload synchronization, and C++↔Rust layout tests.
-- [ ] Run `cargo fmt --all -- --check`,
+- [x] Run `cargo fmt --all -- --check`,
   `cargo test --workspace --all-targets --locked`,
   `cargo clippy --workspace --all-targets --locked -- -D warnings`, and
   `cargo build --workspace --release --locked`.
-- [ ] Mark the proposal implemented and audit the renamed release archive,
+- [x] Mark the proposal implemented and audit the renamed release archive,
   examples, symbols, checksums, README, and license.
-- [ ] Create a recoverable backup branch, squash `feature/helpers` since
-  `master` into one repositioning commit, verify tree identity, and retain the
-  backup until review. Do not rewrite `master` or the existing alpha tags.
+- [x] Preserve the reviewable semantic history instead of squashing after
+  merge. PR #40 merged the completed work into `master`; do not rewrite the
+  merged history or existing alpha tags.
+
+Final verification evidence is recorded in
+[P11 of the cohesion split tracker](docs/cohesion-module-split-task-tracker.md#p11--documentation-and-final-acceptance).
 
 ## SF.lua compatibility map
 
@@ -468,8 +478,10 @@ Target builds: SA-MP 0.3.7 R1, R3-1, R5-1, and DL. `R5` below always means
 R5-1. R2 and R4-2 remain recognized only because `AddressSet` retains their
 existing network values; they are outside this support commitment.
 
-`[x]` means the exact value is implemented and covered by the existing R1
-profile. `[ ] SAPI` means extract the exact value and layout from the pinned
+`[x]` means the mapped capability is implemented and covered by the relevant
+profile/static tests. Profile-specific live claims remain tracked in the
+[Native Capability Matrix](docs/native-capability-matrix.md). `[ ] SAPI` means
+extract the exact value and layout from the pinned
 SAMP-API source, cross-check it against a version-pinned client, then wire and
 test it. `[ ] SF/disasm` means establish it from SF.lua plus the matching
 SAMPFUNCS/client disassembly. No cell may become `[x]` merely because an RVA is
@@ -537,9 +549,10 @@ headers; record their filename, SHA-256, and provenance in test notes instead.
   delivery. The run corrected `CPlayerPool::GetCount` to `0x138C0` and the
   remote-data accessor to `0x10F0`; `0x10D0` returns the outer player-info
   record.
-- [ ] Keep the existing R1 direct profile active until its replacement passes
-  the R1 layout and in-game smoke tests unchanged. Follow
-  [the R1 native-profile unification handoff](docs/r1-native-profile-unification-handoff.md).
+- [x] Remove the old direct R1 profile only after its replacement passes the R1
+  layout and in-game smoke tests unchanged. The unified profile and final
+  four-profile evidence are recorded in the
+  [cohesion split tracker](docs/cohesion-module-split-task-tracker.md#p10--split-the-common-live-validation-probe-optionaldeferred).
 
 | Artifact evidence | R1 | R3-1 | R5-1 | DL |
 | --- | --- | --- | --- | --- |
