@@ -11,6 +11,7 @@ mod ui;
 
 use connection::ConnectionCommand;
 pub(in crate::platform::win32) use network::NetworkCommand;
+use players::PlayerCommand;
 pub(in crate::platform::win32) use text_labels::TextLabelCommand;
 use textdraws::TextdrawCommand;
 pub(in crate::platform::win32) use ui::UiCommand;
@@ -20,18 +21,7 @@ pub(super) enum GameCommand {
     Connection(ConnectionCommand),
     TextLabel(TextLabelCommand),
     Textdraw(TextdrawCommand),
-    SpawnLocalPlayer,
-    SetLocalPlayerSpecialAction(u8),
-    SetLocalPlayerName(Vec<u8>),
-    ForceUnoccupiedSync { vehicle: u16, seat: u8 },
-    ForceAimSync,
-    ForceOnfootSync,
-    ForceStatsSync,
-    ForceTrailerSync { trailer: u16 },
-    ForcePassengerSync { vehicle: u16, seat: u8 },
-    ForceWeaponsSync,
-    ForceVehicleSync { vehicle: u16 },
-    SetPlayerColour { id: u16, colour: u32 },
+    Player(PlayerCommand),
     Network(NetworkCommand),
 }
 
@@ -67,102 +57,7 @@ impl BackendState {
                 GameCommand::TextLabel(command) => {
                     self.execute_text_label_command(queued.id, command)
                 }
-                GameCommand::SpawnLocalPlayer => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .spawn_local_player()
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::SetLocalPlayerSpecialAction(action) => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_local_player_special_action(action)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::SetLocalPlayerName(name) => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_local_player_name(&name)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceUnoccupiedSync { vehicle, seat } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_unoccupied_sync(vehicle, seat)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceAimSync => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_aim_sync()
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceOnfootSync => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_onfoot_sync()
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceStatsSync => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_stats_sync()
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceTrailerSync { trailer } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_trailer_sync(trailer)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceVehicleSync { vehicle } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_vehicle_sync(vehicle)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForcePassengerSync { vehicle, seat } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_passenger_sync(vehicle, seat)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::ForceWeaponsSync => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .force_weapons_sync()
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
-                GameCommand::SetPlayerColour { id, colour } => self
-                    .connection_profile()
-                    .ok_or(CommandError::NativeFailure)
-                    .and_then(|profile| {
-                        profile
-                            .set_player_colour(id, colour)
-                            .map_err(|_| CommandError::NativeFailure)
-                    }),
+                GameCommand::Player(command) => self.execute_player_command(command),
                 GameCommand::Network(command) => self.execute_network_command(command),
             };
             if !self

@@ -1,6 +1,25 @@
 use super::*;
 
+#[derive(Debug)]
+pub(in crate::platform::win32) enum PlayerCommand {
+    SpawnLocalPlayer,
+    SetLocalPlayerSpecialAction(u8),
+    SetLocalPlayerName(Vec<u8>),
+    ForceUnoccupiedSync { vehicle: u16, seat: u8 },
+    ForceAimSync,
+    ForceOnfootSync,
+    ForceStatsSync,
+    ForceTrailerSync { trailer: u16 },
+    ForcePassengerSync { vehicle: u16, seat: u8 },
+    ForceWeaponsSync,
+    ForceVehicleSync { vehicle: u16 },
+    SetPlayerColour { id: u16, colour: u32 },
+}
+
 impl BackendState {
+    fn queue_player_command(&self, command: PlayerCommand) -> Result<CommandId, DirectClientError> {
+        self.queue_game_command(GameCommand::Player(command))
+    }
     pub(in crate::platform::win32) fn submit_local_player_spawn(
         &self,
     ) -> Result<CommandId, DirectClientError> {
@@ -10,7 +29,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SpawnLocalPlayer)
+        self.queue_player_command(PlayerCommand::SpawnLocalPlayer)
     }
 
     pub(in crate::platform::win32) fn submit_local_player_special_action(
@@ -24,7 +43,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SetLocalPlayerSpecialAction(action))
+        self.queue_player_command(PlayerCommand::SetLocalPlayerSpecialAction(action))
     }
 
     pub(in crate::platform::win32) fn submit_local_player_name(
@@ -37,7 +56,7 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || name.len() > 255 || name.contains(&0) {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SetLocalPlayerName(name))
+        self.queue_player_command(PlayerCommand::SetLocalPlayerName(name))
     }
 
     pub(in crate::platform::win32) fn submit_force_unoccupied_sync(
@@ -52,7 +71,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceUnoccupiedSync { vehicle, seat })
+        self.queue_player_command(PlayerCommand::ForceUnoccupiedSync { vehicle, seat })
     }
 
     pub(in crate::platform::win32) fn submit_force_aim_sync(
@@ -61,7 +80,7 @@ impl BackendState {
         if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceAimSync)
+        self.queue_player_command(PlayerCommand::ForceAimSync)
     }
     pub(in crate::platform::win32) fn submit_force_onfoot_sync(
         &self,
@@ -69,7 +88,7 @@ impl BackendState {
         if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceOnfootSync)
+        self.queue_player_command(PlayerCommand::ForceOnfootSync)
     }
     pub(in crate::platform::win32) fn submit_force_stats_sync(
         &self,
@@ -77,7 +96,7 @@ impl BackendState {
         if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceStatsSync)
+        self.queue_player_command(PlayerCommand::ForceStatsSync)
     }
 
     pub(in crate::platform::win32) fn submit_force_trailer_sync(
@@ -91,7 +110,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceTrailerSync { trailer })
+        self.queue_player_command(PlayerCommand::ForceTrailerSync { trailer })
     }
 
     pub(in crate::platform::win32) fn submit_force_vehicle_sync(
@@ -105,7 +124,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceVehicleSync { vehicle })
+        self.queue_player_command(PlayerCommand::ForceVehicleSync { vehicle })
     }
 
     pub(in crate::platform::win32) fn submit_force_passenger_sync(
@@ -120,7 +139,7 @@ impl BackendState {
         {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForcePassengerSync { vehicle, seat })
+        self.queue_player_command(PlayerCommand::ForcePassengerSync { vehicle, seat })
     }
 
     pub(in crate::platform::win32) fn submit_force_weapons_sync(
@@ -129,7 +148,7 @@ impl BackendState {
         if self.scalar_profile().is_none() || self.rak_client.load(Ordering::Acquire) == 0 {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::ForceWeaponsSync)
+        self.queue_player_command(PlayerCommand::ForceWeaponsSync)
     }
 
     pub(in crate::platform::win32) fn submit_player_colour(
@@ -143,6 +162,110 @@ impl BackendState {
         if self.rak_client.load(Ordering::Acquire) == 0 || usize::from(id) >= MAX_SAMP_PLAYERS {
             return Err(DirectClientError::NotReady);
         }
-        self.queue_game_command(GameCommand::SetPlayerColour { id, colour })
+        self.queue_player_command(PlayerCommand::SetPlayerColour { id, colour })
+    }
+
+    pub(super) fn execute_player_command(
+        &self,
+        command: PlayerCommand,
+    ) -> Result<(), CommandError> {
+        match command {
+            PlayerCommand::SpawnLocalPlayer => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .spawn_local_player()
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::SetLocalPlayerSpecialAction(action) => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .set_local_player_special_action(action)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::SetLocalPlayerName(name) => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .set_local_player_name(&name)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceUnoccupiedSync { vehicle, seat } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_unoccupied_sync(vehicle, seat)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceAimSync => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_aim_sync()
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceOnfootSync => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_onfoot_sync()
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceStatsSync => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_stats_sync()
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceTrailerSync { trailer } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_trailer_sync(trailer)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceVehicleSync { vehicle } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_vehicle_sync(vehicle)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForcePassengerSync { vehicle, seat } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_passenger_sync(vehicle, seat)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::ForceWeaponsSync => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .force_weapons_sync()
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+            PlayerCommand::SetPlayerColour { id, colour } => self
+                .connection_profile()
+                .ok_or(CommandError::NativeFailure)
+                .and_then(|profile| {
+                    profile
+                        .set_player_colour(id, colour)
+                        .map_err(|_| CommandError::NativeFailure)
+                }),
+        }
     }
 }
