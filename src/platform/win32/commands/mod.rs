@@ -2,6 +2,175 @@
 
 use super::*;
 
+#[derive(Debug)]
+pub(super) enum GameCommand {
+    ShowDialog(LocalDialogRequest),
+    AddChatMessage(LocalChatMessageRequest),
+    AddDeathMessage(LocalDeathMessageRequest),
+    CloseDialog(u8),
+    SetChatInputText(Vec<u8>),
+    SetChatInputEnabled(bool),
+    ProcessChatInput(Vec<u8>),
+    RegisterChatCommand {
+        subscription: u64,
+        slot: u8,
+        name: Vec<u8>,
+    },
+    UnregisterChatCommand {
+        subscription: u64,
+        name: Vec<u8>,
+    },
+    SetChatDisplayMode(i32),
+    SetChatEntry {
+        id: u16,
+        text: Vec<u8>,
+        prefix: Vec<u8>,
+        text_colour: u32,
+        prefix_colour: u32,
+    },
+    SetCursorMode(i32),
+    ToggleCursor(bool),
+    SetScoreboardOpen(bool),
+    SetDialogClientSide(bool),
+    SetDialogSelectedItem(i32),
+    SetDialogEditboxText(Vec<u8>),
+    SetGameState(i32),
+    ConnectToServer {
+        address: Vec<u8>,
+        port: u16,
+    },
+    DisconnectWithReason(u32),
+    DeleteTextLabel(u16),
+    CreateTextLabel {
+        id: u16,
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    },
+    CreateTextLabelAuto {
+        text: Vec<u8>,
+        colour: u32,
+        position: crate::runtime::Vector3,
+        draw_distance: f32,
+        behind_walls: bool,
+        attached_player_id: u16,
+        attached_vehicle_id: u16,
+    },
+    SetTextLabelText {
+        id: u16,
+        text: Vec<u8>,
+    },
+    CreateTextdraw {
+        id: u16,
+        text: Vec<u8>,
+        x: f32,
+        y: f32,
+    },
+    DeleteTextdraw(u16),
+    SetTextdrawPosition {
+        id: u16,
+        x: f32,
+        y: f32,
+    },
+    SetTextdrawStyle {
+        id: u16,
+        style: i32,
+    },
+    SetTextdrawLetterStyle {
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    },
+    SetTextdrawProportional {
+        id: u16,
+        proportional: bool,
+    },
+    SetTextdrawShadow {
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    },
+    SetTextdrawOutline {
+        id: u16,
+        outline: u8,
+        colour: u32,
+    },
+    SetTextdrawBox {
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    },
+    SetTextdrawAlignment {
+        id: u16,
+        alignment: u8,
+    },
+    SetTextdrawString {
+        id: u16,
+        text: Vec<u8>,
+    },
+    SetTextdrawModelStyle {
+        id: u16,
+        rotation: crate::runtime::Vector3,
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    },
+    SpawnLocalPlayer,
+    SetLocalPlayerSpecialAction(u8),
+    SetLocalPlayerName(Vec<u8>),
+    ForceUnoccupiedSync {
+        vehicle: u16,
+        seat: u8,
+    },
+    ForceAimSync,
+    ForceOnfootSync,
+    ForceStatsSync,
+    ForceTrailerSync {
+        trailer: u16,
+    },
+    ForcePassengerSync {
+        vehicle: u16,
+        seat: u8,
+    },
+    ForceWeaponsSync,
+    ForceVehicleSync {
+        vehicle: u16,
+    },
+    SetPlayerColour {
+        id: u16,
+        colour: u32,
+    },
+    SetSendRate {
+        kind: u8,
+        milliseconds: u32,
+    },
+    SendPacket {
+        id: u8,
+        payload: BitStream,
+        options: SendOptions,
+    },
+    SendRpc {
+        id: u8,
+        payload: BitStream,
+        options: SendOptions,
+    },
+    EmulateIncomingPacket {
+        id: u8,
+        payload: BitStream,
+    },
+    EmulateIncomingRpc {
+        id: u8,
+        payload: BitStream,
+    },
+}
+
 impl BackendState {
     pub(super) fn queue_local_dialog(
         &self,
