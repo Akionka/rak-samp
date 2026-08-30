@@ -10,9 +10,9 @@ use super::{
         bounded_c_string, read_i32_bool, read_pointer, read_unaligned, readable_range,
         writable_range, write_unaligned,
     },
-    profile::{ListItemTextLayout, NativeClientProfile, PoolGetterAbi},
+    profile::{ListItemTextLayout, NativeProfile, PoolGetterAbi},
 };
-use crate::runtime::{
+use crate::{
     ChatEntrySnapshot, DirectClientError, LocalChatMessageRequest, LocalDeathMessageRequest,
     LocalDialogRequest, LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalDialogStyle,
 };
@@ -23,7 +23,7 @@ type ClassicDxutEditBoxGetTextFn = unsafe extern "thiscall" fn(*mut c_void) -> *
 type R1DxutEditBoxSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const i8, bool);
 type ClassicDxutEditBoxSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const i8, bool);
 
-impl NativeClientProfile {
+impl NativeProfile {
     pub(super) fn set_editbox_text(
         self,
         editbox: *mut u8,
@@ -80,7 +80,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.chat_entry(u16::MAX),
@@ -99,24 +99,14 @@ mod tests {
 
     #[test]
     fn ui_specs_keep_verified_profile_behavior_boundaries() {
-        let r1 =
-            NativeClientProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
-                .expect("the R1 identity must select");
-        let r3 = NativeClientProfile::select(
-            0x10000,
-            SampVersion::R3_1,
-            SampVersion::R3_1.entry_point(),
-        )
-        .expect("the R3 identity must select");
-        let r5 = NativeClientProfile::select(
-            0x10000,
-            SampVersion::R5_1,
-            SampVersion::R5_1.entry_point(),
-        )
-        .expect("the R5 identity must select");
-        let dl =
-            NativeClientProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
-                .expect("the DL identity must select");
+        let r1 = NativeProfile::select(0x10000, SampVersion::R1, SampVersion::R1.entry_point())
+            .expect("the R1 identity must select");
+        let r3 = NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
+            .expect("the R3 identity must select");
+        let r5 = NativeProfile::select(0x10000, SampVersion::R5_1, SampVersion::R5_1.entry_point())
+            .expect("the R5 identity must select");
+        let dl = NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+            .expect("the DL identity must select");
 
         assert_eq!(
             r1.spec.strategies.list_item_text_layout,

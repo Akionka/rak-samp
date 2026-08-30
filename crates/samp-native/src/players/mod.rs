@@ -13,9 +13,9 @@ use super::{
         bounded_c_string, read_pointer, read_unaligned, read_vector3, readable_range,
         write_unaligned,
     },
-    profile::{ForceSyncReset, LocalPlayerSource, NativeClientProfile, PoolGetterAbi},
+    profile::{ForceSyncReset, LocalPlayerSource, NativeProfile, PoolGetterAbi},
 };
-use crate::runtime::{
+use crate::{
     AimSyncSnapshot, AnimationSnapshot, DirectClientError, InCarSyncSnapshot, LocalPlayerSnapshot,
     OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
     TrailerSyncSnapshot,
@@ -23,7 +23,7 @@ use crate::runtime::{
 use gta_sa_native::{CpoolRefAbi, GtaPoolSpec, cpool_ref};
 use std::{ffi::c_void, mem};
 
-impl NativeClientProfile {
+impl NativeProfile {
     fn player_function_target(self, rva: usize) -> Result<usize, DirectClientError> {
         self.module_base
             .checked_add(rva)
@@ -75,7 +75,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.spec.strategies.local_player_source,
@@ -94,7 +94,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.spec.strategies.force_sync_reset,
@@ -125,7 +125,7 @@ mod tests {
             (SampVersion::Dl, 0x1419D0, [0x13C0A8, 0x13C0AC, 0x13C0B0]),
         ];
         for (version, table_rva, send_rates) in expected {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             let animation = profile.spec.players.animation;
             assert_eq!(animation.rva.get(), table_rva);

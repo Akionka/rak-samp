@@ -17,13 +17,9 @@ type ClassicLocalPlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u3
 type R1RemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 type ClassicRemotePlayerSetColourFn = unsafe extern "thiscall" fn(*mut c_void, u32);
 
-impl NativeClientProfile {
+impl NativeProfile {
     /// Updates a validated synchronization send rate.
-    pub(crate) fn set_send_rate(
-        self,
-        kind: u8,
-        milliseconds: u32,
-    ) -> Result<(), DirectClientError> {
+    pub fn set_send_rate(self, kind: u8, milliseconds: u32) -> Result<(), DirectClientError> {
         let rate = i32::try_from(milliseconds).map_err(|_| DirectClientError::NotReady)?;
         let rva = match kind {
             0 => self.spec.sync.send_rates.onfoot,
@@ -41,7 +37,7 @@ impl NativeClientProfile {
     }
 
     /// Invokes the selected local-player spawn method on the game thread.
-    pub(crate) fn spawn_local_player(self) -> Result<(), DirectClientError> {
+    pub fn spawn_local_player(self) -> Result<(), DirectClientError> {
         let local = self.local_player_address()?;
         let target = self.player_function_target(self.spec.players.local_rvas.spawn.get())?;
         let spawned = unsafe {
@@ -62,10 +58,7 @@ impl NativeClientProfile {
     }
 
     /// Changes the selected local-player special action on the game thread.
-    pub(crate) fn set_local_player_special_action(
-        self,
-        action: u8,
-    ) -> Result<(), DirectClientError> {
+    pub fn set_local_player_special_action(self, action: u8) -> Result<(), DirectClientError> {
         if !matches!(action, 0..=12 | 20..=25 | 68) {
             return Err(DirectClientError::NotReady);
         }
@@ -88,7 +81,7 @@ impl NativeClientProfile {
     }
 
     /// Changes the selected local-player name through its guarded pool method.
-    pub(crate) fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
+    pub fn set_local_player_name(self, name: &[u8]) -> Result<(), DirectClientError> {
         if name.len() > self.spec.players.local_player_name_capacity.get() || name.contains(&0) {
             return Err(DirectClientError::NotReady);
         }
@@ -114,7 +107,7 @@ impl NativeClientProfile {
     }
 
     /// Changes a local or connected remote player's ARGB colour on the game thread.
-    pub(crate) fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
+    pub fn set_player_colour(self, id: u16, colour: u32) -> Result<(), DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.players.get() {
             return Err(DirectClientError::NotReady);
         }

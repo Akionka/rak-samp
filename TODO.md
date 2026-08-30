@@ -1,7 +1,7 @@
 # Repositioning TODO
 
-Status: complete. The checklist records the implemented repositioning and its
-final acceptance. Architecture work through Phase 7 is recorded in the
+Status: complete for the original repositioning. Architecture work through
+Phase 7 is complete; Phase 8 profile extraction is in progress in the
 [Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
@@ -58,6 +58,13 @@ all four supported profiles passed their mapping evidence. See
 Complete. New plugins can use the service-backed `samp` facade and typed
 network adapters without the monolithic legacy table. The legacy path remains
 unchanged for compatibility. See [Phase 7 evidence](docs/evidence/phase-7-samp-services.md).
+
+### Phase 8 — extract `samp-native`
+
+Complete. `crates/samp-native` owns exact profiles, direct SA-MP operations,
+owned backend values, and RakClient detour/vtable ownership. Host composition
+retains coherent caches, command sequencing, listener dispatch, native
+bitstream adaptation, lifecycle, and both new and legacy service adapters.
 
 ### Structural split tracker
 

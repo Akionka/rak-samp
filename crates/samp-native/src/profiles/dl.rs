@@ -2,7 +2,7 @@
 
 use super::super::profile::*;
 use super::r3::R3_SPEC;
-use crate::client::SampVersion;
+use crate::SampVersion;
 
 const fn rva(value: usize) -> NativeRva {
     NativeRva::new(value)
@@ -27,7 +27,7 @@ const DL_LIMITS: PoolLimits = PoolLimits {
     pickups: limit(4096),
 };
 
-pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
+pub const DL_SPEC: ProfileSpec = ProfileSpec {
     identity: ProfileIdentity {
         name: "SA-MP 0.3.DL-R1",
         version: SampVersion::Dl,
@@ -215,7 +215,7 @@ pub(crate) const DL_SPEC: ProfileSpec = ProfileSpec {
 #[cfg(test)]
 mod tests {
     use super::DL_SPEC;
-    use crate::client::SampVersion;
+    use crate::SampVersion;
 
     #[test]
     fn dl_spec_records_its_distinct_identity_and_object_limit() {

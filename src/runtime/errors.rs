@@ -1,14 +1,6 @@
 use core::fmt;
 
-/// Failures specific to the direct, profile-gated client helpers.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) enum DirectClientError {
-    InvalidArgument,
-    NotReady,
-    Busy,
-    UnsupportedVersion,
-    QueueFull,
-}
+pub(crate) use samp_native::DirectClientError;
 
 /// Failure to attach the SDK to a compatible SA-MP client.
 #[derive(Clone, Debug, Eq, PartialEq)]

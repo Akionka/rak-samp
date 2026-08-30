@@ -1,10 +1,5 @@
-//! Immutable SA-MP 0.3.7 R5-1 profile data.
-//!
-//! This module must not inherit from `R3_SPEC`; shared values are repeated or
-//! named as local constants so every R5 field has an explicit source.
-
 use super::super::profile::*;
-use crate::client::SampVersion;
+use crate::SampVersion;
 
 const fn rva(value: usize) -> NativeRva {
     NativeRva::new(value)
@@ -19,29 +14,19 @@ const fn limit(value: usize) -> NativeLimit {
     NativeLimit::new(value)
 }
 
-const COMMON_LIMITS: PoolLimits = PoolLimits {
-    players: limit(1004),
-    vehicles: limit(2000),
-    objects: limit(1000),
-    text_labels: limit(2048),
-    textdraws: limit(2304),
-    gangzones: limit(1024),
-    pickups: limit(4096),
-};
-
-pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
+pub const R3_SPEC: ProfileSpec = ProfileSpec {
     identity: ProfileIdentity {
-        name: "SA-MP 0.3.7 R5-1",
-        version: SampVersion::R5_1,
-        entry_point: 0x0CBC90,
+        name: "SA-MP 0.3.7 R3-1",
+        version: SampVersion::R3_1,
+        entry_point: 0x0CC4D0,
     },
     net_game: NetGameSpec {
-        singleton_rva: rva(0x26EB94),
-        rak_client_offset: Some(offset(0)),
+        singleton_rva: rva(0x26E8DC),
+        rak_client_offset: Some(offset(0x2C)),
         get_state_rva: None,
-        get_player_pool_rva: rva(0x1170),
-        get_vehicle_pool_rva: rva(0x1180),
-        shutdown_for_restart_rva: rva(0xA540),
+        get_player_pool_rva: rva(0x1160),
+        get_vehicle_pool_rva: rva(0x1170),
+        shutdown_for_restart_rva: rva(0xA1E0),
         host_address_offset: offset(0x30),
         hostname_offset: offset(0x131),
         port_offset: offset(0x235),
@@ -49,32 +34,40 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
         server_settings_offset: offset(0x3D5),
         pools_offset: offset(0x3DE),
         pools: NetGamePoolSpec {
-            player_offset: Some(offset(4)),
-            vehicle_offset: Some(offset(0)),
-            pickup_offset: offset(8),
-            object_offset: offset(0xC),
-            gangzone_offset: offset(0x14),
-            text_label_offset: offset(0x18),
-            textdraw_offset: offset(0x1C),
+            player_offset: Some(offset(0x08)),
+            vehicle_offset: Some(offset(0x0C)),
+            pickup_offset: offset(0x10),
+            object_offset: offset(0x14),
+            gangzone_offset: offset(0x18),
+            text_label_offset: offset(0x1C),
+            textdraw_offset: offset(0x20),
         },
         host_string_capacity: size(257),
         rak_client_disconnect_vtable_slot: 2,
     },
     pools: PoolSpec {
-        limits: COMMON_LIMITS,
+        limits: PoolLimits {
+            players: limit(1004),
+            vehicles: limit(2000),
+            objects: limit(1000),
+            text_labels: limit(2048),
+            textdraws: limit(2304),
+            gangzones: limit(1024),
+            pickups: limit(4096),
+        },
         player: PlayerPoolLayout {
-            largest_id_offset: offset(0x2F3A),
-            local_id_offset: offset(4),
-            objects_offset: Some(offset(0x1F8A)),
+            largest_id_offset: offset(0),
+            local_id_offset: offset(0x2F1C),
+            objects_offset: Some(offset(4)),
             player_info: Some(PlayerInfoLayout {
-                npc_offset: offset(8),
-                readable_size: size(0x30),
+                npc_offset: offset(0x28),
+                readable_size: size(0x2C),
             }),
         },
         vehicle: VehiclePoolLayout {
             not_empty_offset: offset(0x3074),
             game_objects_offset: offset(0x4FB4),
-            does_exist_rva: rva(0x1150),
+            does_exist_rva: rva(0x1140),
         },
         object: ObjectPoolLayout {
             not_empty_offset: offset(4),
@@ -103,52 +96,52 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
     },
     players: PlayerSpec {
         pool_rvas: PlayerPoolRvas {
-            get_local_player: rva(0x1A40),
-            get_local_score: rva(0x6E8B0),
-            get_local_ping: rva(0x6E8C0),
+            get_local_player: rva(0x1A30),
+            get_local_score: rva(0x6E140),
+            get_local_ping: rva(0x6E150),
             is_connected: rva(0x10B0),
             get_remote_player: rva(0x10F0),
             is_npc: None,
-            get_name: rva(0x175C0),
-            get_score: rva(0x6E850),
-            get_ping: rva(0x6E880),
-            get_count: rva(0x139F0),
-            set_local_player_name: rva(0xB8A0),
+            get_name: rva(0x16F00),
+            get_score: rva(0x6E0E0),
+            get_ping: rva(0x6E110),
+            get_count: rva(0x13670),
+            set_local_player_name: rva(0xB5C0),
         },
         remote_rvas: RemotePlayerRvas {
-            get_colour_argb: rva(0x16180),
-            set_colour: rva(0x16150),
+            get_colour_argb: rva(0x15C10),
+            set_colour: rva(0x15BE0),
             does_exist: rva(0x1080),
-            get_status: rva(0x16330),
+            get_status: rva(0x15DB0),
         },
         local_rvas: LocalPlayerRvas {
             get_ped: None,
-            get_colour_argb: rva(0x3F20),
-            set_colour: rva(0x3ED0),
-            set_special_action: rva(0x30F0),
-            spawn: rva(0x3C20),
-            send_unoccupied_data: rva(0x4D30),
-            send_aim_data: rva(0x5210),
-            send_onfoot_data: rva(0x4F00),
-            send_stats: rva(0x5D00),
-            send_trailer_data: rva(0x53D0),
-            send_passenger_data: rva(0x5590),
-            send_incar_data: rva(0x7080),
-            update_weapons: rva(0x6290),
+            get_colour_argb: rva(0x3DA0),
+            set_colour: rva(0x3D50),
+            set_special_action: rva(0x30C0),
+            spawn: rva(0x3AD0),
+            send_unoccupied_data: rva(0x4B60),
+            send_aim_data: rva(0x5040),
+            send_onfoot_data: rva(0x4D40),
+            send_stats: rva(0x5B10),
+            send_trailer_data: rva(0x51F0),
+            send_passenger_data: rva(0x53B0),
+            send_incar_data: rva(0x6E40),
+            update_weapons: rva(0x6090),
         },
         ped_rvas: PedRvas {
-            get_health: rva(0xABD50),
-            get_armour: rva(0xABD90),
+            get_health: rva(0xAB4C0),
+            get_armour: rva(0xAB500),
         },
         local: LocalPlayerLayout {
-            ped_offset: Some(offset(0x104)),
-            active_offset: offset(0xF0),
-            current_vehicle_offset: offset(0xF8),
-            onfoot_offset: offset(0x94),
-            passenger_offset: offset(0xD8),
-            trailer_offset: offset(0x5E),
-            incar_offset: offset(0),
-            aim_offset: offset(0x3F),
+            ped_offset: Some(offset(0)),
+            active_offset: offset(0xF4),
+            current_vehicle_offset: offset(0xFC),
+            onfoot_offset: offset(0x98),
+            passenger_offset: offset(0xDC),
+            trailer_offset: offset(0x62),
+            incar_offset: offset(4),
+            aim_offset: offset(0x43),
             last_any_update_offset: offset(0x13F),
             onfoot: LocalOnFootLayout {
                 position_offset: offset(6),
@@ -161,11 +154,11 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
                 speed_offset: offset(0x24),
             },
             game_ped_offset: offset(0x2A4),
-            readable_size: Some(size(0x108)),
+            readable_size: Some(size(0xFE)),
         },
         remote: RemotePlayerLayout {
-            ped_offset: Some(offset(0x1DD)),
-            special_action_offset: offset(0xC),
+            ped_offset: Some(offset(0)),
+            special_action_offset: offset(0x18),
             onfoot_offset: offset(0xC5),
             incar_offset: offset(0x19),
             trailer_offset: offset(0x58),
@@ -173,12 +166,12 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
             aim_offset: offset(0x8E),
             reported_armour_offset: offset(0x1AC),
             reported_health_offset: offset(0x1B0),
-            animation_offset: offset(0x1B4),
-            state_size: size(0x1B8),
+            animation_offset: offset(0x1C0),
+            state_size: size(0x1C4),
         },
         local_player_name_capacity: size(255),
         animation: AnimationTableSpec {
-            rva: rva(0x1039E8),
+            rva: rva(0x1039D0),
             entry_count: limit(1812),
             entry_size: size(36),
         },
@@ -255,9 +248,9 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
     },
     ui: UiSpec {
         dialog: DialogSpec {
-            singleton_rva: rva(0x26EB50),
-            show_rva: rva(0x6FFB0),
-            close_rva: rva(0x70630),
+            singleton_rva: rva(0x26E898),
+            show_rva: rva(0x6F8C0),
+            close_rva: rva(0x6FF40),
             active_offset: offset(0x28),
             dialog_type_offset: offset(0x2C),
             id_offset: offset(0x30),
@@ -283,28 +276,28 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
             max_listbox_items: limit(100),
         },
         input: InputSpec {
-            singleton_rva: rva(0x26EB84),
-            open_rva: rva(0x69480),
-            close_rva: rva(0x69580),
-            get_command_handler_rva: rva(0x69710),
-            add_command_rva: rva(0x69770),
-            process_rva: rva(0x699D0),
-            edit_box_set_text_rva: Some(rva(0x85580)),
-            edit_box_get_text_rva: Some(rva(0x85650)),
+            singleton_rva: rva(0x26E8CC),
+            open_rva: rva(0x68D10),
+            close_rva: rva(0x68E10),
+            get_command_handler_rva: rva(0x68FA0),
+            add_command_rva: rva(0x69000),
+            process_rva: rva(0x69260),
+            edit_box_set_text_rva: Some(rva(0x84E70)),
+            edit_box_get_text_rva: Some(rva(0x84F40)),
             enabled_offset: offset(0x14E0),
             edit_box_offset: offset(8),
             command_proc_offset: offset(0xC),
             command_name_offset: offset(0x24C),
             command_name_capacity: size(33),
             command_count_offset: offset(0x14DC),
-            max_text_bytes: size(128),
+            max_text_bytes: size(129),
             max_commands: limit(144),
             max_command_name_bytes: size(32),
         },
         chat: ChatSpec {
-            singleton_rva: rva(0x26EB80),
-            add_entry_rva: rva(0x67BE0),
-            get_mode_rva: rva(0x612B0),
+            singleton_rva: rva(0x26E8C8),
+            add_entry_rva: rva(0x67460),
+            get_mode_rva: rva(0x60B40),
             display_mode_offset: offset(8),
             entries_offset: offset(0x132),
             entry_size: size(0xFC),
@@ -317,24 +310,24 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
             max_entries: limit(100),
         },
         scoreboard: ScoreboardSpec {
-            singleton_rva: rva(0x26EB4C),
+            singleton_rva: rva(0x26E894),
             enabled_offset: offset(0),
             readable_size: size(0x44),
         },
         death_window: DeathWindowSpec {
-            singleton_rva: Some(rva(0x26EB88)),
-            add_message_rva: Some(rva(0x6A6B0)),
+            singleton_rva: Some(rva(0x26E8D0)),
+            add_message_rva: Some(rva(0x69F40)),
         },
         game: GameSpec {
-            singleton_rva: rva(0x26EBAC),
-            set_cursor_mode_rva: rva(0xA06F0),
-            process_input_enabling_rva: rva(0xA05D0),
+            singleton_rva: rva(0x26E8F4),
+            set_cursor_mode_rva: rva(0x9FFE0),
+            process_input_enabling_rva: rva(0x9FEC0),
             cursor_mode_offset: offset(0x61),
         },
     },
     text_labels: TextLabelSpec {
-        create_rva: rva(0x11D0),
-        delete_rva: rva(0x12E0),
+        create_rva: rva(0x11C0),
+        delete_rva: rva(0x12D0),
         size: size(0x1D),
         text_offset: offset(0),
         colour_offset: offset(4),
@@ -346,9 +339,9 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
         text_capacity: size(4095),
     },
     textdraws: TextdrawSpec {
-        create_rva: rva(0x1E910),
-        delete_rva: rva(0x1E7F0),
-        text_setter_rva: rva(0xB2F60),
+        create_rva: rva(0x1E1C0),
+        delete_rva: rva(0x1E0A0),
+        text_setter_rva: rva(0xB26D0),
         native_size: size(0x9D6),
         string_offset: offset(801),
         create_text_capacity: size(800),
@@ -409,27 +402,62 @@ pub(crate) const R5_SPEC: ProfileSpec = ProfileSpec {
 
 #[cfg(test)]
 mod tests {
-    use super::R5_SPEC;
-    use crate::client::SampVersion;
+    use super::R3_SPEC;
+    use crate::SampVersion;
+    use crate::profile::{GameStateCodec, NativeBoolean};
 
     #[test]
-    fn r5_spec_materializes_its_distinct_values() {
-        assert_eq!(R5_SPEC.identity.version, SampVersion::R5_1);
-        assert_eq!(R5_SPEC.identity.entry_point, 0x0CBC90);
-        assert_eq!(R5_SPEC.net_game.singleton_rva.get(), 0x26EB94);
+    fn r3_spec_records_its_distinct_identity_layouts_and_unavailable_calls() {
+        assert_eq!(R3_SPEC.identity.version, SampVersion::R3_1);
+        assert_eq!(R3_SPEC.identity.entry_point, 0x0CC4D0);
+        assert_eq!(R3_SPEC.net_game.singleton_rva.get(), 0x26E8DC);
+        assert_eq!(R3_SPEC.net_game.get_state_rva, None);
+        assert_eq!(R3_SPEC.net_game.get_player_pool_rva.get(), 0x1160);
+        assert_eq!(R3_SPEC.net_game.get_vehicle_pool_rva.get(), 0x1170);
+        assert_eq!(R3_SPEC.pools.player.local_id_offset.get(), 0x2F1C);
         assert_eq!(
-            R5_SPEC.net_game.rak_client_offset.map(|value| value.get()),
+            R3_SPEC.players.local.ped_offset.map(|value| value.get()),
             Some(0)
         );
-        assert_eq!(R5_SPEC.pools.player.largest_id_offset.get(), 0x2F3A);
+        assert_eq!(R3_SPEC.players.local_rvas.get_ped, None);
         assert_eq!(
-            R5_SPEC.players.local.ped_offset.map(|value| value.get()),
-            Some(0x104)
+            R3_SPEC
+                .ui
+                .input
+                .edit_box_set_text_rva
+                .map(|value| value.get()),
+            Some(0x84E70)
         );
         assert_eq!(
-            R5_SPEC.players.remote.ped_offset.map(|value| value.get()),
-            Some(0x1DD)
+            R3_SPEC
+                .ui
+                .input
+                .edit_box_get_text_rva
+                .map(|value| value.get()),
+            Some(0x84F40)
         );
-        assert_eq!(R5_SPEC.textdraws.text_setter_rva.get(), 0xB2F60);
+        assert_eq!(R3_SPEC.textdraws.text_setter_rva.get(), 0xB26D0);
+        assert_eq!(R3_SPEC.pools.vehicle.does_exist_rva.get(), 0x1140);
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .death_window
+                .singleton_rva
+                .map(|value| value.get()),
+            Some(0x26E8D0)
+        );
+        assert_eq!(
+            R3_SPEC
+                .ui
+                .death_window
+                .add_message_rva
+                .map(|value| value.get()),
+            Some(0x69F40)
+        );
+        assert_eq!(R3_SPEC.strategies.game_state_codec, GameStateCodec::Classic);
+        assert_eq!(
+            R3_SPEC.strategies.booleans.pool_occupancy,
+            NativeBoolean::ValidatedI32
+        );
     }
 }

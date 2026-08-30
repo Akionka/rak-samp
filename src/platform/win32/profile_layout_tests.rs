@@ -4,10 +4,10 @@
 //! R5-1, and DL-R1 direct-helper profiles.
 
 use crate::client::SampVersion;
-use crate::platform::win32::native_client::profiles::dl::DL_SPEC;
-use crate::platform::win32::native_client::profiles::r1::R1_SPEC;
-use crate::platform::win32::native_client::profiles::r3::R3_SPEC;
-use crate::platform::win32::native_client::profiles::r5::R5_SPEC;
+use samp_native::profiles::dl::DL_SPEC;
+use samp_native::profiles::r1::R1_SPEC;
+use samp_native::profiles::r3::R3_SPEC;
+use samp_native::profiles::r5::R5_SPEC;
 
 type FixtureFn = unsafe extern "C" fn() -> usize;
 

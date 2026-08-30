@@ -2,12 +2,11 @@
 
 use super::players::MARKERS_SYNC_PACKET_ID;
 use super::{
-    BackendState, ClientHookInstallState, DEALLOCATE_PACKET_SLOT, INCOMING_PACKET_SLOT,
-    IncomingRpcFn, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT, OutgoingPacketFn, OutgoingRpcFn,
+    BackendState, ClientHookInstallState, IncomingRpcFn, OutgoingPacketFn, OutgoingRpcFn,
     RawBitStream, RawPacket, RpcPlayerId, active_state, packet_stream, packets,
     remaining_stream_bounded,
 };
-use crate::{AttachError, BitStream, Direction, event::HookAction};
+use crate::{BitStream, Direction, event::HookAction};
 use std::{ffi::c_void, mem, ptr, slice, sync::atomic::Ordering};
 
 pub(super) const MAX_INCOMING_PACKET_BYTES: usize = 16 * 1024 * 1024;
@@ -17,6 +16,16 @@ type DeallocatePacketFn = unsafe extern "thiscall" fn(*mut c_void, *mut RawPacke
 
 type RakClientConstructorFn = unsafe extern "C" fn() -> *mut c_void;
 type DialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
+
+pub(super) static HOOK_CALLBACKS: samp_native::hooks::HookCallbacks =
+    samp_native::hooks::HookCallbacks {
+        outgoing_packet: outgoing_packet_callback,
+        outgoing_rpc: outgoing_rpc_callback,
+        incoming_packet: incoming_packet_callback,
+        incoming_rpc: incoming_rpc_callback,
+        dialog_close: dialog_close_callback,
+        rak_client_constructor: rak_client_constructor_callback,
+    };
 
 #[derive(Clone, Copy)]
 struct OutgoingRpcCall {
@@ -226,13 +235,14 @@ fn call_outgoing_rpc(state: &BackendState, call: OutgoingRpcCall) -> bool {
     }
 }
 
-pub(super) unsafe extern "thiscall" fn outgoing_packet_detour(
+pub(super) unsafe extern "thiscall" fn outgoing_packet_callback(
     client: *mut c_void,
-    native: *mut RawBitStream,
+    native: *mut c_void,
     priority: i32,
     reliability: i32,
     channel: i8,
 ) -> bool {
+    let native = native.cast::<RawBitStream>();
     let Some(state) = active_state() else {
         return false;
     };
@@ -246,15 +256,16 @@ pub(super) unsafe extern "thiscall" fn outgoing_packet_detour(
     call_outgoing_packet(&state, client, native, priority, reliability, channel)
 }
 
-pub(super) unsafe extern "thiscall" fn outgoing_rpc_detour(
+pub(super) unsafe extern "thiscall" fn outgoing_rpc_callback(
     client: *mut c_void,
     id: *mut i32,
-    native: *mut RawBitStream,
+    native: *mut c_void,
     priority: i32,
     reliability: i32,
     channel: i8,
     timestamp: bool,
 ) -> bool {
+    let native = native.cast::<RawBitStream>();
     let Some(state) = active_state() else {
         return false;
     };
@@ -280,26 +291,26 @@ pub(super) unsafe extern "thiscall" fn outgoing_rpc_detour(
     call_outgoing_rpc(&state, original_call)
 }
 
-pub(super) unsafe extern "thiscall" fn incoming_packet_detour(
+pub(super) unsafe extern "thiscall" fn incoming_packet_callback(
     client: *mut c_void,
-) -> *mut RawPacket {
+) -> *mut c_void {
     let Some(state) = active_state() else {
         return ptr::null_mut();
     };
     loop {
         let packet = call_incoming_packet(&state, client);
         if packet.is_null() {
-            return packet;
+            return packet.cast();
         }
         let action = unsafe { dispatch_raw_packet(&state, packet) };
         if action == HookAction::Continue {
-            return packet;
+            return packet.cast();
         }
         deallocate_packet(&state, client, packet);
     }
 }
 
-pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
+pub(super) unsafe extern "thiscall" fn incoming_rpc_callback(
     receiver: *mut c_void,
     data: *mut u8,
     length: i32,
@@ -343,7 +354,7 @@ pub(super) unsafe extern "thiscall" fn incoming_rpc_detour(
     unsafe { original(receiver, output.as_mut_ptr(), output.len() as i32, player) }
 }
 
-pub(super) unsafe extern "thiscall" fn dialog_close_detour(dialog: *mut c_void, button: u8) {
+pub(super) unsafe extern "thiscall" fn dialog_close_callback(dialog: *mut c_void, button: u8) {
     let Some(state) = active_state() else {
         return;
     };
@@ -372,7 +383,7 @@ impl BackendState {
     }
 }
 
-pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
+pub(super) unsafe extern "C" fn rak_client_constructor_callback() -> *mut c_void {
     let Some(state) = active_state() else {
         return ptr::null_mut();
     };
@@ -393,160 +404,9 @@ pub(super) unsafe extern "C" fn rak_client_constructor_detour() -> *mut c_void {
     client
 }
 
-#[derive(Default)]
-pub(super) struct HookStorage {
-    pub(super) constructor: Option<modkit_win32::InlineHook>,
-    pub(super) incoming_rpc: Option<modkit_win32::InlineHook>,
-    pub(super) dialog_close: Option<modkit_win32::InlineHook>,
-    pub(super) vtable: Option<VtableHook>,
-}
-
-pub(super) struct VtableHook {
-    vtable: usize,
-    entries: [VtableEntry; 3],
-}
-
-#[derive(Clone, Copy)]
-struct VtableEntry {
-    slot: usize,
-    original: usize,
-    detour: usize,
-}
-
-impl VtableHook {
-    pub(super) unsafe fn install(
-        client: *mut c_void,
-        state: &BackendState,
-    ) -> Result<Self, AttachError> {
-        let Some(vtable) = (unsafe { modkit_win32::read_unaligned::<usize>(client as usize) })
-        else {
-            return Err(AttachError::ClientNotReady);
-        };
-        if vtable == 0 {
-            return Err(AttachError::ClientNotReady);
-        }
-
-        let replacements = [
-            (
-                OUTGOING_PACKET_SLOT,
-                outgoing_packet_detour as *const () as usize,
-            ),
-            (
-                INCOMING_PACKET_SLOT,
-                incoming_packet_detour as *const () as usize,
-            ),
-            (OUTGOING_RPC_SLOT, outgoing_rpc_detour as *const () as usize),
-        ];
-        let maximum_slot = replacements
-            .iter()
-            .map(|(slot, _)| *slot)
-            .chain(std::iter::once(DEALLOCATE_PACKET_SLOT))
-            .max()
-            .ok_or(AttachError::ClientNotReady)?;
-        let required_bytes = maximum_slot
-            .checked_add(1)
-            .and_then(|count| count.checked_mul(mem::size_of::<usize>()))
-            .ok_or(AttachError::ClientNotReady)?;
-        if !modkit_win32::readable_range(vtable as *const u8, required_bytes) {
-            return Err(AttachError::ClientNotReady);
-        }
-        let mut entries = [VtableEntry {
-            slot: 0,
-            original: 0,
-            detour: 0,
-        }; 3];
-        for (index, (slot, detour)) in replacements.into_iter().enumerate() {
-            let slot_address =
-                vtable_slot_address(vtable, slot).ok_or(AttachError::ClientNotReady)?;
-            let original = unsafe { modkit_win32::read_unaligned::<usize>(slot_address) }
-                .ok_or(AttachError::ClientNotReady)?;
-            if original == 0 {
-                return Err(AttachError::ClientNotReady);
-            }
-            entries[index] = VtableEntry {
-                slot,
-                original,
-                detour,
-            };
-        }
-
-        state
-            .outgoing_packet_original
-            .store(entries[0].original, Ordering::Release);
-        state
-            .incoming_packet_original
-            .store(entries[1].original, Ordering::Release);
-        let deallocate_packet = unsafe {
-            modkit_win32::read_unaligned::<usize>(
-                vtable_slot_address(vtable, DEALLOCATE_PACKET_SLOT)
-                    .ok_or(AttachError::ClientNotReady)?,
-            )
-        }
-        .ok_or(AttachError::ClientNotReady)?;
-        state
-            .deallocate_packet_original
-            .store(deallocate_packet, Ordering::Release);
-        state
-            .outgoing_rpc_original
-            .store(entries[2].original, Ordering::Release);
-
-        for (index, entry) in entries.iter().enumerate() {
-            let slot = vtable_slot_address(vtable, entry.slot).ok_or(AttachError::ClientNotReady)?
-                as *mut usize;
-            if unsafe { modkit_win32::write_protected(slot, entry.detour) }.is_err() {
-                for restore in entries[..index].iter().rev() {
-                    if let Some(address) = vtable_slot_address(vtable, restore.slot)
-                        && let Err(error) = unsafe {
-                            modkit_win32::write_protected(address as *mut usize, restore.original)
-                        }
-                    {
-                        log::warn!(
-                            "failed to roll back RakClient vtable slot {}: {error:?}",
-                            restore.slot
-                        );
-                    }
-                }
-                return Err(AttachError::HookInstallFailed("patching RakClient vtable"));
-            }
-        }
-
-        Ok(Self { vtable, entries })
-    }
-}
-
-impl Drop for VtableHook {
-    fn drop(&mut self) {
-        for entry in self.entries.iter().rev() {
-            let Some(slot) = vtable_slot_address(self.vtable, entry.slot) else {
-                continue;
-            };
-            if unsafe { modkit_win32::read_unaligned::<usize>(slot) } == Some(entry.detour)
-                && let Err(error) =
-                    unsafe { modkit_win32::write_protected(slot as *mut usize, entry.original) }
-            {
-                log::warn!(
-                    "failed to restore RakClient vtable slot {}: {error:?}",
-                    entry.slot
-                );
-            }
-        }
-    }
-}
-
-fn vtable_slot_address(vtable: usize, slot: usize) -> Option<usize> {
-    slot.checked_mul(mem::size_of::<usize>())
-        .and_then(|offset| vtable.checked_add(offset))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn vtable_slot_address_rejects_arithmetic_overflow() {
-        assert_eq!(vtable_slot_address(usize::MAX, 1), None);
-        assert_eq!(vtable_slot_address(0, usize::MAX), None);
-    }
 
     #[test]
     fn accepts_byte_aligned_and_partial_byte_packets() {

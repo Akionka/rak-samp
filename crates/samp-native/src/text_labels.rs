@@ -5,9 +5,9 @@ use super::{
     memory::{
         bounded_c_string, read_i32_bool, read_pointer, read_u8_bool, read_unaligned, readable_range,
     },
-    profile::{NativeClientProfile, PoolGetterAbi},
+    profile::{NativeProfile, PoolGetterAbi},
 };
-use crate::runtime::{DirectClientError, TextLabelSnapshot, Vector3};
+use crate::{DirectClientError, TextLabelSnapshot, Vector3};
 use std::{ffi::c_void, mem};
 
 #[repr(C)]
@@ -35,7 +35,7 @@ type ClassicLabelPoolCreateFn =
 type R1LabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type ClassicLabelPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 
-impl NativeClientProfile {
+impl NativeProfile {
     fn label_pool(self) -> Result<*mut u8, DirectClientError> {
         let required = self
             .spec
@@ -86,7 +86,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn text_label_exists(self, id: u16) -> Result<bool, DirectClientError> {
+    pub fn text_label_exists(self, id: u16) -> Result<bool, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.text_labels.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -94,7 +94,7 @@ impl NativeClientProfile {
         read_i32_bool(self.label_flag_address(pool, id)?)
     }
 
-    pub(crate) fn first_free_text_label_id(self) -> Result<u16, DirectClientError> {
+    pub fn first_free_text_label_id(self) -> Result<u16, DirectClientError> {
         let pool = self.label_pool()?;
         for id in 0..self.spec.pools.limits.text_labels.get() {
             let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
@@ -114,7 +114,7 @@ impl NativeClientProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn create_text_label(
+    pub fn create_text_label(
         self,
         id: u16,
         text: &[u8],
@@ -175,7 +175,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn delete_text_label(self, id: u16) -> Result<(), DirectClientError> {
+    pub fn delete_text_label(self, id: u16) -> Result<(), DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.text_labels.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -198,10 +198,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn text_label(
-        self,
-        id: u16,
-    ) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
+    pub fn text_label(self, id: u16) -> Result<Option<TextLabelSnapshot>, DirectClientError> {
         let pool = self.label_pool()?;
         if !self.text_label_exists_from_pool(pool, id)? {
             return Ok(None);
@@ -324,7 +321,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.text_label_exists(u16::MAX),

@@ -5,8 +5,8 @@
 | Bootstrap, exported ABI, and logging | `src/lib.rs`, `src/host_api/`, `src/logging.rs` |
 | Runtime facade, values, and events | `src/runtime/`, `src/event.rs`, `src/bitstream.rs` |
 | Networking offsets | `src/client.rs` |
-| Native hooks, commands, and profiles | `src/platform/win32/`, `src/platform/win32/commands/`, `src/platform/win32/native_client/` |
-| Native player and UI operations | `src/platform/win32/native_client/players/`, `src/platform/win32/native_client/ui/` |
+| Host commands, caches, hook callbacks, and native ABI adaptation | `src/platform/win32/`, `src/platform/win32/commands/` |
+| SA-MP native profiles, direct operations, and RakClient detours | `crates/samp-native/` |
 | Public SDK ABI, safe facades, and tests | `sdk/src/abi/`, `sdk/src/facade/`, `sdk/src/host_api/`, `sdk/src/tests/` |
 | Explicit unsafe native-address API | `sdk/src/raw.rs` |
 | Typed RPC and packet helpers | `sdk/src/events/` |

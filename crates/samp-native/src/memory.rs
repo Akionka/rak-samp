@@ -5,14 +5,21 @@
 //! retains the SA-MP-specific strict boolean readers and the profile-facing
 //! `Vector3` read helper.
 
-pub(crate) use modkit_win32::{
+pub use modkit_win32::{
     bounded_c_string, copy_bytes, read_pointer, read_unaligned, readable_range, writable_range,
     write_unaligned, zero_bytes,
 };
 
-use crate::runtime::{DirectClientError, Vector3};
+use crate::{DirectClientError, Vector3};
 
-pub(crate) unsafe fn read_vector3(address: usize) -> Option<Vector3> {
+/// Reads a copied vector from one previously selected native address.
+///
+/// # Safety
+///
+/// `address` must identify native process memory. Guarded scalar reads reject
+/// unreadable fields; the caller must still ensure the address belongs to the
+/// active SA-MP profile and is not concurrently invalidated.
+pub unsafe fn read_vector3(address: usize) -> Option<Vector3> {
     Some(Vector3 {
         x: unsafe { read_unaligned::<f32>(address) }?,
         y: unsafe { read_unaligned::<f32>(address.checked_add(4)?) }?,
@@ -20,7 +27,7 @@ pub(crate) unsafe fn read_vector3(address: usize) -> Option<Vector3> {
     })
 }
 
-pub(crate) fn read_i32_bool(address: usize) -> Result<bool, DirectClientError> {
+pub fn read_i32_bool(address: usize) -> Result<bool, DirectClientError> {
     match unsafe { read_unaligned::<i32>(address) } {
         Some(0) => Ok(false),
         Some(1) => Ok(true),
@@ -28,7 +35,7 @@ pub(crate) fn read_i32_bool(address: usize) -> Result<bool, DirectClientError> {
     }
 }
 
-pub(crate) fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
+pub fn read_u8_bool(address: usize) -> Result<bool, DirectClientError> {
     match unsafe { read_unaligned::<u8>(address) } {
         Some(0) => Ok(false),
         Some(1) => Ok(true),

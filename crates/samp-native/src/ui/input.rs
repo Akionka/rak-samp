@@ -14,8 +14,8 @@ type R1InputAddCommandFn =
 type ClassicInputAddCommandFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, unsafe extern "cdecl" fn(*const i8));
 
-impl NativeClientProfile {
-    pub(crate) fn register_chat_command(
+impl NativeProfile {
+    pub fn register_chat_command(
         self,
         name: &[u8],
         callback: unsafe extern "cdecl" fn(*const i8),
@@ -71,7 +71,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn unregister_chat_command(self, name: &[u8]) -> Result<(), DirectClientError> {
+    pub fn unregister_chat_command(self, name: &[u8]) -> Result<(), DirectClientError> {
         let layout = self.spec.ui.input;
         if name.is_empty() || name.len() > layout.max_command_name_bytes.get() || name.contains(&0)
         {
@@ -154,7 +154,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn set_chat_input_text(self, text: &[u8]) -> Result<(), DirectClientError> {
+    pub fn set_chat_input_text(self, text: &[u8]) -> Result<(), DirectClientError> {
         let layout = self.spec.ui.input;
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         let editbox = unsafe {
@@ -173,7 +173,7 @@ impl NativeClientProfile {
         )
     }
 
-    pub(crate) fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
+    pub fn set_chat_input_enabled(self, enabled: bool) -> Result<(), DirectClientError> {
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         let rva = if enabled {
             self.spec.ui.input.open_rva
@@ -196,7 +196,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
+    pub fn process_chat_input(self, text: &[u8]) -> Result<(), DirectClientError> {
         self.set_chat_input_text(text)?;
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         let target = self.ui_target(self.spec.ui.input.process_rva)?;
@@ -215,7 +215,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
+    pub fn chat_input_is_active(self) -> Result<bool, DirectClientError> {
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         read_i32_bool(
             (input as usize)
@@ -225,7 +225,7 @@ impl NativeClientProfile {
     }
 
     /// Copies the bounded command names stored by the guarded chat input.
-    pub(crate) fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
+    pub fn chat_input_commands(self) -> Result<Vec<Vec<u8>>, DirectClientError> {
         let layout = self.spec.ui.input;
         let required = layout
             .command_count_offset
@@ -271,7 +271,7 @@ impl NativeClientProfile {
     }
 
     /// Copies the bounded text from the chat-input DXUT edit box.
-    pub(crate) fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
+    pub fn chat_input_text(self) -> Result<Vec<u8>, DirectClientError> {
         let layout = self.spec.ui.input;
         let input = self.input().ok_or(DirectClientError::NotReady)?;
         let editbox = unsafe {

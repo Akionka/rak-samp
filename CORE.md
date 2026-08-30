@@ -76,12 +76,17 @@
   `NonZero<i32>` tokens that reject zero and negative raw values. It contains no
   fixed native addresses and no direct memory dereferences. SA-MP facades
   re-export these types and perform the SA-MP-to-GTA mappings.
+- `crates/samp-native/` owns direct-client profiles, guarded SA-MP operations,
+  backend request/snapshot values, and RakClient hook installation, detour entry
+  points, captured-original metadata, and deterministic vtable restoration for
+  R1, R3-1, R5-1, and DL-R1. Detours forward through one process-lifetime host
+  callback table without depending on host discovery or service adapters.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
-  separate from lifecycle control, while one shared `NativeClientProfile`
-  bridge isolates approved R1, R3-1, R5-1, and DL-R1 addresses, layouts, narrow
-  strategies, and guarded memory access from operation sequencing. The Windows
-  backend also separates bounded producer-side command
+  separate from lifecycle control. The transitional root backend consumes one
+  `samp-native` profile for approved R1, R3-1, R5-1, and DL-R1 direct
+  operations and guarded memory access.
+  The Windows backend also separates bounded producer-side command
   and cache-refresh requests from game-thread execution, with scalar and owned
   snapshot/catalog, chat-history, gangzone, object, player, owned on-foot, in-car, passenger, trailer, and aim sync, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
@@ -148,15 +153,16 @@ Win32 queue, pump, cache-publication, invalidation, and hook-lifecycle tests.
 The SDK root re-exports safe types, ABI declarations from `abi/`, wrapper glue,
 resolution, and subscription ownership from dedicated modules. `runtime/`
 keeps lifecycle/composition separate from requests, snapshots, network,
-commands, and reads. The Win32 root retains shared state; lifecycle, tick
-ordering, cache invalidation, backend forwarding, domain command execution,
-refresh publication, native bitstream/string work, and hook patching live in
-dedicated child modules. One version-selected `NativeClientProfile`
-gates every direct bridge. Four equal profile specifications contain explicit
-per-version RVAs, layouts, and narrow strategies for R1, R3-1, R5-1, and
-DL-R1. The common game-tick pump and cache refresh paths consume only
-`NativeClientProfile`; shared modules own singleton lookup, native aliases,
-textdraws, handle lookups, and capability-oriented `players/` and `ui/` trees.
+commands, and reads. The Win32 root retains host composition state; lifecycle,
+tick ordering, cache invalidation, callback forwarding, domain command
+execution, refresh publication, and native bitstream/string work live in
+dedicated child modules. One version-selected profile from
+`crates/samp-native/` gates every direct bridge. The crate owns all verified
+direct singleton, connection, pool, GTA-handle mapping, player/synchronization,
+UI, text-label, and textdraw operations plus RakClient detour/vtable ownership.
+Root host composition retains coherent cache scheduling/publication, command
+receipts, service tables, captured-original invocation, and listener dispatch.
+
 The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.

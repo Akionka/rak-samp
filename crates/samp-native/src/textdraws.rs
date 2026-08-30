@@ -5,9 +5,9 @@ use super::{
         bounded_c_string, read_i32_bool, read_pointer, read_u8_bool, read_unaligned,
         readable_range, writable_range,
     },
-    profile::{NativeClientProfile, NativeRva, PoolGetterAbi},
+    profile::{NativeProfile, NativeRva, PoolGetterAbi},
 };
-use crate::runtime::{DirectClientError, TextdrawSnapshot, Vector3};
+use crate::{DirectClientError, TextdrawSnapshot, Vector3};
 use std::{ffi::c_void, mem, ptr};
 
 type R1TextdrawPoolCreateFn =
@@ -19,7 +19,7 @@ type ClassicTextdrawPoolDeleteFn = unsafe extern "thiscall" fn(*mut c_void, u16)
 type R1TextdrawSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const u8);
 type ClassicTextdrawSetTextFn = unsafe extern "thiscall" fn(*mut c_void, *const u8);
 
-impl NativeClientProfile {
+impl NativeProfile {
     fn textdraw_pool(self) -> Result<*mut u8, DirectClientError> {
         let required = self
             .spec
@@ -123,11 +123,11 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn textdraw_exists(self, id: u16) -> Result<bool, DirectClientError> {
+    pub fn textdraw_exists(self, id: u16) -> Result<bool, DirectClientError> {
         self.textdraw_exists_from_pool(self.textdraw_pool()?, id)
     }
 
-    pub(crate) fn delete_textdraw(self, id: u16) -> Result<(), DirectClientError> {
+    pub fn delete_textdraw(self, id: u16) -> Result<(), DirectClientError> {
         let pool = self.textdraw_pool()?;
         self.textdraw_id(id)?;
         let target = self.textdraw_target(self.spec.textdraws.delete_rva)?;
@@ -146,7 +146,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn create_textdraw(
+    pub fn create_textdraw(
         self,
         id: u16,
         text: &[u8],
@@ -206,12 +206,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn set_textdraw_position(
-        self,
-        id: u16,
-        x: f32,
-        y: f32,
-    ) -> Result<(), DirectClientError> {
+    pub fn set_textdraw_position(self, id: u16, x: f32, y: f32) -> Result<(), DirectClientError> {
         if !x.is_finite() || !y.is_finite() {
             return Err(DirectClientError::NotReady);
         }
@@ -220,14 +215,14 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.y.get(), y)
     }
 
-    pub(crate) fn set_textdraw_style(self, id: u16, style: i32) -> Result<(), DirectClientError> {
+    pub fn set_textdraw_style(self, id: u16, style: i32) -> Result<(), DirectClientError> {
         if !(0..=5).contains(&style) {
             return Err(DirectClientError::NotReady);
         }
         self.write_textdraw(id, self.spec.textdraws.data.style.get(), style)
     }
 
-    pub(crate) fn set_textdraw_letter_style(
+    pub fn set_textdraw_letter_style(
         self,
         id: u16,
         width: f32,
@@ -243,7 +238,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.colour.get(), colour)
     }
 
-    pub(crate) fn set_textdraw_proportional(
+    pub fn set_textdraw_proportional(
         self,
         id: u16,
         proportional: bool,
@@ -255,7 +250,7 @@ impl NativeClientProfile {
         )
     }
 
-    pub(crate) fn set_textdraw_shadow(
+    pub fn set_textdraw_shadow(
         self,
         id: u16,
         shadow: u8,
@@ -266,7 +261,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.shadow.get(), shadow)
     }
 
-    pub(crate) fn set_textdraw_outline(
+    pub fn set_textdraw_outline(
         self,
         id: u16,
         outline: u8,
@@ -277,7 +272,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.outline.get(), outline)
     }
 
-    pub(crate) fn set_textdraw_box(
+    pub fn set_textdraw_box(
         self,
         id: u16,
         enabled: bool,
@@ -295,11 +290,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.box_colour.get(), colour)
     }
 
-    pub(crate) fn set_textdraw_alignment(
-        self,
-        id: u16,
-        alignment: u8,
-    ) -> Result<(), DirectClientError> {
+    pub fn set_textdraw_alignment(self, id: u16, alignment: u8) -> Result<(), DirectClientError> {
         if !(1..=3).contains(&alignment) {
             return Err(DirectClientError::NotReady);
         }
@@ -309,7 +300,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.align_right.get(), u8::from(alignment == 3))
     }
 
-    pub(crate) fn set_textdraw_model_style(
+    pub fn set_textdraw_model_style(
         self,
         id: u16,
         rotation: Vector3,
@@ -333,7 +324,7 @@ impl NativeClientProfile {
         self.write_textdraw(id, data.model_colour2.get(), colour2)
     }
 
-    pub(crate) fn set_textdraw_string(self, id: u16, text: &[u8]) -> Result<(), DirectClientError> {
+    pub fn set_textdraw_string(self, id: u16, text: &[u8]) -> Result<(), DirectClientError> {
         if text.len() >= self.spec.textdraws.create_text_capacity.get() || text.contains(&0) {
             return Err(DirectClientError::NotReady);
         }
@@ -356,7 +347,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn textdraw(self, id: u16) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
+    pub fn textdraw(self, id: u16) -> Result<Option<TextdrawSnapshot>, DirectClientError> {
         if !self.textdraw_exists(id)? {
             return Ok(None);
         }
@@ -437,7 +428,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.textdraw_exists(u16::MAX),
@@ -455,7 +446,7 @@ mod tests {
             (SampVersion::Dl, 0x1E3D0, 0x1E2B0, 0xB2B60),
         ];
         for (version, create_rva, delete_rva, setter_rva) in expected {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             let textdraw = profile.spec.textdraws;
             assert_eq!(profile.spec.pools.limits.textdraws.get(), 2304);

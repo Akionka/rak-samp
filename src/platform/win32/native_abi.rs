@@ -2,12 +2,7 @@
 
 use super::*;
 
-#[repr(C)]
-#[derive(Clone, Copy)]
-pub(super) struct RpcPlayerId {
-    pub(super) binary_address: u32,
-    pub(super) port: u16,
-}
+pub(super) use samp_native::hooks::RpcPlayerId;
 
 #[repr(C, packed)]
 #[derive(Clone, Copy)]

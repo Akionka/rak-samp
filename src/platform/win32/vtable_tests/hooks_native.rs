@@ -45,29 +45,24 @@ fn patches_only_owned_slots_and_preserves_a_later_hook() {
     let mut client = FakeClient {
         vtable: table.as_mut_ptr(),
     };
-    let state = test_backend_state();
 
-    let hook = unsafe {
-        VtableHook::install((&mut client as *mut FakeClient).cast::<c_void>(), &state).unwrap()
-    };
+    let (hook, originals) =
+        unsafe { VtableHook::install((&mut client as *mut FakeClient).cast::<c_void>()).unwrap() };
 
     assert_eq!(
         table[OUTGOING_PACKET_SLOT],
-        hooks::outgoing_packet_detour as *const () as usize
+        samp_native::hooks::outgoing_packet_detour as *const () as usize
     );
     assert_eq!(
         table[INCOMING_PACKET_SLOT],
-        hooks::incoming_packet_detour as *const () as usize
+        samp_native::hooks::incoming_packet_detour as *const () as usize
     );
     assert_eq!(
         table[OUTGOING_RPC_SLOT],
-        hooks::outgoing_rpc_detour as *const () as usize
+        samp_native::hooks::outgoing_rpc_detour as *const () as usize
     );
     assert_eq!(table[untouched_slot], untouched_original);
-    assert_eq!(
-        state.outgoing_packet_original.load(Ordering::Acquire),
-        original
-    );
+    assert_eq!(originals.outgoing_packet, original);
 
     let later_hook = later_method as *const () as usize;
     table[OUTGOING_PACKET_SLOT] = later_hook;

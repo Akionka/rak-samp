@@ -16,7 +16,6 @@ mod hooks;
 mod lifecycle;
 mod native_abi;
 mod native_bitstream;
-pub(crate) mod native_client;
 mod objects;
 mod packets;
 mod players;
@@ -59,12 +58,14 @@ use crate::{
     },
 };
 use gta_sa_native::{GameTickParticipant, GameTickRuntime, GtaProfile};
-use hooks::{HookStorage, VtableHook};
 use modkit_win32::InlineHook;
 #[cfg(test)]
 use native_bitstream::native_bit_length;
 use native_bitstream::{NativeBitStream, RawBitStream};
-use native_client::profile::NativeClientProfile;
+use samp_native::NativeProfile as NativeClientProfile;
+use samp_native::hooks::{HookStorage, VtableHook};
+#[cfg(test)]
+use samp_native::hooks::{INCOMING_PACKET_SLOT, OUTGOING_PACKET_SLOT, OUTGOING_RPC_SLOT};
 use std::{
     collections::{HashMap, VecDeque},
     ffi::c_void,
@@ -78,10 +79,6 @@ use std::{
 
 const ID_TIMESTAMP: u8 = 40;
 const ID_RPC: u8 = 20;
-const OUTGOING_PACKET_SLOT: usize = 6;
-const INCOMING_PACKET_SLOT: usize = 8;
-const DEALLOCATE_PACKET_SLOT: usize = 9;
-const OUTGOING_RPC_SLOT: usize = 25;
 const PEER_PACKET_QUEUE_OFFSET: usize = 0xDB6;
 const PLAYER_INFO_REQUEST_QUEUE_CAPACITY: usize = 32;
 const REMOTE_PLAYER_STATE_REQUEST_QUEUE_CAPACITY: usize = 32;

@@ -1,62 +1,23 @@
 //! Shared CNetGame connection operations backed by immutable profile data.
 
+#[cfg(test)]
+use super::profile::GameStateCodec;
 use super::{
     memory::{
         bounded_c_string, copy_bytes, read_pointer, read_unaligned, readable_range, writable_range,
         write_unaligned, zero_bytes,
     },
-    profile::{GameStateCodec, NativeClientProfile},
+    profile::NativeProfile,
 };
-use crate::runtime::{DirectClientError, ServerInfoSnapshot};
+use crate::{DirectClientError, ServerInfoSnapshot};
 use std::{ffi::c_void, mem};
 
 type R1NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type ProfileRakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void, u32, u8);
 type ProfileNetGameShutdownFn = unsafe extern "thiscall" fn(*mut c_void);
 
-impl GameStateCodec {
-    pub(crate) const fn encode(self, state: i32) -> Option<i32> {
-        match self {
-            Self::Identity => match state {
-                0 | 9 | 13 | 14 | 15 | 18 => Some(state),
-                _ => None,
-            },
-            Self::Classic => match state {
-                0 => Some(0),
-                9 => Some(1),
-                13 => Some(2),
-                14 => Some(5),
-                15 => Some(6),
-                18 => Some(11),
-                _ => None,
-            },
-        }
-    }
-
-    pub(crate) const fn decode(self, state: i32) -> Option<i32> {
-        match self {
-            Self::Identity => match state {
-                0 | 9 | 13 | 14 | 15 | 18 => Some(state),
-                _ => None,
-            },
-            Self::Classic => match state {
-                0 => Some(0),
-                1 => Some(9),
-                2 => Some(13),
-                5 => Some(14),
-                6 => Some(15),
-                11 => Some(18),
-                _ => None,
-            },
-        }
-    }
-}
-
-impl NativeClientProfile {
-    pub(crate) fn rakpeer_address(
-        self,
-        rakclient: *mut c_void,
-    ) -> Result<*mut c_void, DirectClientError> {
+impl NativeProfile {
+    pub fn rakpeer_address(self, rakclient: *mut c_void) -> Result<*mut c_void, DirectClientError> {
         let peer = (rakclient as usize)
             .checked_sub(self.spec.handles.rakpeer_size.get())
             .ok_or(DirectClientError::NotReady)? as *mut c_void;
@@ -67,7 +28,7 @@ impl NativeClientProfile {
         Ok(peer)
     }
 
-    pub(crate) fn game_state(self) -> Result<i32, DirectClientError> {
+    pub fn game_state(self) -> Result<i32, DirectClientError> {
         let net_game = self.net_game()?;
         let native = match self.spec.net_game.get_state_rva {
             Some(rva) => {
@@ -93,7 +54,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
+    pub fn set_game_state(self, state: i32) -> Result<(), DirectClientError> {
         let native_state = self
             .spec
             .strategies
@@ -109,11 +70,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn connect_to_server(
-        self,
-        address: &[u8],
-        port: u16,
-    ) -> Result<(), DirectClientError> {
+    pub fn connect_to_server(self, address: &[u8], port: u16) -> Result<(), DirectClientError> {
         if address.is_empty()
             || address.len() >= self.spec.net_game.host_string_capacity.get()
             || address.contains(&0)
@@ -154,7 +111,10 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn disconnect_with_reason(
+    // The guarded reads below validate the borrowed native object and vtable
+    // before the captured function receives the pointer.
+    #[allow(clippy::not_unsafe_ptr_arg_deref)]
+    pub fn disconnect_with_reason(
         self,
         rak_client: *mut c_void,
         block_duration: u32,
@@ -194,7 +154,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
+    pub fn server_info(self) -> Result<ServerInfoSnapshot, DirectClientError> {
         let net_game = self.net_game()? as usize;
         let address = unsafe {
             bounded_c_string(
@@ -254,11 +214,10 @@ mod tests {
     fn selected_profile(
         version: SampVersion,
         entry_point: u32,
-    ) -> (NativeClientProfile, Vec<u8>, Vec<u8>) {
+    ) -> (NativeProfile, Vec<u8>, Vec<u8>) {
         let mut module = vec![0_u8; 0x2A_CA_24 + mem::size_of::<usize>()];
-        let profile =
-            NativeClientProfile::select(module.as_mut_ptr() as usize, version, entry_point)
-                .expect("supported profile");
+        let profile = NativeProfile::select(module.as_mut_ptr() as usize, version, entry_point)
+            .expect("supported profile");
         let mut net_game = vec![0_u8; 0x500];
         unsafe {
             (module

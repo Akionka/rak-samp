@@ -2,28 +2,28 @@
 
 /// A public/cache colour with alpha in the most significant byte.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct ArgbColour(u32);
+pub struct ArgbColour(u32);
 
 /// A colour passed to SA-MP native text-label create methods.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeRgbaColour(u32);
+pub struct NativeRgbaColour(u32);
 
 impl ArgbColour {
-    pub(crate) const fn new(value: u32) -> Self {
+    pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    pub(crate) const fn get(self) -> u32 {
+    pub const fn get(self) -> u32 {
         self.0
     }
 }
 
 impl NativeRgbaColour {
-    pub(crate) const fn new(value: u32) -> Self {
+    pub const fn new(value: u32) -> Self {
         Self(value)
     }
 
-    pub(crate) const fn get(self) -> u32 {
+    pub const fn get(self) -> u32 {
         self.0
     }
 }
