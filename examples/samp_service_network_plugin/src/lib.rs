@@ -115,7 +115,7 @@ fn initialize() {
 }
 
 fn connect() -> Option<Samp> {
-    match Samp::connect(Duration::from_secs(30)) {
+    match Samp::connect(Duration::from_secs(120)) {
         Ok(samp) => Some(samp),
         Err(error) => {
             eprintln!("samp-service-network-plugin: connect failed: {error}");

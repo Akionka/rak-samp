@@ -18,7 +18,7 @@ use windows_sys::Win32::{
 };
 use windows_sys::core::BOOL;
 
-const COMMAND: &[u8] = b"/sampservice";
+const COMMAND: &[u8] = b"sampservice";
 const MESSAGE: &[u8] = b"Phase 7 SampServiceV1 chat path works";
 
 static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
@@ -127,7 +127,7 @@ fn initialize() {
 }
 
 fn connect() -> Option<Samp> {
-    match Samp::connect(Duration::from_secs(30)) {
+    match Samp::connect(Duration::from_secs(120)) {
         Ok(samp) => Some(samp),
         Err(error) => {
             eprintln!("samp-service-chat-plugin: connect failed: {error}");
