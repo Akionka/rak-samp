@@ -15,7 +15,7 @@ pub mod types;
 mod wire;
 mod wire_io;
 
-pub use bitstream::{BitRead, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};
+pub use bitstream::{BitRead, BitReader, BitStream, BitStreamError, BitWrite, MAX_BIT_STREAM_BITS};
 pub use catalog::{packet_name, rpc_name};
 pub use encoded_bits::{EncodedBits, EncodedBitsError};
 pub(crate) use encoded_string::EncodedStringWireCodec;

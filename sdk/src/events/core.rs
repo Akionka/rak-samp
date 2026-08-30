@@ -178,10 +178,20 @@ impl<'callback> Event<'callback> {
     /// Reads exact bits into a left-aligned byte buffer.
     pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, EventError> {
         let mut bytes = vec![0_u8; bit_len.div_ceil(u8::BITS as usize)];
-        self.host_result(unsafe {
-            (self.api.raw().event_read_bits)(self.raw, bytes.as_mut_ptr(), bit_len)
-        })?;
+        self.read_bits_into(&mut bytes, bit_len)?;
         Ok(bytes)
+    }
+
+    fn read_bits_into(&mut self, output: &mut [u8], bit_len: usize) -> Result<(), EventError> {
+        if output.len() != bit_len.div_ceil(u8::BITS as usize) {
+            return Err(EventError::InvalidBitLength {
+                bit_len,
+                byte_len: output.len(),
+            });
+        }
+        self.host_result(unsafe {
+            (self.api.raw().event_read_bits)(self.raw, output.as_mut_ptr(), bit_len)
+        })
     }
 
     /// Decodes one string with the current SA-MP client's RakNet compressor.
@@ -328,8 +338,12 @@ impl<'callback> samp_protocol::BitRead for Event<'callback> {
         self.remaining_bits()
     }
 
-    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
-        self.read_bits(bit_len)
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.read_bits_into(output, bit_len)
     }
 }
 

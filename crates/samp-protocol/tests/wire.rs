@@ -20,8 +20,9 @@ impl WireCodec for ThreeBitValue {
     type Value = u8;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let bytes = reader
-            .read_left_aligned_bits(3)
+        let mut bytes = [0; 1];
+        reader
+            .read_left_aligned_bits_into(&mut bytes, 3)
             .map_err(DecodeError::Source)?;
         Ok(bytes[0] >> 5)
     }
@@ -42,8 +43,9 @@ impl WireCodec for OneByteValue {
     type Value = u8;
 
     fn decode<R: BitRead>(reader: &mut R) -> Result<Self::Value, DecodeError<R::Error>> {
-        let bytes = reader
-            .read_left_aligned_bits(u8::BITS as usize)
+        let mut bytes = [0; 1];
+        reader
+            .read_left_aligned_bits_into(&mut bytes, u8::BITS as usize)
             .map_err(DecodeError::Source)?;
         Ok(bytes[0])
     }
@@ -167,7 +169,11 @@ fn descriptors_keep_reader_source_errors() {
             3
         }
 
-        fn read_left_aligned_bits(&mut self, _: usize) -> Result<Vec<u8>, Self::Error> {
+        fn read_left_aligned_bits_into(
+            &mut self,
+            _: &mut [u8],
+            _: usize,
+        ) -> Result<(), Self::Error> {
             Err("reader rejected bits")
         }
     }
@@ -263,10 +269,15 @@ fn terminal_alignment_padding_preserves_reader_source_errors() {
             self.remaining_bits
         }
 
-        fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
-            if bit_len == 3 {
+        fn read_left_aligned_bits_into(
+            &mut self,
+            output: &mut [u8],
+            bit_len: usize,
+        ) -> Result<(), Self::Error> {
+            if bit_len == 3 && output.len() == 1 {
+                output[0] = 0b1010_0000;
                 self.remaining_bits = 5;
-                Ok(vec![0b1010_0000])
+                Ok(())
             } else {
                 Err("padding read failed")
             }

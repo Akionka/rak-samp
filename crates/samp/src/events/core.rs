@@ -65,8 +65,19 @@ impl samp_protocol::BitRead for Event<'_> {
         Event::remaining_bits(self)
     }
 
-    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
-        self.read_bits(bit_len).map_err(EventError::Host)
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error> {
+        if output.len() != bit_len.div_ceil(u8::BITS as usize) {
+            return Err(EventError::InvalidBitLength {
+                bit_len,
+                byte_len: output.len(),
+            });
+        }
+        self.read_bits_into(output, bit_len)
+            .map_err(EventError::Host)
     }
 }
 

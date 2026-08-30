@@ -413,9 +413,16 @@ unsafe extern "system" fn samp_net_event_read_bits(
     if required > out_capacity || (out.is_null() && required != 0) {
         return MOD_INVALID_ARGUMENT;
     }
-    subscription_result(unsafe {
-        super::events::event_read_bits(event.cast::<SampClientSdkEventV1>(), out, bit_len as usize)
-    })
+    let output = if required == 0 {
+        &mut []
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(out, required as usize) }
+    };
+    subscription_result(super::events::event_read_bits_into(
+        event.cast::<SampClientSdkEventV1>(),
+        output,
+        bit_len as usize,
+    ))
 }
 
 unsafe extern "system" fn samp_net_event_replace_bits(
