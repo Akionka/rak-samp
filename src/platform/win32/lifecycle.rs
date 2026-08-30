@@ -5,6 +5,8 @@ use super::*;
 pub(super) static ACTIVE_BACKEND: OnceLock<Mutex<Option<Weak<BackendState>>>> = OnceLock::new();
 
 pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
+    samp_native::hooks::register_hook_callbacks(&hooks::HOOK_CALLBACKS)
+        .map_err(|_| AttachError::HookInstallFailed("registering SA-MP hook callbacks"))?;
     let module_base = loaded_samp_module()?;
     let entry_point = unsafe { modkit_win32::pe_entry_point(module_base) }
         .ok_or(AttachError::UnsupportedClient { entry_point: 0 })?;
@@ -245,7 +247,7 @@ impl BackendState {
             InlineHook::create(
                 "CDialog::Close",
                 target,
-                hooks::dialog_close_detour as *const () as usize,
+                samp_native::hooks::dialog_close_detour as *const () as usize,
             )
         }
         .map_err(|_| AttachError::HookInstallFailed("CDialog::Close detour"))?;
@@ -270,7 +272,7 @@ impl BackendState {
             InlineHook::create(
                 "RakClient constructor",
                 target,
-                hooks::rak_client_constructor_detour as *const () as usize,
+                samp_native::hooks::rak_client_constructor_detour as *const () as usize,
             )
         }
         .map_err(|_| AttachError::HookInstallFailed("RakClient constructor detour"))?;
@@ -306,7 +308,7 @@ impl BackendState {
             InlineHook::create(
                 "RakClient::HandleRPCPacket",
                 incoming_target,
-                hooks::incoming_rpc_detour as *const () as usize,
+                samp_native::hooks::incoming_rpc_detour as *const () as usize,
             )
         }
         .map_err(|_| {
@@ -323,8 +325,8 @@ impl BackendState {
             ));
         }
 
-        let vtable = match unsafe { VtableHook::install(client, self) } {
-            Ok(vtable) => vtable,
+        let (vtable, originals) = match unsafe { VtableHook::install(client) } {
+            Ok(installed) => installed,
             Err(error) => {
                 incoming_rpc.disable();
                 self.incoming_rpc_trampoline.store(0, Ordering::Release);
@@ -333,9 +335,24 @@ impl BackendState {
                 self.incoming_packet_original.store(0, Ordering::Release);
                 self.deallocate_packet_original.store(0, Ordering::Release);
                 self.outgoing_rpc_original.store(0, Ordering::Release);
-                return Err(error);
+                return Err(match error {
+                    samp_native::hooks::VtableHookError::ClientNotReady => {
+                        AttachError::ClientNotReady
+                    }
+                    samp_native::hooks::VtableHookError::PatchFailed => {
+                        AttachError::HookInstallFailed("patching RakClient vtable")
+                    }
+                });
             }
         };
+        self.outgoing_packet_original
+            .store(originals.outgoing_packet, Ordering::Release);
+        self.incoming_packet_original
+            .store(originals.incoming_packet, Ordering::Release);
+        self.deallocate_packet_original
+            .store(originals.deallocate_packet, Ordering::Release);
+        self.outgoing_rpc_original
+            .store(originals.outgoing_rpc, Ordering::Release);
         let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
         hooks.incoming_rpc = Some(incoming_rpc);
         hooks.vtable = Some(vtable);

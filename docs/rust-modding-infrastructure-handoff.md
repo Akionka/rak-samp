@@ -2241,18 +2241,24 @@ feat(samp-net): route typed protocol events through network service
 - [x] Create `crates/samp-native` if not already created during earlier extraction.
 - [x] Move `native_client/profile.rs` and four profile files first.
 - [x] Move shared singleton/layout/player/pool/UI modules subsystem by subsystem.
-- [ ] Move SA-MP RakClient hooks/detours.
+- [x] Move SA-MP RakClient hooks/detours.
 - [x] Keep GTA runtime dependencies pointing into `gta-sa-native`.
 - [x] Keep host-specific API table adapters in host composition, not in `samp-native`.
-- [ ] Move SA-MP cache state in coherent groups only when tests make ownership clear.
+- [x] Move SA-MP cache state in coherent groups only when tests make ownership clear.
 - [x] Avoid splitting large shared state just to satisfy file size; behavior/invariants take priority.
-- [ ] Re-run C++ RakNet layout fixture after native moves.
+- [x] Re-run C++ RakNet layout fixture after native moves.
 
-Extraction started on 2026-08-30. `crates/samp-native` now owns exact profile
-selection, guarded SA-MP memory helpers, singleton/connection access, pool and
-GTA-handle mapping, player/synchronization and UI/text-label/textdraw
-operations, plus the owned backend request/snapshot values they exchange. Host
-composition still owns the coherent cache groups and RakClient hook adapters.
+Completed on 2026-08-30. `crates/samp-native` owns exact profiles, guarded
+direct operations, backend request/snapshot values, RakClient detour entry
+points, vtable patch/restore, and captured-original metadata. Cache lifecycle
+tests show that command sequencing, publication, and invalidation form coherent
+host-composition groups, so those groups remain together in the root backend
+rather than being split merely for file ownership. The C++ RakNet/profile
+layout fixture and both new and legacy adapter paths remain covered by the
+workspace tests.
+
+Final validation passed: formatting check, 514 workspace tests across 34
+suites, Clippy with warnings denied, and locked release workspace build.
 
 ### Acceptance criteria
 

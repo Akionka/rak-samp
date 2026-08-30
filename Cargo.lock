@@ -305,6 +305,7 @@ name = "samp-native"
 version = "0.1.0-alpha.4"
 dependencies = [
  "gta-sa-native",
+ "log",
  "modkit-win32",
  "windows-sys",
 ]

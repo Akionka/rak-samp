@@ -61,10 +61,10 @@ unchanged for compatibility. See [Phase 7 evidence](docs/evidence/phase-7-samp-s
 
 ### Phase 8 — extract `samp-native`
 
-In progress. `crates/samp-native` owns exact profile selection and all direct
-singleton, connection, pool, player/synchronization, UI, text-label, and
-textdraw operations. Cache ownership and RakClient hook batches remain in the
-root backend.
+Complete. `crates/samp-native` owns exact profiles, direct SA-MP operations,
+owned backend values, and RakClient detour/vtable ownership. Host composition
+retains coherent caches, command sequencing, listener dispatch, native
+bitstream adaptation, lifecycle, and both new and legacy service adapters.
 
 ### Structural split tracker
 

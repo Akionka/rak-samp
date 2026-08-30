@@ -42,6 +42,7 @@ impl SampVersion {
 
 pub mod colours;
 mod connection;
+pub mod hooks;
 pub mod memory;
 mod players;
 mod pools;
