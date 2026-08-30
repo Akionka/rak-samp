@@ -200,6 +200,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "samp"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "gta-sa",
+ "modkit-abi",
+ "modkit-sdk",
+ "samp-protocol",
+]
+
+[[package]]
 name = "samp-client-sdk"
 version = "0.1.0-alpha.4"
 dependencies = [

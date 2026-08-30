@@ -33,6 +33,7 @@ members = [
     "crates/modkit-sdk",
     "crates/modkit-win32",
     "crates/samp-protocol",
+    "crates/samp",
     "sdk",
     "examples/chat_command_plugin",
     "examples/dl_network_probe",
