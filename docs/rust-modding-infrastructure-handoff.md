@@ -2104,12 +2104,13 @@ refactor(win32): extract guarded memory and hook primitives
 - [x] Move generic wait-rejection query (`is_game_thread`) behind runtime/Core service.
 - [x] Update tests proving original call count and command frame boundaries.
 
-Completed: 2026-08-30. `crates/gta-sa-native` owns the initial GTA SA 1.0 US
-profile, `CGame::Process` hook/trampoline, detour diagnostics, and game-thread
-identity. The existing SA-MP backend registers as a `GameTickParticipant`; the
-GTA runtime preserves mark -> snapshot -> original once -> post-pump ordering.
-The Core wait path reaches the GTA-owned thread query through the existing host
-runtime, without changing the frozen `CoreServiceV1` layout.
+Complete. `crates/gta-sa-native` owns the SHA-256-gated GTA SA 1.0 US profile,
+`CGame::Process` hook/trampoline, detour diagnostics, and game-thread identity.
+The existing SA-MP backend registers as a `GameTickParticipant`; the GTA
+runtime preserves mark -> snapshot -> original once -> post-pump ordering. The
+Core wait path reaches the GTA-owned thread query through the existing host
+runtime, without changing the frozen `CoreServiceV1` layout. See
+[Phase 5 evidence](evidence/phase-5-gta-native-runtime.md).
 
 ### Implementation note
 
@@ -2128,9 +2129,9 @@ or explicit host composition calls. Avoid dynamic complexity if direct compositi
 
 ### Acceptance criteria
 
-- SA-MP behavior remains unchanged.
-- `samp-native` no longer owns the GTA `CGame::Process` constant/hook.
-- Existing game-tick tests pass under new ownership.
+- [x] SA-MP behavior remains unchanged in a fresh live attach and clean exit.
+- [x] `samp-native` no longer owns the GTA `CGame::Process` constant/hook.
+- [x] Existing game-tick and frame-boundary tests pass under new ownership.
 
 ### Suggested commit
 

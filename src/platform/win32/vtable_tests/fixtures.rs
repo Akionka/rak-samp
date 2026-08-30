@@ -11,7 +11,9 @@ pub(super) fn test_backend_state() -> BackendState {
             addresses: AddressSet::for_version(SampVersion::R1),
             native_client_profile: None,
         },
-        game_tick: GameTickRuntime::new(GtaProfile::gta_sa_10_us()),
+        game_tick: GameTickRuntime::new(
+            GtaProfile::select(0x0040_0000, gta_sa_native::GTA_SA_10_US_SHA256).unwrap(),
+        ),
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),

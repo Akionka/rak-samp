@@ -1,12 +1,32 @@
 //! Game command queue and tick orchestration tests.
 
 use super::*;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::{
+    cell::Cell,
+    sync::{Mutex, OnceLock, atomic::Ordering},
+};
 
-static GAME_PROCESS_CALLS: AtomicU32 = AtomicU32::new(0);
+static ORIGINAL_SUBMISSION: OnceLock<Mutex<Option<CommandId>>> = OnceLock::new();
+
+thread_local! {
+    static GAME_PROCESS_CALLS: Cell<u32> = const { Cell::new(0) };
+    static ORIGINAL_SUBMISSION_STATE: Cell<*const BackendState> = const { Cell::new(std::ptr::null()) };
+}
 
 unsafe extern "C" fn fake_game_process() {
-    GAME_PROCESS_CALLS.fetch_add(1, Ordering::AcqRel);
+    GAME_PROCESS_CALLS.with(|calls| calls.set(calls.get() + 1));
+    ORIGINAL_SUBMISSION_STATE.with(|slot| {
+        let state = slot.replace(std::ptr::null());
+        if !state.is_null()
+            && let Ok(id) = unsafe { &*state }
+                .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(2))))
+        {
+            *ORIGINAL_SUBMISSION
+                .get_or_init(|| Mutex::new(None))
+                .lock()
+                .unwrap_or_else(|error| error.into_inner()) = Some(id);
+        }
+    });
 }
 
 #[test]
@@ -157,12 +177,52 @@ fn network_commands_copy_payloads_and_detach_the_legacy_waiter() {
 #[test]
 fn game_tick_calls_original_once_and_marks_the_game_thread() {
     let state = test_backend_state();
-    GAME_PROCESS_CALLS.store(0, Ordering::Release);
+    GAME_PROCESS_CALLS.set(0);
 
     unsafe { state.game_tick.run_tick(&state, fake_game_process) };
 
-    assert_eq!(GAME_PROCESS_CALLS.load(Ordering::Acquire), 1);
+    assert_eq!(GAME_PROCESS_CALLS.get(), 1);
     assert!(state.is_game_thread());
+}
+
+#[test]
+fn game_tick_defers_commands_submitted_by_the_original_until_the_next_frame() {
+    let state = test_backend_state();
+    state.rak_client.store(1, Ordering::Release);
+    let first = state
+        .submit_game_command(GameCommand::Ui(UiCommand::ShowDialog(test_dialog(1))))
+        .unwrap();
+    GAME_PROCESS_CALLS.set(0);
+    *ORIGINAL_SUBMISSION
+        .get_or_init(|| Mutex::new(None))
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = None;
+    ORIGINAL_SUBMISSION_STATE.with(|slot| slot.set(&state));
+
+    unsafe { state.game_tick.run_tick(&state, fake_game_process) };
+
+    let second = ORIGINAL_SUBMISSION
+        .get()
+        .and_then(|slot| {
+            slot.lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .take()
+        })
+        .expect("the original call must submit the second-frame command");
+    assert_eq!(GAME_PROCESS_CALLS.get(), 1);
+    assert_eq!(
+        state.game_commands.try_take(first),
+        Ok(Some(Err(CommandError::NativeFailure)))
+    );
+    assert_eq!(state.game_commands.try_take(second), Ok(None));
+
+    unsafe { state.game_tick.run_tick(&state, fake_game_process) };
+
+    assert_eq!(GAME_PROCESS_CALLS.get(), 2);
+    assert_eq!(
+        state.game_commands.try_take(second),
+        Ok(Some(Err(CommandError::NativeFailure)))
+    );
 }
 
 #[test]

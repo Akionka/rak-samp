@@ -43,15 +43,9 @@ passes, and a fresh R3-1 attach confirmed hook readiness and clean exit. See
 
 ### Phase 5 — create GTA native runtime
 
-- [x] Create `crates/gta-sa-native` as the Windows x86 GTA backend foundation.
-- [x] Add the initial GTA SA 1.0 US `GtaProfile`/`GtaProfileSpec` and move the
-  verified `CGame::Process` target `0x53BEE0` into it.
-- [x] Move the game-process detour, trampoline, hook lifecycle, and game-thread
-  identity out of the SA-MP backend.
-- [x] Register the SA-MP backend as a host-internal `GameTickParticipant` and
-  preserve mark thread -> command snapshot -> original once -> post-pump.
-- [x] Route wait rejection through the GTA-owned `is_game_thread` query.
-- [x] Preserve game-tick original-call, frame-boundary, command, and cache tests.
+Complete. Exact-build GTA selection, GTA-owned tick orchestration, automated
+validation, R3-1 hook readiness, and clean exit passed. See
+[Phase 5 evidence](docs/evidence/phase-5-gta-native-runtime.md).
 
 ### Structural split tracker
 

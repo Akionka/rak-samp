@@ -13,6 +13,8 @@ name = "gta_sa_native"
 [dependencies]
 log = "0.4"
 modkit-win32 = { version = "=0.1.0-alpha.4", path = "../modkit-win32" }
+sha2 = "0.10"
 windows-sys = { version = "0.61", features = [
+    "Win32_System_LibraryLoader",
     "Win32_System_Threading",
 ] }

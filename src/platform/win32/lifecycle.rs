@@ -12,6 +12,20 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         .ok_or(AttachError::UnsupportedClient { entry_point })?;
     let addresses = AddressSet::for_version(version);
     let selected_profile = NativeClientProfile::select(module_base, version, entry_point);
+    let gta_profile = GtaProfile::detect_current().map_err(|error| match error {
+        gta_sa_native::GtaProfileError::Unsupported {
+            module_base,
+            sha256,
+        } => AttachError::UnsupportedGame {
+            image_base: module_base,
+            sha256,
+        },
+        gta_sa_native::GtaProfileError::ExecutablePathUnavailable
+        | gta_sa_native::GtaProfileError::ExecutableReadFailed
+        | gta_sa_native::GtaProfileError::ModuleUnavailable => {
+            AttachError::GameExecutableUnavailable
+        }
+    })?;
     if let Some(profile) = selected_profile {
         log::info!(
             "{} direct client helpers are enabled",
@@ -33,7 +47,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             addresses,
             native_client_profile: selected_profile,
         },
-        game_tick: GameTickRuntime::new(GtaProfile::gta_sa_10_us()),
+        game_tick: GameTickRuntime::new(gta_profile),
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),
@@ -210,6 +224,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 impl BackendState {
     pub(super) fn install_game_process_hook(&self) -> Result<(), AttachError> {
         self.game_tick.install().map_err(|error| match error {
+            gta_sa_native::GameTickInstallError::AlreadyInstalled => AttachError::AlreadyAttached,
             gta_sa_native::GameTickInstallError::CreateHook => {
                 AttachError::HookInstallFailed("CGame::Process detour")
             }
@@ -332,19 +347,30 @@ impl BackendState {
 
 impl BackendState {
     pub(super) fn shutdown(&self) {
-        let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
-        hooks.vtable.take();
-        self.game_tick.shutdown();
-        if let Some(detour) = hooks.dialog_close.take() {
+        let (vtable, dialog_close, incoming_rpc, constructor) = {
+            let mut hooks = self.hooks.lock().unwrap_or_else(|error| error.into_inner());
+            (
+                hooks.vtable.take(),
+                hooks.dialog_close.take(),
+                hooks.incoming_rpc.take(),
+                hooks.constructor.take(),
+            )
+        };
+        drop(vtable);
+        if let Err(error) = self.game_tick.shutdown() {
+            log::warn!(
+                "failed to remove CGame::Process hook safely; retaining pass-through runtime: {error:?}"
+            );
+        }
+        if let Some(detour) = dialog_close {
             detour.disable();
         }
-        if let Some(detour) = hooks.incoming_rpc.take() {
+        if let Some(detour) = incoming_rpc {
             detour.disable();
         }
-        if let Some(detour) = hooks.constructor.take() {
+        if let Some(detour) = constructor {
             detour.disable();
         }
-        drop(hooks);
 
         // No new native calls can enter after the GTA runtime, vtable, and
         // SA-MP inline hooks have been removed. Existing detours retain their

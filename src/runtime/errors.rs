@@ -14,6 +14,8 @@ pub(crate) enum DirectClientError {
 pub enum AttachError {
     UnsupportedPlatform,
     SampNotLoaded,
+    GameExecutableUnavailable,
+    UnsupportedGame { image_base: usize, sha256: [u8; 32] },
     UnsupportedClient { entry_point: u32 },
     ClientNotReady,
     AlreadyAttached,
@@ -27,6 +29,19 @@ impl fmt::Display for AttachError {
                 formatter.write_str("samp_client_sdk requires a 32-bit Windows process")
             }
             Self::SampNotLoaded => formatter.write_str("samp.dll is not loaded"),
+            Self::GameExecutableUnavailable => {
+                formatter.write_str("could not identify the GTA executable")
+            }
+            Self::UnsupportedGame { image_base, sha256 } => {
+                write!(
+                    formatter,
+                    "unsupported GTA executable at 0x{image_base:08X}: "
+                )?;
+                for byte in sha256 {
+                    write!(formatter, "{byte:02X}")?;
+                }
+                Ok(())
+            }
             Self::UnsupportedClient { entry_point } => {
                 write!(
                     formatter,

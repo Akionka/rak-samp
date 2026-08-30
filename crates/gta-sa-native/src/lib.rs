@@ -12,5 +12,11 @@ compile_error!("gta-sa-native supports only 32-bit Windows x86 targets");
 mod profile;
 mod tick;
 
-pub use profile::{AbsoluteAddress, GameSpec, GtaIdentity, GtaProfile, GtaProfileSpec};
-pub use tick::{GameProcessFn, GameTickInstallError, GameTickParticipant, GameTickRuntime};
+pub use profile::{
+    AbsoluteAddress, GTA_SA_10_US_SHA256, GameSpec, GtaIdentity, GtaProfile, GtaProfileError,
+    GtaProfileSpec,
+};
+pub use tick::{
+    GameProcessFn, GameTickInstallError, GameTickParticipant, GameTickRuntime,
+    GameTickShutdownError,
+};

@@ -12,6 +12,8 @@ pub enum InlineHookError {
     InvalidAddress,
     CreateFailed,
     EnableFailed,
+    DisableFailed,
+    RemoveFailed,
     ProtectFailed,
     RestoreProtectionFailed,
 }
@@ -49,7 +51,9 @@ impl InlineHook {
                 .map_err(|_| InlineHookError::CreateFailed)?
         };
         if trampoline.is_null() {
-            let _ = unsafe { minhook::MinHook::remove_hook(target as *mut c_void) };
+            if let Err(error) = unsafe { minhook::MinHook::remove_hook(target as *mut c_void) } {
+                log::warn!("failed to remove MinHook entry after a null trampoline: {error:?}");
+            }
             return Err(InlineHookError::CreateFailed);
         }
         Ok((
@@ -81,36 +85,46 @@ impl InlineHook {
 
     /// Disables and removes the hook.
     pub fn disable(mut self) {
-        self.remove();
+        self.remove_best_effort();
     }
 
-    fn remove(&mut self) {
-        if self.target == 0 {
-            return;
+    /// Disables the hook while retaining its MinHook entry for a later removal.
+    pub fn try_disable(&mut self) -> Result<(), InlineHookError> {
+        if self.target == 0 || !self.enabled {
+            return Ok(());
         }
-        let target = self.target as *mut c_void;
-        if self.enabled
-            && let Err(error) = unsafe { minhook::MinHook::disable_hook(target) }
-        {
-            log::warn!(
-                "failed to disable MinHook inline hook {}: {error:?}",
-                self.name
-            );
-        }
-        if let Err(error) = unsafe { minhook::MinHook::remove_hook(target) } {
-            log::warn!(
-                "failed to remove MinHook inline hook {}: {error:?}",
-                self.name
-            );
-        }
-        self.target = 0;
+        unsafe { minhook::MinHook::disable_hook(self.target as *mut c_void) }
+            .map_err(|_| InlineHookError::DisableFailed)?;
         self.enabled = false;
+        Ok(())
+    }
+
+    /// Disables and removes the hook, retaining ownership on failure.
+    pub fn try_remove(&mut self) -> Result<(), InlineHookError> {
+        if self.target == 0 {
+            return Ok(());
+        }
+        self.try_disable()?;
+        unsafe { minhook::MinHook::remove_hook(self.target as *mut c_void) }
+            .map_err(|_| InlineHookError::RemoveFailed)?;
+        self.target = 0;
+        self.trampoline = 0;
+        Ok(())
+    }
+
+    fn remove_best_effort(&mut self) {
+        if let Err(error) = self.try_remove() {
+            log::warn!(
+                "failed to disable or remove MinHook inline hook {}: {error:?}",
+                self.name,
+            );
+        }
     }
 }
 
 impl Drop for InlineHook {
     fn drop(&mut self) {
-        self.remove();
+        self.remove_best_effort();
     }
 }
 
@@ -211,8 +225,9 @@ mod tests {
         hook.enable().unwrap();
         assert_eq!(unsafe { self::target(7) }, 18);
 
-        hook.disable();
+        hook.try_disable().unwrap();
         assert_eq!(unsafe { self::target(7) }, 8);
+        hook.try_remove().unwrap();
 
         let (recreated, recreated_trampoline) =
             unsafe { InlineHook::create("test target", target, detour) }.unwrap();
