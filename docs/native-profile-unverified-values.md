@@ -13,6 +13,11 @@ Rust declarations are textually identical, but no independent evidence proves
 their native ABI compatibility. Do not merge or reuse an alias across profiles
 until an ABI fixture or live-call validation covers that exact signature.
 
+GTA-owned `CPools::GetPedRef` (`0x54FF60`) and
+`CPools::GetVehicleRef` (`0x54FFC0`) are no longer in this register. Phase 6
+validated them on the pinned GTA SA 1.0 US executable and moved them to
+`gta-sa-native`; see `docs/evidence/phase-6-gta-handles.md`.
+
 | Profile | Operation or value | Current source | Required evidence | Status |
 | --- | --- | --- | --- | --- |
 | R1 | Singleton RVAs: dialog `0x21A0B8`, input `0x21A0E8`, chat `0x21A0E4`, scoreboard `0x21A0B4`, death window `0x21A0EC`, NetGame `0x21A0F8`, game `0x21A10C` | `native_client/profiles/r1.rs` | Shipped R1 binary or an executable pin test for each RVA | Unverified |
@@ -36,11 +41,8 @@ until an ABI fixture or live-call validation covers that exact signature.
 | R3 | `NET_GAME_SERVER_SETTINGS_OFFSET` at `0x3D5` | Packed R3 layout inference | Independent fixture member assertion or binary evidence | Fixture-backed only by inference; unused |
 | R5 | Every non-layout RVA recorded in `R5_SPEC` | `native_client/profiles/r5.rs` | Shipped R5 binary or executable pin tests | Unverified |
 | R5 | Native ABI signatures and calling conventions | `native_client` direct-call aliases | ABI fixture or live call validation for each signature | Unverified |
-| R5 | GTA ped and vehicle handle-conversion targets | GTA 1.0 US constants | Executable fixture or binary evidence | Unverified; operation unavailable |
 | DL | Every non-layout RVA recorded in `DL_SPEC` | `native_client/profiles/dl.rs` | Shipped DL binary or executable pin tests | Unverified |
 | DL | Native ABI signatures and calling conventions | `native_client` direct-call aliases | ABI fixture or live call validation for each signature | Unverified |
-| DL | GTA ped and vehicle handle-conversion targets | GTA 1.0 US constants | Executable fixture or binary evidence | Unverified; operation unavailable |
 | R3, R5, DL | Non-layout native and singleton RVAs | `native_client/profiles/` | Shipped binary or executable pin tests for each profile | Unverified |
 | R3, R5, DL | Native ABI signatures and calling conventions | `native_client` direct-call aliases | ABI fixture or live call validation | Unverified |
-| R3, R5, DL | GTA ped and vehicle handle-conversion targets | `native_client/handles.rs` | Executable GTA fixture or binary evidence | Unverified |
 | R3, R5, DL | Server-settings offset use | `native_client/profiles/` | Operation integration test or removal after proving it is unnecessary | Fixture-backed but unused |

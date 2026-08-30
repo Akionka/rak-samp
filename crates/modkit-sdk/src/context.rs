@@ -25,6 +25,28 @@ pub struct GameContext<'scope> {
     _not_send_or_sync: PhantomData<*mut ()>,
 }
 
+impl<'scope> GameContext<'scope> {
+    /// Wraps a host-issued callback token without extending its lifetime.
+    ///
+    /// # Safety
+    ///
+    /// `token` must be supplied by the host for the active callback. The
+    /// returned value must not outlive that callback.
+    #[must_use]
+    pub unsafe fn from_raw(token: GameContextTokenV1) -> Self {
+        Self {
+            token,
+            _scope: PhantomData,
+            _not_send_or_sync: PhantomData,
+        }
+    }
+
+    #[must_use]
+    pub(crate) const fn token(&self) -> GameContextTokenV1 {
+        self.token
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::GameContext;

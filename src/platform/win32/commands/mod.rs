@@ -3,6 +3,7 @@
 use super::*;
 
 mod connection;
+mod gta;
 mod network;
 mod players;
 mod text_labels;
@@ -10,6 +11,7 @@ mod textdraws;
 mod ui;
 
 use connection::ConnectionCommand;
+pub(super) use gta::GtaCommand;
 pub(in crate::platform::win32) use network::NetworkCommand;
 use players::PlayerCommand;
 pub(in crate::platform::win32) use text_labels::TextLabelCommand;
@@ -23,6 +25,7 @@ pub(super) enum GameCommand {
     Textdraw(TextdrawCommand),
     Player(PlayerCommand),
     Network(NetworkCommand),
+    Gta(GtaCommand),
 }
 
 impl BackendState {
@@ -59,6 +62,9 @@ impl BackendState {
                 }
                 GameCommand::Player(command) => self.execute_player_command(command),
                 GameCommand::Network(command) => self.execute_network_command(command),
+                GameCommand::Gta(command) => self
+                    .execute_gta_command(command)
+                    .map_err(|_| CommandError::NativeFailure),
             };
             if !self
                 .game_command_completion_diagnostic_logged
@@ -78,6 +84,10 @@ impl BackendState {
                     // Every command owns its plugin-provided payload. Keep logs
                     // free of dialog text, chat text, and death-window names.
                     log::debug!("game command failed: {error:?}");
+                    self.gta_snapshot_results
+                        .lock()
+                        .unwrap_or_else(|error| error.into_inner())
+                        .remove(&queued.id);
                     self.game_commands
                         .complete(queued.id, Err(CommandError::NativeFailure));
                 }

@@ -10,14 +10,30 @@ try {
     }
 
     $sdk = $metadata.packages | Where-Object name -eq "samp-client-sdk"
+    $abi = $metadata.packages | Where-Object name -eq "modkit-abi"
+    $modkitSdk = $metadata.packages | Where-Object name -eq "modkit-sdk"
     $gta = $metadata.packages | Where-Object name -eq "gta-sa"
     $protocol = $metadata.packages | Where-Object name -eq "samp-protocol"
+    $abiPath = (Split-Path $abi.manifest_path -Parent).Replace("\", "/")
+    $modkitSdkPath = (Split-Path $modkitSdk.manifest_path -Parent).Replace("\", "/")
     $gtaPath = (Split-Path $gta.manifest_path -Parent).Replace("\", "/")
     $protocolPath = (Split-Path $protocol.manifest_path -Parent).Replace("\", "/")
+    $abiPatch = "patch.crates-io.modkit-abi.path='$abiPath'"
+    $modkitSdkPatch = "patch.crates-io.modkit-sdk.path='$modkitSdkPath'"
     $gtaPatch = "patch.crates-io.gta-sa.path='$gtaPath'"
     $protocolPatch = "patch.crates-io.samp-protocol.path='$protocolPath'"
 
-    cargo package -p gta-sa --allow-dirty --locked
+    cargo package -p modkit-abi --allow-dirty --locked
+    if ($LASTEXITCODE -ne 0) {
+        throw "modkit-abi packaging failed"
+    }
+
+    cargo package -p modkit-sdk --allow-dirty --locked --config $abiPatch
+    if ($LASTEXITCODE -ne 0) {
+        throw "modkit-sdk packaging failed"
+    }
+
+    cargo package -p gta-sa --allow-dirty --locked --config $abiPatch --config $modkitSdkPatch
     if ($LASTEXITCODE -ne 0) {
         throw "gta-sa packaging failed"
     }
@@ -27,7 +43,7 @@ try {
         throw "samp-protocol packaging failed"
     }
 
-    cargo package -p samp-client-sdk --allow-dirty --locked --config $gtaPatch --config $protocolPatch
+    cargo package -p samp-client-sdk --allow-dirty --locked --config $abiPatch --config $modkitSdkPatch --config $gtaPatch --config $protocolPatch
     if ($LASTEXITCODE -ne 0) {
         throw "samp-client-sdk packaging failed"
     }

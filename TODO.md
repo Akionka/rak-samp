@@ -1,7 +1,7 @@
 # Repositioning TODO
 
 Status: complete for the original repositioning. Architecture work through
-Phase 7 is complete; Phase 8 profile extraction is in progress in the
+Phase 8 is complete; Phase 9 GTA knowledge port is in progress in the
 [Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
@@ -65,6 +65,18 @@ Complete. `crates/samp-native` owns exact profiles, direct SA-MP operations,
 owned backend values, and RakClient detour/vtable ownership. Host composition
 retains coherent caches, command sequencing, listener dispatch, native
 bitstream adaptation, lifecycle, and both new and legacy service adapters.
+
+### Phase 9 — begin plugin-sdk knowledge port
+
+Complete. Phase 9 publishes the pinned layout oracle and evidence-bearing GTA
+profile, pointer-free values and snapshots, verified x86/vtable call helpers,
+local-ped resolution, callback-scoped post-process `GameContext`, queued
+compound snapshots, direct and queued verified teleport, `GtaSaServiceV1`, the
+safe `gta-sa` facade, and `gta-basic-plugin`. The dated R1 live smoke crossed
+world sectors through both direct and queued paths and restored the original
+position. See [Phase 9 native evidence](docs/evidence/phase-9-gta-native-foundations.md),
+[teleport evidence](docs/evidence/phase-9-gta-teleport-static.md), and the
+[GTA unverified-values register](docs/gta-sa-profile-unverified-values.md).
 
 ### Structural split tracker
 

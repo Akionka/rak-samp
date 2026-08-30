@@ -530,6 +530,39 @@ impl Backend {
         self.state.submit_player_colour(id, colour)
     }
 
+    pub(crate) fn gta_local_ped_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<Option<gta_sa::PedSnapshot>, DirectClientError> {
+        self.state.gta_local_ped_snapshot(token)
+    }
+
+    pub(crate) fn gta_teleport_local_ped(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        destination: gta_sa::Vector3,
+    ) -> Result<(), DirectClientError> {
+        self.state.gta_teleport_local_ped(token, destination)
+    }
+
+    pub(crate) fn submit_gta_local_ped_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_local_ped_snapshot()
+    }
+
+    pub(crate) fn take_gta_local_ped_snapshot(
+        &self,
+        id: CommandId,
+    ) -> Option<Option<gta_sa::PedSnapshot>> {
+        self.state.take_gta_local_ped_snapshot(id)
+    }
+
+    pub(crate) fn submit_gta_teleport_local_ped(
+        &self,
+        destination: gta_sa::Vector3,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_teleport_local_ped(destination)
+    }
+
     pub(crate) fn try_take_command(
         &self,
         id: CommandId,
@@ -551,7 +584,8 @@ impl Backend {
             timeout,
             !self.state.is_game_thread()
                 && !self.state.registry.is_dispatching_on_current_thread()
-                && !crate::host_api::chat_commands::is_dispatching_on_current_thread(),
+                && !crate::host_api::chat_commands::is_dispatching_on_current_thread()
+                && !modkit_runtime::CallbackContext::is_active_on_current_thread(),
         );
         if !matches!(
             result,
@@ -566,12 +600,18 @@ impl Backend {
         !self.state.is_game_thread()
             && !self.state.registry.is_dispatching_on_current_thread()
             && !crate::host_api::chat_commands::is_dispatching_on_current_thread()
+            && !modkit_runtime::CallbackContext::is_active_on_current_thread()
     }
 
     pub(crate) fn release_command(&self, id: CommandId) -> Result<(), CommandError> {
         let result = self.state.game_commands.detach(id);
         if result.is_ok() {
             self.state.forget_created_text_label(id);
+            self.state
+                .gta_snapshot_results
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .remove(&id);
         }
         result
     }

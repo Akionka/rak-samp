@@ -26,6 +26,92 @@ impl AbsoluteAddress {
     }
 }
 
+/// An image-relative virtual address, resolved only against a selected profile.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RelativeVirtualAddress(u32);
+
+impl RelativeVirtualAddress {
+    #[must_use]
+    pub const fn new(value: u32) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u32 {
+        self.0
+    }
+
+    #[must_use]
+    pub fn resolve(self, module_base: usize) -> Option<AbsoluteAddress> {
+        module_base
+            .checked_add(self.0 as usize)
+            .map(AbsoluteAddress::new)
+    }
+}
+
+/// A byte offset within one verified native object layout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FieldOffset(usize);
+
+impl FieldOffset {
+    #[must_use]
+    pub const fn new(value: usize) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0
+    }
+}
+
+/// A verified native object size in bytes.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ObjectSize(usize);
+
+impl ObjectSize {
+    #[must_use]
+    pub const fn new(value: usize) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0
+    }
+}
+
+/// A zero-based native vtable slot.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VtableSlot(usize);
+
+impl VtableSlot {
+    #[must_use]
+    pub const fn new(value: usize) -> Self {
+        Self(value)
+    }
+
+    #[must_use]
+    pub const fn get(self) -> usize {
+        self.0
+    }
+}
+
+/// Evidence grade attached to one profile fact group.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum EvidenceGrade {
+    A,
+    B,
+}
+
+/// Reproducible provenance for one group of production profile facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeEvidence {
+    pub grade: EvidenceGrade,
+    pub source: &'static str,
+    pub verified_at: &'static str,
+}
+
 /// Identity of one verified GTA executable target.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GtaIdentity {
@@ -38,6 +124,7 @@ pub struct GtaIdentity {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GameSpec {
     pub process: AbsoluteAddress,
+    pub evidence: NativeEvidence,
 }
 
 /// Verified GTA `CPools` reference-conversion targets.
@@ -45,6 +132,42 @@ pub struct GameSpec {
 pub struct GtaPoolSpec {
     pub get_ped_ref: AbsoluteAddress,
     pub get_vehicle_ref: AbsoluteAddress,
+    pub evidence: NativeEvidence,
+}
+
+/// Verified local-player symbols.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PlayerSpec {
+    pub find_player_ped: AbsoluteAddress,
+    pub evidence: NativeEvidence,
+}
+
+/// Fixture-backed `CPlaceable` and `CEntity` layout facts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EntityLayoutSpec {
+    pub placeable_position: FieldOffset,
+    pub matrix_pointer: FieldOffset,
+    pub size: ObjectSize,
+    pub evidence: NativeEvidence,
+}
+
+/// Fixture-backed `CPed` layout facts used by the first snapshot slice.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PedLayoutSpec {
+    pub size: ObjectSize,
+    pub health: FieldOffset,
+    pub armour: FieldOffset,
+    pub evidence: NativeEvidence,
+}
+
+/// Exact ped vtables and virtual teleport target for the selected executable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PedVtableSpec {
+    pub ped: AbsoluteAddress,
+    pub player_ped: AbsoluteAddress,
+    pub teleport_slot: VtableSlot,
+    pub teleport_target: AbsoluteAddress,
+    pub evidence: NativeEvidence,
 }
 
 /// Data-only profile specification for one GTA executable target.
@@ -53,6 +176,10 @@ pub struct GtaProfileSpec {
     pub identity: GtaIdentity,
     pub game: GameSpec,
     pub pools: GtaPoolSpec,
+    pub player: PlayerSpec,
+    pub entity: EntityLayoutSpec,
+    pub ped: PedLayoutSpec,
+    pub ped_vtable: PedVtableSpec,
 }
 
 /// Selected GTA executable profile.
@@ -82,10 +209,59 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
     },
     game: GameSpec {
         process: AbsoluteAddress::new(0x53BEE0),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-5-gta-native-runtime.md",
+            verified_at: "2026-08-26",
+        },
     },
     pools: GtaPoolSpec {
         get_ped_ref: AbsoluteAddress::new(0x54FF60),
         get_vehicle_ref: AbsoluteAddress::new(0x54FFC0),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-6-gta-handles.md",
+            verified_at: "2026-08-26",
+        },
+    },
+    player: PlayerSpec {
+        find_player_ped: AbsoluteAddress::new(0x56E210),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-9-gta-native-foundations.md",
+            verified_at: "2026-08-30",
+        },
+    },
+    entity: EntityLayoutSpec {
+        placeable_position: FieldOffset::new(0x04),
+        matrix_pointer: FieldOffset::new(0x14),
+        size: ObjectSize::new(0x38),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "tests/fixtures/gta_sa_layout.cpp",
+            verified_at: "2026-08-30",
+        },
+    },
+    ped: PedLayoutSpec {
+        size: ObjectSize::new(0x79C),
+        health: FieldOffset::new(0x540),
+        armour: FieldOffset::new(0x548),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "tests/fixtures/gta_sa_layout.cpp",
+            verified_at: "2026-08-30",
+        },
+    },
+    ped_vtable: PedVtableSpec {
+        ped: AbsoluteAddress::new(0x86C358),
+        player_ped: AbsoluteAddress::new(0x86D168),
+        teleport_slot: VtableSlot::new(14),
+        teleport_target: AbsoluteAddress::new(0x5E4110),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-9-gta-teleport-static.md",
+            verified_at: "2026-08-30",
+        },
     },
 };
 
@@ -146,5 +322,36 @@ mod tests {
         let profile = GtaProfile::select(0x0040_0000, GTA_SA_10_US_SHA256).unwrap();
         assert_eq!(profile.spec.pools.get_ped_ref.get(), 0x54FF60);
         assert_eq!(profile.spec.pools.get_vehicle_ref.get(), 0x54FFC0);
+    }
+
+    #[test]
+    fn gta_sa_10_us_owns_verified_first_ped_slice_facts() {
+        let profile = GtaProfile::select(0x0040_0000, GTA_SA_10_US_SHA256).unwrap();
+        assert_eq!(profile.spec.player.find_player_ped.get(), 0x56E210);
+        assert_eq!(profile.spec.entity.placeable_position.get(), 0x04);
+        assert_eq!(profile.spec.entity.matrix_pointer.get(), 0x14);
+        assert_eq!(profile.spec.entity.size.get(), 0x38);
+        assert_eq!(profile.spec.ped.size.get(), 0x79C);
+        assert_eq!(profile.spec.ped.health.get(), 0x540);
+        assert_eq!(profile.spec.ped.armour.get(), 0x548);
+        assert_eq!(profile.spec.ped.evidence.grade, EvidenceGrade::A);
+        assert_eq!(profile.spec.ped_vtable.ped.get(), 0x86C358);
+        assert_eq!(profile.spec.ped_vtable.player_ped.get(), 0x86D168);
+        assert_eq!(profile.spec.ped_vtable.teleport_slot.get(), 14);
+        assert_eq!(profile.spec.ped_vtable.teleport_target.get(), 0x5E4110);
+    }
+
+    #[test]
+    fn relative_addresses_resolve_without_wrapping() {
+        assert_eq!(
+            RelativeVirtualAddress::new(0x1000)
+                .resolve(0x0040_0000)
+                .map(AbsoluteAddress::get),
+            Some(0x0040_1000)
+        );
+        assert_eq!(
+            RelativeVirtualAddress::new(u32::MAX).resolve(usize::MAX),
+            None
+        );
     }
 }

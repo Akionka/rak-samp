@@ -1382,3 +1382,115 @@ fn r1_profile_layout_matches_the_independent_cpp_fixture() {
         );
     }
 }
+
+#[cfg(gta_sa_layout_oracle)]
+unsafe extern "C" {
+    fn gta_sa_fixture_vector2_size() -> usize;
+    fn gta_sa_fixture_vector3_size() -> usize;
+    fn gta_sa_fixture_matrix_size() -> usize;
+    fn gta_sa_fixture_matrix_right_offset() -> usize;
+    fn gta_sa_fixture_matrix_forward_offset() -> usize;
+    fn gta_sa_fixture_matrix_up_offset() -> usize;
+    fn gta_sa_fixture_matrix_position_offset() -> usize;
+    fn gta_sa_fixture_matrix_attached_offset() -> usize;
+    fn gta_sa_fixture_matrix_owns_attached_offset() -> usize;
+    fn gta_sa_fixture_placeable_size() -> usize;
+    fn gta_sa_fixture_placeable_position_offset() -> usize;
+    fn gta_sa_fixture_placeable_matrix_offset() -> usize;
+    fn gta_sa_fixture_entity_size() -> usize;
+    fn gta_sa_fixture_ped_size() -> usize;
+    fn gta_sa_fixture_ped_health_offset() -> usize;
+    fn gta_sa_fixture_ped_armour_offset() -> usize;
+    fn gta_sa_fixture_invoke_teleport(
+        target: *const (),
+        object: *mut core::ffi::c_void,
+        x: f32,
+        y: f32,
+        z: f32,
+        reset_rotation: u8,
+    );
+}
+
+#[cfg(gta_sa_layout_oracle)]
+#[test]
+fn gta_sa_profile_layout_matches_the_pinned_plugin_sdk_oracle() {
+    let profile =
+        gta_sa_native::GtaProfile::select(0x0040_0000, gta_sa_native::GTA_SA_10_US_SHA256).unwrap();
+    unsafe {
+        assert_eq!(gta_sa_fixture_vector2_size(), 0x08);
+        assert_eq!(gta_sa_fixture_vector3_size(), 0x0C);
+        assert_eq!(
+            gta_sa_fixture_matrix_size(),
+            core::mem::size_of::<gta_sa_native::RawMatrix>()
+        );
+        assert_eq!(gta_sa_fixture_matrix_right_offset(), 0x00);
+        assert_eq!(gta_sa_fixture_matrix_forward_offset(), 0x10);
+        assert_eq!(gta_sa_fixture_matrix_up_offset(), 0x20);
+        assert_eq!(gta_sa_fixture_matrix_position_offset(), 0x30);
+        assert_eq!(gta_sa_fixture_matrix_attached_offset(), 0x40);
+        assert_eq!(gta_sa_fixture_matrix_owns_attached_offset(), 0x44);
+        assert_eq!(gta_sa_fixture_placeable_size(), 0x18);
+        assert_eq!(
+            gta_sa_fixture_placeable_position_offset(),
+            profile.spec.entity.placeable_position.get()
+        );
+        assert_eq!(
+            gta_sa_fixture_placeable_matrix_offset(),
+            profile.spec.entity.matrix_pointer.get()
+        );
+        assert_eq!(gta_sa_fixture_entity_size(), profile.spec.entity.size.get());
+        assert_eq!(gta_sa_fixture_ped_size(), profile.spec.ped.size.get());
+        assert_eq!(
+            gta_sa_fixture_ped_health_offset(),
+            profile.spec.ped.health.get()
+        );
+        assert_eq!(
+            gta_sa_fixture_ped_armour_offset(),
+            profile.spec.ped.armour.get()
+        );
+    }
+}
+
+#[cfg(gta_sa_layout_oracle)]
+#[repr(C)]
+#[derive(Default)]
+struct TeleportAbiCapture {
+    destination: gta_sa_native::RawVector3,
+    reset_rotation: u8,
+}
+
+#[cfg(gta_sa_layout_oracle)]
+unsafe extern "thiscall" fn capture_teleport_abi(
+    object: *mut core::ffi::c_void,
+    destination: gta_sa_native::RawVector3,
+    reset_rotation: u8,
+) {
+    let capture = unsafe { &mut *object.cast::<TeleportAbiCapture>() };
+    capture.destination = destination;
+    capture.reset_rotation = reset_rotation;
+}
+
+#[cfg(gta_sa_layout_oracle)]
+#[test]
+fn gta_sa_teleport_thiscall_matches_the_cpp_oracle() {
+    let mut capture = TeleportAbiCapture::default();
+    unsafe {
+        gta_sa_fixture_invoke_teleport(
+            capture_teleport_abi as *const (),
+            (&mut capture as *mut TeleportAbiCapture).cast(),
+            12.5,
+            -30.0,
+            7.25,
+            1,
+        );
+    }
+    assert_eq!(
+        capture.destination,
+        gta_sa_native::RawVector3 {
+            x: 12.5,
+            y: -30.0,
+            z: 7.25,
+        }
+    );
+    assert_eq!(capture.reset_rotation, 1);
+}

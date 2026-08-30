@@ -83,6 +83,7 @@ impl BackendState {
 
 impl GameTickParticipant for BackendState {
     fn before_game_process(&self) {
+        self.game_scope.set_current_as_game_thread();
         *self
             .pending_game_tick
             .lock()
@@ -90,6 +91,12 @@ impl GameTickParticipant for BackendState {
     }
 
     fn after_game_process(&self) {
+        let Ok(scope) = self
+            .game_scope
+            .enter(modkit_runtime::GamePhase::PostGameProcess)
+        else {
+            return;
+        };
         if let Some(commands) = self
             .pending_game_tick
             .lock()
@@ -98,5 +105,6 @@ impl GameTickParticipant for BackendState {
         {
             self.pump_game_tick(commands);
         }
+        crate::host_api::gta::dispatch_tick(scope.token());
     }
 }

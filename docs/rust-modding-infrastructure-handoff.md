@@ -2285,24 +2285,24 @@ Do not combine these into one commit.
 
 ### Tasks — foundations
 
-- [ ] Add `gta_sa_layout.cpp` oracle strategy/documentation.
-- [ ] Add GTA profile unverified-values document.
-- [ ] Add `Vector2`/`Vector3` and verified matrix representation.
-- [ ] Add symbol/address spec infrastructure.
-- [ ] Add verified typed call helpers for cdecl/stdcall/thiscall as needed on x86.
-- [ ] Add verified vtable-call helper.
+- [x] Add `gta_sa_layout.cpp` oracle strategy/documentation.
+- [x] Add GTA profile unverified-values document.
+- [x] Add `Vector2`/`Vector3` and verified matrix representation.
+- [x] Add symbol/address spec infrastructure.
+- [x] Add verified typed call helpers for cdecl/stdcall/thiscall as needed on x86.
+- [x] Add verified vtable-call helper.
 
 ### Tasks — first entity slice
 
-- [ ] Implement a minimal `EntitySnapshot` with only verified fields.
-- [ ] Implement local player/ped handle resolution.
-- [ ] Implement `PedSnapshot` subset: position, health/armour and other fields only when verified.
-- [ ] Add callback-scoped `GameContext` access with runtime Game-thread validation and per-operation Native execution constraints.
-- [ ] Add a queued off-thread compound read that returns an owned result without requiring a Persistent cache.
-- [ ] Implement queued teleport/set-position using a verified native method or safe write path.
-- [ ] Implement synchronous teleport/set-position through `GameContext` when its execution constraint permits the callback phase.
-- [ ] Add GTA service functions and safe `gta-sa` facade for those operations.
-- [ ] Add `gta-basic-plugin` example.
+- [x] Implement a minimal `EntitySnapshot` with only verified fields.
+- [x] Implement local player/ped handle resolution.
+- [x] Implement `PedSnapshot` subset: position, health/armour and other fields only when verified.
+- [x] Add callback-scoped `GameContext` access with runtime Game-thread validation and per-operation Native execution constraints.
+- [x] Add a queued off-thread compound read that returns an owned result without requiring a Persistent cache.
+- [x] Implement queued teleport/set-position using a verified native method or safe write path.
+- [x] Implement synchronous teleport/set-position through `GameContext` when its execution constraint permits the callback phase.
+- [x] Add GTA service functions and safe `gta-sa` facade for those operations.
+- [x] Add `gta-basic-plugin` example.
 
 ### Acceptance criteria
 

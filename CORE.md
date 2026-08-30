@@ -41,14 +41,14 @@
   C ABI primitives shared by host and plugin crates: the `ModResult` newtype and
   its numeric constants, fixed-width `ServiceId`/`SubscriptionId`/
   `CommandReceiptId`, opaque game-context token and execution constraints,
-  `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`, the
-  small `SampServiceV1` and `SampNetServiceV1` tables, and the migration-only
-  `LegacySampServiceV1` wrapper.
+  `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`,
+  `GtaSaServiceV1`, the small `SampServiceV1` and `SampNetServiceV1` tables,
+  and the migration-only `LegacySampServiceV1` wrapper.
   It has no Windows, MinHook, GTA, or SA-MP native dependency.
 - `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
   resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
-  performs exact-version `query_service`, and exposes validated Core, SA-MP,
-  and SA-MP network service views plus the callback-scoped `GameContext` shell.
+  performs exact-version `query_service`, and exposes validated Core, GTA,
+  SA-MP, and SA-MP network service views plus callback-scoped `GameContext`.
   It never falls back to `SampClientSdk_GetApiV1`.
 - `crates/samp/` is the safe service-backed SA-MP facade for new plugins. It
   resolves Core, `SampServiceV1`, and `SampNetServiceV1` through `modkit-sdk`,
@@ -62,20 +62,17 @@
   restore their original page protection. The crate contains no GTA/SA-MP
   addresses or profile constants, and only it and the native backends depend on
   `windows-sys`/MinHook.
-- `crates/gta-sa-native/` owns the GTA-native foundation: an exact
-  SHA-256 and image-base gated GTA SA 1.0 US profile with the
-  verified `CGame::Process` target `0x53BEE0`, the failure-aware
-  detour/trampoline restoration lifecycle, game-thread identity, the
-  ordered mark/snapshot/original/post-pump phases, and the verified
-  `CPools::GetPedRef`/`GetVehicleRef` reference-conversion targets. The SA-MP
-  backend registers as a host-internal participant and calls the GTA `cpool_ref`
-  wrapper for ped/vehicle handle conversion instead of holding its own GTA
-  absolute addresses; no plugin-facing GTA service exists yet.
-- `crates/gta-sa/` owns the plugin-side typed GTA entity handles
-  (`ObjectHandle`, `PickupHandle`, `VehicleHandle`, `PedHandle`) as private
-  `NonZero<i32>` tokens that reject zero and negative raw values. It contains no
-  fixed native addresses and no direct memory dereferences. SA-MP facades
-  re-export these types and perform the SA-MP-to-GTA mappings.
+- `crates/gta-sa-native/` owns the GTA-native implementation: the exact
+  SHA-256 and image-base gated GTA SA 1.0 US profile; evidence-bearing typed
+  symbol, RVA, field, size, and vtable specifications; guarded typed x86 call
+  helpers; fixture-backed native matrix/entity/ped layouts; local-ped
+  handle/snapshot reads; verified virtual ped teleport; the `CGame::Process`
+  tick hook lifecycle; and `CPools` targets. The SA-MP backend remains a tick
+  participant and uses the GTA `cpool_ref` wrapper.
+- `crates/gta-sa/` owns pointer-free math, positive typed GTA handles, owned
+  snapshots, callback-scoped `Gta`/`Player` access, and Core-backed queued
+  snapshot/teleport receipts. It contains no fixed native addresses, native
+  memory references, or public native pointers.
 - `crates/samp-native/` owns direct-client profiles, guarded SA-MP operations,
   backend request/snapshot values, and RakClient hook installation, detour entry
   points, captured-original metadata, and deterministic vtable restoration for

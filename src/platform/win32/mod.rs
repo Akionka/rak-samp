@@ -58,6 +58,7 @@ use crate::{
     },
 };
 use gta_sa_native::{GameTickParticipant, GameTickRuntime, GtaProfile};
+use modkit_runtime::GameThreadScope;
 use modkit_win32::InlineHook;
 #[cfg(test)]
 use native_bitstream::native_bit_length;
@@ -191,6 +192,7 @@ struct BackendContext {
     version: SampVersion,
     addresses: AddressSet,
     native_client_profile: Option<NativeClientProfile>,
+    gta_profile: GtaProfile,
 }
 
 impl BackendContext {
@@ -207,6 +209,7 @@ impl BackendContext {
 struct BackendState {
     context: BackendContext,
     game_tick: GameTickRuntime,
+    game_scope: GameThreadScope,
     rak_client: AtomicUsize,
     raw_player_pool: AtomicUsize,
     raw_vehicle_pool: AtomicUsize,
@@ -228,6 +231,7 @@ struct BackendState {
     string_codec: Mutex<()>,
     pending_game_tick: Mutex<Option<Vec<QueuedCommand<GameCommand>>>>,
     game_commands: CommandQueue<GameCommand, ()>,
+    gta_snapshot_results: Mutex<HashMap<CommandId, Arc<OnceLock<Option<gta_sa::PedSnapshot>>>>>,
     auto_text_label_creates: Mutex<HashMap<CommandId, Option<u16>>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,
