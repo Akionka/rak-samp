@@ -9,7 +9,7 @@ mod network;
 mod receipt;
 mod types;
 
-pub use chat::{Chat, ChatCommandRegistration};
+pub use chat::{Chat, ChatCommandRegistration, ChatStyle};
 pub use error::ConnectError;
 pub use network::{Action, Direction, Event, Net, SendOptions};
 pub use receipt::{CommandReceipt, Subscription};

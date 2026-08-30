@@ -18,6 +18,23 @@ pub struct Chat {
     service: SampService,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ChatStyle {
+    Chat,
+    Info,
+    Debug,
+}
+
+impl ChatStyle {
+    const fn raw(self) -> u32 {
+        match self {
+            Self::Chat => modkit_abi::SAMP_CHAT_STYLE_CHAT,
+            Self::Info => modkit_abi::SAMP_CHAT_STYLE_INFO,
+            Self::Debug => modkit_abi::SAMP_CHAT_STYLE_DEBUG,
+        }
+    }
+}
+
 pub struct ChatCommandRegistration {
     pub subscription: Subscription,
     pub installation: CommandReceipt,
@@ -30,15 +47,15 @@ impl Chat {
 
     pub fn add(
         self,
-        style: u32,
+        style: ChatStyle,
         text: &[u8],
         prefix: &[u8],
         text_colour: u32,
         prefix_colour: u32,
     ) -> Result<CommandReceipt, ModResult> {
-        let id = self
-            .service
-            .submit_chat_add(style, text, prefix, text_colour, prefix_colour)?;
+        let id =
+            self.service
+                .submit_chat_add(style.raw(), text, prefix, text_colour, prefix_colour)?;
         CommandReceipt::new(self.core, id)
     }
 
