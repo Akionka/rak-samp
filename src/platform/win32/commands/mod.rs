@@ -11,7 +11,8 @@ mod textdraws;
 mod ui;
 
 use connection::ConnectionCommand;
-pub(super) use gta::GtaCommand;
+use gta::GtaCommand;
+pub(super) use gta::GtaReadResult;
 pub(in crate::platform::win32) use network::NetworkCommand;
 use players::PlayerCommand;
 pub(in crate::platform::win32) use text_labels::TextLabelCommand;
@@ -84,7 +85,7 @@ impl BackendState {
                     // Every command owns its plugin-provided payload. Keep logs
                     // free of dialog text, chat text, and death-window names.
                     log::debug!("game command failed: {error:?}");
-                    self.gta_snapshot_results
+                    self.gta_read_results
                         .lock()
                         .unwrap_or_else(|error| error.into_inner())
                         .remove(&queued.id);

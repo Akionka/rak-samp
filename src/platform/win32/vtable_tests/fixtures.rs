@@ -38,7 +38,7 @@ pub(super) fn test_backend_state() -> BackendState {
         string_codec: Mutex::new(()),
         pending_game_tick: Mutex::new(None),
         game_commands: CommandQueue::new(),
-        gta_snapshot_results: Mutex::new(HashMap::new()),
+        gta_read_results: Mutex::new(HashMap::new()),
         auto_text_label_creates: Mutex::new(HashMap::new()),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),

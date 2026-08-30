@@ -127,11 +127,57 @@ pub struct GameSpec {
     pub evidence: NativeEvidence,
 }
 
-/// Verified GTA `CPools` reference-conversion targets.
+/// Verified GTA `CPools` handle lookup and reference-conversion targets.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct GtaPoolSpec {
+    pub ped_pool: AbsoluteAddress,
+    pub vehicle_pool: AbsoluteAddress,
+    pub object_pool: AbsoluteAddress,
+    pub ped_slot_size: ObjectSize,
+    pub vehicle_slot_size: ObjectSize,
+    pub object_slot_size: ObjectSize,
+    pub get_ped: AbsoluteAddress,
+    pub get_vehicle: AbsoluteAddress,
+    pub get_object: AbsoluteAddress,
     pub get_ped_ref: AbsoluteAddress,
     pub get_vehicle_ref: AbsoluteAddress,
+    pub lookup_evidence: NativeEvidence,
+    pub reference_evidence: NativeEvidence,
+}
+
+/// Fixture-backed common `CPool` header layout.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PoolLayoutSpec {
+    pub size: ObjectSize,
+    pub objects: FieldOffset,
+    pub flags: FieldOffset,
+    pub capacity: FieldOffset,
+    pub evidence: NativeEvidence,
+}
+
+/// Verified read-only `CWorld` query targets.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct WorldSpec {
+    pub find_ground_z: AbsoluteAddress,
+    pub evidence: NativeEvidence,
+}
+/// Verified read-only `CTimer` globals.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TimerSpec {
+    pub frame_counter: AbsoluteAddress,
+    pub time_step_non_clipped: AbsoluteAddress,
+    pub time_step: AbsoluteAddress,
+    pub game_time_ms: AbsoluteAddress,
+    pub evidence: NativeEvidence,
+}
+/// Fixture-backed read-only `CCamera` state for the selected executable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CameraSpec {
+    pub object: AbsoluteAddress,
+    pub size: ObjectSize,
+    pub game_position: FieldOffset,
+    pub matrix: FieldOffset,
+    pub get_game_position: AbsoluteAddress,
     pub evidence: NativeEvidence,
 }
 
@@ -159,6 +205,20 @@ pub struct PedLayoutSpec {
     pub armour: FieldOffset,
     pub evidence: NativeEvidence,
 }
+/// Fixture-backed `CVehicle` layout facts used by owned snapshots.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct VehicleLayoutSpec {
+    pub size: ObjectSize,
+    pub health: FieldOffset,
+    pub evidence: NativeEvidence,
+}
+
+/// Fixture-backed `CObject` size used to validate pool lookups.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ObjectLayoutSpec {
+    pub size: ObjectSize,
+    pub evidence: NativeEvidence,
+}
 
 /// Exact ped vtables and virtual teleport target for the selected executable.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -176,9 +236,16 @@ pub struct GtaProfileSpec {
     pub identity: GtaIdentity,
     pub game: GameSpec,
     pub pools: GtaPoolSpec,
+    pub pool_layout: PoolLayoutSpec,
+    pub world: WorldSpec,
+    pub timer: TimerSpec,
+    pub camera: CameraSpec,
+
     pub player: PlayerSpec,
     pub entity: EntityLayoutSpec,
     pub ped: PedLayoutSpec,
+    pub vehicle: VehicleLayoutSpec,
+    pub object: ObjectLayoutSpec,
     pub ped_vtable: PedVtableSpec,
 }
 
@@ -216,9 +283,23 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
         },
     },
     pools: GtaPoolSpec {
+        ped_pool: AbsoluteAddress::new(0xB74490),
+        vehicle_pool: AbsoluteAddress::new(0xB74494),
+        object_pool: AbsoluteAddress::new(0xB7449C),
+        ped_slot_size: ObjectSize::new(0x7C4),
+        vehicle_slot_size: ObjectSize::new(0xA18),
+        object_slot_size: ObjectSize::new(0x19C),
+        get_ped: AbsoluteAddress::new(0x54FF90),
+        get_vehicle: AbsoluteAddress::new(0x54FFF0),
+        get_object: AbsoluteAddress::new(0x550050),
         get_ped_ref: AbsoluteAddress::new(0x54FF60),
         get_vehicle_ref: AbsoluteAddress::new(0x54FFC0),
-        evidence: NativeEvidence {
+        lookup_evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-10-gta-pools-static.md",
+            verified_at: "2026-08-30",
+        },
+        reference_evidence: NativeEvidence {
             grade: EvidenceGrade::A,
             source: "docs/evidence/phase-6-gta-handles.md",
             verified_at: "2026-08-26",
@@ -232,6 +313,49 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
             verified_at: "2026-08-30",
         },
     },
+    pool_layout: PoolLayoutSpec {
+        size: ObjectSize::new(0x14),
+        objects: FieldOffset::new(0x00),
+        flags: FieldOffset::new(0x04),
+        capacity: FieldOffset::new(0x08),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "tests/fixtures/gta_sa_layout.cpp",
+            verified_at: "2026-08-30",
+        },
+    },
+    world: WorldSpec {
+        find_ground_z: AbsoluteAddress::new(0x569660),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-10-gta-world-static.md",
+            verified_at: "2026-08-30",
+        },
+    },
+    timer: TimerSpec {
+        frame_counter: AbsoluteAddress::new(0xB7CB4C),
+        time_step_non_clipped: AbsoluteAddress::new(0xB7CB58),
+        time_step: AbsoluteAddress::new(0xB7CB5C),
+        game_time_ms: AbsoluteAddress::new(0xB7CB84),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-10-gta-timer-static.md",
+            verified_at: "2026-08-30",
+        },
+    },
+    camera: CameraSpec {
+        object: AbsoluteAddress::new(0xB6F028),
+        size: ObjectSize::new(0xD78),
+        game_position: FieldOffset::new(0x908),
+        matrix: FieldOffset::new(0x974),
+        get_game_position: AbsoluteAddress::new(0x50AE50),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-10-gta-camera-static.md",
+            verified_at: "2026-08-30",
+        },
+    },
+
     entity: EntityLayoutSpec {
         placeable_position: FieldOffset::new(0x04),
         matrix_pointer: FieldOffset::new(0x14),
@@ -246,6 +370,23 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
         size: ObjectSize::new(0x79C),
         health: FieldOffset::new(0x540),
         armour: FieldOffset::new(0x548),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "tests/fixtures/gta_sa_layout.cpp",
+            verified_at: "2026-08-30",
+        },
+    },
+    vehicle: VehicleLayoutSpec {
+        size: ObjectSize::new(0x5A0),
+        health: FieldOffset::new(0x4C0),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "tests/fixtures/gta_sa_layout.cpp",
+            verified_at: "2026-08-30",
+        },
+    },
+    object: ObjectLayoutSpec {
+        size: ObjectSize::new(0x17C),
         evidence: NativeEvidence {
             grade: EvidenceGrade::A,
             source: "tests/fixtures/gta_sa_layout.cpp",

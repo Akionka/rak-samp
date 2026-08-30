@@ -536,6 +536,42 @@ impl Backend {
     ) -> Result<Option<gta_sa::PedSnapshot>, DirectClientError> {
         self.state.gta_local_ped_snapshot(token)
     }
+    pub(crate) fn gta_entity_exists(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        handle: crate::runtime::GtaEntityHandle,
+    ) -> Result<bool, DirectClientError> {
+        self.state.gta_entity_exists(token, handle)
+    }
+
+    pub(crate) fn gta_vehicle_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        handle: gta_sa::VehicleHandle,
+    ) -> Result<Option<gta_sa::VehicleSnapshot>, DirectClientError> {
+        self.state.gta_vehicle_snapshot(token, handle)
+    }
+
+    pub(crate) fn gta_find_ground_z(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        x: f32,
+        y: f32,
+    ) -> Result<f32, DirectClientError> {
+        self.state.gta_find_ground_z(token, x, y)
+    }
+    pub(crate) fn gta_timer_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<gta_sa::TimerSnapshot, DirectClientError> {
+        self.state.gta_timer_snapshot(token)
+    }
+    pub(crate) fn gta_camera_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<gta_sa::CameraSnapshot, DirectClientError> {
+        self.state.gta_camera_snapshot(token)
+    }
 
     pub(crate) fn gta_teleport_local_ped(
         &self,
@@ -554,6 +590,56 @@ impl Backend {
         id: CommandId,
     ) -> Option<Option<gta_sa::PedSnapshot>> {
         self.state.take_gta_local_ped_snapshot(id)
+    }
+    pub(crate) fn submit_gta_entity_exists(
+        &self,
+        handle: crate::runtime::GtaEntityHandle,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_entity_exists(handle)
+    }
+
+    pub(crate) fn take_gta_entity_exists(&self, id: CommandId) -> Option<bool> {
+        self.state.take_gta_entity_exists(id)
+    }
+
+    pub(crate) fn submit_gta_vehicle_snapshot(
+        &self,
+        handle: gta_sa::VehicleHandle,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_vehicle_snapshot(handle)
+    }
+
+    pub(crate) fn take_gta_vehicle_snapshot(
+        &self,
+        id: CommandId,
+    ) -> Option<Option<gta_sa::VehicleSnapshot>> {
+        self.state.take_gta_vehicle_snapshot(id)
+    }
+
+    pub(crate) fn submit_gta_find_ground_z(
+        &self,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_find_ground_z(x, y)
+    }
+
+    pub(crate) fn take_gta_find_ground_z(&self, id: CommandId) -> Option<f32> {
+        self.state.take_gta_find_ground_z(id)
+    }
+    pub(crate) fn submit_gta_timer_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_timer_snapshot()
+    }
+
+    pub(crate) fn take_gta_timer_snapshot(&self, id: CommandId) -> Option<gta_sa::TimerSnapshot> {
+        self.state.take_gta_timer_snapshot(id)
+    }
+    pub(crate) fn submit_gta_camera_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_camera_snapshot()
+    }
+
+    pub(crate) fn take_gta_camera_snapshot(&self, id: CommandId) -> Option<gta_sa::CameraSnapshot> {
+        self.state.take_gta_camera_snapshot(id)
     }
 
     pub(crate) fn submit_gta_teleport_local_ped(
@@ -608,7 +694,7 @@ impl Backend {
         if result.is_ok() {
             self.state.forget_created_text_label(id);
             self.state
-                .gta_snapshot_results
+                .gta_read_results
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
                 .remove(&id);
