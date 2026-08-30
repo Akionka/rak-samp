@@ -105,6 +105,11 @@ fn built_in_bit_io_avoids_temporary_allocations() {
     assert_eq!(allocation_count, 0);
     assert_eq!(values, (Ok(true), Ok(0x7f), Ok(0x1234), Ok(1.5)));
 
+    let mut stream = BitStream::from_bytes([0x34, 0x12]).unwrap();
+    let (value, allocation_count) = allocations(|| stream.read_u16());
+    assert_eq!(allocation_count, 0);
+    assert_eq!(value, Ok(0x1234));
+
     let source = [1, 2, 3];
     let mut reader = BitReader::from_bytes(&source).unwrap();
     let (bytes, allocation_count) = allocations(|| reader.read_bytes(source.len()));
