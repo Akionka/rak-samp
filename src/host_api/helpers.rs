@@ -83,6 +83,7 @@ pub(super) fn host() -> &'static HostState {
         runtime: OnceLock::new(),
         chat_commands: super::chat_commands::ChatCommandRegistry::new(),
         subscriptions: Mutex::new(HashMap::new()),
+        deferred_reclamation: super::reclamation::new_queue(),
         next_subscription: AtomicU64::new(1),
     })
 }

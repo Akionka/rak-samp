@@ -83,6 +83,35 @@ fn query_service_returns_legacy_samp_for_exact_version() {
 }
 
 #[test]
+fn query_service_returns_samp_net_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_NETWORK, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP network service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_NETWORK);
+    assert_eq!(header.version, SAMP_NET_SERVICE_VERSION_V1);
+    assert_eq!(header.size, std::mem::size_of::<SampNetServiceV1>() as u32);
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn samp_net_event_access_rejects_null_pointers() {
+    let mut id = 0;
+    assert_eq!(
+        unsafe { samp_net_event_id(ptr::null(), &mut id) },
+        MOD_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        unsafe { samp_net_event_id(ptr::dangling(), ptr::null_mut()) },
+        MOD_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        unsafe { samp_net_event_read_bits(ptr::null_mut(), ptr::null_mut(), 0, 1) },
+        MOD_INVALID_ARGUMENT
+    );
+}
+
+#[test]
 fn legacy_service_wraps_the_existing_api_table() {
     let mut out: *const ServiceHeader = ptr::null();
     assert_eq!(

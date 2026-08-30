@@ -10,11 +10,16 @@ use crate::command::CommandError;
 use log::{debug, error, info, warn};
 use modkit_abi::{
     CommandCompletionV1, CommandReceiptId, CoreServiceV1, HostStatusV1, LegacySampServiceV1,
-    MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND, MOD_NOT_READY, MOD_OK,
-    MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult, SERVICE_ID_CORE,
-    SERVICE_ID_LEGACY_SAMP_ABI, ServiceHeader, SubscriptionId,
+    MOD_BUFFER_TOO_SMALL, MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND,
+    MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
+    SAMP_NET_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_LEGACY_SAMP_ABI,
+    SERVICE_ID_SAMP_NETWORK, SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1, ServiceHeader,
+    SubscriptionId,
 };
-use sdk_abi::{SampClientSdkResult, SampClientSdkSubscription};
+use sdk_abi::{
+    SampClientSdkCommandReceipt, SampClientSdkEventV1, SampClientSdkResult,
+    SampClientSdkSendOptions, SampClientSdkSubscription,
+};
 use std::{ffi::c_void, ptr, sync::atomic::Ordering, time::Duration};
 
 /// The published Core service version.
@@ -44,6 +49,29 @@ static CORE_SERVICE_V1: CoreServiceV1 = CoreServiceV1 {
     receipt_wait: core_receipt_wait,
     receipt_release: core_receipt_release,
     log_utf8: core_log_utf8,
+};
+
+static SAMP_NET_SERVICE_V1: SampNetServiceV1 = SampNetServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_NETWORK,
+        version: SAMP_NET_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampNetServiceV1>() as u32,
+        reserved: 0,
+    },
+    register_packet: super::listeners::register_modkit_packet,
+    register_rpc: super::listeners::register_modkit_rpc,
+    event_id: samp_net_event_id,
+    event_reset: samp_net_event_reset,
+    event_remaining_bits: samp_net_event_remaining_bits,
+    event_read_bits: samp_net_event_read_bits,
+    event_replace_bits: samp_net_event_replace_bits,
+    encode_string: samp_net_encode_string,
+    event_read_encoded_string: samp_net_event_read_encoded_string,
+    submit_packet: samp_net_submit_packet,
+    submit_rpc: samp_net_submit_rpc,
+    submit_emulate_incoming_packet: samp_net_submit_emulate_incoming_packet,
+    submit_emulate_incoming_rpc: samp_net_submit_emulate_incoming_rpc,
+    incoming_emulation_ready: samp_net_incoming_emulation_ready,
 };
 
 /// The host-owned immutable Legacy SA-MP service table.
@@ -115,8 +143,291 @@ unsafe extern "system" fn query_service(
             };
             MOD_OK
         }
+        SERVICE_ID_SAMP_NETWORK => {
+            if requested_version != SAMP_NET_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe { out_service.write((&SAMP_NET_SERVICE_V1 as *const SampNetServiceV1).cast()) };
+            MOD_OK
+        }
         _ => MOD_NOT_FOUND,
     }
+}
+
+unsafe extern "system" fn samp_net_event_id(
+    event: *const SampNetEventV1,
+    out: *mut u8,
+) -> ModResult {
+    if event.is_null() || out.is_null() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    unsafe {
+        out.write(super::events::event_id(
+            event.cast::<SampClientSdkEventV1>(),
+        ))
+    };
+    MOD_OK
+}
+
+unsafe extern "system" fn samp_net_event_reset(event: *mut SampNetEventV1) -> ModResult {
+    subscription_result(unsafe {
+        super::events::event_reset_read(event.cast::<SampClientSdkEventV1>())
+    })
+}
+
+unsafe extern "system" fn samp_net_event_remaining_bits(
+    event: *const SampNetEventV1,
+    out: *mut u32,
+) -> ModResult {
+    if event.is_null() || out.is_null() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let remaining = unsafe {
+        super::events::event_remaining_bits(event.cast_mut().cast::<SampClientSdkEventV1>())
+    };
+    let Ok(remaining) = u32::try_from(remaining) else {
+        return modkit_abi::MOD_OUT_OF_BOUNDS;
+    };
+    unsafe { out.write(remaining) };
+    MOD_OK
+}
+
+unsafe extern "system" fn samp_net_event_read_bits(
+    event: *mut SampNetEventV1,
+    out: *mut u8,
+    out_capacity: u32,
+    bit_len: u32,
+) -> ModResult {
+    let required = bit_len.div_ceil(u8::BITS);
+    if required > out_capacity || (out.is_null() && required != 0) {
+        return MOD_INVALID_ARGUMENT;
+    }
+    subscription_result(unsafe {
+        super::events::event_read_bits(event.cast::<SampClientSdkEventV1>(), out, bit_len as usize)
+    })
+}
+
+unsafe extern "system" fn samp_net_event_replace_bits(
+    event: *mut SampNetEventV1,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+) -> ModResult {
+    subscription_result(unsafe {
+        super::events::event_replace_bits(
+            event.cast::<SampClientSdkEventV1>(),
+            data,
+            byte_len as usize,
+            bit_len as usize,
+        )
+    })
+}
+
+unsafe extern "system" fn samp_net_encode_string(
+    value: *const u8,
+    value_len: u32,
+    out: *mut u8,
+    out_capacity: u32,
+    out_byte_len: *mut u32,
+    out_bit_len: *mut u32,
+) -> ModResult {
+    if (value.is_null() && value_len != 0)
+        || (out.is_null() && out_capacity != 0)
+        || out_byte_len.is_null()
+        || out_bit_len.is_null()
+    {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let value = if value_len == 0 {
+        &[]
+    } else {
+        unsafe { std::slice::from_raw_parts(value, value_len as usize) }
+    };
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return MOD_NOT_READY;
+    };
+    let encoded = match runtime.encode_string(value) {
+        Ok(encoded) => encoded,
+        Err(error) => return subscription_result(super::events::codec_result(error)),
+    };
+    let Ok(byte_len) = u32::try_from(encoded.len_bytes()) else {
+        return modkit_abi::MOD_OUT_OF_BOUNDS;
+    };
+    let Ok(bit_len) = u32::try_from(encoded.len_bits()) else {
+        return modkit_abi::MOD_OUT_OF_BOUNDS;
+    };
+    unsafe {
+        out_byte_len.write(byte_len);
+        out_bit_len.write(bit_len);
+    }
+    if byte_len > out_capacity {
+        return MOD_BUFFER_TOO_SMALL;
+    }
+    if byte_len != 0 {
+        unsafe { ptr::copy_nonoverlapping(encoded.as_bytes().as_ptr(), out, byte_len as usize) };
+    }
+    MOD_OK
+}
+
+unsafe extern "system" fn samp_net_event_read_encoded_string(
+    event: *mut SampNetEventV1,
+    out: *mut u8,
+    out_capacity: u32,
+    out_len: *mut u32,
+) -> ModResult {
+    if out_len.is_null() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let mut len = 0usize;
+    let result = unsafe {
+        super::events::event_read_encoded_string(
+            event.cast::<SampClientSdkEventV1>(),
+            out,
+            out_capacity as usize,
+            &mut len,
+        )
+    };
+    if result != SampClientSdkResult::Ok {
+        return subscription_result(result);
+    }
+    let Ok(len) = u32::try_from(len) else {
+        return modkit_abi::MOD_OUT_OF_BOUNDS;
+    };
+    unsafe { out_len.write(len) };
+    MOD_OK
+}
+
+unsafe extern "system" fn samp_net_submit_packet(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    options: SampNetSendOptionsV1,
+    out_receipt: *mut CommandReceiptId,
+) -> ModResult {
+    unsafe { samp_net_submit(id, data, byte_len, bit_len, options, out_receipt, true) }
+}
+
+unsafe extern "system" fn samp_net_submit_rpc(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    options: SampNetSendOptionsV1,
+    out_receipt: *mut CommandReceiptId,
+) -> ModResult {
+    unsafe { samp_net_submit(id, data, byte_len, bit_len, options, out_receipt, false) }
+}
+
+unsafe fn samp_net_submit(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    options: SampNetSendOptionsV1,
+    out_receipt: *mut CommandReceiptId,
+    packet: bool,
+) -> ModResult {
+    if out_receipt.is_null() || options.reserved != [0; 2] || options.timestamp > 1 {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let mut receipt = SampClientSdkCommandReceipt::default();
+    let options = SampClientSdkSendOptions {
+        priority: options.priority,
+        reliability: options.reliability,
+        ordering_channel: options.ordering_channel,
+        timestamp: options.timestamp != 0,
+    };
+    let result = unsafe {
+        if packet {
+            super::network::submit_packet(
+                id,
+                data,
+                byte_len as usize,
+                bit_len as usize,
+                options,
+                &mut receipt,
+            )
+        } else {
+            super::network::submit_rpc(
+                id,
+                data,
+                byte_len as usize,
+                bit_len as usize,
+                options,
+                &mut receipt,
+            )
+        }
+    };
+    if result == SampClientSdkResult::Ok {
+        unsafe { out_receipt.write(CommandReceiptId(receipt.id)) };
+    }
+    subscription_result(result)
+}
+
+unsafe extern "system" fn samp_net_submit_emulate_incoming_packet(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    out_receipt: *mut CommandReceiptId,
+) -> ModResult {
+    unsafe { samp_net_submit_emulate(id, data, byte_len, bit_len, out_receipt, true) }
+}
+
+unsafe extern "system" fn samp_net_submit_emulate_incoming_rpc(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    out_receipt: *mut CommandReceiptId,
+) -> ModResult {
+    unsafe { samp_net_submit_emulate(id, data, byte_len, bit_len, out_receipt, false) }
+}
+
+unsafe fn samp_net_submit_emulate(
+    id: u8,
+    data: *const u8,
+    byte_len: u32,
+    bit_len: u32,
+    out_receipt: *mut CommandReceiptId,
+    packet: bool,
+) -> ModResult {
+    if out_receipt.is_null() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let mut receipt = SampClientSdkCommandReceipt::default();
+    let result = unsafe {
+        if packet {
+            super::network::submit_emulate_incoming_packet(
+                id,
+                data,
+                byte_len as usize,
+                bit_len as usize,
+                &mut receipt,
+            )
+        } else {
+            super::network::submit_emulate_incoming_rpc(
+                id,
+                data,
+                byte_len as usize,
+                bit_len as usize,
+                &mut receipt,
+            )
+        }
+    };
+    if result == SampClientSdkResult::Ok {
+        unsafe { out_receipt.write(CommandReceiptId(receipt.id)) };
+    }
+    subscription_result(result)
+}
+
+unsafe extern "system" fn samp_net_incoming_emulation_ready(out: *mut u8) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = super::network::incoming_emulation_ready();
+    MOD_OK
 }
 
 unsafe extern "system" fn core_host_status(out: *mut HostStatusV1) -> ModResult {
