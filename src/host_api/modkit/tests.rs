@@ -27,7 +27,7 @@ fn get_api_rejects_null_output() {
 #[test]
 fn query_service_clears_output_before_lookup() {
     let mut out: *const ServiceHeader = ptr::null();
-    let result = unsafe { query_service(0xFFFF_FFFF, 1, &mut out) };
+    let result = unsafe { query_service(modkit_abi::ServiceId(0xFFFF_FFFF), 1, &mut out) };
     assert_eq!(result, MOD_NOT_FOUND);
     assert!(out.is_null());
 }
@@ -62,7 +62,7 @@ fn query_service_distinguishes_unsupported_version_from_unknown_service() {
     assert!(out.is_null());
 
     assert_eq!(
-        unsafe { query_service(0x0000_0002, 1, &mut out) },
+        unsafe { query_service(modkit_abi::ServiceId(0x0000_0002), 1, &mut out) },
         MOD_NOT_FOUND
     );
     assert!(out.is_null());
@@ -183,11 +183,36 @@ fn core_log_utf8_accepts_empty_message() {
 }
 
 #[test]
+fn core_log_utf8_rejects_unbounded_messages_before_reading_them() {
+    assert_eq!(
+        unsafe {
+            core_log_utf8(
+                2,
+                std::ptr::dangling(),
+                modkit_abi::MAX_LOG_MESSAGE_BYTES + 1,
+            )
+        },
+        MOD_INVALID_ARGUMENT
+    );
+}
+
+#[test]
+fn timeout_sentinel_maps_to_an_unbounded_duration() {
+    assert_eq!(
+        timeout_duration(modkit_abi::TIMEOUT_INFINITE),
+        Duration::MAX
+    );
+    assert_eq!(timeout_duration(0), Duration::ZERO);
+    assert_eq!(timeout_duration(25), Duration::from_millis(25));
+}
+
+#[test]
 fn command_error_mapping_is_stable() {
     assert_eq!(
         command_error_result(CommandError::QueueFull),
         MOD_QUEUE_FULL
     );
+    assert_eq!(command_error_result(CommandError::IdExhausted), MOD_BUSY);
     assert_eq!(
         command_error_result(CommandError::ShuttingDown),
         MOD_SHUTTING_DOWN

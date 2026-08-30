@@ -1,7 +1,8 @@
 //! Text-label command ABI entry points.
 
 use super::{
-    clone_initialized, copied_nul_free_string, direct_client_result, host, submit_direct_command,
+    clone_initialized, copied_nul_free_string, direct_client_result, host, is_shutting_down,
+    submit_direct_command,
 };
 use sdk_abi::limits::{
     MAX_SAMP_PLAYERS, MAX_SAMP_TEXT_LABEL_TEXT_BYTES, MAX_SAMP_TEXT_LABELS, MAX_SAMP_VEHICLES,
@@ -104,6 +105,9 @@ pub(super) unsafe extern "system" fn submit_create_text_label_auto(
     attached_vehicle_id: u16,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     if receipt.is_null()
         || text.is_null()
         || text_len > MAX_SAMP_TEXT_LABEL_TEXT_BYTES

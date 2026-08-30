@@ -32,7 +32,13 @@ mod tests {
     fn legacy_service_layout_is_fixed() {
         assert_eq!(core::mem::offset_of!(LegacySampServiceV1, header), 0);
         assert_eq!(core::mem::offset_of!(LegacySampServiceV1, api), 16);
-        assert_eq!(core::mem::size_of::<LegacySampServiceV1>(), 20);
-        assert_eq!(core::mem::align_of::<LegacySampServiceV1>(), 4);
+        assert_eq!(
+            core::mem::size_of::<LegacySampServiceV1>(),
+            16 + core::mem::size_of::<usize>()
+        );
+        assert_eq!(
+            core::mem::align_of::<LegacySampServiceV1>(),
+            core::mem::align_of::<usize>()
+        );
     }
 }

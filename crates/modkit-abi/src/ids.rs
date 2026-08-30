@@ -58,7 +58,16 @@ mod tests {
     #[test]
     fn ids_are_transparent_fixed_width() {
         assert_eq!(core::mem::size_of::<ServiceId>(), 4);
+        assert_eq!(core::mem::align_of::<ServiceId>(), 4);
         assert_eq!(core::mem::size_of::<SubscriptionId>(), 8);
+        assert_eq!(
+            core::mem::align_of::<SubscriptionId>(),
+            core::mem::align_of::<u64>()
+        );
         assert_eq!(core::mem::size_of::<CommandReceiptId>(), 8);
+        assert_eq!(
+            core::mem::align_of::<CommandReceiptId>(),
+            core::mem::align_of::<u64>()
+        );
     }
 }

@@ -32,7 +32,7 @@ impl BackendState {
     ) -> Result<CommandId, DirectClientError> {
         self.submit_game_command(command)
             .map_err(|error| match error {
-                CommandError::QueueFull => DirectClientError::QueueFull,
+                CommandError::QueueFull | CommandError::IdExhausted => DirectClientError::QueueFull,
                 CommandError::ShuttingDown
                 | CommandError::NativeFailure
                 | CommandError::UnknownReceipt

@@ -9,6 +9,7 @@ use std::{
     cell::Cell,
     sync::{Condvar, Mutex},
     thread::{self, ThreadId},
+    time::{Duration, Instant},
 };
 
 /// Marks "inside a host callback" on the current thread for wait rejection.
@@ -94,6 +95,45 @@ impl DispatchGate {
             }
         }
         DispatchGuard { gate: self }
+    }
+
+    /// Acquires the gate before `timeout` expires.
+    ///
+    /// Reentrant entry by the owner succeeds immediately. A zero timeout is a
+    /// non-blocking attempt.
+    pub fn enter_timeout(&self, timeout: Duration) -> Option<DispatchGuard<'_>> {
+        let Some(deadline) = Instant::now().checked_add(timeout) else {
+            return Some(self.enter());
+        };
+        let current = thread::current().id();
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        loop {
+            match state.owner.as_ref() {
+                None => {
+                    state.owner = Some(current);
+                    state.depth = 1;
+                    return Some(DispatchGuard { gate: self });
+                }
+                Some(owner) if owner == &current => {
+                    state.depth += 1;
+                    return Some(DispatchGuard { gate: self });
+                }
+                Some(_) => {
+                    let remaining = deadline.saturating_duration_since(Instant::now());
+                    if remaining.is_zero() {
+                        return None;
+                    }
+                    let (next, result) = self
+                        .ready
+                        .wait_timeout(state, remaining)
+                        .unwrap_or_else(|error| error.into_inner());
+                    state = next;
+                    if result.timed_out() && state.owner.is_some() {
+                        return None;
+                    }
+                }
+            }
+        }
     }
 
     /// Reports whether the current thread owns the gate.
@@ -206,6 +246,30 @@ impl CallbackGate {
                 .unwrap_or_else(|error| error.into_inner());
         }
     }
+
+    /// Waits until every in-flight callback drains or `timeout` expires.
+    pub fn wait_until_drained_timeout(&self, timeout: Duration) -> bool {
+        let Some(deadline) = Instant::now().checked_add(timeout) else {
+            self.wait_until_drained();
+            return true;
+        };
+        let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        while state.in_flight != 0 {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return false;
+            }
+            let (next, result) = self
+                .drained
+                .wait_timeout(state, remaining)
+                .unwrap_or_else(|error| error.into_inner());
+            state = next;
+            if result.timed_out() && state.in_flight != 0 {
+                return false;
+            }
+        }
+        true
+    }
 }
 
 impl Default for CallbackGate {
@@ -239,7 +303,7 @@ impl Drop for CallbackGateGuard<'_> {
 mod tests {
     use super::{CallbackContext, CallbackGate, DispatchGate};
     use std::sync::Arc;
-    use std::thread;
+    use std::{thread, time::Duration};
 
     #[test]
     fn callback_context_tracks_nested_depth() {
@@ -277,6 +341,17 @@ mod tests {
     }
 
     #[test]
+    fn dispatch_gate_timeout_does_not_steal_an_active_gate() {
+        let gate = Arc::new(DispatchGate::new());
+        let owner = gate.enter();
+        let gate_clone = Arc::clone(&gate);
+        let handle = thread::spawn(move || gate_clone.enter_timeout(Duration::ZERO).is_none());
+        assert!(handle.join().unwrap());
+        drop(owner);
+        assert!(gate.enter_timeout(Duration::ZERO).is_some());
+    }
+
+    #[test]
     fn callback_gate_counts_in_flight_and_drains() {
         let gate = CallbackGate::new();
         assert!(gate.is_allowed());
@@ -295,5 +370,15 @@ mod tests {
         let gate = CallbackGate::new();
         gate.set_allowed(false);
         assert!(gate.enter().is_none());
+    }
+
+    #[test]
+    fn callback_gate_timeout_keeps_the_disabled_gate_retryable() {
+        let gate = CallbackGate::new();
+        let callback = gate.enter().unwrap();
+        gate.set_allowed(false);
+        assert!(!gate.wait_until_drained_timeout(Duration::ZERO));
+        drop(callback);
+        assert!(gate.wait_until_drained_timeout(Duration::ZERO));
     }
 }

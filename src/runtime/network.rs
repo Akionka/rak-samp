@@ -1,7 +1,8 @@
 use super::options::validate_packet_options;
 use super::{ClientHookStatus, CodecError, Runtime, SendError, SendOptions};
 use crate::{
-    BitStream, Direction, ListenerHandle, PacketEvent, RpcEvent, SampVersion, command::CommandId,
+    BitStream, Direction, ListenerHandle, ListenerRegistrationError, PacketEvent, RpcEvent,
+    SampVersion, command::CommandId,
 };
 
 impl Runtime {
@@ -10,7 +11,7 @@ impl Runtime {
         &self,
         direction: Direction,
         callback: impl for<'event> FnMut(&mut PacketEvent<'event>) -> crate::HookAction + Send + 'static,
-    ) -> ListenerHandle {
+    ) -> Result<ListenerHandle, ListenerRegistrationError> {
         self.registry.register_packet(direction, callback)
     }
 
@@ -19,7 +20,7 @@ impl Runtime {
         &self,
         direction: Direction,
         callback: impl for<'event> FnMut(&mut RpcEvent<'event>) -> crate::HookAction + Send + 'static,
-    ) -> ListenerHandle {
+    ) -> Result<ListenerHandle, ListenerRegistrationError> {
         self.registry.register_rpc(direction, callback)
     }
 

@@ -1,13 +1,15 @@
 //! Service table header and stable service identifiers.
 
+use crate::ServiceId;
+
 /// Stable service ID ranges by subsystem.
-pub const SERVICE_ID_CORE: u32 = 0x0000_0001;
-pub const SERVICE_ID_GTA_SA: u32 = 0x0000_1000;
-pub const SERVICE_ID_SAMP: u32 = 0x0000_2000;
-pub const SERVICE_ID_SAMP_NETWORK: u32 = 0x0000_2001;
-pub const SERVICE_ID_RENDER: u32 = 0x0000_3000;
-pub const SERVICE_ID_INPUT: u32 = 0x0000_4000;
-pub const SERVICE_ID_LEGACY_SAMP_ABI: u32 = 0x0000_F000;
+pub const SERVICE_ID_CORE: ServiceId = ServiceId(0x0000_0001);
+pub const SERVICE_ID_GTA_SA: ServiceId = ServiceId(0x0000_1000);
+pub const SERVICE_ID_SAMP: ServiceId = ServiceId(0x0000_2000);
+pub const SERVICE_ID_SAMP_NETWORK: ServiceId = ServiceId(0x0000_2001);
+pub const SERVICE_ID_RENDER: ServiceId = ServiceId(0x0000_3000);
+pub const SERVICE_ID_INPUT: ServiceId = ServiceId(0x0000_4000);
+pub const SERVICE_ID_LEGACY_SAMP_ABI: ServiceId = ServiceId(0x0000_F000);
 
 /// The exact-version prefix of every published service table.
 ///
@@ -16,21 +18,20 @@ pub const SERVICE_ID_LEGACY_SAMP_ABI: u32 = 0x0000_F000;
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ServiceHeader {
-    pub service_id: u32,
+    pub service_id: ServiceId,
     pub version: u32,
     pub size: u32,
     pub reserved: u32,
 }
 
 impl ServiceHeader {
-    /// Returns whether the header matches an exact service ID + version pair
-    /// and reports a size that is at least the expected table size.
+    /// Returns whether the header matches an exact service ID, version, and
+    /// immutable V1 table size.
+    ///
+    /// Consumers intentionally ignore `reserved`. Producers must write zero.
     #[must_use]
-    pub const fn matches(self, service_id: u32, version: u32, expected_size: u32) -> bool {
-        self.service_id == service_id
-            && self.version == version
-            && self.size >= expected_size
-            && self.reserved == 0
+    pub const fn matches(self, service_id: ServiceId, version: u32, expected_size: u32) -> bool {
+        self.service_id.0 == service_id.0 && self.version == version && self.size == expected_size
     }
 }
 
@@ -50,29 +51,29 @@ mod tests {
         assert!(!header.matches(SERVICE_ID_CORE, 2, 64));
         assert!(!header.matches(SERVICE_ID_SAMP, 1, 64));
         assert!(!header.matches(SERVICE_ID_CORE, 1, 128));
-        assert!(header.matches(SERVICE_ID_CORE, 1, 32));
+        assert!(!header.matches(SERVICE_ID_CORE, 1, 32));
     }
 
     #[test]
-    fn header_rejects_nonzero_reserved() {
+    fn header_ignores_reserved_when_consumed() {
         let header = ServiceHeader {
             service_id: SERVICE_ID_CORE,
             version: 1,
             size: 64,
             reserved: 1,
         };
-        assert!(!header.matches(SERVICE_ID_CORE, 1, 64));
+        assert!(header.matches(SERVICE_ID_CORE, 1, 64));
     }
 
     #[test]
     fn service_ids_are_stable() {
-        assert_eq!(SERVICE_ID_CORE, 0x0000_0001);
-        assert_eq!(SERVICE_ID_GTA_SA, 0x0000_1000);
-        assert_eq!(SERVICE_ID_SAMP, 0x0000_2000);
-        assert_eq!(SERVICE_ID_SAMP_NETWORK, 0x0000_2001);
-        assert_eq!(SERVICE_ID_RENDER, 0x0000_3000);
-        assert_eq!(SERVICE_ID_INPUT, 0x0000_4000);
-        assert_eq!(SERVICE_ID_LEGACY_SAMP_ABI, 0x0000_F000);
+        assert_eq!(SERVICE_ID_CORE.0, 0x0000_0001);
+        assert_eq!(SERVICE_ID_GTA_SA.0, 0x0000_1000);
+        assert_eq!(SERVICE_ID_SAMP.0, 0x0000_2000);
+        assert_eq!(SERVICE_ID_SAMP_NETWORK.0, 0x0000_2001);
+        assert_eq!(SERVICE_ID_RENDER.0, 0x0000_3000);
+        assert_eq!(SERVICE_ID_INPUT.0, 0x0000_4000);
+        assert_eq!(SERVICE_ID_LEGACY_SAMP_ABI.0, 0x0000_F000);
     }
 
     #[test]

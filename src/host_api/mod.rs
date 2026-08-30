@@ -27,7 +27,8 @@ mod textdraws;
 #[cfg(test)]
 use helpers::finish_direct_command;
 use helpers::{
-    clone_initialized, copied_nul_free_string, direct_client_result, host, submit_direct_command,
+    clone_initialized, copied_nul_free_string, direct_client_result, host, is_shutting_down,
+    next_subscription_id, submit_direct_command,
 };
 pub(super) use listeners::ListenerKind;
 use listeners::{register_packet, register_rpc, unregister, unregister_and_wait};

@@ -98,6 +98,9 @@ fn initialize() {
             return;
         }
     };
+    if is_shutting_down() {
+        return;
+    }
 
     // Query the Core service and read host status.
     match host.core() {
@@ -107,24 +110,26 @@ fn initialize() {
         },
         Err(error) => eprintln!("modkit-connect-plugin: core service unavailable: {error:?}"),
     }
+    if is_shutting_down() {
+        return;
+    }
 
     // Query the migration-only Legacy SA-MP service.
     match host.legacy_samp() {
         Ok(legacy) => {
-            let header = legacy.header;
-            eprintln!(
-                "modkit-connect-plugin: legacy samp service id={:#x} version={} size={}",
-                header.service_id, header.version, header.size
-            );
-            if legacy.api.is_null() {
+            eprintln!("modkit-connect-plugin: legacy samp service resolved");
+            if !legacy.is_available() {
                 eprintln!("modkit-connect-plugin: legacy api pointer is null");
             }
         }
         Err(error) => eprintln!("modkit-connect-plugin: legacy service unavailable: {error:?}"),
     }
+    if is_shutting_down() {
+        return;
+    }
 
     // Verify an unknown service is reported as NotFound.
-    match host.query_service(0x0000_0002, 1) {
+    match host.query_service(modkit_abi::ServiceId(0x0000_0002), 1) {
         Err(modkit_sdk::ServiceError::NotFound) => {
             eprintln!("modkit-connect-plugin: unknown service correctly reported NotFound");
         }
@@ -133,4 +138,26 @@ fn initialize() {
         }
         Ok(_) => eprintln!("modkit-connect-plugin: unexpected unknown-service success"),
     }
+}
+
+fn is_shutting_down() -> bool {
+    STATE
+        .lock()
+        .unwrap_or_else(|error| error.into_inner())
+        .shutting_down
+}
+
+/// Stops initialization before an unload manager calls `FreeLibrary`.
+///
+/// Call this from a worker thread, never from `DllMain`.
+#[unsafe(no_mangle)]
+pub extern "system" fn ModkitConnectPlugin_Shutdown() -> BOOL {
+    let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
+    state.shutting_down = true;
+    while state.initializing {
+        state = INITIALIZATION_FINISHED
+            .wait(state)
+            .unwrap_or_else(|error| error.into_inner());
+    }
+    TRUE
 }

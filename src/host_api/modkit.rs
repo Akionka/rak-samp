@@ -5,7 +5,7 @@
 //! It implements the Core service v1 and the migration-only Legacy SA-MP
 //! service wrapper. The legacy export is left unchanged.
 
-use super::{clone_initialized, host, unregister, unregister_and_wait};
+use super::{clone_initialized, host, unregister};
 use crate::command::CommandError;
 use log::{debug, error, info, warn};
 use modkit_abi::{
@@ -65,6 +65,8 @@ fn legacy_samp_service() -> &'static LegacySampServiceV1 {
 
 /// The new host bootstrap export.
 ///
+/// `ANY_THREAD + CALLBACK_SAFE`; returns without blocking.
+///
 /// # Safety
 ///
 /// `out_api` must be null or point to writable storage for one pointer.
@@ -83,7 +85,7 @@ pub unsafe extern "system" fn GtaModHost_GetApiV1(out_api: *mut *const ModHostAp
 ///
 /// `out_service` must be null or point to writable storage for one pointer.
 unsafe extern "system" fn query_service(
-    service: u32,
+    service: modkit_abi::ServiceId,
     requested_version: u32,
     out_service: *mut *const ServiceHeader,
 ) -> ModResult {
@@ -144,11 +146,7 @@ unsafe extern "system" fn core_unregister(id: SubscriptionId) -> ModResult {
         return MOD_INVALID_ARGUMENT;
     }
     let result = unsafe { unregister(SampClientSdkSubscription { id: id.0 }) };
-    match result {
-        SampClientSdkResult::Ok => MOD_OK,
-        SampClientSdkResult::SubscriptionNotFound => MOD_NOT_FOUND,
-        _ => MOD_INVALID_ARGUMENT,
-    }
+    subscription_result(result)
 }
 
 unsafe extern "system" fn core_unregister_and_wait(
@@ -158,16 +156,36 @@ unsafe extern "system" fn core_unregister_and_wait(
     if id.is_zero() {
         return MOD_INVALID_ARGUMENT;
     }
-    if !wait_allowed() {
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return MOD_NOT_READY;
+    };
+    if !runtime.command_wait_allowed() {
         return modkit_abi::MOD_WAIT_REJECTED;
     }
-    let _ = timeout_ms;
-    let result = unsafe { unregister_and_wait(SampClientSdkSubscription { id: id.0 }) };
+    let result = super::listeners::unregister_and_wait_with_timeout(
+        SampClientSdkSubscription { id: id.0 },
+        Some(timeout_duration(timeout_ms)),
+    );
+    subscription_result(result)
+}
+
+fn subscription_result(result: SampClientSdkResult) -> ModResult {
     match result {
         SampClientSdkResult::Ok => MOD_OK,
+        SampClientSdkResult::NotReady => MOD_NOT_READY,
+        SampClientSdkResult::InvalidArgument => MOD_INVALID_ARGUMENT,
+        SampClientSdkResult::UnsupportedVersion => MOD_UNSUPPORTED_VERSION,
         SampClientSdkResult::SubscriptionNotFound => MOD_NOT_FOUND,
+        SampClientSdkResult::ReadOutOfBounds => modkit_abi::MOD_OUT_OF_BOUNDS,
+        SampClientSdkResult::PayloadTooLarge => modkit_abi::MOD_PAYLOAD_TOO_LARGE,
+        SampClientSdkResult::NativeCallFailed => modkit_abi::MOD_NATIVE_CALL_FAILED,
         SampClientSdkResult::CallbackInProgress => modkit_abi::MOD_CALLBACK_IN_PROGRESS,
-        _ => MOD_INVALID_ARGUMENT,
+        SampClientSdkResult::QueueFull => modkit_abi::MOD_QUEUE_FULL,
+        SampClientSdkResult::CommandPending => modkit_abi::MOD_PENDING,
+        SampClientSdkResult::TimedOut => modkit_abi::MOD_TIMED_OUT,
+        SampClientSdkResult::WaitRejected => modkit_abi::MOD_WAIT_REJECTED,
+        SampClientSdkResult::ShuttingDown => MOD_SHUTTING_DOWN,
+        SampClientSdkResult::Busy => modkit_abi::MOD_BUSY,
     }
 }
 
@@ -199,13 +217,13 @@ unsafe extern "system" fn core_receipt_wait(
     if id.is_zero() || out.is_null() {
         return MOD_INVALID_ARGUMENT;
     }
-    if !wait_allowed() {
-        return modkit_abi::MOD_WAIT_REJECTED;
-    }
     let Some(runtime) = clone_initialized(&host().runtime) else {
         return MOD_NOT_READY;
     };
-    match runtime.wait_for_command(id.0, Duration::from_millis(u64::from(timeout_ms))) {
+    if !runtime.command_wait_allowed() {
+        return modkit_abi::MOD_WAIT_REJECTED;
+    }
+    match runtime.wait_for_command(id.0, timeout_duration(timeout_ms)) {
         Ok(result) => {
             unsafe { out.write(completion(result)) };
             MOD_OK
@@ -227,7 +245,7 @@ unsafe extern "system" fn core_receipt_release(id: CommandReceiptId) -> ModResul
 }
 
 unsafe extern "system" fn core_log_utf8(level: u32, ptr: *const u8, len: u32) -> ModResult {
-    if ptr.is_null() && len != 0 {
+    if (ptr.is_null() && len != 0) || len > modkit_abi::MAX_LOG_MESSAGE_BYTES {
         return MOD_INVALID_ARGUMENT;
     }
     let bytes = if len == 0 {
@@ -237,19 +255,21 @@ unsafe extern "system" fn core_log_utf8(level: u32, ptr: *const u8, len: u32) ->
     };
     let message = String::from_utf8_lossy(bytes);
     match level {
-        0 => error!("{message}"),
-        1 => warn!("{message}"),
-        2 => info!("{message}"),
-        3 => debug!("{message}"),
+        modkit_abi::LOG_LEVEL_ERROR => error!("{message}"),
+        modkit_abi::LOG_LEVEL_WARN => warn!("{message}"),
+        modkit_abi::LOG_LEVEL_INFO => info!("{message}"),
+        modkit_abi::LOG_LEVEL_DEBUG => debug!("{message}"),
         _ => return MOD_INVALID_ARGUMENT,
     }
     MOD_OK
 }
 
-fn wait_allowed() -> bool {
-    clone_initialized(&host().runtime)
-        .map(|runtime| runtime.command_wait_allowed())
-        .unwrap_or(false)
+fn timeout_duration(timeout_ms: u32) -> Duration {
+    if timeout_ms == modkit_abi::TIMEOUT_INFINITE {
+        Duration::MAX
+    } else {
+        Duration::from_millis(u64::from(timeout_ms))
+    }
 }
 
 fn completion(result: Result<(), CommandError>) -> CommandCompletionV1 {
@@ -267,6 +287,7 @@ fn completion(result: Result<(), CommandError>) -> CommandCompletionV1 {
 fn command_error_result(error: CommandError) -> ModResult {
     match error {
         CommandError::QueueFull => modkit_abi::MOD_QUEUE_FULL,
+        CommandError::IdExhausted => modkit_abi::MOD_BUSY,
         CommandError::ShuttingDown => MOD_SHUTTING_DOWN,
         CommandError::NativeFailure => modkit_abi::MOD_NATIVE_CALL_FAILED,
         CommandError::UnknownReceipt => MOD_INVALID_ARGUMENT,

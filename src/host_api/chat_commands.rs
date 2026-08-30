@@ -1,7 +1,12 @@
 //! Owned local chat-command registrations and their game-thread lifecycle.
 
-use super::{clone_initialized, copied_nul_free_string, direct_client_result, host};
-use crate::{command::CommandError, platform::bounded_c_string};
+use super::{
+    clone_initialized, copied_nul_free_string, direct_client_result, host, next_subscription_id,
+};
+use crate::{
+    command::{CommandError, CommandId},
+    platform::bounded_c_string,
+};
 use modkit_runtime::callback::{
     CallbackContext, CallbackContextGuard, CallbackGate, CallbackGateGuard,
 };
@@ -14,10 +19,10 @@ use std::{
     ffi::c_void,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, TryLockError,
         atomic::{AtomicBool, Ordering},
     },
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 const MAX_CHAT_COMMANDS: usize = 144;
@@ -44,6 +49,11 @@ struct ChatCommandEntry {
     callback: SampClientSdkChatCommandCallbackV1,
     user_data: usize,
     registered: AtomicBool,
+    unregister_started: AtomicBool,
+    retain_until_wait: AtomicBool,
+    native_removed: AtomicBool,
+    unregister_receipt: Mutex<Option<CommandId>>,
+    unregister_serial: Mutex<()>,
     gate: CallbackGate,
 }
 
@@ -77,6 +87,11 @@ impl ChatCommandRegistry {
             callback,
             user_data,
             registered: AtomicBool::new(false),
+            unregister_started: AtomicBool::new(false),
+            retain_until_wait: AtomicBool::new(false),
+            native_removed: AtomicBool::new(false),
+            unregister_receipt: Mutex::new(None),
+            unregister_serial: Mutex::new(()),
             gate: CallbackGate::new(),
         });
         state.slots[slot] = Some(id);
@@ -124,9 +139,17 @@ impl ChatCommandRegistry {
         };
         if succeeded {
             entry.gate.set_allowed(false);
-            let _ = self.remove(id);
+            entry.registered.store(false, Ordering::Release);
+            entry.native_removed.store(true, Ordering::Release);
+            if !entry.retain_until_wait.load(Ordering::Acquire) {
+                let _ = self.remove(id);
+            }
         } else {
-            entry.gate.set_allowed(true);
+            entry.native_removed.store(false, Ordering::Release);
+            if !entry.retain_until_wait.load(Ordering::Acquire) {
+                entry.unregister_started.store(false, Ordering::Release);
+                entry.gate.set_allowed(true);
+            }
         }
     }
 }
@@ -149,8 +172,8 @@ impl ChatCommandEntry {
         self.gate.set_allowed(true);
     }
 
-    fn synchronize_dispatches(&self) {
-        self.gate.wait_until_drained();
+    fn synchronize_dispatches_timeout(&self, timeout: Duration) -> bool {
+        self.gate.wait_until_drained_timeout(timeout)
     }
 }
 
@@ -169,6 +192,9 @@ pub(super) unsafe extern "system" fn submit_register_chat_command(
     subscription: *mut SampClientSdkSubscription,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
+    if super::is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     let Some(callback) = callback else {
         return SampClientSdkResult::InvalidArgument;
     };
@@ -188,7 +214,9 @@ pub(super) unsafe extern "system" fn submit_register_chat_command(
     if is_dispatching_on_current_thread() || !runtime.command_wait_allowed() {
         return SampClientSdkResult::CallbackInProgress;
     }
-    let id = host().next_subscription.fetch_add(1, Ordering::AcqRel);
+    let Some(id) = next_subscription_id() else {
+        return SampClientSdkResult::Busy;
+    };
     let entry = match host()
         .chat_commands
         .reserve(id, name.clone(), callback, user_data as usize)
@@ -214,59 +242,123 @@ pub(super) unsafe extern "system" fn submit_register_chat_command(
 
 pub(super) fn unregister(subscription: SampClientSdkSubscription) -> Option<SampClientSdkResult> {
     let entry = host().chat_commands.entry(subscription.id)?;
+    if entry.unregister_started.swap(true, Ordering::AcqRel) {
+        return Some(SampClientSdkResult::CallbackInProgress);
+    }
     entry.deactivate();
     let Some(runtime) = clone_initialized(&host().runtime) else {
+        entry.unregister_started.store(false, Ordering::Release);
+        entry.reactivate();
         return Some(SampClientSdkResult::NotReady);
     };
     Some(
-        runtime
-            .submit_unregister_chat_command(subscription.id, entry.name.clone())
-            .map_or_else(direct_client_result, |_| SampClientSdkResult::Ok),
+        match runtime.submit_unregister_chat_command(subscription.id, entry.name.clone()) {
+            Ok(command_id) => runtime
+                .release_command(command_id)
+                .map_or_else(command_result, |_| SampClientSdkResult::Ok),
+            Err(error) => {
+                entry.unregister_started.store(false, Ordering::Release);
+                entry.reactivate();
+                direct_client_result(error)
+            }
+        },
     )
 }
 
 pub(super) fn unregister_and_wait(
     subscription: SampClientSdkSubscription,
+    timeout: Option<Duration>,
 ) -> Option<SampClientSdkResult> {
     let entry = host().chat_commands.entry(subscription.id)?;
     if is_dispatching_on_current_thread() {
         return Some(SampClientSdkResult::CallbackInProgress);
     }
-    entry.deactivate();
     let Some(runtime) = clone_initialized(&host().runtime) else {
-        entry.reactivate();
         return Some(SampClientSdkResult::NotReady);
     };
     if !runtime.command_wait_allowed() {
-        entry.reactivate();
         return Some(SampClientSdkResult::CallbackInProgress);
     }
-    let command_id =
+    let _serial = match entry.unregister_serial.try_lock() {
+        Ok(serial) => serial,
+        Err(TryLockError::Poisoned(error)) => error.into_inner(),
+        Err(TryLockError::WouldBlock) => return Some(SampClientSdkResult::CallbackInProgress),
+    };
+    let timeout = timeout.unwrap_or(Duration::MAX);
+    let deadline = Instant::now().checked_add(timeout);
+
+    if !entry.unregister_started.load(Ordering::Acquire) {
+        entry.retain_until_wait.store(true, Ordering::Release);
+        entry.unregister_started.store(true, Ordering::Release);
+        entry.deactivate();
         match runtime.submit_unregister_chat_command(subscription.id, entry.name.clone()) {
-            Ok(command_id) => command_id,
+            Ok(command_id) => {
+                *entry
+                    .unregister_receipt
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = Some(command_id);
+            }
             Err(error) => {
+                entry.unregister_started.store(false, Ordering::Release);
+                entry.retain_until_wait.store(false, Ordering::Release);
                 entry.reactivate();
                 return Some(direct_client_result(error));
             }
-        };
-    loop {
-        match runtime.wait_for_command(command_id, Duration::MAX) {
-            Err(CommandError::TimedOut) => continue,
+        }
+    }
+
+    if !entry.retain_until_wait.load(Ordering::Acquire) {
+        return Some(SampClientSdkResult::CallbackInProgress);
+    }
+
+    let command_id = *entry
+        .unregister_receipt
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    if let Some(command_id) = command_id {
+        match runtime.wait_for_command(command_id, remaining(deadline)) {
+            Err(CommandError::TimedOut) => return Some(SampClientSdkResult::TimedOut),
+            Err(CommandError::WaitRejected) => {
+                return Some(SampClientSdkResult::CallbackInProgress);
+            }
             Ok(Ok(())) => {
-                entry.synchronize_dispatches();
-                return Some(SampClientSdkResult::Ok);
+                *entry
+                    .unregister_receipt
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = None;
             }
             Ok(Err(error)) | Err(error) => {
+                *entry
+                    .unregister_receipt
+                    .lock()
+                    .unwrap_or_else(|error| error.into_inner()) = None;
+                entry.unregister_started.store(false, Ordering::Release);
+                entry.retain_until_wait.store(false, Ordering::Release);
                 entry.reactivate();
                 return Some(command_result(error));
             }
         }
+    } else if !entry.native_removed.load(Ordering::Acquire) {
+        return Some(SampClientSdkResult::NotReady);
     }
+
+    if !entry.synchronize_dispatches_timeout(remaining(deadline)) {
+        return Some(SampClientSdkResult::TimedOut);
+    }
+    entry.retain_until_wait.store(false, Ordering::Release);
+    let _ = host().chat_commands.remove(subscription.id);
+    Some(SampClientSdkResult::Ok)
+}
+
+fn remaining(deadline: Option<Instant>) -> Duration {
+    deadline.map_or(Duration::MAX, |deadline| {
+        deadline.saturating_duration_since(Instant::now())
+    })
 }
 
 fn command_result(error: CommandError) -> SampClientSdkResult {
     match error {
-        CommandError::QueueFull => SampClientSdkResult::QueueFull,
+        CommandError::QueueFull | CommandError::IdExhausted => SampClientSdkResult::QueueFull,
         CommandError::ShuttingDown => SampClientSdkResult::ShuttingDown,
         CommandError::NativeFailure => SampClientSdkResult::NativeCallFailed,
         CommandError::UnknownReceipt => SampClientSdkResult::InvalidArgument,
@@ -658,5 +750,25 @@ mod tests {
 
         registry.finish_unregistration(7, true);
         assert!(registry.entry(7).is_none());
+    }
+
+    #[test]
+    fn timed_unregistration_retains_entry_until_waiter_drains_it() {
+        let registry = ChatCommandRegistry::new();
+        let entry = registry
+            .reserve(8, b"fixture".to_vec(), callback, 0)
+            .unwrap();
+        registry.finish_registration(8, true);
+        entry.retain_until_wait.store(true, Ordering::Release);
+        entry.unregister_started.store(true, Ordering::Release);
+        entry.deactivate();
+
+        registry.finish_unregistration(8, true);
+        assert!(registry.entry(8).is_some());
+        assert!(entry.native_removed.load(Ordering::Acquire));
+        assert!(entry.enter_dispatch().is_none());
+
+        assert!(entry.synchronize_dispatches_timeout(Duration::ZERO));
+        assert!(registry.remove(8).is_some());
     }
 }

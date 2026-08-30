@@ -1,11 +1,13 @@
 //! Host module resolution and connection.
 
 use crate::host::{Host, HostStatus};
-use core::{fmt, mem};
+use core::fmt;
+#[cfg(all(windows, target_arch = "x86"))]
+use core::mem;
 use std::time::{Duration, Instant};
 
 /// The default host module name, NUL-terminated.
-pub const DEFAULT_HOST_MODULE: &[u8] = b"gta_mod_host.asi\0";
+pub const DEFAULT_HOST_MODULE: &[u8] = b"samp_client_sdk.asi\0";
 
 /// A failure while resolving or connecting to the modkit host.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -20,6 +22,8 @@ pub enum ConnectError {
     UnsupportedAbi,
     /// The host failed to initialize.
     HostFailed,
+    /// The bootstrap export returned a host-defined result code.
+    Host(modkit_abi::ModResult),
     /// Timed out waiting for host readiness.
     TimedOut,
 }
@@ -36,6 +40,7 @@ impl fmt::Display for ConnectError {
                 formatter.write_str("modkit host bootstrap ABI v1 is unavailable")
             }
             Self::HostFailed => formatter.write_str("modkit host failed to initialize"),
+            Self::Host(result) => write!(formatter, "modkit host returned {result:?}"),
             Self::TimedOut => formatter.write_str("timed out waiting for modkit host readiness"),
         }
     }
@@ -43,7 +48,7 @@ impl fmt::Display for ConnectError {
 
 impl std::error::Error for ConnectError {}
 
-/// Waits for the default `gta_mod_host.asi` host to expose a ready bootstrap.
+/// Waits for the default `samp_client_sdk.asi` host to expose a ready bootstrap.
 ///
 /// Call this from a plugin worker thread, never from `DllMain`.
 pub(crate) fn wait_for_default_host(timeout: Duration) -> Result<Host, ConnectError> {
@@ -52,7 +57,7 @@ pub(crate) fn wait_for_default_host(timeout: Duration) -> Result<Host, ConnectEr
 
 /// Waits for a named host module to expose a ready bootstrap.
 ///
-/// `module_name` must be NUL-terminated, for example `b"gta_mod_host.asi\\0"`.
+/// `module_name` must be NUL-terminated, for example `b"samp_client_sdk.asi\\0"`.
 pub(crate) fn wait_for_host(module_name: &[u8], timeout: Duration) -> Result<Host, ConnectError> {
     if module_name.last() != Some(&0) {
         return Err(ConnectError::HostNotLoaded);
@@ -100,18 +105,28 @@ fn resolve_host(module_name: &[u8]) -> Result<Host, ConnectError> {
     let get_api: modkit_abi::GetModHostApiV1 = unsafe { mem::transmute(symbol) };
     let mut out: *const modkit_abi::ModHostApiV1 = core::ptr::null();
     let result = unsafe { get_api(&mut out) };
-    if !result.is_ok() {
+    preserve_bootstrap_result(result)?;
+    if out.is_null() {
         return Err(ConnectError::HostFailed);
     }
-    let Some(api) = (unsafe { out.as_ref() }) else {
-        return Err(ConnectError::HostFailed);
-    };
-    if api.abi_version != modkit_abi::MOD_HOST_ABI_VERSION_V1
-        || api.size < mem::size_of::<modkit_abi::ModHostApiV1>() as u32
+    let abi_version = unsafe { out.cast::<u32>().read() };
+    let size = unsafe { out.cast::<u32>().add(1).read() };
+    if abi_version != modkit_abi::MOD_HOST_ABI_VERSION_V1
+        || size != mem::size_of::<modkit_abi::ModHostApiV1>() as u32
     {
         return Err(ConnectError::UnsupportedAbi);
     }
+    let api = unsafe { &*out };
     Ok(unsafe { Host::from_raw(api) })
+}
+
+#[cfg(any(all(windows, target_arch = "x86"), test))]
+fn preserve_bootstrap_result(result: modkit_abi::ModResult) -> Result<(), ConnectError> {
+    if result.is_ok() {
+        Ok(())
+    } else {
+        Err(ConnectError::Host(result))
+    }
 }
 
 #[cfg(not(all(windows, target_arch = "x86")))]
@@ -158,7 +173,16 @@ mod tests {
     }
 
     #[test]
-    fn default_host_module_is_nul_terminated() {
-        assert_eq!(DEFAULT_HOST_MODULE.last(), Some(&0));
+    fn default_host_module_matches_the_deployed_artifact() {
+        assert_eq!(DEFAULT_HOST_MODULE, b"samp_client_sdk.asi\0");
+    }
+
+    #[test]
+    fn bootstrap_result_preserves_unknown_host_codes() {
+        let result = modkit_abi::ModResult(999);
+        assert_eq!(
+            preserve_bootstrap_result(result),
+            Err(ConnectError::Host(result))
+        );
     }
 }

@@ -18,6 +18,7 @@ pub type CommandId = u64;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CommandError {
     QueueFull,
+    IdExhausted,
     ShuttingDown,
     NativeFailure,
     UnknownReceipt,
@@ -73,7 +74,7 @@ impl<C, R> CommandQueue<C, R> {
             return Err(CommandError::QueueFull);
         }
 
-        let id = next_command_id(&mut state);
+        let id = next_command_id(&mut state)?;
         state.receipts.insert(id);
         state.commands.push_back(QueuedCommand { id, command });
         Ok(id)
@@ -182,14 +183,13 @@ impl<C, R> CommandQueue<C, R> {
     }
 }
 
-fn next_command_id<C, R>(state: &mut CommandQueueState<C, R>) -> CommandId {
-    loop {
-        let id = state.next_id;
-        state.next_id = state.next_id.wrapping_add(1).max(1);
-        if !state.receipts.contains(&id) {
-            return id;
-        }
+fn next_command_id<C, R>(state: &mut CommandQueueState<C, R>) -> Result<CommandId, CommandError> {
+    let id = state.next_id;
+    if id == 0 {
+        return Err(CommandError::IdExhausted);
     }
+    state.next_id = id.checked_add(1).unwrap_or(0);
+    Ok(id)
 }
 
 #[cfg(test)]
@@ -294,23 +294,23 @@ mod tests {
     }
 
     #[test]
-    fn id_wraparound_never_reuses_an_active_receipt() {
+    fn id_exhaustion_never_reuses_a_stale_receipt() {
         let queue = CommandQueue::<u8, ()>::new();
         queue.set_next_id(u64::MAX);
         let first = queue.submit(1).unwrap();
-        let second = queue.submit(2).unwrap();
+        queue.complete(first, Ok(()));
+        assert_eq!(queue.try_take(first), Ok(Some(Ok(()))));
 
         assert_eq!(first, u64::MAX);
-        assert_eq!(second, 1);
-        assert_ne!(first, second);
+        assert_eq!(queue.submit(2), Err(CommandError::IdExhausted));
     }
 
     #[test]
-    fn id_wraparound_skips_zero() {
+    fn id_exhaustion_never_allocates_zero() {
         let queue = CommandQueue::<(), ()>::new();
         queue.set_next_id(u64::MAX);
         let id = queue.submit(()).unwrap();
         assert_eq!(id, u64::MAX);
-        assert_eq!(queue.submit(()).unwrap(), 1);
+        assert_eq!(queue.submit(()), Err(CommandError::IdExhausted));
     }
 }

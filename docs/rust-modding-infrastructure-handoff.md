@@ -681,6 +681,21 @@ pub struct CommandReceiptId(pub u64);
 
 `0` is invalid/reserved for all host-issued IDs. Host-issued IDs must not be reused during the lifetime of a host process in a way that could make a stale plugin ID refer to a different live object. The simplest valid implementation is monotonic allocation with checked overflow; on exhaustion return `MOD_BUSY`/`MOD_NATIVE_CALL_FAILED` rather than wrapping.
 
+The callback-scoped native execution proof uses these fixed scalar values:
+
+```rust
+#[repr(transparent)]
+pub struct GameContextTokenV1(u64);
+
+#[repr(transparent)]
+pub struct NativeExecutionConstraintV1(u32);
+```
+
+Token `0` is invalid. Plugins must not synthesize tokens. The host validates
+token lifetime, owner thread, shutdown state, and operation constraint on each
+direct native call. Constraint values are `0` = game thread at any phase, `1`
+= post-game-process only, `2` = render phase only, and `3` = queued only.
+
 ## 4.2 New host export
 
 Add the new export while preserving the existing export:
@@ -696,7 +711,7 @@ Normative bootstrap ABI:
 ```rust
 #[repr(C)]
 pub struct ServiceHeader {
-    pub service_id: u32,
+    pub service_id: ServiceId,
     pub version: u32,
     pub size: u32,
     pub reserved: u32,
@@ -815,7 +830,7 @@ V1 defaults:
 - host logging: `ANY_THREAD`, `CALLBACK_SAFE`, non-blocking after bounded/copying work.
 - command submission: `ANY_THREAD`, `CALLBACK_SAFE`, non-blocking; returns receipt/queue status.
 - receipt poll/release: `ANY_THREAD`, `CALLBACK_SAFE`.
-- receipt wait: `MAY_BLOCK`; reject with `MOD_WAIT_REJECTED` when called from the game thread, from `DllMain`, or from a host->plugin callback context that could deadlock progress.
+- receipt wait: `MAY_BLOCK`; callers must not invoke it from `DllMain`; reject with `MOD_WAIT_REJECTED` from the known game thread or a host->plugin callback context that could deadlock progress.
 - subscription unregister: `ANY_THREAD`, `CALLBACK_SAFE`, non-blocking disable operation.
 - subscription `unregister_and_wait`: `MAY_BLOCK`; reject from the same unsafe contexts as receipt wait.
 - direct native reads/mutations require a valid `GameContext` and a compatible Native execution constraint; ordinary plugin-thread facades submit them to the game-thread executor.
@@ -880,7 +895,7 @@ pub struct CommandCompletionV1 {
 
 `value0/value1` are only for compact scalar/handle results. Large owned results use fixed service-specific output structs, snapshots, or caller-provided buffers.
 
-Suggested first layout (`PROPOSED` until Phase 3 freezes it):
+Frozen V1 layout:
 
 ```rust
 #[repr(C)]
@@ -913,7 +928,13 @@ pub struct CoreServiceV1 {
 }
 ```
 
-Before freezing this layout, Phase 3 must define `HostStatusV1`, log levels, timeout sentinel semantics, and tests for every null/error path. Once published as stable V1, do not append fields.
+`HostStatusV1.state` is `0` = waiting, `1` = ready, `2` = failed, and
+`3` = shutting down. For every Core timeout, `0` requests an immediate check,
+`0xFFFF_FFFF` requests an unbounded wait, and other values are finite
+milliseconds. Log levels are `0` = error, `1` = warn, `2` = info, and `3` =
+debug. Core V1 accepts at most 4096 log-message bytes. Unknown log levels and
+larger messages return `MOD_INVALID_ARGUMENT`. This layout is frozen; do not
+append fields.
 
 ## 4.9 Service table immutability
 
@@ -937,9 +958,13 @@ During migration, register service ID `0x0000_F000` as a normal header-prefixed 
 #[repr(C)]
 pub struct LegacySampServiceV1 {
     pub header: ServiceHeader,
-    pub api: *const SampClientSdkApiV1,
+    pub api: *const c_void,
 }
 ```
+
+The pointer is opaque here so `modkit-abi` does not depend on the legacy SDK
+crate. An explicitly unsafe migration adapter may cast it to the exact legacy
+V1 table type. The safe `modkit-sdk` service view does not expose raw tables.
 
 This exists only so the new host/service discovery path can be introduced without rewriting the whole current SDK in the same commit. The legacy endpoint may return a pointer to the existing static table for exact legacy-v1 consumers.
 
@@ -1997,8 +2022,9 @@ refactor(runtime): extract reusable command and subscription primitives
 - [x] Create `crates/modkit-abi`.
 - [x] Implement the exact `ModResult` newtype and numeric constants from Section 4.1.
 - [x] Define `ServiceId`, `SubscriptionId`, `CommandReceiptId`, `ServiceHeader`, and bootstrap ABI exactly as specified in Section 4.
-- [ ] Define the opaque ABI token carried by plugin-side `GameContext<'scope>` and test wrong-thread, stale-scope, and wrong-phase rejection.
-- [x] Add `GtaModHost_GetApiV1` export in the current host crate with documented out-pointer clearing/error behavior.- [x] Implement exact-version `query_service` with distinct `NotFound`, `UnsupportedVersion`, registry-level `NotReady`, and `ShuttingDown` results; discovered tables do not depend on native backend readiness.
+- [x] Define the opaque ABI token carried by plugin-side `GameContext<'scope>` and test wrong-thread, stale-scope, and wrong-phase rejection.
+- [x] Add `GtaModHost_GetApiV1` export in the current host crate with documented out-pointer clearing/error behavior.
+- [x] Implement exact-version `query_service` with distinct `NotFound`, `UnsupportedVersion`, and `ShuttingDown` results; model registry-level `NotReady` for compatible hosts. This host publishes its static registry before the bootstrap table is callable, so its discovery path has no observable unpublished-registry state. Discovered tables do not depend on native backend readiness.
 - [x] Implement Core service v1 with host status plus shared subscription/receipt/log primitives; freeze its layout only after its null/thread/lifetime tests exist.
 - [x] Implement callback-context tracking needed for `CALLBACK_SAFE` and wait-rejection rules.
 - [x] Register the migration-only header-prefixed `LegacySampServiceV1` wrapper containing a pointer to the existing API table.
@@ -2008,15 +2034,11 @@ refactor(runtime): extract reusable command and subscription primitives
 - [x] The safe SDK must preserve unknown raw result codes for diagnostics instead of constructing invalid enums.
 - [x] Formalize host lifetime: host API/service pointers remain immutable and valid for process lifetime; host hot-unload is not supported.
 
-Completed: 2026-08-29. `crates/modkit-abi` defines the `ModResult` newtype,
-the fixed-width ID types, `ServiceHeader`, the `ModHostApiV1` bootstrap table,
-the `CoreServiceV1` table, and the migration-only `LegacySampServiceV1`
-wrapper. The host exports `GtaModHost_GetApiV1` and implements exact-version
-`query_service` with distinct `NotFound`/`UnsupportedVersion`/`ShuttingDown`
-results. `crates/modkit-sdk` provides `Host::connect`/`connect_to` based only
-on the new export. The legacy `SampClientSdk_GetApiV1` export is unchanged.
-The `modkit_connect_plugin` example connects via the new export and queries
-Core + Legacy services.
+Completed: 2026-08-30. Phase 3 now has exact-size service validation, bounded
+Core operations, retryable timed drains, monotonic IDs, process-lifetime host
+resolution, and the generic `GameContext` token foundation. Actual native
+callback delivery remains Phase 9. See
+[Phase 3 completion evidence](evidence/phase-3-modkit-service-discovery.md).
 
 ### Acceptance criteria
 

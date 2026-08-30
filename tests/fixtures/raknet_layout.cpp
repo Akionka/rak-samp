@@ -1537,7 +1537,72 @@ static_assert(offsetof(FixtureDlListboxPrefix, item_count) == 0x150);
 static_assert(sizeof(FixtureDlListboxItemPrefix::text) == 256);
 static_assert(sizeof(FixtureDlAnimationEntry) == 0x24);
 
+struct FixtureModkitServiceHeader {
+    std::uint32_t service_id;
+    std::uint32_t version;
+    std::uint32_t size;
+    std::uint32_t reserved;
+};
+
+using FixtureModkitFunction = void (*)();
+
+struct FixtureModkitBootstrapV1 {
+    std::uint32_t abi_version;
+    std::uint32_t size;
+    FixtureModkitFunction query_service;
+};
+
+struct FixtureModkitCoreV1 {
+    FixtureModkitServiceHeader header;
+    FixtureModkitFunction functions[7];
+};
+
+struct FixtureModkitLegacyV1 {
+    FixtureModkitServiceHeader header;
+    const void* api;
+};
+
+struct FixtureModkitHostStatusV1 {
+    std::uint32_t state;
+    std::uint32_t reserved[3];
+};
+
+struct FixtureModkitCommandCompletionV1 {
+    std::int32_t status;
+    std::uint32_t reserved;
+    std::uint64_t value0;
+    std::uint64_t value1;
+};
+
 extern "C" {
+
+std::size_t modkit_fixture_service_header_size() {
+    return sizeof(FixtureModkitServiceHeader);
+}
+
+std::size_t modkit_fixture_bootstrap_size() {
+    return sizeof(FixtureModkitBootstrapV1);
+}
+
+std::size_t modkit_fixture_core_size() {
+    return sizeof(FixtureModkitCoreV1);
+}
+
+std::size_t modkit_fixture_legacy_size() {
+    return sizeof(FixtureModkitLegacyV1);
+}
+
+std::size_t modkit_fixture_host_status_size() {
+    return sizeof(FixtureModkitHostStatusV1);
+}
+
+std::size_t modkit_fixture_command_completion_size() {
+    return sizeof(FixtureModkitCommandCompletionV1);
+}
+
+std::size_t modkit_fixture_command_completion_alignment() {
+    return alignof(FixtureModkitCommandCompletionV1);
+}
 
 std::size_t samp_client_sdk_fixture_player_id_size() {
     return sizeof(FixturePlayerId);

@@ -7,8 +7,10 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod context;
 mod host;
 mod resolve;
 
-pub use host::{Core, Host, HostStatus, Service, ServiceError};
+pub use context::GameContext;
+pub use host::{Core, Host, HostStatus, LegacySamp, Service, ServiceError};
 pub use resolve::{ConnectError, DEFAULT_HOST_MODULE};

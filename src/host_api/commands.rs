@@ -139,7 +139,7 @@ fn text_label_create_completion(result: Result<u16, CommandError>) -> (SampClien
 
 fn command_error_result(error: CommandError) -> SampClientSdkResult {
     match error {
-        CommandError::QueueFull => SampClientSdkResult::QueueFull,
+        CommandError::QueueFull | CommandError::IdExhausted => SampClientSdkResult::QueueFull,
         CommandError::ShuttingDown => SampClientSdkResult::ShuttingDown,
         CommandError::NativeFailure => SampClientSdkResult::NativeCallFailed,
         CommandError::UnknownReceipt => SampClientSdkResult::InvalidArgument,

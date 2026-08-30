@@ -55,6 +55,13 @@ pub(super) unsafe extern "system" fn unregister(
 pub(super) unsafe extern "system" fn unregister_and_wait(
     subscription: SampClientSdkSubscription,
 ) -> SampClientSdkResult {
+    unregister_and_wait_with_timeout(subscription, None)
+}
+
+pub(super) fn unregister_and_wait_with_timeout(
+    subscription: SampClientSdkSubscription,
+    timeout: Option<Duration>,
+) -> SampClientSdkResult {
     if subscription.id == 0 {
         return SampClientSdkResult::InvalidArgument;
     }
@@ -65,7 +72,7 @@ pub(super) unsafe extern "system" fn unregister_and_wait(
             .unwrap_or_else(|error| error.into_inner());
         let Some(listener) = subscriptions.get(&subscription.id) else {
             drop(subscriptions);
-            return chat_commands::unregister_and_wait(subscription)
+            return chat_commands::unregister_and_wait(subscription, timeout)
                 .unwrap_or(SampClientSdkResult::SubscriptionNotFound);
         };
         if !listener.can_remove_and_wait() {
@@ -76,7 +83,18 @@ pub(super) unsafe extern "system" fn unregister_and_wait(
         };
         listener
     };
-    listener.remove_and_wait();
+    if let Some(timeout) = timeout {
+        if let Err(listener) = listener.remove_and_wait_timeout(timeout) {
+            host()
+                .subscriptions
+                .lock()
+                .unwrap_or_else(|error| error.into_inner())
+                .insert(subscription.id, listener);
+            return SampClientSdkResult::TimedOut;
+        }
+    } else {
+        listener.remove_and_wait();
+    }
     debug!(
         "unregistered plugin subscription {} and synchronized callbacks",
         subscription.id
@@ -91,6 +109,9 @@ fn register_listener(
     subscription: *mut SampClientSdkSubscription,
     kind: ListenerKind,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     let Some(callback) = callback else {
         return SampClientSdkResult::InvalidArgument;
     };
@@ -113,8 +134,15 @@ fn register_listener(
             call_plugin_callback(callback, user_data, event.id(), event.payload_mut())
         }),
     };
+    let listener = match listener {
+        Ok(listener) => listener,
+        Err(crate::ListenerRegistrationError::IdExhausted) => return SampClientSdkResult::Busy,
+    };
 
-    let id = host().next_subscription.fetch_add(1, Ordering::AcqRel);
+    let Some(id) = next_subscription_id() else {
+        listener.remove();
+        return SampClientSdkResult::Busy;
+    };
     host()
         .subscriptions
         .lock()

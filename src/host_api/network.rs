@@ -1,6 +1,6 @@
 //! Packet/RPC send and incoming-emulation ABI entry points.
 
-use super::{ListenerKind, clone_initialized, host};
+use super::{ListenerKind, clone_initialized, host, is_shutting_down};
 use crate::{BitStream, BitStreamError, PacketPriority, PacketReliability, SendError, SendOptions};
 use sdk_abi::{SampClientSdkCommandReceipt, SampClientSdkResult, SampClientSdkSendOptions};
 
@@ -117,6 +117,9 @@ fn send(
     options: SampClientSdkSendOptions,
     kind: ListenerKind,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     let Ok(payload) = (unsafe { stream_from_abi(data, byte_len, bit_len) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
@@ -148,6 +151,9 @@ fn submit_send(
     kind: ListenerKind,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     if receipt.is_null() {
         return SampClientSdkResult::InvalidArgument;
     }
@@ -180,6 +186,9 @@ fn emulate_incoming(
     bit_len: usize,
     kind: ListenerKind,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     let Ok(payload) = (unsafe { stream_from_abi(data, byte_len, bit_len) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
@@ -201,6 +210,9 @@ fn submit_emulate_incoming(
     kind: ListenerKind,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
+    if is_shutting_down() {
+        return SampClientSdkResult::ShuttingDown;
+    }
     if receipt.is_null() {
         return SampClientSdkResult::InvalidArgument;
     }

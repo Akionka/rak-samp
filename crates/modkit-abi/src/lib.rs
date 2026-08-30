@@ -8,6 +8,7 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod bootstrap;
+mod context;
 mod core;
 mod ids;
 mod legacy;
@@ -15,7 +16,11 @@ mod result;
 mod service;
 
 pub use bootstrap::{GetModHostApiV1, MOD_HOST_ABI_VERSION_V1, ModHostApiV1};
-pub use core::{CommandCompletionV1, CoreServiceV1, HostStatusV1};
+pub use context::{GameContextTokenV1, NativeExecutionConstraintV1};
+pub use core::{
+    CommandCompletionV1, CoreServiceV1, HostStatusV1, LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR,
+    LOG_LEVEL_INFO, LOG_LEVEL_WARN, MAX_LOG_MESSAGE_BYTES, TIMEOUT_INFINITE,
+};
 pub use ids::{CommandReceiptId, ServiceId, SubscriptionId};
 pub use legacy::LegacySampServiceV1;
 pub use result::{

@@ -22,4 +22,6 @@ pub use command::{
     CommandError, CommandId, CommandQueue, GAME_COMMAND_QUEUE_CAPACITY, QueuedCommand,
 };
 pub use reclaim::{DeferredReclamation, Reclaimable};
-pub use scope::{GameThreadScope, GameThreadToken};
+pub use scope::{
+    GamePhase, GameThreadScope, GameThreadToken, NativeExecutionConstraint, ScopeError, ScopeToken,
+};

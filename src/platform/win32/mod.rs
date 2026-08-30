@@ -424,7 +424,7 @@ enum HandleCacheEntry {
 
 fn command_send_error(error: CommandError) -> SendError {
     match error {
-        CommandError::QueueFull => SendError::QueueFull,
+        CommandError::QueueFull | CommandError::IdExhausted => SendError::QueueFull,
         CommandError::ShuttingDown | CommandError::UnknownReceipt => SendError::ClientNotReady,
         CommandError::NativeFailure | CommandError::TimedOut | CommandError::WaitRejected => {
             SendError::NativeCallFailed

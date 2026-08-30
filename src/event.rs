@@ -4,6 +4,7 @@ use std::{
     collections::BTreeMap,
     panic::{AssertUnwindSafe, catch_unwind},
     sync::{Arc, Mutex, Weak},
+    time::Duration,
 };
 
 /// The direction in which SA-MP traffic crosses the client boundary.
@@ -120,6 +121,18 @@ impl ListenerHandle {
             registry.synchronize_dispatch();
         }
     }
+
+    pub(crate) fn remove_and_wait_timeout(self, timeout: Duration) -> Result<(), Self> {
+        let Some(registry) = self.registry.upgrade() else {
+            return Ok(());
+        };
+        registry.remove(self.id);
+        if registry.synchronize_dispatch_timeout(timeout) {
+            Ok(())
+        } else {
+            Err(self)
+        }
+    }
 }
 
 impl Drop for ListenerHandle {
@@ -166,7 +179,7 @@ impl Registry {
         self: &Arc<Self>,
         direction: Direction,
         callback: impl for<'event> FnMut(&mut PacketEvent<'event>) -> HookAction + Send + 'static,
-    ) -> ListenerHandle {
+    ) -> Result<ListenerHandle, ListenerRegistrationError> {
         self.register(Listener::Packet {
             direction,
             callback: Some(Box::new(callback)),
@@ -177,7 +190,7 @@ impl Registry {
         self: &Arc<Self>,
         direction: Direction,
         callback: impl for<'event> FnMut(&mut RpcEvent<'event>) -> HookAction + Send + 'static,
-    ) -> ListenerHandle {
+    ) -> Result<ListenerHandle, ListenerRegistrationError> {
         self.register(Listener::Rpc {
             direction,
             callback: Some(Box::new(callback)),
@@ -256,15 +269,21 @@ impl Registry {
         self.dispatch_gate.is_owned_by_current_thread()
     }
 
-    fn register(self: &Arc<Self>, listener: Listener) -> ListenerHandle {
+    fn register(
+        self: &Arc<Self>,
+        listener: Listener,
+    ) -> Result<ListenerHandle, ListenerRegistrationError> {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
+        if state.next_id == 0 {
+            return Err(ListenerRegistrationError::IdExhausted);
+        }
         let id = ListenerId(state.next_id);
-        state.next_id = state.next_id.saturating_add(1);
+        state.next_id = state.next_id.checked_add(1).unwrap_or(0);
         state.listeners.insert(id, listener);
-        ListenerHandle {
+        Ok(ListenerHandle {
             id,
             registry: Arc::downgrade(self),
-        }
+        })
     }
 
     fn remove(&self, id: ListenerId) {
@@ -277,6 +296,10 @@ impl Registry {
 
     fn synchronize_dispatch(&self) {
         let _dispatch = self.dispatch_gate.enter();
+    }
+
+    fn synchronize_dispatch_timeout(&self, timeout: Duration) -> bool {
+        self.dispatch_gate.enter_timeout(timeout).is_some()
     }
 
     fn matching_ids(&self, direction: Direction, kind: ListenerKind) -> Vec<ListenerId> {
@@ -361,6 +384,20 @@ impl Registry {
             *slot = Some(callback);
         }
     }
+
+    #[cfg(test)]
+    fn set_next_id(&self, next_id: u64) {
+        self.state
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .next_id = next_id;
+    }
+}
+
+/// Failure while registering an in-process runtime listener.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum ListenerRegistrationError {
+    IdExhausted,
 }
 
 #[derive(Clone, Copy)]
@@ -372,29 +409,37 @@ enum ListenerKind {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
+    use std::{
+        sync::{Arc, Mutex, mpsc},
+        thread,
+        time::Duration,
+    };
 
     #[test]
     fn dispatches_in_registration_order_and_observes_mutations() {
         let registry = Registry::new();
         let calls = Arc::new(Mutex::new(Vec::new()));
         let first_calls = Arc::clone(&calls);
-        let _first = registry.register_packet(Direction::Outgoing, move |event| {
-            first_calls
-                .lock()
-                .unwrap()
-                .push((1, event.payload().read_offset_bits()));
-            event.payload_mut().write_u8(2).unwrap();
-            HookAction::Continue
-        });
+        let _first = registry
+            .register_packet(Direction::Outgoing, move |event| {
+                first_calls
+                    .lock()
+                    .unwrap()
+                    .push((1, event.payload().read_offset_bits()));
+                event.payload_mut().write_u8(2).unwrap();
+                HookAction::Continue
+            })
+            .unwrap();
         let second_calls = Arc::clone(&calls);
-        let _second = registry.register_packet(Direction::Outgoing, move |event| {
-            second_calls
-                .lock()
-                .unwrap()
-                .push((2, event.payload().len_bytes()));
-            HookAction::Continue
-        });
+        let _second = registry
+            .register_packet(Direction::Outgoing, move |event| {
+                second_calls
+                    .lock()
+                    .unwrap()
+                    .push((2, event.payload().len_bytes()));
+                HookAction::Continue
+            })
+            .unwrap();
 
         let mut payload = BitStream::from_bytes(vec![1]);
         assert_eq!(
@@ -407,8 +452,12 @@ mod tests {
     #[test]
     fn blocks_after_the_first_blocking_listener() {
         let registry = Registry::new();
-        let _blocker = registry.register_rpc(Direction::Incoming, |_| HookAction::Block);
-        let _unreachable = registry.register_rpc(Direction::Incoming, |_| panic!("must not run"));
+        let _blocker = registry
+            .register_rpc(Direction::Incoming, |_| HookAction::Block)
+            .unwrap();
+        let _unreachable = registry
+            .register_rpc(Direction::Incoming, |_| panic!("must not run"))
+            .unwrap();
 
         let mut payload = BitStream::new();
         assert_eq!(
@@ -423,8 +472,12 @@ mod tests {
         assert!(!registry.has_packet_listener(Direction::Incoming));
         assert!(!registry.has_rpc_listener(Direction::Outgoing));
 
-        let _packet = registry.register_packet(Direction::Incoming, |_| HookAction::Continue);
-        let _rpc = registry.register_rpc(Direction::Outgoing, |_| HookAction::Continue);
+        let _packet = registry
+            .register_packet(Direction::Incoming, |_| HookAction::Continue)
+            .unwrap();
+        let _rpc = registry
+            .register_rpc(Direction::Outgoing, |_| HookAction::Continue)
+            .unwrap();
 
         assert!(registry.has_packet_listener(Direction::Incoming));
         assert!(!registry.has_packet_listener(Direction::Outgoing));
@@ -435,13 +488,17 @@ mod tests {
     #[test]
     fn removes_panicking_listener_without_unwinding_ffi_dispatch() {
         let registry = Registry::new();
-        let _panic = registry.register_packet(Direction::Incoming, |_| panic!("boom"));
+        let _panic = registry
+            .register_packet(Direction::Incoming, |_| panic!("boom"))
+            .unwrap();
         let successful_calls = Arc::new(Mutex::new(0));
         let successful_calls_clone = Arc::clone(&successful_calls);
-        let _success = registry.register_packet(Direction::Incoming, move |_| {
-            *successful_calls_clone.lock().unwrap() += 1;
-            HookAction::Continue
-        });
+        let _success = registry
+            .register_packet(Direction::Incoming, move |_| {
+                *successful_calls_clone.lock().unwrap() += 1;
+                HookAction::Continue
+            })
+            .unwrap();
 
         let mut payload = BitStream::new();
         registry.dispatch_packet(Direction::Incoming, 1, &mut payload);
@@ -453,23 +510,31 @@ mod tests {
     fn permits_nested_dispatch_on_the_callback_thread() {
         let registry = Registry::new();
         let nested_registry = Arc::clone(&registry);
-        let _emulator = registry.register_packet(Direction::Incoming, move |event| {
-            if event.id() == 1 {
-                let mut nested_payload = BitStream::new();
-                assert_eq!(
-                    nested_registry.dispatch_packet(Direction::Incoming, 2, &mut nested_payload),
-                    HookAction::Continue
-                );
-            }
-            HookAction::Continue
-        });
+        let _emulator = registry
+            .register_packet(Direction::Incoming, move |event| {
+                if event.id() == 1 {
+                    let mut nested_payload = BitStream::new();
+                    assert_eq!(
+                        nested_registry.dispatch_packet(
+                            Direction::Incoming,
+                            2,
+                            &mut nested_payload
+                        ),
+                        HookAction::Continue
+                    );
+                }
+                HookAction::Continue
+            })
+            .unwrap();
 
         let observed = Arc::new(Mutex::new(Vec::new()));
         let callback_observed = Arc::clone(&observed);
-        let _observer = registry.register_packet(Direction::Incoming, move |event| {
-            callback_observed.lock().unwrap().push(event.id());
-            HookAction::Continue
-        });
+        let _observer = registry
+            .register_packet(Direction::Incoming, move |event| {
+                callback_observed.lock().unwrap().push(event.id());
+                HookAction::Continue
+            })
+            .unwrap();
 
         let mut payload = BitStream::new();
         assert_eq!(
@@ -477,5 +542,45 @@ mod tests {
             HookAction::Continue
         );
         assert_eq!(*observed.lock().unwrap(), vec![2, 1]);
+    }
+
+    #[test]
+    fn timed_listener_drain_can_be_retried_after_callback_exit() {
+        let registry = Registry::new();
+        let (entered_tx, entered_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let listener = registry
+            .register_packet(Direction::Incoming, move |_| {
+                entered_tx.send(()).unwrap();
+                release_rx.recv().unwrap();
+                HookAction::Continue
+            })
+            .unwrap();
+        let dispatch_registry = Arc::clone(&registry);
+        let dispatch = thread::spawn(move || {
+            let mut payload = BitStream::new();
+            dispatch_registry.dispatch_packet(Direction::Incoming, 1, &mut payload);
+        });
+        entered_rx.recv().unwrap();
+
+        let listener = listener
+            .remove_and_wait_timeout(Duration::ZERO)
+            .expect_err("active callback keeps the handle retryable");
+        release_tx.send(()).unwrap();
+        dispatch.join().unwrap();
+        assert!(listener.remove_and_wait_timeout(Duration::ZERO).is_ok());
+    }
+
+    #[test]
+    fn listener_ids_never_alias_after_exhaustion() {
+        let registry = Registry::new();
+        registry.set_next_id(u64::MAX);
+        let _last = registry
+            .register_packet(Direction::Incoming, |_| HookAction::Continue)
+            .unwrap();
+        assert!(matches!(
+            registry.register_packet(Direction::Incoming, |_| HookAction::Continue),
+            Err(ListenerRegistrationError::IdExhausted)
+        ));
     }
 }

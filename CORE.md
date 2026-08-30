@@ -40,12 +40,14 @@
 - `crates/modkit-abi/` is the platform-independent Rust package for the stable
   C ABI primitives shared by host and plugin crates: the `ModResult` newtype and
   its numeric constants, fixed-width `ServiceId`/`SubscriptionId`/
-  `CommandReceiptId`, `ServiceHeader`, the `ModHostApiV1` bootstrap table, the
-  `CoreServiceV1` table, and the migration-only `LegacySampServiceV1` wrapper.
+  `CommandReceiptId`, opaque game-context token and execution constraints,
+  `ServiceHeader`, the `ModHostApiV1` bootstrap table, the `CoreServiceV1`
+  table, and the migration-only `LegacySampServiceV1` wrapper.
   It has no Windows, MinHook, GTA, or SA-MP native dependency.
 - `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
   resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
-  performs exact-version `query_service`, and exposes safe Core service facades.
+  performs exact-version `query_service`, and exposes safe Core service facades
+  plus the callback-scoped `GameContext` shell.
   It never falls back to `SampClientSdk_GetApiV1`.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy

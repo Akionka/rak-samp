@@ -27,8 +27,8 @@ use windows_sys::Win32::System::SystemServices::DLL_PROCESS_ATTACH;
 pub use bitstream::{BitStream, BitStreamError};
 pub use client::{AddressSet, SampVersion};
 pub use event::{
-    Direction, HookAction, ListenerHandle, ListenerId, PacketEvent, PacketHandler, RpcEvent,
-    RpcHandler,
+    Direction, HookAction, ListenerHandle, ListenerId, ListenerRegistrationError, PacketEvent,
+    PacketHandler, RpcEvent, RpcHandler,
 };
 pub use runtime::{
     AttachError, PacketPriority, PacketReliability, Runtime, SendError, SendOptions,

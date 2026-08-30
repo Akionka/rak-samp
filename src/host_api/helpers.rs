@@ -6,7 +6,7 @@ use std::{
     collections::HashMap,
     sync::{
         Arc, Mutex, OnceLock,
-        atomic::{AtomicBool, AtomicU32, AtomicU64},
+        atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering},
     },
 };
 
@@ -30,6 +30,9 @@ pub(super) unsafe fn submit_direct_command(
     receipt: *mut SampClientSdkCommandReceipt,
     submit: impl FnOnce(&Runtime) -> Result<u64, DirectClientError>,
 ) -> SampClientSdkResult {
+    if host().shutting_down.load(Ordering::Acquire) {
+        return SampClientSdkResult::ShuttingDown;
+    }
     let Some(runtime) = clone_initialized(&host().runtime) else {
         return SampClientSdkResult::NotReady;
     };
@@ -85,4 +88,41 @@ pub(super) fn host() -> &'static HostState {
 
 pub(super) fn clone_initialized<T>(slot: &OnceLock<Arc<T>>) -> Option<Arc<T>> {
     slot.get().cloned()
+}
+
+pub(super) fn next_subscription_id() -> Option<u64> {
+    allocate_monotonic_id(&host().next_subscription)
+}
+
+pub(super) fn is_shutting_down() -> bool {
+    host().shutting_down.load(Ordering::Acquire)
+}
+
+fn allocate_monotonic_id(next: &AtomicU64) -> Option<u64> {
+    loop {
+        let current = next.load(Ordering::Acquire);
+        if current == 0 {
+            return None;
+        }
+        let following = current.checked_add(1).unwrap_or(0);
+        if next
+            .compare_exchange_weak(current, following, Ordering::AcqRel, Ordering::Acquire)
+            .is_ok()
+        {
+            return Some(current);
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::allocate_monotonic_id;
+    use std::sync::atomic::AtomicU64;
+
+    #[test]
+    fn subscription_ids_exhaust_without_zero_or_reuse() {
+        let next = AtomicU64::new(u64::MAX);
+        assert_eq!(allocate_monotonic_id(&next), Some(u64::MAX));
+        assert_eq!(allocate_monotonic_id(&next), None);
+    }
 }
