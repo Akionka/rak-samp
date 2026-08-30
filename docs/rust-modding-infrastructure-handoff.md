@@ -2076,6 +2076,9 @@ feat(sdk): add plugin-side host and service resolver
 - [x] Memory tests retain existing safety behavior.
 - [x] No profile-specific constant moves accidentally into generic Win32 code.
 
+Implementation, automated validation, and R3-1 live attach evidence is recorded
+in [Phase 4 evidence](evidence/phase-4-modkit-win32.md).
+
 ### Suggested commit
 
 ```text

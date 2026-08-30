@@ -437,9 +437,11 @@ impl VtableHook {
         client: *mut c_void,
         state: &BackendState,
     ) -> Result<Self, AttachError> {
-        let object_vtable = client.cast::<*mut usize>();
-        let vtable = unsafe { object_vtable.read() };
-        if vtable.is_null() {
+        let Some(vtable) = (unsafe { modkit_win32::read_unaligned::<usize>(client as usize) })
+        else {
+            return Err(AttachError::ClientNotReady);
+        };
+        if vtable == 0 {
             return Err(AttachError::ClientNotReady);
         }
 
@@ -454,13 +456,29 @@ impl VtableHook {
             ),
             (OUTGOING_RPC_SLOT, outgoing_rpc_detour as *const () as usize),
         ];
+        let maximum_slot = replacements
+            .iter()
+            .map(|(slot, _)| *slot)
+            .chain(std::iter::once(DEALLOCATE_PACKET_SLOT))
+            .max()
+            .ok_or(AttachError::ClientNotReady)?;
+        let required_bytes = maximum_slot
+            .checked_add(1)
+            .and_then(|count| count.checked_mul(mem::size_of::<usize>()))
+            .ok_or(AttachError::ClientNotReady)?;
+        if !modkit_win32::readable_range(vtable as *const u8, required_bytes) {
+            return Err(AttachError::ClientNotReady);
+        }
         let mut entries = [VtableEntry {
             slot: 0,
             original: 0,
             detour: 0,
         }; 3];
         for (index, (slot, detour)) in replacements.into_iter().enumerate() {
-            let original = unsafe { vtable.add(slot).read() };
+            let slot_address =
+                vtable_slot_address(vtable, slot).ok_or(AttachError::ClientNotReady)?;
+            let original = unsafe { modkit_win32::read_unaligned::<usize>(slot_address) }
+                .ok_or(AttachError::ClientNotReady)?;
             if original == 0 {
                 return Err(AttachError::ClientNotReady);
             }
@@ -477,49 +495,77 @@ impl VtableHook {
         state
             .incoming_packet_original
             .store(entries[1].original, Ordering::Release);
-        state.deallocate_packet_original.store(
-            unsafe { vtable.add(DEALLOCATE_PACKET_SLOT).read() },
-            Ordering::Release,
-        );
+        let deallocate_packet = unsafe {
+            modkit_win32::read_unaligned::<usize>(
+                vtable_slot_address(vtable, DEALLOCATE_PACKET_SLOT)
+                    .ok_or(AttachError::ClientNotReady)?,
+            )
+        }
+        .ok_or(AttachError::ClientNotReady)?;
+        state
+            .deallocate_packet_original
+            .store(deallocate_packet, Ordering::Release);
         state
             .outgoing_rpc_original
             .store(entries[2].original, Ordering::Release);
 
         for (index, entry) in entries.iter().enumerate() {
-            if unsafe { modkit_win32::write_protected(vtable.add(entry.slot), entry.detour) }
-                .is_err()
-            {
+            let slot = vtable_slot_address(vtable, entry.slot).ok_or(AttachError::ClientNotReady)?
+                as *mut usize;
+            if unsafe { modkit_win32::write_protected(slot, entry.detour) }.is_err() {
                 for restore in entries[..index].iter().rev() {
-                    let _ = unsafe {
-                        modkit_win32::write_protected(vtable.add(restore.slot), restore.original)
-                    };
+                    if let Some(address) = vtable_slot_address(vtable, restore.slot)
+                        && let Err(error) = unsafe {
+                            modkit_win32::write_protected(address as *mut usize, restore.original)
+                        }
+                    {
+                        log::warn!(
+                            "failed to roll back RakClient vtable slot {}: {error:?}",
+                            restore.slot
+                        );
+                    }
                 }
                 return Err(AttachError::HookInstallFailed("patching RakClient vtable"));
             }
         }
 
-        Ok(Self {
-            vtable: vtable as usize,
-            entries,
-        })
+        Ok(Self { vtable, entries })
     }
 }
 
 impl Drop for VtableHook {
     fn drop(&mut self) {
-        let vtable = self.vtable as *mut usize;
         for entry in self.entries.iter().rev() {
-            let slot = unsafe { vtable.add(entry.slot) };
-            if unsafe { slot.read() } == entry.detour {
-                let _ = unsafe { modkit_win32::write_protected(slot, entry.original) };
+            let Some(slot) = vtable_slot_address(self.vtable, entry.slot) else {
+                continue;
+            };
+            if unsafe { modkit_win32::read_unaligned::<usize>(slot) } == Some(entry.detour)
+                && let Err(error) =
+                    unsafe { modkit_win32::write_protected(slot as *mut usize, entry.original) }
+            {
+                log::warn!(
+                    "failed to restore RakClient vtable slot {}: {error:?}",
+                    entry.slot
+                );
             }
         }
     }
 }
 
+fn vtable_slot_address(vtable: usize, slot: usize) -> Option<usize> {
+    slot.checked_mul(mem::size_of::<usize>())
+        .and_then(|offset| vtable.checked_add(offset))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn vtable_slot_address_rejects_arithmetic_overflow() {
+        assert_eq!(vtable_slot_address(usize::MAX, 1), None);
+        assert_eq!(vtable_slot_address(0, usize::MAX), None);
+    }
 
     #[test]
     fn accepts_byte_aligned_and_partial_byte_packets() {

@@ -7,8 +7,9 @@
 
 use std::{ffi::c_void, mem, ptr};
 use windows_sys::Win32::System::Memory::{
-    MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY,
-    PAGE_GUARD, PAGE_NOACCESS, PAGE_READWRITE, PAGE_WRITECOPY, VirtualQuery,
+    MEM_COMMIT, MEMORY_BASIC_INFORMATION, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE,
+    PAGE_EXECUTE_WRITECOPY, PAGE_GUARD, PAGE_NOACCESS, PAGE_READONLY, PAGE_READWRITE,
+    PAGE_WRITECOPY, VirtualQuery,
 };
 
 /// A validated readable range of process memory.
@@ -35,16 +36,26 @@ pub struct WritableRegion {
 pub fn readable_range(address: *const u8, length: usize) -> bool {
     guarded_range(address, length, |protection| {
         protection & (PAGE_GUARD | PAGE_NOACCESS) == 0
+            && matches!(
+                protection & 0xFF,
+                PAGE_READONLY
+                    | PAGE_READWRITE
+                    | PAGE_WRITECOPY
+                    | PAGE_EXECUTE_READ
+                    | PAGE_EXECUTE_READWRITE
+                    | PAGE_EXECUTE_WRITECOPY
+            )
     })
 }
 
 /// Returns whether the byte range is writable (committed with a write-capable protection).
 pub fn writable_range(address: *const u8, length: usize) -> bool {
     guarded_range(address, length, |protection| {
-        matches!(
-            protection & 0xFF,
-            PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY
-        )
+        protection & (PAGE_GUARD | PAGE_NOACCESS) == 0
+            && matches!(
+                protection & 0xFF,
+                PAGE_READWRITE | PAGE_WRITECOPY | PAGE_EXECUTE_READWRITE | PAGE_EXECUTE_WRITECOPY
+            )
     })
 }
 
@@ -106,9 +117,10 @@ impl ReadableRegion {
     /// # Safety
     ///
     /// The region must still describe valid committed memory at the time of the
-    /// call; the caller is responsible for not racing an unmap/free of the range.
+    /// call; the caller must not race an unmap, free, or protection change.
     pub unsafe fn read_unaligned<T: Copy>(&self, offset: usize) -> Option<T> {
-        self.contains(offset, mem::size_of::<T>())
+        let length = mem::size_of::<T>();
+        (length != 0 && self.contains(offset, length))
             .then(|| unsafe { ((self.start + offset) as *const T).read_unaligned() })
     }
 
@@ -151,9 +163,10 @@ impl WritableRegion {
     /// # Safety
     ///
     /// The region must still describe valid committed memory at the time of the
-    /// call; the caller is responsible for not racing an unmap/free of the range.
+    /// call; the caller must not race an unmap, free, or protection change.
     pub unsafe fn write_unaligned<T: Copy>(&self, offset: usize, value: T) -> bool {
-        if !self.contains(offset, mem::size_of::<T>()) {
+        let length = mem::size_of::<T>();
+        if length == 0 || !self.contains(offset, length) {
             return false;
         }
         unsafe { ((self.start + offset) as *mut T).write_unaligned(value) };
@@ -165,10 +178,14 @@ impl WritableRegion {
     /// # Safety
     ///
     /// The region must still describe valid committed memory at the time of the
-    /// call; the caller is responsible for not racing an unmap/free of the range.
+    /// call; the caller must not race an unmap, free, or protection change, and
+    /// `source` must not overlap the destination range.
     pub unsafe fn copy_bytes(&self, offset: usize, source: &[u8]) -> bool {
         if !self.contains(offset, source.len()) {
             return false;
+        }
+        if source.is_empty() {
+            return true;
         }
         unsafe {
             ptr::copy_nonoverlapping(
@@ -185,10 +202,13 @@ impl WritableRegion {
     /// # Safety
     ///
     /// The region must still describe valid committed memory at the time of the
-    /// call; the caller is responsible for not racing an unmap/free of the range.
+    /// call; the caller must not race an unmap, free, or protection change.
     pub unsafe fn zero_bytes(&self, offset: usize, length: usize) -> bool {
         if !self.contains(offset, length) {
             return false;
+        }
+        if length == 0 {
+            return true;
         }
         unsafe { ptr::write_bytes((self.start + offset) as *mut u8, 0, length) };
         true
@@ -211,7 +231,7 @@ impl WritableRegion {
 ///
 /// # Safety
 ///
-/// `address` must not race an unmap/free of the target memory.
+/// `address` must not race an unmap, free, or protection change.
 pub unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
     unsafe { read_unaligned::<usize>(address) }.map(|value| value as *mut u8)
 }
@@ -220,9 +240,10 @@ pub unsafe fn read_pointer(address: usize) -> Option<*mut u8> {
 ///
 /// # Safety
 ///
-/// `address` must not race an unmap/free of the target memory.
+/// `address` must not race an unmap, free, or protection change.
 pub unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
-    readable_range(address as *const u8, mem::size_of::<T>())
+    let length = mem::size_of::<T>();
+    (length != 0 && readable_range(address as *const u8, length))
         .then(|| unsafe { (address as *const T).read_unaligned() })
 }
 
@@ -230,9 +251,10 @@ pub unsafe fn read_unaligned<T: Copy>(address: usize) -> Option<T> {
 ///
 /// # Safety
 ///
-/// `address` must not race an unmap/free of the target memory.
+/// `address` must not race an unmap, free, or protection change.
 pub unsafe fn write_unaligned<T: Copy>(address: usize, value: T) -> bool {
-    if !writable_range(address as *const u8, mem::size_of::<T>()) {
+    let length = mem::size_of::<T>();
+    if length == 0 || !writable_range(address as *const u8, length) {
         return false;
     }
     unsafe { (address as *mut T).write_unaligned(value) };
@@ -243,8 +265,12 @@ pub unsafe fn write_unaligned<T: Copy>(address: usize, value: T) -> bool {
 ///
 /// # Safety
 ///
-/// `destination` and `source` must not race an unmap/free of the target memory.
+/// `destination` must not race an unmap, free, or protection change. `source`
+/// must remain valid and must not overlap `destination`.
 pub unsafe fn copy_bytes(destination: *mut u8, source: &[u8]) -> bool {
+    if source.is_empty() {
+        return true;
+    }
     if !writable_range(destination.cast_const(), source.len()) {
         return false;
     }
@@ -256,8 +282,11 @@ pub unsafe fn copy_bytes(destination: *mut u8, source: &[u8]) -> bool {
 ///
 /// # Safety
 ///
-/// `destination` must not race an unmap/free of the target memory.
+/// `destination` must not race an unmap, free, or protection change.
 pub unsafe fn zero_bytes(destination: *mut u8, length: usize) -> bool {
+    if length == 0 {
+        return true;
+    }
     if !writable_range(destination.cast_const(), length) {
         return false;
     }
@@ -272,7 +301,7 @@ pub unsafe fn zero_bytes(destination: *mut u8, length: usize) -> bool {
 ///
 /// # Safety
 ///
-/// `pointer` must not race an unmap/free of the target memory.
+/// `pointer` must not race an unmap, free, or protection change.
 pub unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec<u8>> {
     if pointer.is_null() {
         return None;
@@ -291,6 +320,52 @@ pub unsafe fn bounded_c_string(pointer: *const u8, maximum: usize) -> Option<Vec
 #[cfg(test)]
 mod tests {
     use super::*;
+    use windows_sys::Win32::System::Memory::{
+        MEM_RELEASE, MEM_RESERVE, VirtualAlloc, VirtualFree, VirtualProtect,
+    };
+
+    const PAGE_SIZE: usize = 0x1000;
+
+    struct VirtualAllocation(*mut c_void);
+
+    impl VirtualAllocation {
+        fn new(length: usize) -> Self {
+            let address = unsafe {
+                VirtualAlloc(
+                    ptr::null(),
+                    length,
+                    MEM_COMMIT | MEM_RESERVE,
+                    PAGE_READWRITE,
+                )
+            };
+            assert!(!address.is_null(), "VirtualAlloc failed");
+            Self(address)
+        }
+
+        fn bytes(&self) -> *mut u8 {
+            self.0.cast()
+        }
+
+        fn protect(&self, offset: usize, length: usize, protection: u32) {
+            let mut previous = 0;
+            let changed = unsafe {
+                VirtualProtect(
+                    self.bytes().add(offset).cast(),
+                    length,
+                    protection,
+                    &mut previous,
+                )
+            };
+            assert_ne!(changed, 0, "VirtualProtect failed");
+        }
+    }
+
+    impl Drop for VirtualAllocation {
+        fn drop(&mut self) {
+            let released = unsafe { VirtualFree(self.0, 0, MEM_RELEASE) };
+            assert_ne!(released, 0, "VirtualFree failed");
+        }
+    }
 
     #[test]
     fn guarded_reads_and_writes_accept_owned_memory() {
@@ -313,6 +388,45 @@ mod tests {
         assert!(!readable_range(usize::MAX as *const u8, 1));
         assert!(!writable_range(usize::MAX as *const u8, 1));
         assert_eq!(unsafe { read_unaligned::<u32>(usize::MAX) }, None);
+        assert_eq!(unsafe { read_unaligned::<()>(0) }, None);
+        assert!(!unsafe { write_unaligned(0, ()) });
+    }
+
+    #[test]
+    fn guarded_ranges_follow_page_protection_and_modifiers() {
+        let allocation = VirtualAllocation::new(PAGE_SIZE * 2);
+        let address = allocation.bytes();
+
+        assert!(readable_range(address, PAGE_SIZE * 2));
+        assert!(writable_range(address, PAGE_SIZE * 2));
+
+        allocation.protect(0, PAGE_SIZE, PAGE_READONLY);
+        assert!(readable_range(address, PAGE_SIZE));
+        assert!(!writable_range(address, PAGE_SIZE));
+
+        allocation.protect(0, PAGE_SIZE, PAGE_NOACCESS);
+        assert!(!readable_range(address, PAGE_SIZE));
+        assert!(!writable_range(address, PAGE_SIZE));
+
+        allocation.protect(0, PAGE_SIZE, PAGE_READWRITE | PAGE_GUARD);
+        assert!(!readable_range(address, PAGE_SIZE));
+        assert!(!writable_range(address, PAGE_SIZE));
+    }
+
+    #[test]
+    fn guarded_ranges_validate_each_page_in_a_cross_page_range() {
+        let allocation = VirtualAllocation::new(PAGE_SIZE * 2);
+        let address = allocation.bytes();
+        allocation.protect(PAGE_SIZE, PAGE_SIZE, PAGE_READONLY);
+
+        assert!(readable_range(address, PAGE_SIZE * 2));
+        assert!(!writable_range(address, PAGE_SIZE * 2));
+    }
+
+    #[test]
+    fn empty_writes_do_not_touch_null_destinations() {
+        assert!(unsafe { copy_bytes(ptr::null_mut(), &[]) });
+        assert!(unsafe { zero_bytes(ptr::null_mut(), 0) });
     }
 
     #[test]
@@ -349,6 +463,8 @@ mod tests {
             Some(0xDEAD_BEEF)
         );
         assert!(!unsafe { writable.write_unaligned::<u32>(15, 1) });
+        assert_eq!(unsafe { readable.read_unaligned::<()>(0) }, None);
+        assert!(!unsafe { writable.write_unaligned(0, ()) });
         assert!(unsafe { writable.copy_bytes(8, &[1, 2, 3]) });
         assert!(unsafe { writable.zero_bytes(11, 2) });
         assert_eq!(values[8..13], [1, 2, 3, 0, 0]);

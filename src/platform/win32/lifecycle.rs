@@ -210,11 +210,13 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
 
 impl BackendState {
     pub(super) fn install_game_process_hook(&self) -> Result<(), AttachError> {
-        let (mut detour, trampoline) = InlineHook::create(
-            "CGame::Process",
-            GTA_SA_10_US_CGAME_PROCESS,
-            hooks::game_process_detour as *const () as usize,
-        )
+        let (mut detour, trampoline) = unsafe {
+            InlineHook::create(
+                "CGame::Process",
+                GTA_SA_10_US_CGAME_PROCESS,
+                hooks::game_process_detour as *const () as usize,
+            )
+        }
         .map_err(|_| AttachError::HookInstallFailed("CGame::Process detour"))?;
         self.game_process_trampoline
             .store(trampoline, Ordering::Release);
@@ -238,11 +240,13 @@ impl BackendState {
         let target = profile
             .dialog_close_target()
             .ok_or(AttachError::HookInstallFailed("CDialog::Close target"))?;
-        let (mut detour, trampoline) = InlineHook::create(
-            "CDialog::Close",
-            target,
-            hooks::dialog_close_detour as *const () as usize,
-        )
+        let (mut detour, trampoline) = unsafe {
+            InlineHook::create(
+                "CDialog::Close",
+                target,
+                hooks::dialog_close_detour as *const () as usize,
+            )
+        }
         .map_err(|_| AttachError::HookInstallFailed("CDialog::Close detour"))?;
         self.dialog_close_trampoline
             .store(trampoline, Ordering::Release);
@@ -261,11 +265,13 @@ impl BackendState {
 
     pub(super) fn install_constructor_hook(self: &Arc<Self>) -> Result<(), AttachError> {
         let target = self.module_base + self.addresses.rak_client_constructor as usize;
-        let (mut detour, trampoline) = InlineHook::create(
-            "RakClient constructor",
-            target,
-            hooks::rak_client_constructor_detour as *const () as usize,
-        )
+        let (mut detour, trampoline) = unsafe {
+            InlineHook::create(
+                "RakClient constructor",
+                target,
+                hooks::rak_client_constructor_detour as *const () as usize,
+            )
+        }
         .map_err(|_| AttachError::HookInstallFailed("RakClient constructor detour"))?;
         self.constructor_trampoline
             .store(trampoline, Ordering::Release);
@@ -295,11 +301,13 @@ impl BackendState {
         }
 
         let incoming_target = self.module_base + self.addresses.incoming_rpc_handler as usize;
-        let (mut incoming_rpc, trampoline) = InlineHook::create(
-            "RakClient::HandleRPCPacket",
-            incoming_target,
-            hooks::incoming_rpc_detour as *const () as usize,
-        )
+        let (mut incoming_rpc, trampoline) = unsafe {
+            InlineHook::create(
+                "RakClient::HandleRPCPacket",
+                incoming_target,
+                hooks::incoming_rpc_detour as *const () as usize,
+            )
+        }
         .map_err(|_| {
             self.rak_client.store(0, Ordering::Release);
             AttachError::HookInstallFailed("incoming RPC detour")

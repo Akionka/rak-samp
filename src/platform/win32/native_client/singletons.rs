@@ -87,6 +87,10 @@ impl NativeClientProfile {
 mod tests {
     use super::*;
     use crate::SampVersion;
+    use std::ptr;
+    use windows_sys::Win32::System::Memory::{
+        MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_NOACCESS, VirtualAlloc, VirtualFree,
+    };
 
     #[test]
     fn resolves_only_non_null_singletons_with_the_required_range() {
@@ -118,13 +122,26 @@ mod tests {
 
     #[test]
     fn r3_death_window_requires_a_readable_singleton() {
+        let mut module = vec![0_u8; 0x2A_CA_24 + std::mem::size_of::<usize>()];
         let profile = NativeClientProfile::select(
-            0x10000,
+            module.as_mut_ptr() as usize,
             SampVersion::R3_1,
             SampVersion::R3_1.entry_point(),
         )
         .unwrap();
+        let unreadable =
+            unsafe { VirtualAlloc(ptr::null(), 0x1000, MEM_COMMIT | MEM_RESERVE, PAGE_NOACCESS) };
+        assert!(!unreadable.is_null(), "VirtualAlloc failed");
+        unsafe {
+            module
+                .as_mut_ptr()
+                .add(profile.spec.ui.death_window.singleton_rva.unwrap().get())
+                .cast::<usize>()
+                .write_unaligned(unreadable as usize);
+        }
+
         assert_eq!(profile.death_window(), None);
+        assert_ne!(unsafe { VirtualFree(unreadable, 0, MEM_RELEASE) }, 0);
     }
 
     #[test]
