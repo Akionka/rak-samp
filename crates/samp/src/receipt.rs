@@ -67,7 +67,7 @@ impl Subscription {
         Ok(Self { core, id: Some(id) })
     }
 
-    pub fn unregister_and_wait(mut self, timeout: Duration) -> Result<(), ModResult> {
+    pub fn unregister_and_wait(&mut self, timeout: Duration) -> Result<(), ModResult> {
         let Some(id) = self.id else {
             return Ok(());
         };
