@@ -94,6 +94,9 @@ static GTA_SA_SERVICE_V2: GtaSaServiceV2 = GtaSaServiceV2 {
     timer_snapshot: super::gta::timer_snapshot,
     submit_timer_snapshot: super::gta::submit_timer_snapshot,
     take_timer_snapshot: super::gta::take_timer_snapshot,
+    camera_snapshot: super::gta::camera_snapshot,
+    submit_camera_snapshot: super::gta::submit_camera_snapshot,
+    take_camera_snapshot: super::gta::take_camera_snapshot,
 };
 
 static SAMP_NET_SERVICE_V1: SampNetServiceV1 = SampNetServiceV1 {

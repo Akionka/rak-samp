@@ -10,6 +10,7 @@
 compile_error!("gta-sa-native supports only 32-bit Windows x86 targets");
 
 mod call;
+mod camera;
 mod layout;
 mod ped;
 mod pools;
@@ -19,6 +20,7 @@ mod timer;
 mod world;
 
 pub use call::{NativeCallError, NativeCallTarget};
+pub use camera::{CameraReadError, camera_snapshot};
 pub use layout::{RawMatrix, RawVector2, RawVector3};
 pub use ped::{PedReadError, local_ped_handle, local_ped_snapshot, teleport_local_ped};
 pub use pools::{
@@ -26,11 +28,12 @@ pub use pools::{
     vehicle_exists, vehicle_snapshot,
 };
 pub use profile::{
-    AbsoluteAddress, EntityLayoutSpec, EvidenceGrade, FieldOffset, GTA_SA_10_US_SHA256, GameSpec,
-    GtaIdentity, GtaPoolSpec, GtaProfile, GtaProfileError, GtaProfileSpec, NativeEvidence,
-    ObjectLayoutSpec, ObjectSize, PedLayoutSpec, PedVtableSpec, PlayerSpec, PoolLayoutSpec,
-    RelativeVirtualAddress, TimerSpec, VehicleLayoutSpec, VtableSlot, WorldSpec,
+    AbsoluteAddress, CameraSpec, EntityLayoutSpec, EvidenceGrade, FieldOffset, GTA_SA_10_US_SHA256,
+    GameSpec, GtaIdentity, GtaPoolSpec, GtaProfile, GtaProfileError, GtaProfileSpec,
+    NativeEvidence, ObjectLayoutSpec, ObjectSize, PedLayoutSpec, PedVtableSpec, PlayerSpec,
+    PoolLayoutSpec, RelativeVirtualAddress, TimerSpec, VehicleLayoutSpec, VtableSlot, WorldSpec,
 };
+
 pub use timer::{TimerReadError, timer_snapshot};
 
 pub use tick::{

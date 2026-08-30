@@ -3,13 +3,15 @@
 use super::{clone_initialized, host, is_shutting_down, next_subscription_id};
 use crate::host_api::reclamation::PluginRelease;
 use gta_sa::{
-    ObjectHandle, PedHandle, PedSnapshot, TimerSnapshot, Vector3, VehicleHandle, VehicleSnapshot,
+    CameraSnapshot, ObjectHandle, PedHandle, PedSnapshot, TimerSnapshot, Vector3, VehicleHandle,
+    VehicleSnapshot,
 };
 use modkit_abi::{
     CommandReceiptId, GTA_POOL_OBJECT_V1, GTA_POOL_PED_V1, GTA_POOL_VEHICLE_V1, GameContextTokenV1,
-    GtaPedSnapshotV1, GtaPoolKindV1, GtaReleaseCallbackV1, GtaTickCallbackV1, GtaTimerSnapshotV1,
-    GtaVector3V1, GtaVehicleSnapshotV1, MOD_BUSY, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND,
-    MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, ModResult, SubscriptionId,
+    GtaCameraSnapshotV1, GtaMatrixV1, GtaPedSnapshotV1, GtaPoolKindV1, GtaReleaseCallbackV1,
+    GtaTickCallbackV1, GtaTimerSnapshotV1, GtaVector3V1, GtaVehicleSnapshotV1, MOD_BUSY,
+    MOD_INVALID_ARGUMENT, MOD_NOT_FOUND, MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, ModResult,
+    SubscriptionId,
 };
 use modkit_runtime::{CallbackContext, CallbackGate, ScopeToken};
 use sdk_abi::SampClientSdkResult;
@@ -505,6 +507,54 @@ pub(super) unsafe extern "system" fn take_timer_snapshot(
         None => MOD_NOT_READY,
     }
 }
+pub(super) unsafe extern "system" fn camera_snapshot(
+    context: GameContextTokenV1,
+    out: *mut GtaCameraSnapshotV1,
+) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = GtaCameraSnapshotV1::default();
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return MOD_NOT_READY;
+    };
+    match runtime.gta_camera_snapshot(ScopeToken::from_raw(context.raw())) {
+        Ok(snapshot) => {
+            *out = camera_snapshot_to_abi(snapshot);
+            MOD_OK
+        }
+        Err(error) => super::modkit::subscription_result(super::direct_client_result(error)),
+    }
+}
+
+pub(super) unsafe extern "system" fn submit_camera_snapshot(
+    out_receipt: *mut CommandReceiptId,
+) -> ModResult {
+    submit_receipt(out_receipt, |runtime| runtime.submit_gta_camera_snapshot())
+}
+
+pub(super) unsafe extern "system" fn take_camera_snapshot(
+    receipt: CommandReceiptId,
+    out: *mut GtaCameraSnapshotV1,
+) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = GtaCameraSnapshotV1::default();
+    if receipt.is_zero() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return MOD_NOT_READY;
+    };
+    match runtime.take_gta_camera_snapshot(receipt.0) {
+        Some(snapshot) => {
+            *out = camera_snapshot_to_abi(snapshot);
+            MOD_OK
+        }
+        None => MOD_NOT_READY,
+    }
+}
 
 fn entity_handle_from_abi(
     kind: GtaPoolKindV1,
@@ -589,6 +639,25 @@ fn timer_snapshot_to_abi(snapshot: TimerSnapshot) -> GtaTimerSnapshotV1 {
         game_time_ms: snapshot.game_time_ms,
         time_step: snapshot.time_step,
         time_step_non_clipped: snapshot.time_step_non_clipped,
+    }
+}
+fn camera_snapshot_to_abi(snapshot: CameraSnapshot) -> GtaCameraSnapshotV1 {
+    GtaCameraSnapshotV1 {
+        game_position: vector_to_abi(snapshot.game_position),
+        transform: GtaMatrixV1 {
+            right: vector_to_abi(snapshot.transform.right),
+            forward: vector_to_abi(snapshot.transform.forward),
+            up: vector_to_abi(snapshot.transform.up),
+            position: vector_to_abi(snapshot.transform.position),
+        },
+    }
+}
+
+fn vector_to_abi(value: Vector3) -> GtaVector3V1 {
+    GtaVector3V1 {
+        x: value.x,
+        y: value.y,
+        z: value.z,
     }
 }
 
@@ -717,6 +786,14 @@ mod tests {
     fn timer_snapshot_abi_rejects_null_output() {
         assert_eq!(
             unsafe { timer_snapshot(GameContextTokenV1::from_raw(1), std::ptr::null_mut(),) },
+            MOD_INVALID_ARGUMENT
+        );
+    }
+
+    #[test]
+    fn camera_snapshot_abi_rejects_null_output() {
+        assert_eq!(
+            unsafe { camera_snapshot(GameContextTokenV1::from_raw(1), std::ptr::null_mut()) },
             MOD_INVALID_ARGUMENT
         );
     }

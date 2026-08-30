@@ -7,6 +7,7 @@
 #define RW
 
 #include <cstddef>
+#include "CCamera.h"
 #include "CEntity.h"
 #include "CObject.h"
 #include "CMatrix.h"
@@ -37,6 +38,10 @@ static_assert(offsetof(CPed, m_fArmour) == 0x548);
 static_assert(sizeof(CVehicle) == 0x5A0);
 static_assert(offsetof(CVehicle, m_fHealth) == 0x4C0);
 static_assert(sizeof(CObject) == 0x17C);
+static_assert(sizeof(CCamera) == 0xD78);
+static_assert(offsetof(CCamera, m_vecGameCamPos) == 0x908);
+static_assert(offsetof(CCamera, m_mCameraMatrix) == 0x974);
+
 using PedPool = CPool<CPed, CCopPed>;
 static_assert(sizeof(PedPool) == 0x14);
 static_assert(offsetof(PedPool, m_pObjects) == 0x00);
@@ -62,6 +67,10 @@ extern "C" std::size_t gta_sa_fixture_ped_armour_offset() { return offsetof(CPed
 extern "C" std::size_t gta_sa_fixture_vehicle_size() { return sizeof(CVehicle); }
 extern "C" std::size_t gta_sa_fixture_vehicle_health_offset() { return offsetof(CVehicle, m_fHealth); }
 extern "C" std::size_t gta_sa_fixture_object_size() { return sizeof(CObject); }
+extern "C" std::size_t gta_sa_fixture_camera_size() { return sizeof(CCamera); }
+extern "C" std::size_t gta_sa_fixture_camera_game_position_offset() { return offsetof(CCamera, m_vecGameCamPos); }
+extern "C" std::size_t gta_sa_fixture_camera_matrix_offset() { return offsetof(CCamera, m_mCameraMatrix); }
+
 extern "C" std::size_t gta_sa_fixture_pool_size() { return sizeof(PedPool); }
 extern "C" std::size_t gta_sa_fixture_pool_objects_offset() { return offsetof(PedPool, m_pObjects); }
 extern "C" std::size_t gta_sa_fixture_pool_flags_offset() { return offsetof(PedPool, m_byteMap); }

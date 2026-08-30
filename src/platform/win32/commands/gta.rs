@@ -1,7 +1,7 @@
 //! GTA SA game-thread commands.
 
 use super::*;
-use gta_sa::{PedSnapshot, TimerSnapshot, Vector3, VehicleHandle, VehicleSnapshot};
+use gta_sa::{CameraSnapshot, PedSnapshot, TimerSnapshot, Vector3, VehicleHandle, VehicleSnapshot};
 use std::sync::{Arc, OnceLock};
 
 #[derive(Clone, Copy, Debug)]
@@ -11,6 +11,7 @@ pub(in crate::platform::win32) enum GtaReadRequest {
     VehicleSnapshot(VehicleHandle),
     GroundZ { x: f32, y: f32 },
     TimerSnapshot,
+    CameraSnapshot,
 }
 #[derive(Clone, Copy, Debug)]
 pub(in crate::platform::win32) enum GtaReadResult {
@@ -19,6 +20,7 @@ pub(in crate::platform::win32) enum GtaReadResult {
     VehicleSnapshot(Option<VehicleSnapshot>),
     GroundZ(f32),
     TimerSnapshot(TimerSnapshot),
+    CameraSnapshot(CameraSnapshot),
 }
 
 #[derive(Debug)]
@@ -36,6 +38,7 @@ pub(super) enum GtaCommandError {
     Pool,
     World,
     Timer,
+    Camera,
 }
 
 impl BackendState {
@@ -108,6 +111,16 @@ impl BackendState {
             _ => None,
         })
     }
+    pub(crate) fn submit_gta_camera_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.submit_gta_read(GtaReadRequest::CameraSnapshot)
+    }
+
+    pub(crate) fn take_gta_camera_snapshot(&self, id: CommandId) -> Option<CameraSnapshot> {
+        self.take_gta_read(id, |result| match result {
+            GtaReadResult::CameraSnapshot(snapshot) => Some(snapshot),
+            _ => None,
+        })
+    }
 
     pub(crate) fn submit_gta_teleport_local_ped(
         &self,
@@ -169,6 +182,14 @@ impl BackendState {
     ) -> Result<TimerSnapshot, DirectClientError> {
         self.validate_gta_context(token)?;
         unsafe { gta_sa_native::timer_snapshot(self.context.gta_profile) }
+            .map_err(|_| DirectClientError::NotReady)
+    }
+    pub(crate) fn gta_camera_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<CameraSnapshot, DirectClientError> {
+        self.validate_gta_context(token)?;
+        unsafe { gta_sa_native::camera_snapshot(self.context.gta_profile) }
             .map_err(|_| DirectClientError::NotReady)
     }
 
@@ -253,6 +274,10 @@ impl BackendState {
                     GtaReadRequest::TimerSnapshot => GtaReadResult::TimerSnapshot(unsafe {
                         gta_sa_native::timer_snapshot(self.context.gta_profile)
                             .map_err(|_| GtaCommandError::Timer)?
+                    }),
+                    GtaReadRequest::CameraSnapshot => GtaReadResult::CameraSnapshot(unsafe {
+                        gta_sa_native::camera_snapshot(self.context.gta_profile)
+                            .map_err(|_| GtaCommandError::Camera)?
                     }),
                 };
 

@@ -566,6 +566,12 @@ impl Backend {
     ) -> Result<gta_sa::TimerSnapshot, DirectClientError> {
         self.state.gta_timer_snapshot(token)
     }
+    pub(crate) fn gta_camera_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<gta_sa::CameraSnapshot, DirectClientError> {
+        self.state.gta_camera_snapshot(token)
+    }
 
     pub(crate) fn gta_teleport_local_ped(
         &self,
@@ -627,6 +633,13 @@ impl Backend {
 
     pub(crate) fn take_gta_timer_snapshot(&self, id: CommandId) -> Option<gta_sa::TimerSnapshot> {
         self.state.take_gta_timer_snapshot(id)
+    }
+    pub(crate) fn submit_gta_camera_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.state.submit_gta_camera_snapshot()
+    }
+
+    pub(crate) fn take_gta_camera_snapshot(&self, id: CommandId) -> Option<gta_sa::CameraSnapshot> {
+        self.state.take_gta_camera_snapshot(id)
     }
 
     pub(crate) fn submit_gta_teleport_local_ped(

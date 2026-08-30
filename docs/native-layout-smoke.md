@@ -469,6 +469,8 @@ Record the Host commit and restore every mutation before ending a run.
 
 ### Camera
 
+- [x] Pair a queued timer frame with the direct tick callback and confirm direct
+  and queued owned camera snapshots are finite and bitwise identical.
 - [ ] Compare a copied camera snapshot with visible position/orientation.
 - [ ] Exercise each published control and restore the previous camera mode.
 

@@ -11,13 +11,13 @@ mod math;
 mod snapshot;
 
 pub use facade::{
-    CommandReceipt, Error, ExistenceReceipt, GroundZReceipt, Gta, HostGtaSaExt, ObjectPool,
-    PedPool, Player, QueuedObjectPool, QueuedPedPool, QueuedPlayer, QueuedTimer, QueuedVehiclePool,
-    QueuedWorld, SnapshotReceipt, TickContext, TickSubscription, Timer, TimerSnapshotReceipt,
-    VehiclePool, VehicleSnapshotReceipt, World,
+    Camera, CameraSnapshotReceipt, CommandReceipt, Error, ExistenceReceipt, GroundZReceipt, Gta,
+    HostGtaSaExt, ObjectPool, PedPool, Player, QueuedCamera, QueuedObjectPool, QueuedPedPool,
+    QueuedPlayer, QueuedTimer, QueuedVehiclePool, QueuedWorld, SnapshotReceipt, TickContext,
+    TickSubscription, Timer, TimerSnapshotReceipt, VehiclePool, VehicleSnapshotReceipt, World,
 };
 pub use math::{Matrix, Vector2, Vector3};
-pub use snapshot::{EntitySnapshot, PedSnapshot, TimerSnapshot, VehicleSnapshot};
+pub use snapshot::{CameraSnapshot, EntitySnapshot, PedSnapshot, TimerSnapshot, VehicleSnapshot};
 
 use core::num::NonZeroI32;
 

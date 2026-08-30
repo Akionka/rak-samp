@@ -12,11 +12,11 @@ Verified facts already in `GtaProfileSpec` are documented by their attached
 | Direct `CPlaceable::SetPosn` use | Exact bodies at `0x420B80`/`0x4241C0` | A static | Behavior proof covering world-sector membership, collision state, movement state, and restoration | Intentionally not exposed; use verified `CPed::Teleport` |
 | Direct `CPlaceable`/`CMatrix` position write | Layout oracle proves offsets only | C | Native behavior proof covering RenderWare synchronization, collision state, and restoration | Unsupported |
 | `CWorld` operations beyond `FindGroundZForCoord` | Only the ground-height query is in the production profile | U | Exact executable disassembly for each additional singleton/method plus behavior and phase evidence | Unsupported |
-| `CStreaming` request/load/release | No production profile symbol or ABI exists | U | Exact symbols, calling conventions, model lifecycle, and game-thread behavior proof | Unsupported |
+| `CStreaming` request/load/release | Exact entries and shared flag/state fields are mapped in `docs/evidence/phase-10-gta-streaming-static.md` | A static for entries/layout; U behavior | Safe model bound, non-blocking/phase proof, sole-owner release semantics, and live cleanup evidence | Unsupported |
 | `CTimer` converted durations, pause semantics, and startup readiness | Raw frame/game counters and clipped/non-clipped time steps are in the production profile | U | Live unit comparison, pause/menu behavior, first-frame readiness, and wrap behavior | Raw owned snapshot only |
-| Camera snapshot/control | No GTA camera layout, singleton, or method exists in the profile | U | Fixture-backed copied fields plus exact method ABI and phase behavior | Unsupported |
-| GTA vehicle creation | SA-MP vehicle RPC codecs do not prove a GTA native workflow | U | Verified model loading, constructor, pool registration, world insertion, failure cleanup, and live smoke | Unsupported |
-| GTA entity destruction | No destructor/removal workflow is verified | U | Exact ownership sequence, stale-handle revalidation, world/pool cleanup, and live smoke | Unsupported |
+| Camera controls and mode restoration | Owned position/orientation snapshot is fixture-backed; exact control entries are mapped in `docs/evidence/phase-10-gta-camera-static.md` | A static for snapshot; U behavior for controls | Live mode transitions, target lifetime rules, deterministic restore, and liveness evidence | Read-only snapshot only |
+| GTA vehicle creation | Candidate constructor/allocation/world entries and rollback gaps are mapped in `docs/evidence/phase-10-gta-vehicle-creation-static.md` | U lifecycle | Verified model loading, concrete factory dispatch, pool registration, world insertion, exact destructor rollback, and live failure smoke | Unsupported |
+| GTA entity destruction | Pool deletion and lifecycle candidates are mapped in `docs/evidence/phase-10-gta-vehicle-destruction-static.md`; no complete destructor path is verified | U lifecycle | Exact ownership sequence, concrete destructor ABI, occupant/reference cleanup, world/pool cleanup, double-destroy rejection, and live smoke | Unsupported |
 
 ## Resolved teleport target
 

@@ -2,9 +2,9 @@
 
 use modkit_abi::{
     CommandCompletionV1, CommandReceiptId, CoreServiceV1, GTA_SA_SERVICE_VERSION_V1,
-    GTA_SA_SERVICE_VERSION_V2, GtaPedSnapshotV1, GtaPoolKindV1, GtaReleaseCallbackV1,
-    GtaSaServiceV1, GtaSaServiceV2, GtaTickCallbackV1, GtaTimerSnapshotV1, GtaVector3V1,
-    GtaVehicleSnapshotV1, HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult,
+    GTA_SA_SERVICE_VERSION_V2, GtaCameraSnapshotV1, GtaPedSnapshotV1, GtaPoolKindV1,
+    GtaReleaseCallbackV1, GtaSaServiceV1, GtaSaServiceV2, GtaTickCallbackV1, GtaTimerSnapshotV1,
+    GtaVector3V1, GtaVehicleSnapshotV1, HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult,
     SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
     SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK,
     SampChatCommandCallbackV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
@@ -587,6 +587,42 @@ impl GtaSaService {
         let mut out = GtaTimerSnapshotV1::default();
         result_with_out(
             unsafe { (table.take_timer_snapshot)(receipt, &mut out) },
+            out,
+        )
+    }
+
+    pub fn camera_snapshot(
+        self,
+        context: &crate::GameContext<'_>,
+    ) -> Result<GtaCameraSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaCameraSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.camera_snapshot)(context.token(), &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_camera_snapshot(self) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(unsafe { (table.submit_camera_snapshot)(&mut out) }, out)
+    }
+
+    pub fn take_camera_snapshot(
+        self,
+        receipt: CommandReceiptId,
+    ) -> Result<GtaCameraSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaCameraSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.take_camera_snapshot)(receipt, &mut out) },
             out,
         )
     }

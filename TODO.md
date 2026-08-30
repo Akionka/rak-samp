@@ -81,17 +81,18 @@ position. See [Phase 9 native evidence](docs/evidence/phase-9-gta-native-foundat
 ### Phase 10 — expand GTA common gameplay
 
 In progress. The current vertical slices publish exact-binary ped, vehicle, and
-object handle validation, fixture-backed owned vehicle position/health
-snapshots, the verified `CWorld::FindGroundZForCoord` query, and copied
-`CTimer` frame/game counters plus clipped/non-clipped native time steps through
-`GtaSaServiceV2`. Direct callback-scoped and queued reads share the Host command
-sequence. `GtaSaServiceV1` remains immutable and discoverable. See
-[pool evidence](docs/evidence/phase-10-gta-pools-static.md),
+object handle validation, fixture-backed owned vehicle position/health and
+active-camera pose snapshots, the verified `CWorld::FindGroundZForCoord` query,
+and copied `CTimer` frame/game counters plus clipped/non-clipped native time
+steps through `GtaSaServiceV2`. Direct callback-scoped and queued reads share
+the Host command sequence. `GtaSaServiceV1` remains immutable and discoverable.
+See [pool evidence](docs/evidence/phase-10-gta-pools-static.md),
 [world evidence](docs/evidence/phase-10-gta-world-static.md),
-[timer evidence](docs/evidence/phase-10-gta-timer-static.md), and the
+[timer evidence](docs/evidence/phase-10-gta-timer-static.md),
+[camera evidence](docs/evidence/phase-10-gta-camera-static.md), and the
 [live smoke checklist](docs/native-layout-smoke.md#gta-sa-phase-10-common-gameplay).
-Streaming, camera, vehicle creation, and destruction remain unsupported until
-the evidence register requirements are met.
+Streaming, camera controls, vehicle creation, and destruction remain
+unsupported until the evidence register requirements are met.
 
 ### Structural split tracker
 

@@ -1404,6 +1404,10 @@ unsafe extern "C" {
     fn gta_sa_fixture_vehicle_size() -> usize;
     fn gta_sa_fixture_vehicle_health_offset() -> usize;
     fn gta_sa_fixture_object_size() -> usize;
+    fn gta_sa_fixture_camera_size() -> usize;
+    fn gta_sa_fixture_camera_game_position_offset() -> usize;
+    fn gta_sa_fixture_camera_matrix_offset() -> usize;
+
     fn gta_sa_fixture_pool_size() -> usize;
     fn gta_sa_fixture_pool_objects_offset() -> usize;
     fn gta_sa_fixture_pool_flags_offset() -> usize;
@@ -1464,6 +1468,16 @@ fn gta_sa_profile_layout_matches_the_pinned_plugin_sdk_oracle() {
             profile.spec.vehicle.health.get()
         );
         assert_eq!(gta_sa_fixture_object_size(), profile.spec.object.size.get());
+        assert_eq!(gta_sa_fixture_camera_size(), profile.spec.camera.size.get());
+        assert_eq!(
+            gta_sa_fixture_camera_game_position_offset(),
+            profile.spec.camera.game_position.get()
+        );
+        assert_eq!(
+            gta_sa_fixture_camera_matrix_offset(),
+            profile.spec.camera.matrix.get()
+        );
+
         assert_eq!(
             gta_sa_fixture_pool_size(),
             profile.spec.pool_layout.size.get()

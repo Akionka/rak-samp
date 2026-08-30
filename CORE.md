@@ -66,15 +66,15 @@
 - `crates/gta-sa-native/` owns the GTA-native implementation: the exact
   SHA-256 and image-base gated GTA SA 1.0 US profile; evidence-bearing typed
   symbol, RVA, field, size, and vtable specifications; guarded typed x86 call
-  helpers; fixture-backed native matrix/entity/ped/vehicle/object layouts;
-  exact-binary ped, vehicle, and object pool handle validation; copied local-ped,
-  vehicle, and `CTimer` snapshots; the verified
+  helpers; fixture-backed native matrix/entity/ped/vehicle/object/camera
+  layouts; exact-binary ped, vehicle, and object pool handle validation; copied
+  local-ped, vehicle, `CTimer`, and active-camera snapshots; the verified
   `CWorld::FindGroundZForCoord` query; verified virtual ped teleport; the
   `CGame::Process` tick hook lifecycle; and `CPools` reference targets. The
   SA-MP backend remains a tick participant and uses the GTA `cpool_ref` wrapper.
 - `crates/gta-sa/` owns pointer-free math, positive typed GTA handles, owned
-  ped, vehicle, and timer snapshots, callback-scoped/queued pool, world, and
-  timer reads, and Core-backed snapshot/teleport receipts. It contains no fixed
+  ped, vehicle, timer, and camera snapshots, callback-scoped/queued pool,
+  world, timer, and camera reads, and Core-backed receipts. It contains no fixed
   native addresses, native memory references, or public native pointers.
 - `crates/samp-native/` owns direct-client profiles, guarded SA-MP operations,
   backend request/snapshot values, and RakClient hook installation, detour entry

@@ -29,6 +29,14 @@ pub struct GtaVector3V1 {
     pub y: f32,
     pub z: f32,
 }
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GtaMatrixV1 {
+    pub right: GtaVector3V1,
+    pub forward: GtaVector3V1,
+    pub up: GtaVector3V1,
+    pub position: GtaVector3V1,
+}
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -61,6 +69,12 @@ pub struct GtaTimerSnapshotV1 {
     pub game_time_ms: u32,
     pub time_step: f32,
     pub time_step_non_clipped: f32,
+}
+#[repr(C)]
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct GtaCameraSnapshotV1 {
+    pub game_position: GtaVector3V1,
+    pub transform: GtaMatrixV1,
 }
 
 /// Immutable exact-version GTA SA service table.
@@ -191,6 +205,19 @@ pub struct GtaSaServiceV2 {
         receipt: CommandReceiptId,
         out: *mut GtaTimerSnapshotV1,
     ) -> ModResult,
+    /// `GAME_THREAD_ONLY + CALLBACK_SAFE`; `POST_GAME_PROCESS_ONLY`.
+    pub camera_snapshot: unsafe extern "system" fn(
+        context: GameContextTokenV1,
+        out: *mut GtaCameraSnapshotV1,
+    ) -> ModResult,
+    /// `ANY_THREAD + CALLBACK_SAFE`; queues one owned camera read.
+    pub submit_camera_snapshot:
+        unsafe extern "system" fn(out_receipt: *mut CommandReceiptId) -> ModResult,
+    /// `ANY_THREAD + CALLBACK_SAFE`; call after successful Core receipt completion.
+    pub take_camera_snapshot: unsafe extern "system" fn(
+        receipt: CommandReceiptId,
+        out: *mut GtaCameraSnapshotV1,
+    ) -> ModResult,
 }
 
 #[cfg(test)]
@@ -206,6 +233,8 @@ mod tests {
         assert_eq!(core::mem::size_of::<GtaVehicleSnapshotV1>(), 24);
         assert_eq!(core::mem::offset_of!(GtaVehicleSnapshotV1, entity), 8);
         assert_eq!(core::mem::size_of::<GtaTimerSnapshotV1>(), 16);
+        assert_eq!(core::mem::size_of::<GtaMatrixV1>(), 48);
+        assert_eq!(core::mem::size_of::<GtaCameraSnapshotV1>(), 60);
     }
 
     #[test]
@@ -221,7 +250,7 @@ mod tests {
         assert_eq!(core::mem::offset_of!(GtaSaServiceV2, register_tick), 16);
         assert_eq!(
             core::mem::size_of::<GtaSaServiceV2>(),
-            16 + 18 * pointer_size
+            16 + 21 * pointer_size
         );
     }
 }

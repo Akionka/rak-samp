@@ -1,13 +1,13 @@
 //! Safe plugin-side GTA service facade.
 
 use crate::{
-    EntitySnapshot, ObjectHandle, PedHandle, PedSnapshot, TimerSnapshot, Vector3, VehicleHandle,
-    VehicleSnapshot,
+    CameraSnapshot, EntitySnapshot, Matrix, ObjectHandle, PedHandle, PedSnapshot, TimerSnapshot,
+    Vector3, VehicleHandle, VehicleSnapshot,
 };
 use modkit_abi::{
     CommandReceiptId, GTA_POOL_OBJECT_V1, GTA_POOL_PED_V1, GTA_POOL_VEHICLE_V1, GameContextTokenV1,
-    GtaPedSnapshotV1, GtaPoolKindV1, GtaTimerSnapshotV1, GtaVector3V1, GtaVehicleSnapshotV1,
-    ModResult, SubscriptionId,
+    GtaCameraSnapshotV1, GtaPedSnapshotV1, GtaPoolKindV1, GtaTimerSnapshotV1, GtaVector3V1,
+    GtaVehicleSnapshotV1, ModResult, SubscriptionId,
 };
 use modkit_sdk::{Core, GameContext, GtaSaService, Host, ServiceError};
 use std::{
@@ -99,6 +99,10 @@ impl Gta {
     #[must_use]
     pub const fn timer(self) -> QueuedTimer {
         QueuedTimer { gta: self }
+    }
+    #[must_use]
+    pub const fn camera(self) -> QueuedCamera {
+        QueuedCamera { gta: self }
     }
 
     pub fn submit_local_ped_snapshot(self) -> Result<SnapshotReceipt, Error> {
@@ -234,6 +238,25 @@ impl QueuedTimer {
         })
     }
 }
+#[derive(Clone, Copy)]
+pub struct QueuedCamera {
+    gta: Gta,
+}
+
+impl QueuedCamera {
+    pub fn snapshot(self) -> Result<CameraSnapshotReceipt, Error> {
+        let id = self
+            .gta
+            .service
+            .submit_camera_snapshot()
+            .map_err(Error::Host)?;
+        Ok(CameraSnapshotReceipt {
+            core: self.gta.core,
+            service: self.gta.service,
+            id: Some(id),
+        })
+    }
+}
 
 fn submit_exists(gta: Gta, kind: GtaPoolKindV1, handle: i32) -> Result<ExistenceReceipt, Error> {
     let id = gta
@@ -310,6 +333,13 @@ impl<'scope> TickContext<'scope> {
             context: &self.context,
         }
     }
+    #[must_use]
+    pub fn camera(&'scope self) -> Camera<'scope> {
+        Camera {
+            service: self.gta.service,
+            context: &self.context,
+        }
+    }
 }
 
 pub struct PedPool<'scope> {
@@ -381,6 +411,19 @@ impl Timer<'_> {
         self.service
             .timer_snapshot(self.context)
             .map(timer_snapshot_from_abi)
+            .map_err(Error::Host)
+    }
+}
+pub struct Camera<'scope> {
+    service: GtaSaService,
+    context: &'scope GameContext<'scope>,
+}
+
+impl Camera<'_> {
+    pub fn snapshot(&self) -> Result<CameraSnapshot, Error> {
+        self.service
+            .camera_snapshot(self.context)
+            .map(camera_snapshot_from_abi)
             .map_err(Error::Host)
     }
 }
@@ -627,6 +670,33 @@ impl Drop for TimerSnapshotReceipt {
         }
     }
 }
+pub struct CameraSnapshotReceipt {
+    core: Core,
+    service: GtaSaService,
+    id: Option<CommandReceiptId>,
+}
+
+impl CameraSnapshotReceipt {
+    pub fn wait(mut self, timeout: Duration) -> Result<CameraSnapshot, Error> {
+        let id = self.id.take().ok_or(Error::ReceiptConsumed)?;
+        let completion = self.core.receipt_wait(id, timeout).map_err(Error::Host)?;
+        if !completion.status.is_ok() {
+            return Err(Error::Host(completion.status));
+        }
+        self.service
+            .take_camera_snapshot(id)
+            .map(camera_snapshot_from_abi)
+            .map_err(Error::Host)
+    }
+}
+
+impl Drop for CameraSnapshotReceipt {
+    fn drop(&mut self) {
+        if let Some(id) = self.id.take() {
+            let _ = self.core.receipt_release(id);
+        }
+    }
+}
 
 fn vector_to_abi(value: Vector3) -> GtaVector3V1 {
     GtaVector3V1 {
@@ -674,6 +744,21 @@ fn timer_snapshot_from_abi(value: GtaTimerSnapshotV1) -> TimerSnapshot {
         time_step_non_clipped: value.time_step_non_clipped,
     }
 }
+fn camera_snapshot_from_abi(value: GtaCameraSnapshotV1) -> CameraSnapshot {
+    CameraSnapshot {
+        game_position: vector_from_abi(value.game_position),
+        transform: Matrix::new(
+            vector_from_abi(value.transform.right),
+            vector_from_abi(value.transform.forward),
+            vector_from_abi(value.transform.up),
+            vector_from_abi(value.transform.position),
+        ),
+    }
+}
+
+fn vector_from_abi(value: GtaVector3V1) -> Vector3 {
+    Vector3::new(value.x, value.y, value.z)
+}
 
 #[cfg(test)]
 mod tests {
@@ -716,5 +801,26 @@ mod tests {
         assert_eq!(snapshot.game_time_ms, 1_250);
         assert_eq!(snapshot.time_step, 1.0);
         assert_eq!(snapshot.time_step_non_clipped, 1.25);
+    }
+
+    #[test]
+    fn camera_snapshot_conversion_preserves_owned_pose() {
+        let snapshot = camera_snapshot_from_abi(GtaCameraSnapshotV1 {
+            game_position: GtaVector3V1 {
+                x: 1.0,
+                y: 2.0,
+                z: 3.0,
+            },
+            transform: modkit_abi::GtaMatrixV1 {
+                position: GtaVector3V1 {
+                    x: 4.0,
+                    y: 5.0,
+                    z: 6.0,
+                },
+                ..modkit_abi::GtaMatrixV1::default()
+            },
+        });
+        assert_eq!(snapshot.game_position, Vector3::new(1.0, 2.0, 3.0));
+        assert_eq!(snapshot.transform.position, Vector3::new(4.0, 5.0, 6.0));
     }
 }

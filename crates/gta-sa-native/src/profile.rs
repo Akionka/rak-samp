@@ -170,6 +170,16 @@ pub struct TimerSpec {
     pub game_time_ms: AbsoluteAddress,
     pub evidence: NativeEvidence,
 }
+/// Fixture-backed read-only `CCamera` state for the selected executable.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CameraSpec {
+    pub object: AbsoluteAddress,
+    pub size: ObjectSize,
+    pub game_position: FieldOffset,
+    pub matrix: FieldOffset,
+    pub get_game_position: AbsoluteAddress,
+    pub evidence: NativeEvidence,
+}
 
 /// Verified local-player symbols.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -229,6 +239,7 @@ pub struct GtaProfileSpec {
     pub pool_layout: PoolLayoutSpec,
     pub world: WorldSpec,
     pub timer: TimerSpec,
+    pub camera: CameraSpec,
 
     pub player: PlayerSpec,
     pub entity: EntityLayoutSpec,
@@ -329,6 +340,18 @@ const GTA_SA_10_US_SPEC: GtaProfileSpec = GtaProfileSpec {
         evidence: NativeEvidence {
             grade: EvidenceGrade::A,
             source: "docs/evidence/phase-10-gta-timer-static.md",
+            verified_at: "2026-08-30",
+        },
+    },
+    camera: CameraSpec {
+        object: AbsoluteAddress::new(0xB6F028),
+        size: ObjectSize::new(0xD78),
+        game_position: FieldOffset::new(0x908),
+        matrix: FieldOffset::new(0x974),
+        get_game_position: AbsoluteAddress::new(0x50AE50),
+        evidence: NativeEvidence {
+            grade: EvidenceGrade::A,
+            source: "docs/evidence/phase-10-gta-camera-static.md",
             verified_at: "2026-08-30",
         },
     },

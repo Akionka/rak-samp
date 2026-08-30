@@ -1,6 +1,6 @@
 //! Owned GTA entity snapshots.
 
-use crate::{PedHandle, Vector3, VehicleHandle};
+use crate::{Matrix, PedHandle, Vector3, VehicleHandle};
 
 /// Minimal verified state common to the first entity slice.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -55,6 +55,12 @@ pub struct TimerSnapshot {
     pub time_step: f32,
     pub time_step_non_clipped: f32,
 }
+/// Verified copied active-camera pose after one game-process step.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct CameraSnapshot {
+    pub game_position: Vector3,
+    pub transform: Matrix,
+}
 
 #[cfg(test)]
 mod tests {
@@ -100,5 +106,20 @@ mod tests {
         assert_eq!(snapshot.game_time_ms, 1_250);
         assert_eq!(snapshot.time_step, 1.0);
         assert_eq!(snapshot.time_step_non_clipped, 1.25);
+    }
+
+    #[test]
+    fn camera_snapshot_owns_pose_values() {
+        let snapshot = CameraSnapshot {
+            game_position: Vector3::new(1.0, 2.0, 3.0),
+            transform: Matrix::new(
+                Vector3::new(1.0, 0.0, 0.0),
+                Vector3::new(0.0, 1.0, 0.0),
+                Vector3::new(0.0, 0.0, 1.0),
+                Vector3::new(4.0, 5.0, 6.0),
+            ),
+        };
+        assert_eq!(snapshot.game_position, Vector3::new(1.0, 2.0, 3.0));
+        assert_eq!(snapshot.transform.position, Vector3::new(4.0, 5.0, 6.0));
     }
 }
