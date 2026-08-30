@@ -94,8 +94,9 @@ impl Event<'_> {
     }
 
     pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, ModResult> {
-        let mut out = vec![0; bit_len.div_ceil(u8::BITS as usize)];
-        self.read_bits_into(&mut out, bit_len)?;
+        let bit_len = checked_event_bit_len(bit_len)?;
+        let mut out = vec![0; (bit_len as usize).div_ceil(u8::BITS as usize)];
+        unsafe { self.service.event_read_bits(self.raw, &mut out, bit_len) }?;
         Ok(out)
     }
 
@@ -107,7 +108,7 @@ impl Event<'_> {
         if out.len() != bit_len.div_ceil(u8::BITS as usize) {
             return Err(modkit_abi::MOD_INVALID_ARGUMENT);
         }
-        let bit_len = u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)?;
+        let bit_len = checked_event_bit_len(bit_len)?;
         unsafe { self.service.event_read_bits(self.raw, out, bit_len) }
     }
 
@@ -132,6 +133,10 @@ impl Event<'_> {
             .encode_string(value, out)
             .map(|(bytes, bits)| (bytes as usize, bits as usize))
     }
+}
+
+fn checked_event_bit_len(bit_len: usize) -> Result<u32, ModResult> {
+    u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)
 }
 
 type EventHandler = dyn for<'event> Fn(&mut Event<'event>) -> Action + Send + Sync + 'static;
@@ -394,5 +399,21 @@ unsafe extern "system" fn dispatch_event(user_data: *mut c_void, raw: *mut SampN
 unsafe extern "system" fn release_event(user_data: *mut c_void) {
     if !user_data.is_null() {
         drop(unsafe { Box::from_raw(user_data.cast::<EventState>()) });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::checked_event_bit_len;
+
+    #[test]
+    fn event_read_bit_length_must_fit_the_modkit_abi() {
+        assert_eq!(checked_event_bit_len(0), Ok(0));
+
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(
+            checked_event_bit_len(u32::MAX as usize + 1),
+            Err(modkit_abi::MOD_INVALID_ARGUMENT)
+        );
     }
 }

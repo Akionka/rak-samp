@@ -3,7 +3,8 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 use samp_protocol::{
     BitRead, BitReader, BitStream, BitWrite, DecodeError, EncodeError, EncodedBits,
-    ExactBytesPolicy, IncomingPacket, WireCodec, WireDescriptor, WireReadExt, WireWriteExt,
+    ExactBytesPolicy, IncomingPacket, MAX_BIT_STREAM_BITS, WireCodec, WireDescriptor, WireReadExt,
+    WireWriteExt,
 };
 
 struct CountingAllocator;
@@ -86,6 +87,30 @@ fn built_in_bit_io_avoids_temporary_allocations() {
         0
     );
     assert_eq!(output, [0b1010_0000]);
+
+    let mut reader = BitReader::from_bits(&source, 3).unwrap();
+    let (result, allocation_count) =
+        allocations(|| BitRead::read_left_aligned_bits(&mut reader, MAX_BIT_STREAM_BITS));
+    assert_eq!(allocation_count, 0);
+    assert_eq!(
+        result,
+        Err(samp_protocol::BitStreamError::OutOfBounds {
+            requested_bits: MAX_BIT_STREAM_BITS,
+            available_bits: 3,
+        })
+    );
+
+    let mut stream = BitStream::from_bits(source, 3).unwrap();
+    let (result, allocation_count) =
+        allocations(|| BitRead::read_left_aligned_bits(&mut stream, MAX_BIT_STREAM_BITS));
+    assert_eq!(allocation_count, 0);
+    assert_eq!(
+        result,
+        Err(samp_protocol::BitStreamError::OutOfBounds {
+            requested_bits: MAX_BIT_STREAM_BITS,
+            available_bits: 3,
+        })
+    );
 
     let mut writer = BitStream::new();
     writer.write_bit_bool(true).unwrap();

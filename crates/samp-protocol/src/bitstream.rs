@@ -654,6 +654,19 @@ impl BitRead for BitReader<'_> {
         self.read_offset += bit_len;
         Ok(())
     }
+
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        let mut output = vec![0; bit_len.div_ceil(u8::BITS as usize)];
+        self.read_left_aligned_bits_into(&mut output, bit_len)?;
+        Ok(output)
+    }
 }
 
 impl BitRead for BitStream {
@@ -669,6 +682,19 @@ impl BitRead for BitStream {
         bit_len: usize,
     ) -> Result<(), Self::Error> {
         self.read_left_aligned_bits_into_impl(output, bit_len)
+    }
+
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        let mut output = vec![0; bit_len.div_ceil(u8::BITS as usize)];
+        self.read_left_aligned_bits_into(&mut output, bit_len)?;
+        Ok(output)
     }
 }
 
