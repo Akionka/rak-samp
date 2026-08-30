@@ -2183,16 +2183,18 @@ refactor(gta): centralize gta pool handles and samp mappings
 
 ### Tasks
 
-- [ ] Define small initial `SampServiceV1` containing only already-stable operations needed by examples.
-- [ ] Define `SampNetServiceV1` for packet/RPC subscription/send/emulation.
-- [ ] Implement both tables as adapters over the existing host/backend first.
-- [ ] Add `samp` crate safe facade using `modkit-sdk` service discovery.
-- [ ] Route `samp-protocol` typed event helpers through `SampNetServiceV1`.
-- [ ] Preserve registration order, block/continue/replace semantics.
-- [ ] Use Core service for common unregister-and-wait and command receipt operations where possible.
-- [ ] Port one simple example (`chat command`) to the new service path.
-- [ ] Port one network example to the new service path.
-- [ ] Keep legacy examples unchanged as regression coverage.
+- [x] Define small initial `SampServiceV1` containing only already-stable operations needed by examples.
+- [x] Define `SampNetServiceV1` for packet/RPC subscription/send/emulation.
+- [x] Implement both tables as adapters over the existing host/backend first.
+- [x] Add `samp` crate safe facade using `modkit-sdk` service discovery.
+- [x] Route `samp-protocol` typed event helpers through `SampNetServiceV1`.
+- [x] Preserve registration order, block/continue/replace semantics.
+- [x] Use Core service for common unregister-and-wait and command receipt operations where possible.
+- [x] Port one simple example (`chat command`) to the new service path.
+- [x] Port one network example to the new service path.
+- [x] Keep legacy examples unchanged as regression coverage.
+
+Completion evidence: [Phase 7 SA-MP services](evidence/phase-7-samp-services.md).
 
 ### Suggested minimal initial `SampServiceV1` scope
 

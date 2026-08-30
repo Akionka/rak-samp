@@ -1,8 +1,8 @@
 # Repositioning TODO
 
 Status: complete. The checklist records the implemented repositioning and its
-final acceptance. New architecture work starts at Phase 2 of the
-[Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md#phase-2--extract-generic-runtime-primitives).
+final acceptance. Architecture work through Phase 7 is recorded in the
+[Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
 > P0, P1, and P2 are green; see the
@@ -46,6 +46,18 @@ passes, and a fresh R3-1 attach confirmed hook readiness and clean exit. See
 Complete. Exact-build GTA selection, GTA-owned tick orchestration, automated
 validation, R3-1 hook readiness, and clean exit passed. See
 [Phase 5 evidence](docs/evidence/phase-5-gta-native-runtime.md).
+
+### Phase 6 — centralize GTA handles
+
+Complete. GTA handle values and native reference conversion are GTA-owned, and
+all four supported profiles passed their mapping evidence. See
+[Phase 6 evidence](docs/evidence/phase-6-gta-handles.md).
+
+### Phase 7 — publish small SA-MP services
+
+Complete. New plugins can use the service-backed `samp` facade and typed
+network adapters without the monolithic legacy table. The legacy path remains
+unchanged for compatibility. See [Phase 7 evidence](docs/evidence/phase-7-samp-services.md).
 
 ### Structural split tracker
 
