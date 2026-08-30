@@ -95,6 +95,49 @@ fn query_service_returns_samp_net_for_exact_version() {
 }
 
 #[test]
+fn query_service_returns_samp_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP);
+    assert_eq!(header.version, SAMP_SERVICE_VERSION_V1);
+    assert_eq!(header.size, std::mem::size_of::<SampServiceV1>() as u32);
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn samp_outputs_reject_null_storage() {
+    assert_eq!(
+        unsafe { samp_server_info(ptr::null_mut()) },
+        MOD_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        unsafe { samp_local_player(ptr::null_mut()) },
+        MOD_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        unsafe { samp_player_info(0, ptr::null_mut()) },
+        MOD_INVALID_ARGUMENT
+    );
+    assert_eq!(
+        unsafe {
+            samp_submit_chat_add(
+                modkit_abi::SAMP_CHAT_STYLE_INFO,
+                ptr::null(),
+                0,
+                ptr::null(),
+                0,
+                0,
+                0,
+                ptr::null_mut(),
+            )
+        },
+        MOD_INVALID_ARGUMENT
+    );
+}
+
+#[test]
 fn samp_net_event_access_rejects_null_pointers() {
     let mut id = 0;
     assert_eq!(
