@@ -43,6 +43,8 @@ members = [
     "examples/r3_network_probe",
     "examples/r5_network_probe",
     "examples/sample_plugin",
+    "examples/samp_service_chat_plugin",
+    "examples/samp_service_network_plugin",
 ]
 default-members = ["."]
 resolver = "3"
