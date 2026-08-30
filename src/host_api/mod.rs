@@ -19,6 +19,7 @@ mod player_commands;
 mod players;
 mod pools;
 mod raw;
+mod reclamation;
 mod sampfuncs;
 mod snapshots;
 mod text_labels;
@@ -75,7 +76,8 @@ struct HostState {
     shutting_down: AtomicBool,
     runtime: OnceLock<Arc<Runtime>>,
     chat_commands: chat_commands::ChatCommandRegistry,
-    subscriptions: Mutex<HashMap<u64, ListenerHandle>>,
+    subscriptions: Mutex<HashMap<u64, listeners::SubscriptionEntry>>,
+    deferred_reclamation: modkit_runtime::DeferredReclamation,
     next_subscription: AtomicU64,
 }
 

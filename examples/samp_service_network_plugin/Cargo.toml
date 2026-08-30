@@ -1,0 +1,18 @@
+[package]
+name = "samp-service-network-plugin"
+version = "0.1.0"
+edition = "2024"
+publish = false
+license = "MIT"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+samp = { path = "../../crates/samp" }
+samp-protocol = { path = "../../crates/samp-protocol" }
+windows-sys = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_System_LibraryLoader",
+    "Win32_System_SystemServices",
+] }

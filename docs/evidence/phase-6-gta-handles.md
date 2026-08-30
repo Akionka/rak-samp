@@ -58,3 +58,38 @@ player-pool check observed equal including/excluding-NPC counts and reported
 
 The client remained responsive and exited normally on user request. No new game
 directory dump and no Windows Application Error for `gta_sa.exe` were recorded.
+
+### Full R3 probe
+
+On 2026-08-30, commit `7d9a96a` was rebuilt in the repository-local Cargo
+target and deployed to `C:\Games\GTASA-SDK-R3-LIVE-TEST`. The deployed SHA-256
+values were:
+
+- host: `FCCF7F44C9B7AF54AEDD180546B7749529EC5ACFBD7B326FEB75E48AF3CB6F33`;
+- R3 probe: `86F368D3AE6E129EAEFC401A96B8F67B572A2CE6160D20872AC83A74217D3D6F`.
+
+The compatible loopback server and `R3ProbeBot` NPC were started first. The
+client was then launched with
+`C:\Games\GTASA-SDK-R3-LIVE-TEST\samp_debug.exe` and that directory as its
+working directory. `samp_debug.exe` started the exact fixture executable with
+`-c -h 127.0.0.1 -p 7777 -n Player`. The host log identified SA-MP 0.3.7 R3-1,
+installed the game-process and RakClient hooks, and completed the first queued
+game command.
+
+The status file written at `2026-08-30T04:45:37Z` reported:
+
+```text
+status=0x3FFFFFFF
+failure=0
+player_count_including_npcs=1
+player_count_excluding_npcs=0
+reconnect_server_ready=true
+reconnect_local_ready=true
+reconnect_incoming_ready=true
+text_label_phase=complete
+textdraw_phase=complete
+vehicle_phase=complete
+```
+
+This is a full-probe success for the final Phase 6 commit. It supersedes the
+earlier partial R1 run as the Phase 6 live acceptance result.

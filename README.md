@@ -34,20 +34,20 @@ cargo make install
 
 ## Plugins
 
-Plugins are 32-bit `cdylib`s that depend on the public `samp-client-sdk`
-package and import it as `samp_client_sdk`. Connect through `Samp`; the raw
-ABI wrapper is a private implementation detail.
+New plugins are 32-bit `cdylib`s that depend on the service-backed `samp`
+facade. It discovers exact-version services through `GtaModHost_GetApiV1`; it
+does not touch the 145-field legacy table.
 
 Typed Protocol descriptors require both synchronized published packages:
 
 ```toml
 [dependencies]
-samp-client-sdk = "=0.1.0-alpha.4"
+samp = "=0.1.0-alpha.4"
 samp-protocol = "=0.1.0-alpha.4"
 ```
 
 ```rust
-use samp_client_sdk::{Samp, events::ProtocolAction};
+use samp::{Samp, events::ProtocolAction};
 
 fn connect() -> Result<(), String> {
     let samp = Samp::connect(std::time::Duration::from_secs(10))
@@ -61,9 +61,11 @@ fn connect() -> Result<(), String> {
 }
 ```
 
-Keep every `Subscription` or `SubscriptionSet`. Before unloading a plugin,
-call `unregister_and_wait` from a worker thread. Never wait in `DllMain`, a
-listener callback, or the game tick.
+Keep every `Subscription`. Before unloading a plugin, call
+`unregister_and_wait` from a worker thread. Never wait in `DllMain`, a listener
+callback, or the game tick. The legacy `samp-client-sdk` package and its
+examples remain available as compatibility regression coverage during the
+migration.
 
 Register native chat commands from a worker thread and keep the returned
 subscription alive for as long as the handler may run:
@@ -122,6 +124,10 @@ validation aid for the native codec and blocked exact-bit emulation paths. The
 ```powershell
 cargo make install-chat-command-example
 ```
+
+The [service chat plugin](examples/samp_service_chat_plugin) and
+[service network plugin](examples/samp_service_network_plugin) show the Phase 7
+API without importing the legacy SDK.
 
 ## Development
 

@@ -1,6 +1,6 @@
 # Core Features
 
-`samp-client-sdk` has two pillars:
+`samp-client-sdk` is split into host, service, facade, and Protocol layers:
 
 - `sdk/` is the public Rust package imported as `samp_client_sdk` by ASI
   plugins; its public paths follow cohesive modules rather than compatibility
@@ -41,14 +41,20 @@
   C ABI primitives shared by host and plugin crates: the `ModResult` newtype and
   its numeric constants, fixed-width `ServiceId`/`SubscriptionId`/
   `CommandReceiptId`, opaque game-context token and execution constraints,
-  `ServiceHeader`, the `ModHostApiV1` bootstrap table, the `CoreServiceV1`
-  table, and the migration-only `LegacySampServiceV1` wrapper.
+  `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`, the
+  small `SampServiceV1` and `SampNetServiceV1` tables, and the migration-only
+  `LegacySampServiceV1` wrapper.
   It has no Windows, MinHook, GTA, or SA-MP native dependency.
 - `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
   resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
-  performs exact-version `query_service`, and exposes safe Core service facades
-  plus the callback-scoped `GameContext` shell.
+  performs exact-version `query_service`, and exposes validated Core, SA-MP,
+  and SA-MP network service views plus the callback-scoped `GameContext` shell.
   It never falls back to `SampClientSdk_GetApiV1`.
+- `crates/samp/` is the safe service-backed SA-MP facade for new plugins. It
+  resolves Core, `SampServiceV1`, and `SampNetServiceV1` through `modkit-sdk`,
+  returns owned snapshots and Core-backed receipts/subscriptions, and adapts
+  `samp-protocol` descriptors to callback-local exact-bit events. It contains no
+  native addresses and has no dependency on the legacy SDK package.
 - `crates/modkit-win32/` owns the generic Windows x86 implementation primitives
   reused by the host backends: per-page guarded native-memory reads/writes,
   validated `ReadableRegion`/`WritableRegion` views, checked PE/module helpers,

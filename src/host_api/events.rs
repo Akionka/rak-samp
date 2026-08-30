@@ -387,7 +387,7 @@ fn bitstream_result(error: BitStreamError) -> SampClientSdkResult {
     }
 }
 
-fn codec_result(error: CodecError) -> SampClientSdkResult {
+pub(super) fn codec_result(error: CodecError) -> SampClientSdkResult {
     match error {
         CodecError::ClientNotReady => SampClientSdkResult::NotReady,
         CodecError::InvalidArgument => SampClientSdkResult::InvalidArgument,

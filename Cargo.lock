@@ -200,6 +200,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "samp"
+version = "0.1.0-alpha.4"
+dependencies = [
+ "gta-sa",
+ "log",
+ "modkit-abi",
+ "modkit-sdk",
+ "samp-protocol",
+]
+
+[[package]]
 name = "samp-client-sdk"
 version = "0.1.0-alpha.4"
 dependencies = [
@@ -291,6 +302,23 @@ dependencies = [
 [[package]]
 name = "samp-protocol"
 version = "0.1.0-alpha.4"
+
+[[package]]
+name = "samp-service-chat-plugin"
+version = "0.1.0"
+dependencies = [
+ "samp",
+ "windows-sys",
+]
+
+[[package]]
+name = "samp-service-network-plugin"
+version = "0.1.0"
+dependencies = [
+ "samp",
+ "samp-protocol",
+ "windows-sys",
+]
 
 [[package]]
 name = "serde_core"

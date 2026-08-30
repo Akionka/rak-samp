@@ -2,9 +2,13 @@
 
 use modkit_abi::{
     CommandCompletionV1, CommandReceiptId, CoreServiceV1, HostStatusV1, LegacySampServiceV1,
-    ModHostApiV1, ModResult, SERVICE_ID_CORE, SERVICE_ID_LEGACY_SAMP_ABI, ServiceHeader, ServiceId,
-    SubscriptionId,
+    ModHostApiV1, ModResult, SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE,
+    SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK,
+    SampChatCommandCallbackV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
+    SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampReleaseCallbackV1,
+    SampServerInfoV1, SampServiceV1, ServiceHeader, ServiceId, SubscriptionId,
 };
+use std::ffi::c_void;
 use std::time::Duration;
 
 use crate::resolve::{ConnectError, wait_for_default_host, wait_for_host};
@@ -131,6 +135,22 @@ impl Host {
             _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
         }
     }
+
+    /// Returns the general SA-MP service v1.
+    pub fn samp(self) -> Result<SampService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP, SAMP_SERVICE_VERSION_V1)? {
+            Service::Samp(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP Packet/RPC service v1.
+    pub fn samp_net(self) -> Result<SampNetService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_NETWORK, SAMP_NET_SERVICE_VERSION_V1)? {
+            Service::SampNet(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
 }
 
 /// A resolved service table.
@@ -140,6 +160,10 @@ pub enum Service {
     Core(Core),
     /// The migration-only Legacy SA-MP service v1.
     LegacySamp(LegacySamp),
+    /// The general SA-MP service v1.
+    Samp(SampService),
+    /// The SA-MP Packet/RPC service v1.
+    SampNet(SampNetService),
 }
 
 impl Service {
@@ -177,6 +201,34 @@ impl Service {
                 };
                 table.map(|legacy| Service::LegacySamp(LegacySamp { legacy }))
             }
+            SERVICE_ID_SAMP
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::Samp(SampService { table }))
+            }
+            SERVICE_ID_SAMP_NETWORK
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampNetServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampNetServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampNet(SampNetService { table }))
+            }
             _ => None,
         }
     }
@@ -209,6 +261,395 @@ pub struct Core {
 #[derive(Clone, Copy)]
 pub struct LegacySamp {
     legacy: &'static LegacySampServiceV1,
+}
+
+/// Validated low-level view of the general SA-MP service v1.
+#[derive(Clone, Copy)]
+pub struct SampService {
+    table: &'static SampServiceV1,
+}
+
+/// Validated low-level view of the SA-MP Packet/RPC service v1.
+#[derive(Clone, Copy)]
+pub struct SampNetService {
+    table: &'static SampNetServiceV1,
+}
+
+impl SampService {
+    pub fn version(self) -> Result<u32, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.version)(&mut out) }, out)
+    }
+
+    pub fn game_state(self) -> Result<i32, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.game_state)(&mut out) }, out)
+    }
+
+    pub fn server_info(self) -> Result<SampServerInfoV1, ModResult> {
+        let mut out = SampServerInfoV1::default();
+        result_with_out(unsafe { (self.table.server_info)(&mut out) }, out)
+    }
+
+    pub fn local_player(self) -> Result<SampLocalPlayerV1, ModResult> {
+        let mut out = SampLocalPlayerV1::default();
+        result_with_out(unsafe { (self.table.local_player)(&mut out) }, out)
+    }
+
+    pub fn player_info(self, id: u16) -> Result<SampPlayerInfoV1, ModResult> {
+        let mut out = SampPlayerInfoV1::default();
+        result_with_out(unsafe { (self.table.player_info)(id, &mut out) }, out)
+    }
+
+    pub fn submit_chat_add(
+        self,
+        style: u32,
+        text: &[u8],
+        prefix: &[u8],
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        let prefix_len = checked_len(prefix.len())?;
+        let mut receipt = CommandReceiptId(0);
+        let result = unsafe {
+            (self.table.submit_chat_add)(
+                style,
+                text.as_ptr(),
+                text_len,
+                prefix.as_ptr(),
+                prefix_len,
+                text_colour,
+                prefix_colour,
+                &mut receipt,
+            )
+        };
+        result_with_out(result, receipt)
+    }
+
+    /// Registers a callback whose opaque context remains owned by the host
+    /// after successful submission.
+    ///
+    /// # Safety
+    ///
+    /// `user_data`, `callback`, and `release` must satisfy the service callback
+    /// ownership contract until Core drains the returned subscription.
+    pub unsafe fn submit_register_chat_command(
+        self,
+        name: &[u8],
+        callback: SampChatCommandCallbackV1,
+        user_data: *mut c_void,
+        release: SampReleaseCallbackV1,
+    ) -> Result<(SubscriptionId, CommandReceiptId), ModResult> {
+        let name_len = checked_len(name.len())?;
+        let mut subscription = SubscriptionId(0);
+        let mut receipt = CommandReceiptId(0);
+        let result = unsafe {
+            (self.table.submit_register_chat_command)(
+                name.as_ptr(),
+                name_len,
+                Some(callback),
+                user_data,
+                Some(release),
+                &mut subscription,
+                &mut receipt,
+            )
+        };
+        if result.is_ok() {
+            Ok((subscription, receipt))
+        } else {
+            Err(result)
+        }
+    }
+}
+
+impl SampNetService {
+    /// Registers a callback whose opaque context remains owned by the host.
+    ///
+    /// # Safety
+    ///
+    /// The callback context must follow the service ownership contract until
+    /// Core drains the returned subscription.
+    pub unsafe fn register_packet(
+        self,
+        direction: u32,
+        callback: SampNetEventCallbackV1,
+        user_data: *mut c_void,
+        release: SampReleaseCallbackV1,
+    ) -> Result<SubscriptionId, ModResult> {
+        unsafe { self.register(direction, callback, user_data, release, true) }
+    }
+
+    /// Registers an RPC callback.
+    ///
+    /// # Safety
+    ///
+    /// The callback context must follow the service ownership contract until
+    /// Core drains the returned subscription.
+    pub unsafe fn register_rpc(
+        self,
+        direction: u32,
+        callback: SampNetEventCallbackV1,
+        user_data: *mut c_void,
+        release: SampReleaseCallbackV1,
+    ) -> Result<SubscriptionId, ModResult> {
+        unsafe { self.register(direction, callback, user_data, release, false) }
+    }
+
+    unsafe fn register(
+        self,
+        direction: u32,
+        callback: SampNetEventCallbackV1,
+        user_data: *mut c_void,
+        release: SampReleaseCallbackV1,
+        packet: bool,
+    ) -> Result<SubscriptionId, ModResult> {
+        let mut out = SubscriptionId(0);
+        let result = if packet {
+            unsafe {
+                (self.table.register_packet)(
+                    direction,
+                    Some(callback),
+                    user_data,
+                    Some(release),
+                    &mut out,
+                )
+            }
+        } else {
+            unsafe {
+                (self.table.register_rpc)(
+                    direction,
+                    Some(callback),
+                    user_data,
+                    Some(release),
+                    &mut out,
+                )
+            }
+        };
+        result_with_out(result, out)
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_id(self, event: *const SampNetEventV1) -> Result<u8, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.event_id)(event, &mut out) }, out)
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_reset(self, event: *mut SampNetEventV1) -> Result<(), ModResult> {
+        result_unit(unsafe { (self.table.event_reset)(event) })
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_remaining_bits(
+        self,
+        event: *const SampNetEventV1,
+    ) -> Result<u32, ModResult> {
+        let mut out = 0;
+        result_with_out(
+            unsafe { (self.table.event_remaining_bits)(event, &mut out) },
+            out,
+        )
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_read_bits(
+        self,
+        event: *mut SampNetEventV1,
+        out: &mut [u8],
+        bit_len: u32,
+    ) -> Result<(), ModResult> {
+        let capacity = checked_len(out.len())?;
+        result_unit(unsafe {
+            (self.table.event_read_bits)(event, out.as_mut_ptr(), capacity, bit_len)
+        })
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_replace_bits(
+        self,
+        event: *mut SampNetEventV1,
+        bytes: &[u8],
+        bit_len: u32,
+    ) -> Result<(), ModResult> {
+        let byte_len = checked_len(bytes.len())?;
+        result_unit(unsafe {
+            (self.table.event_replace_bits)(event, bytes.as_ptr(), byte_len, bit_len)
+        })
+    }
+
+    pub fn encode_string(self, value: &[u8], out: &mut [u8]) -> Result<(u32, u32), ModResult> {
+        let value_len = checked_len(value.len())?;
+        let capacity = checked_len(out.len())?;
+        let mut byte_len = 0;
+        let mut bit_len = 0;
+        let result = unsafe {
+            (self.table.encode_string)(
+                value.as_ptr(),
+                value_len,
+                out.as_mut_ptr(),
+                capacity,
+                &mut byte_len,
+                &mut bit_len,
+            )
+        };
+        if result.is_ok() {
+            Ok((byte_len, bit_len))
+        } else {
+            Err(result)
+        }
+    }
+
+    /// # Safety
+    ///
+    /// `event` must be the live event pointer supplied to this registration's callback.
+    pub unsafe fn event_read_encoded_string(
+        self,
+        event: *mut SampNetEventV1,
+        out: &mut [u8],
+    ) -> Result<u32, ModResult> {
+        let capacity = checked_len(out.len())?;
+        let mut len = 0;
+        result_with_out(
+            unsafe {
+                (self.table.event_read_encoded_string)(event, out.as_mut_ptr(), capacity, &mut len)
+            },
+            len,
+        )
+    }
+
+    pub fn submit_packet(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+        options: SampNetSendOptionsV1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.submit(id, bytes, bit_len, options, true)
+    }
+
+    pub fn submit_rpc(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+        options: SampNetSendOptionsV1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.submit(id, bytes, bit_len, options, false)
+    }
+
+    fn submit(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+        options: SampNetSendOptionsV1,
+        packet: bool,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let byte_len = checked_len(bytes.len())?;
+        let mut receipt = CommandReceiptId(0);
+        let result = unsafe {
+            if packet {
+                (self.table.submit_packet)(
+                    id,
+                    bytes.as_ptr(),
+                    byte_len,
+                    bit_len,
+                    options,
+                    &mut receipt,
+                )
+            } else {
+                (self.table.submit_rpc)(
+                    id,
+                    bytes.as_ptr(),
+                    byte_len,
+                    bit_len,
+                    options,
+                    &mut receipt,
+                )
+            }
+        };
+        result_with_out(result, receipt)
+    }
+
+    pub fn submit_emulate_incoming_packet(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.submit_emulate(id, bytes, bit_len, true)
+    }
+
+    pub fn submit_emulate_incoming_rpc(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.submit_emulate(id, bytes, bit_len, false)
+    }
+
+    fn submit_emulate(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: u32,
+        packet: bool,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let byte_len = checked_len(bytes.len())?;
+        let mut receipt = CommandReceiptId(0);
+        let result = unsafe {
+            if packet {
+                (self.table.submit_emulate_incoming_packet)(
+                    id,
+                    bytes.as_ptr(),
+                    byte_len,
+                    bit_len,
+                    &mut receipt,
+                )
+            } else {
+                (self.table.submit_emulate_incoming_rpc)(
+                    id,
+                    bytes.as_ptr(),
+                    byte_len,
+                    bit_len,
+                    &mut receipt,
+                )
+            }
+        };
+        result_with_out(result, receipt)
+    }
+
+    pub fn incoming_emulation_ready(self) -> Result<bool, ModResult> {
+        let mut out = 0;
+        result_with_out(
+            unsafe { (self.table.incoming_emulation_ready)(&mut out) },
+            out != 0,
+        )
+    }
+}
+
+fn checked_len(len: usize) -> Result<u32, ModResult> {
+    u32::try_from(len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)
+}
+
+fn result_unit(result: ModResult) -> Result<(), ModResult> {
+    if result.is_ok() { Ok(()) } else { Err(result) }
+}
+
+fn result_with_out<T>(result: ModResult, out: T) -> Result<T, ModResult> {
+    if result.is_ok() { Ok(out) } else { Err(result) }
 }
 
 impl LegacySamp {

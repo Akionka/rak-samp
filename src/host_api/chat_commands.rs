@@ -3,9 +3,14 @@
 use super::{
     clone_initialized, copied_nul_free_string, direct_client_result, host, next_subscription_id,
 };
+use crate::host_api::reclamation::PluginRelease;
 use crate::{
     command::{CommandError, CommandId},
     platform::bounded_c_string,
+};
+use modkit_abi::{
+    CommandReceiptId, ModResult, SampChatCommandCallbackV1 as ModkitChatCommandCallbackV1,
+    SampReleaseCallbackV1, SubscriptionId,
 };
 use modkit_runtime::callback::{
     CallbackContext, CallbackContextGuard, CallbackGate, CallbackGateGuard,
@@ -46,8 +51,9 @@ struct ChatCommandRegistryState {
 struct ChatCommandEntry {
     name: Vec<u8>,
     slot: u8,
-    callback: SampClientSdkChatCommandCallbackV1,
+    callback: ChatCommandCallback,
     user_data: usize,
+    release: Mutex<Option<PluginRelease>>,
     registered: AtomicBool,
     unregister_started: AtomicBool,
     retain_until_wait: AtomicBool,
@@ -55,6 +61,12 @@ struct ChatCommandEntry {
     unregister_receipt: Mutex<Option<CommandId>>,
     unregister_serial: Mutex<()>,
     gate: CallbackGate,
+}
+
+#[derive(Clone, Copy)]
+enum ChatCommandCallback {
+    Legacy(SampClientSdkChatCommandCallbackV1),
+    Modkit(ModkitChatCommandCallbackV1),
 }
 
 impl ChatCommandRegistry {
@@ -71,8 +83,9 @@ impl ChatCommandRegistry {
         &self,
         id: u64,
         name: Vec<u8>,
-        callback: SampClientSdkChatCommandCallbackV1,
+        callback: ChatCommandCallback,
         user_data: usize,
+        release: Option<PluginRelease>,
     ) -> Result<Arc<ChatCommandEntry>, SampClientSdkResult> {
         let mut state = self.state.lock().unwrap_or_else(|error| error.into_inner());
         if state.entries.values().any(|entry| entry.name == name) {
@@ -86,6 +99,7 @@ impl ChatCommandRegistry {
             slot: slot as u8,
             callback,
             user_data,
+            release: Mutex::new(release),
             registered: AtomicBool::new(false),
             unregister_started: AtomicBool::new(false),
             retain_until_wait: AtomicBool::new(false),
@@ -129,7 +143,9 @@ impl ChatCommandRegistry {
             entry.registered.store(true, Ordering::Release);
         } else {
             entry.gate.set_allowed(false);
-            let _ = self.remove(id);
+            if let Some(entry) = self.remove(id) {
+                entry.release_deferred();
+            }
         }
     }
 
@@ -141,8 +157,10 @@ impl ChatCommandRegistry {
             entry.gate.set_allowed(false);
             entry.registered.store(false, Ordering::Release);
             entry.native_removed.store(true, Ordering::Release);
-            if !entry.retain_until_wait.load(Ordering::Acquire) {
-                let _ = self.remove(id);
+            if !entry.retain_until_wait.load(Ordering::Acquire)
+                && let Some(entry) = self.remove(id)
+            {
+                entry.release_deferred();
             }
         } else {
             entry.native_removed.store(false, Ordering::Release);
@@ -175,6 +193,34 @@ impl ChatCommandEntry {
     fn synchronize_dispatches_timeout(&self, timeout: Duration) -> bool {
         self.gate.wait_until_drained_timeout(timeout)
     }
+
+    fn take_release(&self) -> Option<PluginRelease> {
+        self.release
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .take()
+    }
+
+    fn release_now(&self) {
+        if let Some(release) = self.take_release() {
+            release.release();
+        }
+    }
+
+    fn release_deferred(self: Arc<Self>) {
+        if self
+            .release
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .is_none()
+        {
+            return;
+        }
+        super::reclamation::defer(move || {
+            self.gate.wait_until_drained();
+            self.release_now();
+        });
+    }
 }
 
 struct ChatCommandDispatch<'entry> {
@@ -192,50 +238,106 @@ pub(super) unsafe extern "system" fn submit_register_chat_command(
     subscription: *mut SampClientSdkSubscription,
     receipt: *mut SampClientSdkCommandReceipt,
 ) -> SampClientSdkResult {
-    if super::is_shutting_down() {
-        return SampClientSdkResult::ShuttingDown;
-    }
     let Some(callback) = callback else {
         return SampClientSdkResult::InvalidArgument;
     };
-    if user_data.is_null() || subscription.is_null() || receipt.is_null() {
+    if subscription.is_null() || receipt.is_null() {
         return SampClientSdkResult::InvalidArgument;
     }
-    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, MAX_CHAT_COMMAND_NAME_BYTES) })
-    else {
-        return SampClientSdkResult::InvalidArgument;
-    };
-    if name.is_empty() {
-        return SampClientSdkResult::InvalidArgument;
-    }
-    let Some(runtime) = clone_initialized(&host().runtime) else {
-        return SampClientSdkResult::NotReady;
-    };
-    if is_dispatching_on_current_thread() || !runtime.command_wait_allowed() {
-        return SampClientSdkResult::CallbackInProgress;
-    }
-    let Some(id) = next_subscription_id() else {
-        return SampClientSdkResult::Busy;
-    };
-    let entry = match host()
-        .chat_commands
-        .reserve(id, name.clone(), callback, user_data as usize)
-    {
-        Ok(entry) => entry,
-        Err(error) => return error,
-    };
-    match runtime.submit_register_chat_command(id, entry.slot, name) {
-        Ok(command_id) => {
+    match unsafe {
+        submit_register_chat_command_inner(
+            name,
+            name_len,
+            ChatCommandCallback::Legacy(callback),
+            user_data,
+            None,
+        )
+    } {
+        Ok((id, command_id)) => {
             unsafe {
                 subscription.write(SampClientSdkSubscription { id });
                 receipt.write(SampClientSdkCommandReceipt { id: command_id });
             }
             SampClientSdkResult::Ok
         }
+        Err(error) => error,
+    }
+}
+
+pub(super) unsafe extern "system" fn submit_register_chat_command_modkit(
+    name: *const u8,
+    name_len: u32,
+    callback: Option<ModkitChatCommandCallbackV1>,
+    user_data: *mut c_void,
+    release: Option<SampReleaseCallbackV1>,
+    subscription: *mut SubscriptionId,
+    receipt: *mut CommandReceiptId,
+) -> ModResult {
+    let (Some(callback), Some(release)) = (callback, release) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    if subscription.is_null() || receipt.is_null() {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    }
+    match unsafe {
+        submit_register_chat_command_inner(
+            name,
+            name_len as usize,
+            ChatCommandCallback::Modkit(callback),
+            user_data,
+            Some(PluginRelease::new(user_data as usize, release)),
+        )
+    } {
+        Ok((id, command_id)) => {
+            unsafe {
+                subscription.write(SubscriptionId(id));
+                receipt.write(CommandReceiptId(command_id));
+            }
+            modkit_abi::MOD_OK
+        }
+        Err(error) => super::modkit::subscription_result(error),
+    }
+}
+
+unsafe fn submit_register_chat_command_inner(
+    name: *const u8,
+    name_len: usize,
+    callback: ChatCommandCallback,
+    user_data: *mut c_void,
+    release: Option<PluginRelease>,
+) -> Result<(u64, u64), SampClientSdkResult> {
+    if super::is_shutting_down() {
+        return Err(SampClientSdkResult::ShuttingDown);
+    }
+    if user_data.is_null() {
+        return Err(SampClientSdkResult::InvalidArgument);
+    }
+    let Ok(name) = (unsafe { copied_nul_free_string(name, name_len, MAX_CHAT_COMMAND_NAME_BYTES) })
+    else {
+        return Err(SampClientSdkResult::InvalidArgument);
+    };
+    if name.is_empty() {
+        return Err(SampClientSdkResult::InvalidArgument);
+    }
+    let Some(runtime) = clone_initialized(&host().runtime) else {
+        return Err(SampClientSdkResult::NotReady);
+    };
+    if is_dispatching_on_current_thread() || !runtime.command_wait_allowed() {
+        return Err(SampClientSdkResult::CallbackInProgress);
+    }
+    let Some(id) = next_subscription_id() else {
+        return Err(SampClientSdkResult::Busy);
+    };
+    let entry =
+        host()
+            .chat_commands
+            .reserve(id, name.clone(), callback, user_data as usize, release)?;
+    match runtime.submit_register_chat_command(id, entry.slot, name) {
+        Ok(command_id) => Ok((id, command_id)),
         Err(error) => {
             entry.deactivate();
             let _ = host().chat_commands.remove(id);
-            direct_client_result(error)
+            Err(direct_client_result(error))
         }
     }
 }
@@ -346,7 +448,9 @@ pub(super) fn unregister_and_wait(
         return Some(SampClientSdkResult::TimedOut);
     }
     entry.retain_until_wait.store(false, Ordering::Release);
-    let _ = host().chat_commands.remove(subscription.id);
+    if let Some(entry) = host().chat_commands.remove(subscription.id) {
+        entry.release_now();
+    }
     Some(SampClientSdkResult::Ok)
 }
 
@@ -399,7 +503,16 @@ fn dispatch_native_command(slot: usize, args: *const i8) {
         return;
     };
     let _ = catch_unwind(AssertUnwindSafe(|| unsafe {
-        (entry.callback)(entry.user_data as *mut c_void, args.as_ptr(), args.len());
+        match entry.callback {
+            ChatCommandCallback::Legacy(callback) => {
+                callback(entry.user_data as *mut c_void, args.as_ptr(), args.len());
+            }
+            ChatCommandCallback::Modkit(callback) => callback(
+                entry.user_data as *mut c_void,
+                args.as_ptr(),
+                args.len() as u32,
+            ),
+        }
     }));
 }
 
@@ -706,6 +819,7 @@ const CHAT_COMMAND_TRAMPOLINES: [unsafe extern "cdecl" fn(*const i8); MAX_CHAT_C
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
 
     unsafe extern "system" fn callback(
         _user_data: *mut c_void,
@@ -714,16 +828,48 @@ mod tests {
     ) {
     }
 
+    unsafe extern "system" fn modkit_callback(
+        _user_data: *mut c_void,
+        _args: *const u8,
+        _args_len: u32,
+    ) {
+    }
+
+    unsafe extern "system" fn release_sender(user_data: *mut c_void) {
+        let sender = unsafe { Box::from_raw(user_data.cast::<mpsc::Sender<()>>()) };
+        sender.send(()).unwrap();
+    }
+
     #[test]
     fn registry_reserves_distinct_slots_and_releases_failed_registrations() {
         let registry = ChatCommandRegistry::new();
-        let first = registry.reserve(1, b"first".to_vec(), callback, 0).unwrap();
+        let first = registry
+            .reserve(
+                1,
+                b"first".to_vec(),
+                ChatCommandCallback::Legacy(callback),
+                0,
+                None,
+            )
+            .unwrap();
         let second = registry
-            .reserve(2, b"second".to_vec(), callback, 0)
+            .reserve(
+                2,
+                b"second".to_vec(),
+                ChatCommandCallback::Legacy(callback),
+                0,
+                None,
+            )
             .unwrap();
         assert_ne!(first.slot, second.slot);
         assert!(matches!(
-            registry.reserve(3, b"first".to_vec(), callback, 0),
+            registry.reserve(
+                3,
+                b"first".to_vec(),
+                ChatCommandCallback::Legacy(callback),
+                0,
+                None,
+            ),
             Err(SampClientSdkResult::InvalidArgument)
         ));
 
@@ -736,7 +882,13 @@ mod tests {
     fn registration_and_removal_publish_only_live_callbacks() {
         let registry = ChatCommandRegistry::new();
         let entry = registry
-            .reserve(7, b"fixture".to_vec(), callback, 0)
+            .reserve(
+                7,
+                b"fixture".to_vec(),
+                ChatCommandCallback::Legacy(callback),
+                0,
+                None,
+            )
             .unwrap();
         assert!(entry.enter_dispatch().is_none());
 
@@ -756,7 +908,13 @@ mod tests {
     fn timed_unregistration_retains_entry_until_waiter_drains_it() {
         let registry = ChatCommandRegistry::new();
         let entry = registry
-            .reserve(8, b"fixture".to_vec(), callback, 0)
+            .reserve(
+                8,
+                b"fixture".to_vec(),
+                ChatCommandCallback::Legacy(callback),
+                0,
+                None,
+            )
             .unwrap();
         registry.finish_registration(8, true);
         entry.retain_until_wait.store(true, Ordering::Release);
@@ -770,5 +928,29 @@ mod tests {
 
         assert!(entry.synchronize_dispatches_timeout(Duration::ZERO));
         assert!(registry.remove(8).is_some());
+    }
+
+    #[test]
+    fn modkit_release_waits_for_chat_callback_drain_and_runs_once() {
+        let registry = ChatCommandRegistry::new();
+        let (released_tx, released_rx) = mpsc::channel::<()>();
+        let user_data = Box::into_raw(Box::new(released_tx)).cast::<c_void>();
+        let entry = registry
+            .reserve(
+                9,
+                b"fixture".to_vec(),
+                ChatCommandCallback::Modkit(modkit_callback),
+                user_data as usize,
+                Some(PluginRelease::new(user_data as usize, release_sender)),
+            )
+            .unwrap();
+        registry.finish_registration(9, true);
+        let dispatch = entry.enter_dispatch().unwrap();
+
+        registry.finish_unregistration(9, true);
+        assert!(released_rx.recv_timeout(Duration::from_millis(20)).is_err());
+        drop(dispatch);
+        released_rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(released_rx.try_recv().is_err());
     }
 }
