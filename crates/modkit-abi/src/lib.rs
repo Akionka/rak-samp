@@ -13,6 +13,8 @@ mod core;
 mod ids;
 mod legacy;
 mod result;
+mod samp;
+mod samp_net;
 mod service;
 
 pub use bootstrap::{GetModHostApiV1, MOD_HOST_ABI_VERSION_V1, ModHostApiV1};
@@ -29,6 +31,8 @@ pub use result::{
     MOD_PAYLOAD_TOO_LARGE, MOD_PENDING, MOD_QUEUE_FULL, MOD_SHUTTING_DOWN, MOD_TIMED_OUT,
     MOD_UNSUPPORTED, MOD_UNSUPPORTED_VERSION, MOD_WAIT_REJECTED, ModResult,
 };
+pub use samp::*;
+pub use samp_net::*;
 pub use service::{
     SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_INPUT, SERVICE_ID_LEGACY_SAMP_ABI,
     SERVICE_ID_RENDER, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, ServiceHeader,
