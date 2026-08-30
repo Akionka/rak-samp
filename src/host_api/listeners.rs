@@ -59,7 +59,9 @@ pub(super) unsafe extern "system" fn unregister(
         debug!("unregistered plugin subscription {}", subscription.id);
         SampClientSdkResult::Ok
     } else {
-        chat_commands::unregister(subscription).unwrap_or(SampClientSdkResult::SubscriptionNotFound)
+        chat_commands::unregister(subscription)
+            .or_else(|| super::gta::unregister(subscription.id))
+            .unwrap_or(SampClientSdkResult::SubscriptionNotFound)
     }
 }
 
@@ -84,6 +86,7 @@ pub(super) fn unregister_and_wait_with_timeout(
         let Some(listener) = subscriptions.get(&subscription.id) else {
             drop(subscriptions);
             return chat_commands::unregister_and_wait(subscription, timeout)
+                .or_else(|| super::gta::unregister_and_wait(subscription.id, timeout))
                 .unwrap_or(SampClientSdkResult::SubscriptionNotFound);
         };
         if !listener.listener.can_remove_and_wait() {

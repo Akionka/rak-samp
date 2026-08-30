@@ -10,6 +10,7 @@
 mod bootstrap;
 mod context;
 mod core;
+mod gta_sa;
 mod ids;
 mod legacy;
 mod result;
@@ -23,6 +24,7 @@ pub use core::{
     CommandCompletionV1, CoreServiceV1, HostStatusV1, LOG_LEVEL_DEBUG, LOG_LEVEL_ERROR,
     LOG_LEVEL_INFO, LOG_LEVEL_WARN, MAX_LOG_MESSAGE_BYTES, TIMEOUT_INFINITE,
 };
+pub use gta_sa::*;
 pub use ids::{CommandReceiptId, ServiceId, SubscriptionId};
 pub use legacy::LegacySampServiceV1;
 pub use result::{

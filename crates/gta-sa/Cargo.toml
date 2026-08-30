@@ -9,3 +9,7 @@ repository = "https://github.com/Akionka/samp-client-sdk"
 
 [lib]
 name = "gta_sa"
+
+[dependencies]
+modkit-abi = { version = "=0.1.0-alpha.4", path = "../modkit-abi" }
+modkit-sdk = { version = "=0.1.0-alpha.4", path = "../modkit-sdk" }

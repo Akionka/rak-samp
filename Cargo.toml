@@ -37,6 +37,7 @@ members = [
     "crates/samp",
     "sdk",
     "examples/chat_command_plugin",
+    "examples/gta_basic_plugin",
     "examples/dl_network_probe",
     "examples/modkit_connect_plugin",
     "examples/network_smoke_plugin",
@@ -65,6 +66,7 @@ simplelog = "0.12"
 cc = "1.4"
 
 [target.'cfg(all(windows, target_arch = "x86"))'.dependencies]
+gta-sa = { path = "crates/gta-sa" }
 gta-sa-native = { path = "crates/gta-sa-native" }
 minhook = "0.9"
 modkit-win32 = { path = "crates/modkit-win32" }

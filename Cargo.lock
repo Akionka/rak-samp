@@ -79,13 +79,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "gta-basic-plugin"
+version = "0.1.0"
+dependencies = [
+ "gta-sa",
+ "modkit-sdk",
+ "windows-sys",
+]
+
+[[package]]
 name = "gta-sa"
 version = "0.1.0-alpha.4"
+dependencies = [
+ "modkit-abi",
+ "modkit-sdk",
+]
 
 [[package]]
 name = "gta-sa-native"
 version = "0.1.0-alpha.4"
 dependencies = [
+ "gta-sa",
  "log",
  "modkit-win32",
  "sha2",
@@ -243,6 +257,7 @@ name = "samp-client-sdk-host"
 version = "0.1.0-alpha.4"
 dependencies = [
  "cc",
+ "gta-sa",
  "gta-sa-native",
  "log",
  "minhook",

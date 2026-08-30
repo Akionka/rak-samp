@@ -4,9 +4,8 @@
 //! live in the GTA profile. SA-MP backends call through this wrapper instead of
 //! holding their own GTA absolute addresses.
 
-use crate::profile::AbsoluteAddress;
-use modkit_win32::readable_range;
-use std::{ffi::c_void, mem};
+use crate::{call::NativeCallTarget, profile::AbsoluteAddress};
+use std::ffi::c_void;
 
 /// Calling convention of the selected `CPools` reference getter.
 ///
@@ -17,9 +16,6 @@ pub enum CpoolRefAbi {
     R1,
     Classic,
 }
-
-type R1CpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
-type ClassicCpoolRefFn = unsafe extern "cdecl" fn(*mut c_void) -> i32;
 
 /// Failure to invoke a verified `CPools` reference getter.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -41,21 +37,11 @@ pub unsafe fn cpool_ref(
     abi: CpoolRefAbi,
     game_object: *mut c_void,
 ) -> Result<Option<i32>, CpoolRefError> {
-    let address = target.get();
-    if !readable_range(address as *const u8, 1) {
-        return Err(CpoolRefError);
-    }
-    let handle = unsafe {
-        match abi {
-            CpoolRefAbi::R1 => {
-                let function: R1CpoolRefFn = mem::transmute(address);
-                function(game_object)
-            }
-            CpoolRefAbi::Classic => {
-                let function: ClassicCpoolRefFn = mem::transmute(address);
-                function(game_object)
-            }
-        }
+    let function = NativeCallTarget::resolve(target).map_err(|_| CpoolRefError)?;
+    let handle = match abi {
+        CpoolRefAbi::R1 | CpoolRefAbi::Classic => unsafe {
+            function.call_cdecl_ptr_to_i32(game_object)
+        },
     };
     Ok((handle != 0).then_some(handle))
 }

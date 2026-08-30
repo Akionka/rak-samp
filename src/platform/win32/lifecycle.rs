@@ -48,8 +48,10 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
             version,
             addresses,
             native_client_profile: selected_profile,
+            gta_profile,
         },
         game_tick: GameTickRuntime::new(gta_profile),
+        game_scope: modkit_runtime::GameThreadScope::new(),
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),
@@ -71,6 +73,7 @@ pub(crate) fn attach(registry: Arc<Registry>) -> Result<Backend, AttachError> {
         string_codec: Mutex::new(()),
         pending_game_tick: Mutex::new(None),
         game_commands: CommandQueue::new(),
+        gta_snapshot_results: Mutex::new(HashMap::new()),
         auto_text_label_creates: Mutex::new(HashMap::new()),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),
@@ -374,6 +377,7 @@ impl BackendState {
             )
         };
         drop(vtable);
+        self.game_scope.shutdown();
         if let Err(error) = self.game_tick.shutdown() {
             log::warn!(
                 "failed to remove CGame::Process hook safely; retaining pass-through runtime: {error:?}"

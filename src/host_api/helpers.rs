@@ -82,6 +82,7 @@ pub(super) fn host() -> &'static HostState {
         shutting_down: AtomicBool::new(false),
         runtime: OnceLock::new(),
         chat_commands: super::chat_commands::ChatCommandRegistry::new(),
+        gta_ticks: super::gta::GtaTickRegistry::new(),
         subscriptions: Mutex::new(HashMap::new()),
         deferred_reclamation: super::reclamation::new_queue(),
         next_subscription: AtomicU64::new(1),

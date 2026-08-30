@@ -11,6 +11,7 @@ repository = "https://github.com/Akionka/samp-client-sdk"
 name = "gta_sa_native"
 
 [dependencies]
+gta-sa = { version = "=0.1.0-alpha.4", path = "../gta-sa" }
 log = "0.4"
 modkit-win32 = { version = "=0.1.0-alpha.4", path = "../modkit-win32" }
 sha2 = "0.10"

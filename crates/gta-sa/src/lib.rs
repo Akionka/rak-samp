@@ -6,6 +6,17 @@
 //! backend. SA-MP pool IDs and SA-MP-to-GTA mappings live in the `samp` facade,
 //! not here.
 
+mod facade;
+mod math;
+mod snapshot;
+
+pub use facade::{
+    CommandReceipt, Error, Gta, HostGtaSaExt, Player, QueuedPlayer, SnapshotReceipt, TickContext,
+    TickSubscription,
+};
+pub use math::{Matrix, Vector2, Vector3};
+pub use snapshot::{EntitySnapshot, PedSnapshot};
+
 use core::num::NonZeroI32;
 
 /// A typed non-null GTA SA object handle (GTAREF).

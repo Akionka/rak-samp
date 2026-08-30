@@ -10,10 +10,13 @@ pub(super) fn test_backend_state() -> BackendState {
             version: SampVersion::R1,
             addresses: AddressSet::for_version(SampVersion::R1),
             native_client_profile: None,
+            gta_profile: GtaProfile::select(0x0040_0000, gta_sa_native::GTA_SA_10_US_SHA256)
+                .unwrap(),
         },
         game_tick: GameTickRuntime::new(
             GtaProfile::select(0x0040_0000, gta_sa_native::GTA_SA_10_US_SHA256).unwrap(),
         ),
+        game_scope: GameThreadScope::new(),
         rak_client: AtomicUsize::new(0),
         raw_player_pool: AtomicUsize::new(0),
         raw_vehicle_pool: AtomicUsize::new(0),
@@ -35,6 +38,7 @@ pub(super) fn test_backend_state() -> BackendState {
         string_codec: Mutex::new(()),
         pending_game_tick: Mutex::new(None),
         game_commands: CommandQueue::new(),
+        gta_snapshot_results: Mutex::new(HashMap::new()),
         auto_text_label_creates: Mutex::new(HashMap::new()),
         local_player_snapshot: Mutex::new(None),
         local_player_candidate: Mutex::new(None),

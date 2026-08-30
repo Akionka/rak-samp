@@ -422,6 +422,39 @@ impl Runtime {
         self.backend.submit_player_colour(id, colour)
     }
 
+    pub(crate) fn gta_local_ped_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<Option<gta_sa::PedSnapshot>, DirectClientError> {
+        self.backend.gta_local_ped_snapshot(token)
+    }
+
+    pub(crate) fn gta_teleport_local_ped(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        destination: gta_sa::Vector3,
+    ) -> Result<(), DirectClientError> {
+        self.backend.gta_teleport_local_ped(token, destination)
+    }
+
+    pub(crate) fn submit_gta_local_ped_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_local_ped_snapshot()
+    }
+
+    pub(crate) fn take_gta_local_ped_snapshot(
+        &self,
+        id: CommandId,
+    ) -> Option<Option<gta_sa::PedSnapshot>> {
+        self.backend.take_gta_local_ped_snapshot(id)
+    }
+
+    pub(crate) fn submit_gta_teleport_local_ped(
+        &self,
+        destination: gta_sa::Vector3,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_teleport_local_ped(destination)
+    }
+
     pub(crate) fn try_take_command(
         &self,
         id: CommandId,

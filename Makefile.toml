@@ -55,7 +55,7 @@ args = [
 ]
 
 [tasks.package-published]
-description = "Package and verify both published crates"
+description = "Package and verify published crates"
 command = "powershell"
 args = [
     "-NoProfile",

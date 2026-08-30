@@ -7,6 +7,7 @@ mod conversions;
 mod dialog;
 mod environment;
 mod events;
+pub(crate) mod gta;
 mod handles;
 mod helpers;
 mod listeners;
@@ -76,6 +77,7 @@ struct HostState {
     shutting_down: AtomicBool,
     runtime: OnceLock<Arc<Runtime>>,
     chat_commands: chat_commands::ChatCommandRegistry,
+    gta_ticks: gta::GtaTickRegistry,
     subscriptions: Mutex<HashMap<u64, listeners::SubscriptionEntry>>,
     deferred_reclamation: modkit_runtime::DeferredReclamation,
     next_subscription: AtomicU64,

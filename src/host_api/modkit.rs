@@ -9,10 +9,11 @@ use super::{clone_initialized, host, unregister};
 use crate::command::CommandError;
 use log::{debug, error, info, warn};
 use modkit_abi::{
-    CommandCompletionV1, CommandReceiptId, CoreServiceV1, HostStatusV1, LegacySampServiceV1,
-    MOD_BUFFER_TOO_SMALL, MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND,
-    MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
-    SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE,
+    CommandCompletionV1, CommandReceiptId, CoreServiceV1, GTA_SA_SERVICE_VERSION_V1,
+    GtaSaServiceV1, HostStatusV1, LegacySampServiceV1, MOD_BUFFER_TOO_SMALL,
+    MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND, MOD_NOT_READY, MOD_OK,
+    MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
+    SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
     SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, SampLocalPlayerV1,
     SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampServerInfoV1,
     SampServiceV1, SampVector3V1, ServiceHeader, SubscriptionId,
@@ -51,6 +52,21 @@ static CORE_SERVICE_V1: CoreServiceV1 = CoreServiceV1 {
     receipt_wait: core_receipt_wait,
     receipt_release: core_receipt_release,
     log_utf8: core_log_utf8,
+};
+
+static GTA_SA_SERVICE_V1: GtaSaServiceV1 = GtaSaServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_GTA_SA,
+        version: GTA_SA_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<GtaSaServiceV1>() as u32,
+        reserved: 0,
+    },
+    register_tick: super::gta::register_tick,
+    local_ped_snapshot: super::gta::local_ped_snapshot,
+    teleport_local_ped: super::gta::teleport_local_ped,
+    submit_local_ped_snapshot: super::gta::submit_local_ped_snapshot,
+    take_local_ped_snapshot: super::gta::take_local_ped_snapshot,
+    submit_teleport_local_ped: super::gta::submit_teleport_local_ped,
 };
 
 static SAMP_NET_SERVICE_V1: SampNetServiceV1 = SampNetServiceV1 {
@@ -150,6 +166,13 @@ unsafe extern "system" fn query_service(
                 return MOD_UNSUPPORTED_VERSION;
             }
             unsafe { out_service.write((&CORE_SERVICE_V1 as *const CoreServiceV1).cast()) };
+            MOD_OK
+        }
+        SERVICE_ID_GTA_SA => {
+            if requested_version != GTA_SA_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe { out_service.write((&GTA_SA_SERVICE_V1 as *const GtaSaServiceV1).cast()) };
             MOD_OK
         }
         SERVICE_ID_LEGACY_SAMP_ABI => {
@@ -764,6 +787,7 @@ fn command_error_result(error: CommandError) -> ModResult {
 /// Marks the host as shutting down so discovery and new operations fail closed.
 pub(crate) fn begin_shutdown() {
     host().shutting_down.store(true, Ordering::Release);
+    super::gta::shutdown();
 }
 
 #[cfg(test)]

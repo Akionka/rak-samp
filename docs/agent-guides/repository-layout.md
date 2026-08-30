@@ -12,10 +12,10 @@
 | Typed RPC and packet helpers | `sdk/src/events/` |
 | Platform-independent protocol and bitstreams | `crates/samp-protocol/` |
 | Windows x86 implementation primitives | `crates/modkit-win32/` |
-| GTA SA profile and game-process runtime | `crates/gta-sa-native/` |
-| GTA SA value types and handles | `crates/gta-sa/` |
+| GTA SA profile, verified native layouts/calls, local-ped reads, and game-process runtime | `crates/gta-sa-native/` |
+| GTA SA pointer-free math, snapshots, and typed handles | `crates/gta-sa/` |
 | Minimal and chat-command plugins | `examples/` |
-| Independent ABI layout oracle | `tests/fixtures/raknet_layout.cpp` |
+| Independent ABI layout oracles | `tests/fixtures/raknet_layout.cpp`, `tests/fixtures/gta_sa_layout.cpp` |
 
 Only the host links the native hook backend. Independently loaded ASI plugins
 depend on the public SDK.

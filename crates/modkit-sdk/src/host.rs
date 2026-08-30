@@ -1,12 +1,14 @@
 //! Safe wrappers over the modkit host bootstrap and service tables.
 
 use modkit_abi::{
-    CommandCompletionV1, CommandReceiptId, CoreServiceV1, HostStatusV1, LegacySampServiceV1,
-    ModHostApiV1, ModResult, SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE,
-    SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK,
-    SampChatCommandCallbackV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
-    SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampReleaseCallbackV1,
-    SampServerInfoV1, SampServiceV1, ServiceHeader, ServiceId, SubscriptionId,
+    CommandCompletionV1, CommandReceiptId, CoreServiceV1, GTA_SA_SERVICE_VERSION_V1,
+    GtaPedSnapshotV1, GtaReleaseCallbackV1, GtaSaServiceV1, GtaTickCallbackV1, GtaVector3V1,
+    HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult, SAMP_NET_SERVICE_VERSION_V1,
+    SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_LEGACY_SAMP_ABI,
+    SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, SampChatCommandCallbackV1, SampLocalPlayerV1,
+    SampNetEventCallbackV1, SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1,
+    SampPlayerInfoV1, SampReleaseCallbackV1, SampServerInfoV1, SampServiceV1, ServiceHeader,
+    ServiceId, SubscriptionId,
 };
 use std::ffi::c_void;
 use std::time::Duration;
@@ -151,6 +153,14 @@ impl Host {
             _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
         }
     }
+
+    /// Returns the GTA San Andreas service v1.
+    pub fn gta_sa_service(self) -> Result<GtaSaService, ServiceError> {
+        match self.query_service(SERVICE_ID_GTA_SA, GTA_SA_SERVICE_VERSION_V1)? {
+            Service::GtaSa(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
 }
 
 /// A resolved service table.
@@ -158,6 +168,8 @@ impl Host {
 pub enum Service {
     /// The Core service v1.
     Core(Core),
+    /// The GTA San Andreas service v1.
+    GtaSa(GtaSaService),
     /// The migration-only Legacy SA-MP service v1.
     LegacySamp(LegacySamp),
     /// The general SA-MP service v1.
@@ -186,6 +198,20 @@ impl Service {
                         .as_ref()
                 };
                 table.map(|core| Service::Core(Core { core }))
+            }
+            SERVICE_ID_GTA_SA
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<GtaSaServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<GtaSaServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::GtaSa(GtaSaService { table }))
             }
             SERVICE_ID_LEGACY_SAMP_ABI
                 if header.matches(
@@ -257,6 +283,12 @@ pub struct Core {
     core: &'static CoreServiceV1,
 }
 
+/// Validated low-level view of the GTA San Andreas service v1.
+#[derive(Clone, Copy)]
+pub struct GtaSaService {
+    table: &'static GtaSaServiceV1,
+}
+
 /// Safe availability view of the migration-only Legacy SA-MP service v1.
 #[derive(Clone, Copy)]
 pub struct LegacySamp {
@@ -273,6 +305,77 @@ pub struct SampService {
 #[derive(Clone, Copy)]
 pub struct SampNetService {
     table: &'static SampNetServiceV1,
+}
+
+impl GtaSaService {
+    /// Registers one raw GTA tick callback.
+    ///
+    /// # Safety
+    ///
+    /// `user_data` must remain valid until `release` runs. `callback` and
+    /// `release` must remain loaded for the same interval and must not unwind
+    /// across the ABI boundary.
+    pub unsafe fn register_tick(
+        self,
+        callback: GtaTickCallbackV1,
+        user_data: *mut c_void,
+        release: GtaReleaseCallbackV1,
+    ) -> Result<SubscriptionId, ModResult> {
+        let mut out = SubscriptionId(0);
+        let result = unsafe {
+            (self.table.register_tick)(Some(callback), user_data, Some(release), &mut out)
+        };
+        result_with_out(result, out)
+    }
+
+    pub fn local_ped_snapshot(
+        self,
+        context: &crate::GameContext<'_>,
+    ) -> Result<GtaPedSnapshotV1, ModResult> {
+        let mut out = GtaPedSnapshotV1::default();
+        result_with_out(
+            unsafe { (self.table.local_ped_snapshot)(context.token(), &mut out) },
+            out,
+        )
+    }
+
+    pub fn teleport_local_ped(
+        self,
+        context: &crate::GameContext<'_>,
+        destination: GtaVector3V1,
+    ) -> Result<(), ModResult> {
+        result_unit(unsafe { (self.table.teleport_local_ped)(context.token(), destination) })
+    }
+
+    pub fn submit_local_ped_snapshot(self) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_local_ped_snapshot)(&mut out) },
+            out,
+        )
+    }
+
+    pub fn take_local_ped_snapshot(
+        self,
+        receipt: CommandReceiptId,
+    ) -> Result<GtaPedSnapshotV1, ModResult> {
+        let mut out = GtaPedSnapshotV1::default();
+        result_with_out(
+            unsafe { (self.table.take_local_ped_snapshot)(receipt, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_teleport_local_ped(
+        self,
+        destination: GtaVector3V1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_teleport_local_ped)(destination, &mut out) },
+            out,
+        )
+    }
 }
 
 impl SampService {

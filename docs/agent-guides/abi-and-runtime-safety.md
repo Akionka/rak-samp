@@ -3,6 +3,12 @@
 - The native bridge supports verified SA-MP 0.3.7 R1, R3-1, R5-1, and DL-R1
   profiles on GTA SA 1.0 US. Select the exact recognized build before using
   its approved fixed offsets.
+- Add GTA symbols, offsets, sizes, and vtable slots only to the exact-build
+  `gta-sa-native` profile with Grade A/B `NativeEvidence`. Keep lower-grade or
+  contradictory facts in `docs/gta-sa-profile-unverified-values.md`.
+- Run the opt-in `gta_sa_layout.cpp` oracle against the exact pinned plugin-sdk
+  revision before changing GTA native layouts. A layout pass does not verify a
+  method address or execution phase.
 - Start bootstrap and native initialization on a worker outside `DllMain`;
   `DllMain` must return without doing that work.
 - Keep the plugin ABI C-compatible and versioned. During ALPHA, the contract
