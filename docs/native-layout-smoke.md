@@ -429,3 +429,62 @@ Pinned artifact: `sa-mp-0.3.DL-R1-install.exe` → `samp.dll`, SHA-256
   do not reuse a non-DL layout merely because a field name matches.
 - [x] Disconnect and reconnect in game; cover hook restoration and owned-slot
   teardown with the host lifecycle tests because the ASI loader exits with GTA.
+
+## GTA SA Phase 10 common gameplay
+
+Pinned executable: GTA SA 1.0 US, SHA-256
+`A559AA772FD136379155EFA71F00C47AAD34BBFEAE6196B0FE1047D0645CBD26`.
+Record the Host commit and restore every mutation before ending a run.
+
+### Pools and vehicle snapshots
+
+- [ ] In one validated post-`CGame::Process` callback, resolve known live ped,
+  vehicle, and object handles and confirm each typed pool reports `true`.
+- [ ] Submit the same three existence reads from a worker thread and confirm
+  their receipts report the same values on the next accepted tick.
+- [ ] Read one live vehicle directly and through a queued receipt; compare its
+  copied position and health with visible game state.
+- [ ] Despawn the observed vehicle/object through ordinary game behavior, then
+  confirm their stale handles report `false` and the vehicle snapshot reports
+  `Ok(None)` without a native read failure.
+- [ ] Confirm invalid zero/negative raw handles are rejected before native
+  access and that no native pointer appears in plugin output.
+
+### `CWorld`
+
+- [ ] Run a read-only world query backed by exact-binary evidence.
+- [ ] Exercise each published world mutation in isolation and restore state.
+
+### `CStreaming`
+
+- [ ] Request one unloaded model, wait without blocking the game thread, and
+  confirm it becomes usable only after the verified load completion condition.
+- [ ] Release the same model and confirm Host accounting cannot underflow or
+  release another owner's request.
+
+### Timer
+
+- [ ] Compare copied frame time against a measured frame interval and record
+  units, pause behavior, and first-frame readiness.
+
+### Camera
+
+- [x] Pair a queued timer frame with the direct tick callback and confirm direct
+  and queued owned camera snapshots are finite and bitwise identical.
+- [ ] Compare a copied camera snapshot with visible position/orientation.
+- [ ] Exercise each published control and restore the previous camera mode.
+
+### Vehicle creation
+
+- [ ] Load a model, create one vehicle, obtain a positive pool handle, validate
+  its snapshot, add it to the world, and restore model ownership on success.
+- [ ] Force every documented failure point and confirm partial native state is
+  rolled back without leaving a live pool/world object.
+
+### Vehicle destruction
+
+- [ ] Revalidate the live handle immediately before destruction, remove the
+  entity through the verified ownership sequence, and confirm the stale handle
+  no longer resolves.
+- [ ] Repeat the request with the stale handle and confirm the documented
+  absent result without a second destructor call.

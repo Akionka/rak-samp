@@ -1,7 +1,8 @@
 //! Verified local-ped resolution and copied snapshot reads.
 
 use crate::{
-    CpoolRefAbi, GtaProfile, NativeCallTarget, RawMatrix, RawVector3, cpool_ref,
+    CpoolRefAbi, GtaProfile, NativeCallTarget, RawVector3, cpool_ref,
+    layout::{EntityReadError, read_entity_position},
     profile::{EntityLayoutSpec, PedLayoutSpec},
 };
 use gta_sa::{EntitySnapshot, PedHandle, PedSnapshot, Vector3};
@@ -129,33 +130,21 @@ fn read_snapshot_values(
     entity: EntityLayoutSpec,
     ped_layout: PedLayoutSpec,
 ) -> Result<(Vector3, f32, f32), PedReadError> {
-    let matrix = unsafe { ped.read_unaligned::<usize>(entity.matrix_pointer.get()) }
-        .ok_or(PedReadError::UnreadablePed)?;
-    let raw_position = if matrix == 0 {
-        unsafe { ped.read_unaligned::<RawVector3>(entity.placeable_position.get()) }
-            .ok_or(PedReadError::UnreadablePed)?
-    } else {
-        ReadableRegion::validate(matrix, core::mem::size_of::<RawMatrix>())
-            .and_then(|region| unsafe {
-                region.read_unaligned::<RawVector3>(core::mem::offset_of!(RawMatrix, position))
-            })
-            .ok_or(PedReadError::UnreadableMatrix)?
-    };
+    let position = read_entity_position(ped, entity).map_err(|error| match error {
+        EntityReadError::UnreadableEntity => PedReadError::UnreadablePed,
+        EntityReadError::UnreadableMatrix => PedReadError::UnreadableMatrix,
+    })?;
     let health = unsafe { ped.read_unaligned::<f32>(ped_layout.health.get()) }
         .ok_or(PedReadError::UnreadablePed)?;
     let armour = unsafe { ped.read_unaligned::<f32>(ped_layout.armour.get()) }
         .ok_or(PedReadError::UnreadablePed)?;
-    Ok((
-        Vector3::new(raw_position.x, raw_position.y, raw_position.z),
-        health,
-        armour,
-    ))
+    Ok((position, health, armour))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{GTA_SA_10_US_SHA256, profile::GtaProfile};
+    use crate::{GTA_SA_10_US_SHA256, RawMatrix, profile::GtaProfile};
 
     #[test]
     fn snapshot_reads_simple_transform_when_matrix_is_absent() {

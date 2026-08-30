@@ -83,15 +83,26 @@ fn query_service_returns_legacy_samp_for_exact_version() {
 }
 
 #[test]
-fn query_service_returns_gta_sa_for_exact_version() {
-    let mut out: *const ServiceHeader = ptr::null();
-    let result = unsafe { query_service(SERVICE_ID_GTA_SA, GTA_SA_SERVICE_VERSION_V1, &mut out) };
-    assert_eq!(result, MOD_OK);
-    let header = unsafe { out.as_ref() }.expect("GTA SA service is non-null");
-    assert_eq!(header.service_id, SERVICE_ID_GTA_SA);
-    assert_eq!(header.version, GTA_SA_SERVICE_VERSION_V1);
-    assert_eq!(header.size, std::mem::size_of::<GtaSaServiceV1>() as u32);
-    assert_eq!(header.reserved, 0);
+fn query_service_returns_both_gta_sa_exact_versions() {
+    for (version, size) in [
+        (
+            GTA_SA_SERVICE_VERSION_V1,
+            std::mem::size_of::<GtaSaServiceV1>() as u32,
+        ),
+        (
+            GTA_SA_SERVICE_VERSION_V2,
+            std::mem::size_of::<GtaSaServiceV2>() as u32,
+        ),
+    ] {
+        let mut out: *const ServiceHeader = ptr::null();
+        let result = unsafe { query_service(SERVICE_ID_GTA_SA, version, &mut out) };
+        assert_eq!(result, MOD_OK);
+        let header = unsafe { out.as_ref() }.expect("GTA SA service is non-null");
+        assert_eq!(header.service_id, SERVICE_ID_GTA_SA);
+        assert_eq!(header.version, version);
+        assert_eq!(header.size, size);
+        assert_eq!(header.reserved, 0);
+    }
 }
 
 #[test]

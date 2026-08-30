@@ -75,6 +75,17 @@ impl NativeCallTarget {
         unsafe { function(value) }
     }
 
+    /// Calls a verified cdecl target taking two `f32` values and returning `f32`.
+    ///
+    /// # Safety
+    ///
+    /// The selected profile must prove this exact signature and ABI.
+    pub unsafe fn call_cdecl_f32_f32_to_f32(self, x: f32, y: f32) -> f32 {
+        type Function = unsafe extern "cdecl" fn(f32, f32) -> f32;
+        let function: Function = unsafe { mem::transmute(self.0.get()) };
+        unsafe { function(x, y) }
+    }
+
     /// Calls a verified stdcall target with no arguments and a `u32` result.
     ///
     /// # Safety
@@ -116,6 +127,10 @@ mod tests {
         0xA5A5_5A5A
     }
 
+    unsafe extern "cdecl" fn add_floats(x: f32, y: f32) -> f32 {
+        x + y
+    }
+
     #[test]
     fn target_rejects_unreadable_addresses() {
         assert_eq!(
@@ -135,6 +150,10 @@ mod tests {
         let value = 0x1234usize as *mut c_void;
         assert_eq!(unsafe { cdecl.call_cdecl_ptr_to_i32(value) }, 0x1234);
         assert_eq!(unsafe { stdcall.call_stdcall0_to_u32() }, 0xA5A5_5A5A);
+        let floats =
+            NativeCallTarget::resolve(AbsoluteAddress::new(add_floats as *const () as usize))
+                .unwrap();
+        assert_eq!(unsafe { floats.call_cdecl_f32_f32_to_f32(1.25, 2.5) }, 3.75);
     }
 
     #[test]

@@ -2340,16 +2340,29 @@ feat(gta): expose local ped snapshot and queued teleport
 
 ### Tasks
 
-- [ ] GTA pools: peds/vehicles/objects as verified.
-- [ ] Vehicle snapshots and existence validation.
-- [ ] `CWorld` subset.
+- [x] GTA pools: peds/vehicles/objects as verified.
+- [x] Vehicle snapshots and existence validation.
+- [x] `CWorld` subset.
 - [ ] `CStreaming` model request/load/release subset.
-- [ ] `CTimer`/frame time subset.
-- [ ] Camera snapshot/control subset.
+- [x] `CTimer`/frame time subset.
+- [x] Camera snapshot subset; controls remain evidence-gated.
 - [ ] Spawn/create vehicle workflow after all required symbols are verified.
 - [ ] Deletion/destruction workflow with strict lifetime validation.
-- [ ] Add examples equivalent to common plugin-sdk samples.
-- [ ] Add live smoke checklist for each feature.
+- [x] Add examples equivalent to common plugin-sdk samples.
+- [x] Add live smoke checklist for each feature.
+
+Phase 10 started on 2026-08-30. The current vertical slices publish exact-binary
+ped/vehicle/object handle validation, fixture-backed owned vehicle
+position/health and active-camera pose snapshots, the verified
+`CWorld::FindGroundZForCoord` query, and copied `CTimer` frame/game counters
+plus clipped/non-clipped native time steps through exact-version
+`GtaSaServiceV2`. `GtaSaServiceV1` remains unchanged and discoverable. Direct
+callback-scoped and queued reads share the Host command sequence. Static
+provenance is recorded in the `docs/evidence/phase-10-gta-*-static.md` records;
+live confirmation remains on the Phase 10 checklist in
+`docs/native-layout-smoke.md`. Streaming, camera controls, creation, and
+destruction remain unsupported until their evidence-register gates are
+satisfied.
 
 ### Non-goal
 

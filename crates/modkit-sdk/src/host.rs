@@ -2,13 +2,14 @@
 
 use modkit_abi::{
     CommandCompletionV1, CommandReceiptId, CoreServiceV1, GTA_SA_SERVICE_VERSION_V1,
-    GtaPedSnapshotV1, GtaReleaseCallbackV1, GtaSaServiceV1, GtaTickCallbackV1, GtaVector3V1,
-    HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult, SAMP_NET_SERVICE_VERSION_V1,
-    SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_LEGACY_SAMP_ABI,
-    SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, SampChatCommandCallbackV1, SampLocalPlayerV1,
-    SampNetEventCallbackV1, SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1,
-    SampPlayerInfoV1, SampReleaseCallbackV1, SampServerInfoV1, SampServiceV1, ServiceHeader,
-    ServiceId, SubscriptionId,
+    GTA_SA_SERVICE_VERSION_V2, GtaCameraSnapshotV1, GtaPedSnapshotV1, GtaPoolKindV1,
+    GtaReleaseCallbackV1, GtaSaServiceV1, GtaSaServiceV2, GtaTickCallbackV1, GtaTimerSnapshotV1,
+    GtaVector3V1, GtaVehicleSnapshotV1, HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult,
+    SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
+    SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK,
+    SampChatCommandCallbackV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
+    SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampReleaseCallbackV1,
+    SampServerInfoV1, SampServiceV1, ServiceHeader, ServiceId, SubscriptionId,
 };
 use std::ffi::c_void;
 use std::time::Duration;
@@ -154,9 +155,9 @@ impl Host {
         }
     }
 
-    /// Returns the GTA San Andreas service v1.
+    /// Returns the latest GTA San Andreas service understood by this SDK.
     pub fn gta_sa_service(self) -> Result<GtaSaService, ServiceError> {
-        match self.query_service(SERVICE_ID_GTA_SA, GTA_SA_SERVICE_VERSION_V1)? {
+        match self.query_service(SERVICE_ID_GTA_SA, GTA_SA_SERVICE_VERSION_V2)? {
             Service::GtaSa(service) => Ok(service),
             _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
         }
@@ -199,20 +200,45 @@ impl Service {
                 };
                 table.map(|core| Service::Core(Core { core }))
             }
-            SERVICE_ID_GTA_SA
-                if header.matches(
-                    service_id,
-                    version,
-                    core::mem::size_of::<GtaSaServiceV1>() as u32,
-                ) =>
-            {
-                let table = unsafe {
-                    (header as *const ServiceHeader)
-                        .cast::<GtaSaServiceV1>()
-                        .as_ref()
-                };
-                table.map(|table| Service::GtaSa(GtaSaService { table }))
-            }
+            SERVICE_ID_GTA_SA => match version {
+                GTA_SA_SERVICE_VERSION_V1
+                    if header.matches(
+                        service_id,
+                        version,
+                        core::mem::size_of::<GtaSaServiceV1>() as u32,
+                    ) =>
+                {
+                    unsafe {
+                        (header as *const ServiceHeader)
+                            .cast::<GtaSaServiceV1>()
+                            .as_ref()
+                    }
+                    .map(|table| {
+                        Service::GtaSa(GtaSaService {
+                            table: GtaSaServiceTable::V1(table),
+                        })
+                    })
+                }
+                GTA_SA_SERVICE_VERSION_V2
+                    if header.matches(
+                        service_id,
+                        version,
+                        core::mem::size_of::<GtaSaServiceV2>() as u32,
+                    ) =>
+                {
+                    unsafe {
+                        (header as *const ServiceHeader)
+                            .cast::<GtaSaServiceV2>()
+                            .as_ref()
+                    }
+                    .map(|table| {
+                        Service::GtaSa(GtaSaService {
+                            table: GtaSaServiceTable::V2(table),
+                        })
+                    })
+                }
+                _ => None,
+            },
             SERVICE_ID_LEGACY_SAMP_ABI
                 if header.matches(
                     service_id,
@@ -283,10 +309,16 @@ pub struct Core {
     core: &'static CoreServiceV1,
 }
 
-/// Validated low-level view of the GTA San Andreas service v1.
+/// Validated low-level view of a GTA San Andreas service.
 #[derive(Clone, Copy)]
 pub struct GtaSaService {
-    table: &'static GtaSaServiceV1,
+    table: GtaSaServiceTable,
+}
+
+#[derive(Clone, Copy)]
+enum GtaSaServiceTable {
+    V1(&'static GtaSaServiceV1),
+    V2(&'static GtaSaServiceV2),
 }
 
 /// Safe availability view of the migration-only Legacy SA-MP service v1.
@@ -322,8 +354,13 @@ impl GtaSaService {
         release: GtaReleaseCallbackV1,
     ) -> Result<SubscriptionId, ModResult> {
         let mut out = SubscriptionId(0);
-        let result = unsafe {
-            (self.table.register_tick)(Some(callback), user_data, Some(release), &mut out)
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe {
+                (table.register_tick)(Some(callback), user_data, Some(release), &mut out)
+            },
+            GtaSaServiceTable::V2(table) => unsafe {
+                (table.register_tick)(Some(callback), user_data, Some(release), &mut out)
+            },
         };
         result_with_out(result, out)
     }
@@ -333,10 +370,15 @@ impl GtaSaService {
         context: &crate::GameContext<'_>,
     ) -> Result<GtaPedSnapshotV1, ModResult> {
         let mut out = GtaPedSnapshotV1::default();
-        result_with_out(
-            unsafe { (self.table.local_ped_snapshot)(context.token(), &mut out) },
-            out,
-        )
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe {
+                (table.local_ped_snapshot)(context.token(), &mut out)
+            },
+            GtaSaServiceTable::V2(table) => unsafe {
+                (table.local_ped_snapshot)(context.token(), &mut out)
+            },
+        };
+        result_with_out(result, out)
     }
 
     pub fn teleport_local_ped(
@@ -344,15 +386,24 @@ impl GtaSaService {
         context: &crate::GameContext<'_>,
         destination: GtaVector3V1,
     ) -> Result<(), ModResult> {
-        result_unit(unsafe { (self.table.teleport_local_ped)(context.token(), destination) })
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe {
+                (table.teleport_local_ped)(context.token(), destination)
+            },
+            GtaSaServiceTable::V2(table) => unsafe {
+                (table.teleport_local_ped)(context.token(), destination)
+            },
+        };
+        result_unit(result)
     }
 
     pub fn submit_local_ped_snapshot(self) -> Result<CommandReceiptId, ModResult> {
         let mut out = CommandReceiptId(0);
-        result_with_out(
-            unsafe { (self.table.submit_local_ped_snapshot)(&mut out) },
-            out,
-        )
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe { (table.submit_local_ped_snapshot)(&mut out) },
+            GtaSaServiceTable::V2(table) => unsafe { (table.submit_local_ped_snapshot)(&mut out) },
+        };
+        result_with_out(result, out)
     }
 
     pub fn take_local_ped_snapshot(
@@ -360,10 +411,15 @@ impl GtaSaService {
         receipt: CommandReceiptId,
     ) -> Result<GtaPedSnapshotV1, ModResult> {
         let mut out = GtaPedSnapshotV1::default();
-        result_with_out(
-            unsafe { (self.table.take_local_ped_snapshot)(receipt, &mut out) },
-            out,
-        )
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe {
+                (table.take_local_ped_snapshot)(receipt, &mut out)
+            },
+            GtaSaServiceTable::V2(table) => unsafe {
+                (table.take_local_ped_snapshot)(receipt, &mut out)
+            },
+        };
+        result_with_out(result, out)
     }
 
     pub fn submit_teleport_local_ped(
@@ -371,8 +427,202 @@ impl GtaSaService {
         destination: GtaVector3V1,
     ) -> Result<CommandReceiptId, ModResult> {
         let mut out = CommandReceiptId(0);
+        let result = match self.table {
+            GtaSaServiceTable::V1(table) => unsafe {
+                (table.submit_teleport_local_ped)(destination, &mut out)
+            },
+            GtaSaServiceTable::V2(table) => unsafe {
+                (table.submit_teleport_local_ped)(destination, &mut out)
+            },
+        };
+        result_with_out(result, out)
+    }
+
+    pub fn entity_exists(
+        self,
+        context: &crate::GameContext<'_>,
+        kind: GtaPoolKindV1,
+        handle: i32,
+    ) -> Result<bool, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = 0;
         result_with_out(
-            unsafe { (self.table.submit_teleport_local_ped)(destination, &mut out) },
+            unsafe { (table.entity_exists)(context.token(), kind, handle, &mut out) },
+            out != 0,
+        )
+    }
+
+    pub fn submit_entity_exists(
+        self,
+        kind: GtaPoolKindV1,
+        handle: i32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (table.submit_entity_exists)(kind, handle, &mut out) },
+            out,
+        )
+    }
+
+    pub fn take_entity_exists(self, receipt: CommandReceiptId) -> Result<bool, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = 0;
+        result_with_out(
+            unsafe { (table.take_entity_exists)(receipt, &mut out) },
+            out != 0,
+        )
+    }
+
+    pub fn vehicle_snapshot(
+        self,
+        context: &crate::GameContext<'_>,
+        handle: i32,
+    ) -> Result<GtaVehicleSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaVehicleSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.vehicle_snapshot)(context.token(), handle, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_vehicle_snapshot(self, handle: i32) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (table.submit_vehicle_snapshot)(handle, &mut out) },
+            out,
+        )
+    }
+
+    pub fn take_vehicle_snapshot(
+        self,
+        receipt: CommandReceiptId,
+    ) -> Result<GtaVehicleSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaVehicleSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.take_vehicle_snapshot)(receipt, &mut out) },
+            out,
+        )
+    }
+
+    pub fn find_ground_z(
+        self,
+        context: &crate::GameContext<'_>,
+        x: f32,
+        y: f32,
+    ) -> Result<f32, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = 0.0;
+        result_with_out(
+            unsafe { (table.find_ground_z)(context.token(), x, y, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_find_ground_z(self, x: f32, y: f32) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(unsafe { (table.submit_find_ground_z)(x, y, &mut out) }, out)
+    }
+
+    pub fn take_find_ground_z(self, receipt: CommandReceiptId) -> Result<f32, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = 0.0;
+        result_with_out(
+            unsafe { (table.take_find_ground_z)(receipt, &mut out) },
+            out,
+        )
+    }
+
+    pub fn timer_snapshot(
+        self,
+        context: &crate::GameContext<'_>,
+    ) -> Result<GtaTimerSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaTimerSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.timer_snapshot)(context.token(), &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_timer_snapshot(self) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(unsafe { (table.submit_timer_snapshot)(&mut out) }, out)
+    }
+
+    pub fn take_timer_snapshot(
+        self,
+        receipt: CommandReceiptId,
+    ) -> Result<GtaTimerSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaTimerSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.take_timer_snapshot)(receipt, &mut out) },
+            out,
+        )
+    }
+
+    pub fn camera_snapshot(
+        self,
+        context: &crate::GameContext<'_>,
+    ) -> Result<GtaCameraSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaCameraSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.camera_snapshot)(context.token(), &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_camera_snapshot(self) -> Result<CommandReceiptId, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = CommandReceiptId(0);
+        result_with_out(unsafe { (table.submit_camera_snapshot)(&mut out) }, out)
+    }
+
+    pub fn take_camera_snapshot(
+        self,
+        receipt: CommandReceiptId,
+    ) -> Result<GtaCameraSnapshotV1, ModResult> {
+        let GtaSaServiceTable::V2(table) = self.table else {
+            return Err(modkit_abi::MOD_UNSUPPORTED_VERSION);
+        };
+        let mut out = GtaCameraSnapshotV1::default();
+        result_with_out(
+            unsafe { (table.take_camera_snapshot)(receipt, &mut out) },
             out,
         )
     }
