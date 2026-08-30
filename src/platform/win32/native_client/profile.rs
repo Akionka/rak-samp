@@ -1,5 +1,3 @@
-pub(crate) use samp_native::profile::*;
-
 use crate::SampVersion;
 
 /// Transitional host binding for one `samp-native` profile.

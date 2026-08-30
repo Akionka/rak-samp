@@ -7,8 +7,8 @@ type ClassicGameSetCursorModeFn = unsafe extern "thiscall" fn(*mut c_void, i32, 
 type R1GameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
 type ClassicGameProcessInputEnablingFn = unsafe extern "thiscall" fn(*mut c_void);
 
-impl NativeClientProfile {
-    pub(crate) fn set_cursor_mode(self, mode: i32) -> Result<(), DirectClientError> {
+impl NativeProfile {
+    pub fn set_cursor_mode(self, mode: i32) -> Result<(), DirectClientError> {
         if !matches!(mode, 0..=4) {
             return Err(DirectClientError::NotReady);
         }
@@ -29,7 +29,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn toggle_cursor(self, show: bool) -> Result<(), DirectClientError> {
+    pub fn toggle_cursor(self, show: bool) -> Result<(), DirectClientError> {
         self.set_cursor_mode(if show { 3 } else { 0 })?;
         if !show {
             let game = self.game().ok_or(DirectClientError::NotReady)?;
@@ -50,7 +50,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn set_scoreboard_open(self, open: bool) -> Result<(), DirectClientError> {
+    pub fn set_scoreboard_open(self, open: bool) -> Result<(), DirectClientError> {
         let scoreboard = self.scoreboard().ok_or(DirectClientError::NotReady)?;
         unsafe {
             write_unaligned(
@@ -64,7 +64,7 @@ impl NativeClientProfile {
         }
     }
 
-    pub(crate) fn cursor_mode(self) -> Result<i32, DirectClientError> {
+    pub fn cursor_mode(self) -> Result<i32, DirectClientError> {
         let game = self.game().ok_or(DirectClientError::NotReady)?;
         let mode = unsafe {
             read_unaligned::<i32>(
@@ -79,7 +79,7 @@ impl NativeClientProfile {
             .ok_or(DirectClientError::NotReady)
     }
 
-    pub(crate) fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
+    pub fn scoreboard_is_open(self) -> Result<bool, DirectClientError> {
         let scoreboard = self.scoreboard().ok_or(DirectClientError::NotReady)?;
         read_i32_bool(
             (scoreboard as usize)

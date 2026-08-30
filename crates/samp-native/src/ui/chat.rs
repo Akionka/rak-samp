@@ -11,8 +11,8 @@ type R1DeathWindowAddMessageFn =
 type ClassicDeathWindowAddMessageFn =
     unsafe extern "thiscall" fn(*mut c_void, *const i8, *const i8, u32, u32, u8);
 
-impl NativeClientProfile {
-    pub(crate) fn show_chat_message(
+impl NativeProfile {
+    pub fn show_chat_message(
         self,
         request: LocalChatMessageRequest,
     ) -> Result<(), DirectClientError> {
@@ -54,7 +54,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn show_death_message(
+    pub fn show_death_message(
         self,
         request: LocalDeathMessageRequest,
     ) -> Result<(), DirectClientError> {
@@ -103,7 +103,7 @@ impl NativeClientProfile {
     }
 
     /// Replaces one bounded chat-history entry on the game thread.
-    pub(crate) fn set_chat_entry(
+    pub fn set_chat_entry(
         self,
         id: u16,
         text: &[u8],
@@ -171,7 +171,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn set_chat_display_mode(self, mode: i32) -> Result<(), DirectClientError> {
+    pub fn set_chat_display_mode(self, mode: i32) -> Result<(), DirectClientError> {
         if !matches!(mode, 0..=2) {
             return Err(DirectClientError::NotReady);
         }
@@ -189,7 +189,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one bounded chat-history entry from the guarded chat singleton.
-    pub(crate) fn chat_entry(self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
+    pub fn chat_entry(self, id: u16) -> Result<ChatEntrySnapshot, DirectClientError> {
         let layout = self.spec.ui.chat;
         if usize::from(id) >= layout.max_entries.get() {
             return Err(DirectClientError::NotReady);
@@ -255,7 +255,7 @@ impl NativeClientProfile {
         })
     }
 
-    pub(crate) fn chat_display_mode(self) -> Result<i32, DirectClientError> {
+    pub fn chat_display_mode(self) -> Result<i32, DirectClientError> {
         let chat = self.chat().ok_or(DirectClientError::NotReady)?;
         let mode = unsafe {
             read_unaligned::<i32>(

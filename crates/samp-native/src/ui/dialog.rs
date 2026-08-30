@@ -25,8 +25,8 @@ type ClassicDialogShowFn = unsafe extern "thiscall" fn(
 type R1DialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 type ClassicDialogCloseFn = unsafe extern "thiscall" fn(*mut c_void, u8);
 
-impl NativeClientProfile {
-    pub(crate) fn dialog_response_on_close(
+impl NativeProfile {
+    pub fn dialog_response_on_close(
         self,
         dialog: *mut c_void,
         button: u8,
@@ -91,7 +91,7 @@ impl NativeClientProfile {
         }))
     }
 
-    pub(crate) fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
+    pub fn set_dialog_editbox_text(self, text: &[u8]) -> Result<(), DirectClientError> {
         let layout = self.spec.ui.dialog;
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         let editbox = unsafe {
@@ -110,7 +110,7 @@ impl NativeClientProfile {
         )
     }
 
-    pub(crate) fn show_dialog(self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
+    pub fn show_dialog(self, request: LocalDialogRequest) -> Result<(), DirectClientError> {
         if request.title.contains(&0)
             || request.text.contains(&0)
             || request.button1.contains(&0)
@@ -161,7 +161,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn close_dialog(self, button: u8) -> Result<(), DirectClientError> {
+    pub fn close_dialog(self, button: u8) -> Result<(), DirectClientError> {
         if button > 1 {
             return Err(DirectClientError::NotReady);
         }
@@ -182,7 +182,7 @@ impl NativeClientProfile {
         Ok(())
     }
 
-    pub(crate) fn set_dialog_client_side(self, client_side: bool) -> Result<(), DirectClientError> {
+    pub fn set_dialog_client_side(self, client_side: bool) -> Result<(), DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         unsafe {
             write_unaligned(
@@ -196,7 +196,7 @@ impl NativeClientProfile {
         }
     }
 
-    pub(crate) fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
+    pub fn set_dialog_selected_item(self, selected: i32) -> Result<(), DirectClientError> {
         let layout = self.spec.ui.dialog;
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         let listbox = unsafe {
@@ -220,7 +220,7 @@ impl NativeClientProfile {
         }
     }
 
-    pub(crate) fn dialog_is_active(self) -> Result<bool, DirectClientError> {
+    pub fn dialog_is_active(self) -> Result<bool, DirectClientError> {
         let dialog = self.dialog().ok_or(DirectClientError::NotReady)?;
         read_i32_bool(
             (dialog as usize)
@@ -230,7 +230,7 @@ impl NativeClientProfile {
     }
 
     /// Copies bounded metadata and dynamic text from the active dialog.
-    pub(crate) fn dialog_state(self) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
+    pub fn dialog_state(self) -> Result<Option<LocalDialogSnapshot>, DirectClientError> {
         let layout = self.spec.ui.dialog;
         let required = layout
             .server_side_offset

@@ -46,6 +46,9 @@ pub mod memory;
 mod players;
 mod pools;
 mod singletons;
+mod text_labels;
+mod textdraws;
+mod ui;
 
 mod error;
 mod requests;

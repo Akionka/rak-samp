@@ -77,10 +77,10 @@
   fixed native addresses and no direct memory dereferences. SA-MP facades
   re-export these types and perform the SA-MP-to-GTA mappings.
 - `crates/samp-native/` owns direct-client profile data, guarded SA-MP memory
-  helpers, singleton and connection access, pool and GTA-handle mapping, and
-  player/synchronization operations for R1, R3-1, R5-1, and DL-R1. The root
-  host keeps a thin dereferencing profile wrapper only while Phase 8 moves the
-  remaining UI and RakClient hook batches into this host-only backend crate.
+  helpers, singleton and connection access, pool and GTA-handle mapping,
+  player/synchronization operations, and UI/text-label/textdraw native
+  operations for R1, R3-1, R5-1, and DL-R1. Only the RakClient and cache
+  ownership batches remain in the root Windows backend during Phase 8.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control. The transitional root backend consumes one
@@ -160,9 +160,9 @@ dedicated child modules. One version-selected profile from
 `crates/samp-native/` gates every direct bridge. Four equal profile
 specifications contain explicit per-version RVAs, layouts, and narrow
 strategies for R1, R3-1, R5-1, and DL-R1. `samp-native` also owns singleton,
-connection, pool, GTA-handle mapping, player, and synchronization operations.
-The remaining root `native_client/` modules own UI, text-label, and textdraw
-operations until their Phase 8 extraction.
+connection, pool, GTA-handle mapping, player/synchronization, UI, text-label,
+and textdraw operations. Root host composition retains cache scheduling,
+RakClient hooks, service tables, and listener dispatch.
 
 The Host API root retains
 its export and ordered ABI
