@@ -3,7 +3,7 @@
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp-service-network-plugin supports only 32-bit Windows x86 targets");
 
-use samp::{Samp, Subscription, events::ProtocolAction};
+use samp::{ChatStyle, Samp, Subscription, events::ProtocolAction};
 use samp_protocol::rpc::outgoing::chat::SendChat;
 use std::{
     ffi::c_void,
@@ -25,6 +25,7 @@ use windows_sys::core::BOOL;
 static STATE: Mutex<PluginState> = Mutex::new(PluginState::new());
 static INITIALIZATION_FINISHED: Condvar = Condvar::new();
 static OBSERVED_CHAT_COUNT: AtomicU32 = AtomicU32::new(0);
+const OBSERVED_MESSAGE: &[u8] = b"Phase 7 SampNetServiceV1 typed RPC path works";
 
 struct PluginState {
     subscription: Option<Subscription>,
@@ -95,8 +96,11 @@ fn initialize() {
     let Some(samp) = connect() else {
         return;
     };
-    let subscription = match samp.net().on_outgoing_typed_rpc(SendChat, |_| {
+    let subscription = match samp.net().on_outgoing_typed_rpc(SendChat, move |_| {
         OBSERVED_CHAT_COUNT.fetch_add(1, Ordering::Relaxed);
+        let _receipt = samp
+            .chat()
+            .add(ChatStyle::Info, OBSERVED_MESSAGE, b"", 0xFFFF_FFFF, 0);
         ProtocolAction::Continue
     }) {
         Ok(subscription) => subscription,
