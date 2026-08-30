@@ -9,6 +9,7 @@ mod reads;
 mod requests;
 mod snapshots;
 
+pub(crate) use commands::GtaEntityHandle;
 pub use errors::{AttachError, SendError};
 pub(crate) use errors::{CodecError, DirectClientError};
 pub use options::{PacketPriority, PacketReliability, SendOptions};

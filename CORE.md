@@ -42,8 +42,9 @@
   its numeric constants, fixed-width `ServiceId`/`SubscriptionId`/
   `CommandReceiptId`, opaque game-context token and execution constraints,
   `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`,
-  `GtaSaServiceV1`, the small `SampServiceV1` and `SampNetServiceV1` tables,
-  and the migration-only `LegacySampServiceV1` wrapper.
+  immutable `GtaSaServiceV1`, pool-aware `GtaSaServiceV2`, the small
+  `SampServiceV1` and `SampNetServiceV1` tables, and the migration-only
+  `LegacySampServiceV1` wrapper.
   It has no Windows, MinHook, GTA, or SA-MP native dependency.
 - `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
   resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
@@ -65,14 +66,16 @@
 - `crates/gta-sa-native/` owns the GTA-native implementation: the exact
   SHA-256 and image-base gated GTA SA 1.0 US profile; evidence-bearing typed
   symbol, RVA, field, size, and vtable specifications; guarded typed x86 call
-  helpers; fixture-backed native matrix/entity/ped layouts; local-ped
-  handle/snapshot reads; verified virtual ped teleport; the `CGame::Process`
-  tick hook lifecycle; and `CPools` targets. The SA-MP backend remains a tick
-  participant and uses the GTA `cpool_ref` wrapper.
+  helpers; fixture-backed native matrix/entity/ped/vehicle/object layouts;
+  exact-binary ped, vehicle, and object pool handle validation; copied local-ped,
+  vehicle, and `CTimer` snapshots; the verified
+  `CWorld::FindGroundZForCoord` query; verified virtual ped teleport; the
+  `CGame::Process` tick hook lifecycle; and `CPools` reference targets. The
+  SA-MP backend remains a tick participant and uses the GTA `cpool_ref` wrapper.
 - `crates/gta-sa/` owns pointer-free math, positive typed GTA handles, owned
-  snapshots, callback-scoped `Gta`/`Player` access, and Core-backed queued
-  snapshot/teleport receipts. It contains no fixed native addresses, native
-  memory references, or public native pointers.
+  ped, vehicle, and timer snapshots, callback-scoped/queued pool, world, and
+  timer reads, and Core-backed snapshot/teleport receipts. It contains no fixed
+  native addresses, native memory references, or public native pointers.
 - `crates/samp-native/` owns direct-client profiles, guarded SA-MP operations,
   backend request/snapshot values, and RakClient hook installation, detour entry
   points, captured-original metadata, and deterministic vtable restoration for

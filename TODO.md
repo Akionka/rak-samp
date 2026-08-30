@@ -1,7 +1,7 @@
 # Repositioning TODO
 
 Status: complete for the original repositioning. Architecture work through
-Phase 8 is complete; Phase 9 GTA knowledge port is in progress in the
+Phase 9 is complete; Phase 10 GTA common gameplay expansion is active in the
 [Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
@@ -77,6 +77,21 @@ world sectors through both direct and queued paths and restored the original
 position. See [Phase 9 native evidence](docs/evidence/phase-9-gta-native-foundations.md),
 [teleport evidence](docs/evidence/phase-9-gta-teleport-static.md), and the
 [GTA unverified-values register](docs/gta-sa-profile-unverified-values.md).
+
+### Phase 10 — expand GTA common gameplay
+
+In progress. The current vertical slices publish exact-binary ped, vehicle, and
+object handle validation, fixture-backed owned vehicle position/health
+snapshots, the verified `CWorld::FindGroundZForCoord` query, and copied
+`CTimer` frame/game counters plus clipped/non-clipped native time steps through
+`GtaSaServiceV2`. Direct callback-scoped and queued reads share the Host command
+sequence. `GtaSaServiceV1` remains immutable and discoverable. See
+[pool evidence](docs/evidence/phase-10-gta-pools-static.md),
+[world evidence](docs/evidence/phase-10-gta-world-static.md),
+[timer evidence](docs/evidence/phase-10-gta-timer-static.md), and the
+[live smoke checklist](docs/native-layout-smoke.md#gta-sa-phase-10-common-gameplay).
+Streaming, camera, vehicle creation, and destruction remain unsupported until
+the evidence register requirements are met.
 
 ### Structural split tracker
 

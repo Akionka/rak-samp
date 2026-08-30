@@ -8,9 +8,12 @@
 
 #include <cstddef>
 #include "CEntity.h"
+#include "CObject.h"
 #include "CMatrix.h"
+#include "CPools.h"
 #include "CPed.h"
 #include "CPlaceable.h"
+#include "CVehicle.h"
 #include "CVector.h"
 #include "CVector2D.h"
 
@@ -31,6 +34,14 @@ static_assert(sizeof(CEntity) == 0x38);
 static_assert(sizeof(CPed) == 0x79C);
 static_assert(offsetof(CPed, m_fHealth) == 0x540);
 static_assert(offsetof(CPed, m_fArmour) == 0x548);
+static_assert(sizeof(CVehicle) == 0x5A0);
+static_assert(offsetof(CVehicle, m_fHealth) == 0x4C0);
+static_assert(sizeof(CObject) == 0x17C);
+using PedPool = CPool<CPed, CCopPed>;
+static_assert(sizeof(PedPool) == 0x14);
+static_assert(offsetof(PedPool, m_pObjects) == 0x00);
+static_assert(offsetof(PedPool, m_byteMap) == 0x04);
+static_assert(offsetof(PedPool, m_nSize) == 0x08);
 
 extern "C" std::size_t gta_sa_fixture_vector2_size() { return sizeof(CVector2D); }
 extern "C" std::size_t gta_sa_fixture_vector3_size() { return sizeof(CVector); }
@@ -48,6 +59,13 @@ extern "C" std::size_t gta_sa_fixture_entity_size() { return sizeof(CEntity); }
 extern "C" std::size_t gta_sa_fixture_ped_size() { return sizeof(CPed); }
 extern "C" std::size_t gta_sa_fixture_ped_health_offset() { return offsetof(CPed, m_fHealth); }
 extern "C" std::size_t gta_sa_fixture_ped_armour_offset() { return offsetof(CPed, m_fArmour); }
+extern "C" std::size_t gta_sa_fixture_vehicle_size() { return sizeof(CVehicle); }
+extern "C" std::size_t gta_sa_fixture_vehicle_health_offset() { return offsetof(CVehicle, m_fHealth); }
+extern "C" std::size_t gta_sa_fixture_object_size() { return sizeof(CObject); }
+extern "C" std::size_t gta_sa_fixture_pool_size() { return sizeof(PedPool); }
+extern "C" std::size_t gta_sa_fixture_pool_objects_offset() { return offsetof(PedPool, m_pObjects); }
+extern "C" std::size_t gta_sa_fixture_pool_flags_offset() { return offsetof(PedPool, m_byteMap); }
+extern "C" std::size_t gta_sa_fixture_pool_capacity_offset() { return offsetof(PedPool, m_nSize); }
 
 extern "C" void gta_sa_fixture_invoke_teleport(
     void* target,

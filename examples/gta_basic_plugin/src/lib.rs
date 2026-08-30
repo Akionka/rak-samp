@@ -55,7 +55,18 @@ fn initialize() {
         match context.player() {
             Ok(player) => {
                 let snapshot = player.snapshot()?;
-                let _ = (player.position(), snapshot.health);
+                let position = player.position();
+                let exists = context.peds().exists(snapshot.handle)?;
+                let ground_z = context.world().ground_z(position.x, position.y)?;
+                let timer = context.timer().snapshot()?;
+                let _ = (
+                    position,
+                    snapshot.health,
+                    exists,
+                    ground_z,
+                    timer.frame_counter,
+                    timer.time_step,
+                );
             }
             Err(Error::NoLocalPed) => {}
             Err(error) => return Err(error),

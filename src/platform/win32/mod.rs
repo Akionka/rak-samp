@@ -7,7 +7,7 @@ mod backend;
 mod cache_lifecycle;
 mod chat_entries;
 mod commands;
-use commands::GameCommand;
+use commands::{GameCommand, GtaReadResult};
 #[cfg(test)]
 use commands::{NetworkCommand, TextLabelCommand, UiCommand};
 mod gangzones;
@@ -50,11 +50,12 @@ use crate::{
     event::Registry,
     runtime::{
         AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, ClientHookStatus, CodecError,
-        DirectClientError, GangzoneSnapshot, InCarSyncSnapshot, LocalChatMessageRequest,
-        LocalDeathMessageRequest, LocalDialogRequest, LocalDialogResponseSnapshot,
-        LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot, PacketPriority,
-        PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
-        ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+        DirectClientError, GangzoneSnapshot, GtaEntityHandle, InCarSyncSnapshot,
+        LocalChatMessageRequest, LocalDeathMessageRequest, LocalDialogRequest,
+        LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
+        PacketPriority, PacketReliability, PassengerSyncSnapshot, PlayerInfoSnapshot,
+        RemotePlayerStateSnapshot, ServerInfoSnapshot, TextLabelSnapshot, TextdrawSnapshot,
+        TrailerSyncSnapshot, Vector3,
     },
 };
 use gta_sa_native::{GameTickParticipant, GameTickRuntime, GtaProfile};
@@ -231,7 +232,7 @@ struct BackendState {
     string_codec: Mutex<()>,
     pending_game_tick: Mutex<Option<Vec<QueuedCommand<GameCommand>>>>,
     game_commands: CommandQueue<GameCommand, ()>,
-    gta_snapshot_results: Mutex<HashMap<CommandId, Arc<OnceLock<Option<gta_sa::PedSnapshot>>>>>,
+    gta_read_results: Mutex<HashMap<CommandId, Arc<std::sync::OnceLock<GtaReadResult>>>>,
     auto_text_label_creates: Mutex<HashMap<CommandId, Option<u16>>>,
     local_player_snapshot: Mutex<Option<LocalPlayerSnapshot>>,
     local_player_candidate: Mutex<Option<LocalPlayerSnapshot>>,

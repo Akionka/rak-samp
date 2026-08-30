@@ -2,6 +2,15 @@
 //!
 //! These types are host-internal copied representations. They never cross the
 //! stable plugin ABI and do not create references into game memory.
+use crate::profile::EntityLayoutSpec;
+use gta_sa::Vector3;
+use modkit_win32::ReadableRegion;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum EntityReadError {
+    UnreadableEntity,
+    UnreadableMatrix,
+}
 
 /// Native GTA `CVector2D` layout.
 #[repr(C)]
@@ -35,6 +44,24 @@ pub struct RawMatrix {
     pub attached_matrix: u32,
     pub owns_attached_matrix: u8,
     pub tail_padding: [u8; 3],
+}
+pub(crate) fn read_entity_position(
+    entity: &ReadableRegion,
+    layout: EntityLayoutSpec,
+) -> Result<Vector3, EntityReadError> {
+    let matrix = unsafe { entity.read_unaligned::<usize>(layout.matrix_pointer.get()) }
+        .ok_or(EntityReadError::UnreadableEntity)?;
+    let raw = if matrix == 0 {
+        unsafe { entity.read_unaligned::<RawVector3>(layout.placeable_position.get()) }
+            .ok_or(EntityReadError::UnreadableEntity)?
+    } else {
+        ReadableRegion::validate(matrix, core::mem::size_of::<RawMatrix>())
+            .and_then(|region| unsafe {
+                region.read_unaligned::<RawVector3>(core::mem::offset_of!(RawMatrix, position))
+            })
+            .ok_or(EntityReadError::UnreadableMatrix)?
+    };
+    Ok(Vector3::new(raw.x, raw.y, raw.z))
 }
 
 const _: () = {

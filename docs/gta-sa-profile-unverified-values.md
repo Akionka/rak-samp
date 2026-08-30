@@ -11,6 +11,12 @@ Verified facts already in `GtaProfileSpec` are documented by their attached
 | --- | --- | --- | --- | --- |
 | Direct `CPlaceable::SetPosn` use | Exact bodies at `0x420B80`/`0x4241C0` | A static | Behavior proof covering world-sector membership, collision state, movement state, and restoration | Intentionally not exposed; use verified `CPed::Teleport` |
 | Direct `CPlaceable`/`CMatrix` position write | Layout oracle proves offsets only | C | Native behavior proof covering RenderWare synchronization, collision state, and restoration | Unsupported |
+| `CWorld` operations beyond `FindGroundZForCoord` | Only the ground-height query is in the production profile | U | Exact executable disassembly for each additional singleton/method plus behavior and phase evidence | Unsupported |
+| `CStreaming` request/load/release | No production profile symbol or ABI exists | U | Exact symbols, calling conventions, model lifecycle, and game-thread behavior proof | Unsupported |
+| `CTimer` converted durations, pause semantics, and startup readiness | Raw frame/game counters and clipped/non-clipped time steps are in the production profile | U | Live unit comparison, pause/menu behavior, first-frame readiness, and wrap behavior | Raw owned snapshot only |
+| Camera snapshot/control | No GTA camera layout, singleton, or method exists in the profile | U | Fixture-backed copied fields plus exact method ABI and phase behavior | Unsupported |
+| GTA vehicle creation | SA-MP vehicle RPC codecs do not prove a GTA native workflow | U | Verified model loading, constructor, pool registration, world insertion, failure cleanup, and live smoke | Unsupported |
+| GTA entity destruction | No destructor/removal workflow is verified | U | Exact ownership sequence, stale-handle revalidation, world/pool cleanup, and live smoke | Unsupported |
 
 ## Resolved teleport target
 

@@ -4,6 +4,14 @@ use super::{
 };
 use crate::command::{CommandError, CommandId};
 use std::time::Duration;
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) enum GtaEntityHandle {
+    Ped(gta_sa::PedHandle),
+    Vehicle(gta_sa::VehicleHandle),
+    Object(gta_sa::ObjectHandle),
+}
+
 impl Runtime {
     pub(crate) fn show_local_dialog(
         &self,
@@ -428,6 +436,36 @@ impl Runtime {
     ) -> Result<Option<gta_sa::PedSnapshot>, DirectClientError> {
         self.backend.gta_local_ped_snapshot(token)
     }
+    pub(crate) fn gta_entity_exists(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        handle: GtaEntityHandle,
+    ) -> Result<bool, DirectClientError> {
+        self.backend.gta_entity_exists(token, handle)
+    }
+
+    pub(crate) fn gta_vehicle_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        handle: gta_sa::VehicleHandle,
+    ) -> Result<Option<gta_sa::VehicleSnapshot>, DirectClientError> {
+        self.backend.gta_vehicle_snapshot(token, handle)
+    }
+
+    pub(crate) fn gta_find_ground_z(
+        &self,
+        token: modkit_runtime::ScopeToken,
+        x: f32,
+        y: f32,
+    ) -> Result<f32, DirectClientError> {
+        self.backend.gta_find_ground_z(token, x, y)
+    }
+    pub(crate) fn gta_timer_snapshot(
+        &self,
+        token: modkit_runtime::ScopeToken,
+    ) -> Result<gta_sa::TimerSnapshot, DirectClientError> {
+        self.backend.gta_timer_snapshot(token)
+    }
 
     pub(crate) fn gta_teleport_local_ped(
         &self,
@@ -446,6 +484,49 @@ impl Runtime {
         id: CommandId,
     ) -> Option<Option<gta_sa::PedSnapshot>> {
         self.backend.take_gta_local_ped_snapshot(id)
+    }
+    pub(crate) fn submit_gta_entity_exists(
+        &self,
+        handle: GtaEntityHandle,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_entity_exists(handle)
+    }
+
+    pub(crate) fn take_gta_entity_exists(&self, id: CommandId) -> Option<bool> {
+        self.backend.take_gta_entity_exists(id)
+    }
+
+    pub(crate) fn submit_gta_vehicle_snapshot(
+        &self,
+        handle: gta_sa::VehicleHandle,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_vehicle_snapshot(handle)
+    }
+
+    pub(crate) fn take_gta_vehicle_snapshot(
+        &self,
+        id: CommandId,
+    ) -> Option<Option<gta_sa::VehicleSnapshot>> {
+        self.backend.take_gta_vehicle_snapshot(id)
+    }
+
+    pub(crate) fn submit_gta_find_ground_z(
+        &self,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_find_ground_z(x, y)
+    }
+
+    pub(crate) fn take_gta_find_ground_z(&self, id: CommandId) -> Option<f32> {
+        self.backend.take_gta_find_ground_z(id)
+    }
+    pub(crate) fn submit_gta_timer_snapshot(&self) -> Result<CommandId, DirectClientError> {
+        self.backend.submit_gta_timer_snapshot()
+    }
+
+    pub(crate) fn take_gta_timer_snapshot(&self, id: CommandId) -> Option<gta_sa::TimerSnapshot> {
+        self.backend.take_gta_timer_snapshot(id)
     }
 
     pub(crate) fn submit_gta_teleport_local_ped(

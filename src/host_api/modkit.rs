@@ -10,9 +10,9 @@ use crate::command::CommandError;
 use log::{debug, error, info, warn};
 use modkit_abi::{
     CommandCompletionV1, CommandReceiptId, CoreServiceV1, GTA_SA_SERVICE_VERSION_V1,
-    GtaSaServiceV1, HostStatusV1, LegacySampServiceV1, MOD_BUFFER_TOO_SMALL,
-    MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND, MOD_NOT_READY, MOD_OK,
-    MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
+    GTA_SA_SERVICE_VERSION_V2, GtaSaServiceV1, GtaSaServiceV2, HostStatusV1, LegacySampServiceV1,
+    MOD_BUFFER_TOO_SMALL, MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND,
+    MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
     SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
     SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, SampLocalPlayerV1,
     SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampServerInfoV1,
@@ -67,6 +67,33 @@ static GTA_SA_SERVICE_V1: GtaSaServiceV1 = GtaSaServiceV1 {
     submit_local_ped_snapshot: super::gta::submit_local_ped_snapshot,
     take_local_ped_snapshot: super::gta::take_local_ped_snapshot,
     submit_teleport_local_ped: super::gta::submit_teleport_local_ped,
+};
+
+static GTA_SA_SERVICE_V2: GtaSaServiceV2 = GtaSaServiceV2 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_GTA_SA,
+        version: GTA_SA_SERVICE_VERSION_V2,
+        size: std::mem::size_of::<GtaSaServiceV2>() as u32,
+        reserved: 0,
+    },
+    register_tick: super::gta::register_tick,
+    local_ped_snapshot: super::gta::local_ped_snapshot,
+    teleport_local_ped: super::gta::teleport_local_ped,
+    submit_local_ped_snapshot: super::gta::submit_local_ped_snapshot,
+    take_local_ped_snapshot: super::gta::take_local_ped_snapshot,
+    submit_teleport_local_ped: super::gta::submit_teleport_local_ped,
+    entity_exists: super::gta::entity_exists,
+    submit_entity_exists: super::gta::submit_entity_exists,
+    take_entity_exists: super::gta::take_entity_exists,
+    vehicle_snapshot: super::gta::vehicle_snapshot,
+    submit_vehicle_snapshot: super::gta::submit_vehicle_snapshot,
+    take_vehicle_snapshot: super::gta::take_vehicle_snapshot,
+    find_ground_z: super::gta::find_ground_z,
+    submit_find_ground_z: super::gta::submit_find_ground_z,
+    take_find_ground_z: super::gta::take_find_ground_z,
+    timer_snapshot: super::gta::timer_snapshot,
+    submit_timer_snapshot: super::gta::submit_timer_snapshot,
+    take_timer_snapshot: super::gta::take_timer_snapshot,
 };
 
 static SAMP_NET_SERVICE_V1: SampNetServiceV1 = SampNetServiceV1 {
@@ -168,13 +195,17 @@ unsafe extern "system" fn query_service(
             unsafe { out_service.write((&CORE_SERVICE_V1 as *const CoreServiceV1).cast()) };
             MOD_OK
         }
-        SERVICE_ID_GTA_SA => {
-            if requested_version != GTA_SA_SERVICE_VERSION_V1 {
-                return MOD_UNSUPPORTED_VERSION;
+        SERVICE_ID_GTA_SA => match requested_version {
+            GTA_SA_SERVICE_VERSION_V1 => {
+                unsafe { out_service.write((&GTA_SA_SERVICE_V1 as *const GtaSaServiceV1).cast()) };
+                MOD_OK
             }
-            unsafe { out_service.write((&GTA_SA_SERVICE_V1 as *const GtaSaServiceV1).cast()) };
-            MOD_OK
-        }
+            GTA_SA_SERVICE_VERSION_V2 => {
+                unsafe { out_service.write((&GTA_SA_SERVICE_V2 as *const GtaSaServiceV2).cast()) };
+                MOD_OK
+            }
+            _ => MOD_UNSUPPORTED_VERSION,
+        },
         SERVICE_ID_LEGACY_SAMP_ABI => {
             if requested_version != LEGACY_SERVICE_VERSION {
                 return MOD_UNSUPPORTED_VERSION;
