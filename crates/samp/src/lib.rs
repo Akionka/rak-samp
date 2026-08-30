@@ -4,6 +4,7 @@
 
 mod chat;
 mod error;
+pub mod events;
 mod network;
 mod receipt;
 mod types;

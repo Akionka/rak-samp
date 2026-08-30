@@ -79,28 +79,47 @@ pub struct Event<'callback> {
 }
 
 impl Event<'_> {
-    pub fn id(&self) -> Result<u8, ModResult> {
-        unsafe { self.service.event_id(self.raw) }
+    #[must_use]
+    pub fn id(&self) -> u8 {
+        unsafe { self.service.event_id(self.raw) }.unwrap_or(0)
     }
 
-    pub fn reset(&mut self) -> Result<(), ModResult> {
+    pub fn reset_read(&mut self) -> Result<(), ModResult> {
         unsafe { self.service.event_reset(self.raw) }
     }
 
-    pub fn remaining_bits(&self) -> Result<u32, ModResult> {
-        unsafe { self.service.event_remaining_bits(self.raw) }
+    #[must_use]
+    pub fn remaining_bits(&self) -> usize {
+        unsafe { self.service.event_remaining_bits(self.raw) }.unwrap_or(0) as usize
     }
 
-    pub fn read_bits(&mut self, out: &mut [u8], bit_len: u32) -> Result<(), ModResult> {
-        unsafe { self.service.event_read_bits(self.raw, out, bit_len) }
+    pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, ModResult> {
+        let bit_len = u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)?;
+        let mut out = vec![0; (bit_len as usize).div_ceil(u8::BITS as usize)];
+        unsafe { self.service.event_read_bits(self.raw, &mut out, bit_len) }?;
+        Ok(out)
     }
 
-    pub fn replace_bits(&mut self, bytes: &[u8], bit_len: u32) -> Result<(), ModResult> {
+    pub fn replace_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), ModResult> {
+        if bit_len > bytes.len().saturating_mul(u8::BITS as usize) {
+            return Err(modkit_abi::MOD_INVALID_ARGUMENT);
+        }
+        let bit_len = u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)?;
         unsafe { self.service.event_replace_bits(self.raw, bytes, bit_len) }
     }
 
     pub fn read_encoded_string(&mut self, out: &mut [u8]) -> Result<usize, ModResult> {
         unsafe { self.service.event_read_encoded_string(self.raw, out) }.map(|len| len as usize)
+    }
+
+    pub(crate) fn encode_string(
+        &self,
+        value: &[u8],
+        out: &mut [u8],
+    ) -> Result<(usize, usize), ModResult> {
+        self.service
+            .encode_string(value, out)
+            .map(|(bytes, bits)| (bytes as usize, bits as usize))
     }
 }
 
@@ -136,6 +155,114 @@ impl Net {
         handler: impl for<'event> Fn(&mut Event<'event>) -> Action + Send + Sync + 'static,
     ) -> Result<Subscription, ModResult> {
         self.register(direction, handler, false)
+    }
+
+    pub fn on_incoming_typed_packet<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, ModResult>
+    where
+        D: crate::events::TypedCallbackDescriptor<
+                crate::events::Incoming,
+                crate::events::PacketKind,
+            > + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
+    {
+        let (_, state) = crate::events::callback_registration::<
+            D,
+            crate::events::Incoming,
+            crate::events::PacketKind,
+        >(descriptor);
+        self.on_packet(Direction::Incoming, move |event| {
+            crate::events::handle_typed_callback::<
+                D,
+                crate::events::Incoming,
+                crate::events::PacketKind,
+                _,
+            >(&state, event, &handler)
+        })
+    }
+
+    pub fn on_outgoing_typed_packet<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, ModResult>
+    where
+        D: crate::events::TypedCallbackDescriptor<
+                crate::events::Outgoing,
+                crate::events::PacketKind,
+            > + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
+    {
+        let (_, state) = crate::events::callback_registration::<
+            D,
+            crate::events::Outgoing,
+            crate::events::PacketKind,
+        >(descriptor);
+        self.on_packet(Direction::Outgoing, move |event| {
+            crate::events::handle_typed_callback::<
+                D,
+                crate::events::Outgoing,
+                crate::events::PacketKind,
+                _,
+            >(&state, event, &handler)
+        })
+    }
+
+    pub fn on_incoming_typed_rpc<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, ModResult>
+    where
+        D: crate::events::TypedCallbackDescriptor<crate::events::Incoming, crate::events::RpcKind>
+            + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
+    {
+        let (_, state) = crate::events::callback_registration::<
+            D,
+            crate::events::Incoming,
+            crate::events::RpcKind,
+        >(descriptor);
+        self.on_rpc(Direction::Incoming, move |event| {
+            crate::events::handle_typed_callback::<
+                D,
+                crate::events::Incoming,
+                crate::events::RpcKind,
+                _,
+            >(&state, event, &handler)
+        })
+    }
+
+    pub fn on_outgoing_typed_rpc<D, F>(
+        self,
+        descriptor: D,
+        handler: F,
+    ) -> Result<Subscription, ModResult>
+    where
+        D: crate::events::TypedCallbackDescriptor<crate::events::Outgoing, crate::events::RpcKind>
+            + 'static,
+        D::Value: 'static,
+        F: Fn(D::Value) -> crate::events::ProtocolAction<D::Value> + Send + Sync + 'static,
+    {
+        let (_, state) = crate::events::callback_registration::<
+            D,
+            crate::events::Outgoing,
+            crate::events::RpcKind,
+        >(descriptor);
+        self.on_rpc(Direction::Outgoing, move |event| {
+            crate::events::handle_typed_callback::<
+                D,
+                crate::events::Outgoing,
+                crate::events::RpcKind,
+                _,
+            >(&state, event, &handler)
+        })
     }
 
     fn register(

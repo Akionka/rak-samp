@@ -204,6 +204,7 @@ name = "samp"
 version = "0.1.0-alpha.4"
 dependencies = [
  "gta-sa",
+ "log",
  "modkit-abi",
  "modkit-sdk",
  "samp-protocol",

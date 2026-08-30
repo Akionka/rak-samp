@@ -12,6 +12,7 @@ name = "samp"
 
 [dependencies]
 gta-sa = { version = "=0.1.0-alpha.4", path = "../gta-sa" }
+log = "0.4"
 modkit-abi = { version = "=0.1.0-alpha.4", path = "../modkit-abi" }
 modkit-sdk = { version = "=0.1.0-alpha.4", path = "../modkit-sdk" }
 samp-protocol = { version = "=0.1.0-alpha.4", path = "../samp-protocol" }
