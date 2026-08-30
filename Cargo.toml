@@ -33,6 +33,7 @@ members = [
     "crates/modkit-sdk",
     "crates/modkit-win32",
     "crates/samp-protocol",
+    "crates/samp-native",
     "crates/samp",
     "sdk",
     "examples/chat_command_plugin",
@@ -67,6 +68,7 @@ cc = "1.4"
 gta-sa-native = { path = "crates/gta-sa-native" }
 minhook = "0.9"
 modkit-win32 = { path = "crates/modkit-win32" }
+samp-native = { path = "crates/samp-native" }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_System_LibraryLoader",

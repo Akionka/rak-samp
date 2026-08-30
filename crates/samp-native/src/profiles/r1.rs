@@ -1,5 +1,5 @@
 use super::super::profile::*;
-use crate::client::SampVersion;
+use crate::SampVersion;
 
 const fn rva(value: usize) -> NativeRva {
     NativeRva::new(value)
@@ -14,7 +14,7 @@ const fn limit(value: usize) -> NativeLimit {
     NativeLimit::new(value)
 }
 
-pub(crate) const R1_SPEC: ProfileSpec = ProfileSpec {
+pub const R1_SPEC: ProfileSpec = ProfileSpec {
     identity: ProfileIdentity {
         name: "SA-MP 0.3.7 R1",
         version: SampVersion::R1,
@@ -400,7 +400,7 @@ pub(crate) const R1_SPEC: ProfileSpec = ProfileSpec {
 #[cfg(test)]
 mod tests {
     use super::R1_SPEC;
-    use crate::client::SampVersion;
+    use crate::SampVersion;
 
     #[test]
     fn r1_spec_pins_identity_strategies_and_critical_values() {

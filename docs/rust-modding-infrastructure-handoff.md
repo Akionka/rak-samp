@@ -2238,8 +2238,8 @@ feat(samp-net): route typed protocol events through network service
 
 ### Tasks
 
-- [ ] Create `crates/samp-native` if not already created during earlier extraction.
-- [ ] Move `native_client/profile.rs` and four profile files first.
+- [x] Create `crates/samp-native` if not already created during earlier extraction.
+- [x] Move `native_client/profile.rs` and four profile files first.
 - [ ] Move shared singleton/layout/player/pool/UI modules subsystem by subsystem.
 - [ ] Move SA-MP RakClient hooks/detours.
 - [ ] Keep GTA runtime dependencies pointing into `gta-sa-native`.
@@ -2247,6 +2247,11 @@ feat(samp-net): route typed protocol events through network service
 - [ ] Move SA-MP cache state in coherent groups only when tests make ownership clear.
 - [ ] Avoid splitting large shared state just to satisfy file size; behavior/invariants take priority.
 - [ ] Re-run C++ RakNet layout fixture after native moves.
+
+Profile-data extraction started on 2026-08-30. `crates/samp-native` now owns
+exact identity selection plus the immutable R1, R3-1, R5-1, and DL-R1 profile
+specifications. The root host retains only a transitional module-base binding
+until the direct operation batches move.
 
 ### Acceptance criteria
 

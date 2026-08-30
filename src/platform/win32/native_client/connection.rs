@@ -1,11 +1,13 @@
 //! Shared CNetGame connection operations backed by immutable profile data.
 
+#[cfg(test)]
+use super::profile::GameStateCodec;
 use super::{
     memory::{
         bounded_c_string, copy_bytes, read_pointer, read_unaligned, readable_range, writable_range,
         write_unaligned, zero_bytes,
     },
-    profile::{GameStateCodec, NativeClientProfile},
+    profile::NativeClientProfile,
 };
 use crate::runtime::{DirectClientError, ServerInfoSnapshot};
 use std::{ffi::c_void, mem};
@@ -13,44 +15,6 @@ use std::{ffi::c_void, mem};
 type R1NetGameGetStateFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type ProfileRakClientDisconnectFn = unsafe extern "thiscall" fn(*mut c_void, u32, u8);
 type ProfileNetGameShutdownFn = unsafe extern "thiscall" fn(*mut c_void);
-
-impl GameStateCodec {
-    pub(crate) const fn encode(self, state: i32) -> Option<i32> {
-        match self {
-            Self::Identity => match state {
-                0 | 9 | 13 | 14 | 15 | 18 => Some(state),
-                _ => None,
-            },
-            Self::Classic => match state {
-                0 => Some(0),
-                9 => Some(1),
-                13 => Some(2),
-                14 => Some(5),
-                15 => Some(6),
-                18 => Some(11),
-                _ => None,
-            },
-        }
-    }
-
-    pub(crate) const fn decode(self, state: i32) -> Option<i32> {
-        match self {
-            Self::Identity => match state {
-                0 | 9 | 13 | 14 | 15 | 18 => Some(state),
-                _ => None,
-            },
-            Self::Classic => match state {
-                0 => Some(0),
-                1 => Some(9),
-                2 => Some(13),
-                5 => Some(14),
-                6 => Some(15),
-                11 => Some(18),
-                _ => None,
-            },
-        }
-    }
-}
 
 impl NativeClientProfile {
     pub(crate) fn rakpeer_address(

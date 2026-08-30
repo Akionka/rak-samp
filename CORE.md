@@ -76,12 +76,17 @@
   `NonZero<i32>` tokens that reject zero and negative raw values. It contains no
   fixed native addresses and no direct memory dereferences. SA-MP facades
   re-export these types and perform the SA-MP-to-GTA mappings.
+- `crates/samp-native/` owns the immutable direct-client profile data for R1,
+  R3-1, R5-1, and DL-R1: exact entry-point identities, native RVAs, layouts,
+  limits, and behavior strategies. The root host currently provides a thin
+  module-base binding while Phase 8 moves direct SA-MP operations and hooks
+  into this host-only backend crate.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
-  separate from lifecycle control, while one shared `NativeClientProfile`
-  bridge isolates approved R1, R3-1, R5-1, and DL-R1 addresses, layouts, narrow
-  strategies, and guarded memory access from operation sequencing. The Windows
-  backend also separates bounded producer-side command
+  separate from lifecycle control. The transitional root backend consumes one
+  `samp-native` profile for approved R1, R3-1, R5-1, and DL-R1 direct
+  operations and guarded memory access.
+  The Windows backend also separates bounded producer-side command
   and cache-refresh requests from game-thread execution, with scalar and owned
   snapshot/catalog, chat-history, gangzone, object, player, owned on-foot, in-car, passenger, trailer, and aim sync, text-label, textdraw,
   vehicle, and forward/reverse handle-cache reads gated on completed game-thread
@@ -151,12 +156,14 @@ keeps lifecycle/composition separate from requests, snapshots, network,
 commands, and reads. The Win32 root retains shared state; lifecycle, tick
 ordering, cache invalidation, backend forwarding, domain command execution,
 refresh publication, native bitstream/string work, and hook patching live in
-dedicated child modules. One version-selected `NativeClientProfile`
-gates every direct bridge. Four equal profile specifications contain explicit
-per-version RVAs, layouts, and narrow strategies for R1, R3-1, R5-1, and
-DL-R1. The common game-tick pump and cache refresh paths consume only
-`NativeClientProfile`; shared modules own singleton lookup, native aliases,
-textdraws, handle lookups, and capability-oriented `players/` and `ui/` trees.
+dedicated child modules. One version-selected profile from
+`crates/samp-native/` gates every direct bridge. Four equal profile
+specifications contain explicit per-version RVAs, layouts, and narrow
+strategies for R1, R3-1, R5-1, and DL-R1. The remaining root
+`native_client/` modules own singleton lookup, native aliases, textdraws,
+handle lookups, and the capability-oriented `players/` and `ui/` operation
+trees until their Phase 8 extraction.
+
 The Host API root retains
 its export and ordered ABI
 table while `listeners.rs` owns listener lifecycle and dispatch.

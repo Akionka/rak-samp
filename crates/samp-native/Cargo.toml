@@ -1,0 +1,11 @@
+[package]
+name = "samp-native"
+version = "0.1.0-alpha.4"
+edition = "2024"
+rust-version = "1.98"
+description = "Host-only direct SA-MP backend for the modkit host"
+license = "MIT"
+repository = "https://github.com/Akionka/samp-client-sdk"
+
+[lib]
+name = "samp_native"

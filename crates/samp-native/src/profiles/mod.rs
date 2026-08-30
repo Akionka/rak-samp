@@ -1,13 +1,13 @@
-pub(crate) mod dl;
-pub(crate) mod r1;
-pub(crate) mod r3;
-pub(crate) mod r5;
+pub mod dl;
+pub mod r1;
+pub mod r3;
+pub mod r5;
 
 use super::profile::ProfileSpec;
-use crate::client::SampVersion;
+use crate::SampVersion;
 
 /// Returns the immutable profile specification for an exact executable identity.
-pub(crate) fn for_identity(version: SampVersion, entry_point: u32) -> Option<&'static ProfileSpec> {
+pub fn for_identity(version: SampVersion, entry_point: u32) -> Option<&'static ProfileSpec> {
     let spec = match version {
         SampVersion::R1 => &r1::R1_SPEC,
         SampVersion::R3_1 => &r3::R3_SPEC,

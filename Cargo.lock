@@ -250,6 +250,7 @@ dependencies = [
  "modkit-runtime",
  "modkit-win32",
  "samp-client-sdk",
+ "samp-native",
  "simplelog",
  "windows-sys",
 ]
@@ -298,6 +299,10 @@ dependencies = [
  "samp-protocol",
  "windows-sys",
 ]
+
+[[package]]
+name = "samp-native"
+version = "0.1.0-alpha.4"
 
 [[package]]
 name = "samp-protocol"

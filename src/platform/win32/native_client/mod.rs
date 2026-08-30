@@ -6,7 +6,6 @@ pub(crate) mod memory;
 pub(crate) mod players;
 pub(crate) mod pools;
 pub(crate) mod profile;
-pub(crate) mod profiles;
 pub(crate) mod singletons;
 pub(crate) mod text_labels;
 pub(crate) mod textdraws;
