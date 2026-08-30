@@ -2248,10 +2248,11 @@ feat(samp-net): route typed protocol events through network service
 - [ ] Avoid splitting large shared state just to satisfy file size; behavior/invariants take priority.
 - [ ] Re-run C++ RakNet layout fixture after native moves.
 
-Profile-data extraction started on 2026-08-30. `crates/samp-native` now owns
-exact identity selection plus the immutable R1, R3-1, R5-1, and DL-R1 profile
-specifications. The root host retains only a transitional module-base binding
-until the direct operation batches move.
+Extraction started on 2026-08-30. `crates/samp-native` now owns exact profile
+selection, guarded SA-MP memory helpers, singleton/connection access, pool and
+GTA-handle mapping, player/synchronization operations, and the owned backend
+request/snapshot values those operations exchange. The root host retains only
+a transitional profile wrapper for the UI/text modules still migrating.
 
 ### Acceptance criteria
 

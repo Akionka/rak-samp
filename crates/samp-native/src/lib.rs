@@ -40,7 +40,29 @@ impl SampVersion {
     }
 }
 
+pub mod colours;
+mod connection;
+pub mod memory;
+mod players;
+mod pools;
+mod singletons;
+
+mod error;
+mod requests;
+mod snapshots;
+
 pub mod profile;
 pub mod profiles;
 
+pub use error::DirectClientError;
 pub use profile::NativeProfile;
+pub use requests::{
+    LocalChatMessageRequest, LocalChatMessageStyle, LocalDeathMessageRequest, LocalDialogRequest,
+    LocalDialogStyle,
+};
+pub use snapshots::{
+    AimSyncSnapshot, AnimationSnapshot, ChatEntrySnapshot, GangzoneSnapshot, InCarSyncSnapshot,
+    LocalDialogResponseSnapshot, LocalDialogSnapshot, LocalPlayerSnapshot, OnFootSyncSnapshot,
+    PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot, ServerInfoSnapshot,
+    TextLabelSnapshot, TextdrawSnapshot, TrailerSyncSnapshot, Vector3,
+};

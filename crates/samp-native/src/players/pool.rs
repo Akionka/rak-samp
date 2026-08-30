@@ -31,9 +31,9 @@ type ClassicRemotePlayerDoesExistFn = unsafe extern "thiscall" fn(*mut c_void) -
 type R1RemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 type ClassicRemotePlayerGetStatusFn = unsafe extern "thiscall" fn(*mut c_void) -> i32;
 
-impl NativeClientProfile {
+impl NativeProfile {
     /// Copies the count pair from the guarded player pool.
-    pub(crate) fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
+    pub fn player_counts(self) -> Result<(u16, u16), DirectClientError> {
         let pool = self.player_pool()?;
         let target = self.player_function_target(self.spec.players.pool_rvas.get_count.get())?;
         let (including_npcs, excluding_npcs) = unsafe {
@@ -56,7 +56,7 @@ impl NativeClientProfile {
     }
 
     /// Copies and validates the largest assigned player ID from the pool.
-    pub(crate) fn player_max_id(self) -> Result<u16, DirectClientError> {
+    pub fn player_max_id(self) -> Result<u16, DirectClientError> {
         let pool = self.player_pool()?;
         let offset = self.spec.pools.player.largest_id_offset.get();
         let id = unsafe {
@@ -71,7 +71,7 @@ impl NativeClientProfile {
     }
 
     /// Resolves the selected profile's local-player object as an opaque address.
-    pub(crate) fn local_player_address(self) -> Result<*mut c_void, DirectClientError> {
+    pub fn local_player_address(self) -> Result<*mut c_void, DirectClientError> {
         match self.spec.strategies.local_player_source {
             LocalPlayerSource::PlayerPoolGetter => {
                 let pool = self.player_pool()?;
@@ -116,7 +116,7 @@ impl NativeClientProfile {
     }
 
     /// Copies the selected profile's local-player snapshot on the game thread.
-    pub(crate) fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
+    pub fn local_player(self) -> Result<LocalPlayerSnapshot, DirectClientError> {
         let pool = self.player_pool()?;
         let id = unsafe {
             read_unaligned::<u16>(
@@ -291,10 +291,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one remote-player directory entry on the game thread.
-    pub(crate) fn player_info(
-        self,
-        id: u16,
-    ) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
+    pub fn player_info(self, id: u16) -> Result<Option<PlayerInfoSnapshot>, DirectClientError> {
         let pool = self.player_pool()?;
         let targets = self.remote_player_targets()?;
         let remote = match self.connected_remote_player(pool, id, targets) {
@@ -363,7 +360,7 @@ impl NativeClientProfile {
     }
 
     /// Copies volatile remote-player state fields on the game thread.
-    pub(crate) fn remote_player_state(
+    pub fn remote_player_state(
         self,
         id: u16,
     ) -> Result<Option<RemotePlayerStateSnapshot>, DirectClientError> {
@@ -426,10 +423,7 @@ impl NativeClientProfile {
     }
 
     /// Determines whether a connected, defined remote player lacks a GTA ped.
-    pub(crate) fn remote_player_is_streamed_out(
-        self,
-        id: u16,
-    ) -> Result<Option<bool>, DirectClientError> {
+    pub fn remote_player_is_streamed_out(self, id: u16) -> Result<Option<bool>, DirectClientError> {
         let pool = self.player_pool()?;
         let targets = self.remote_player_targets()?;
         let remote = match self.connected_remote_player(pool, id, targets) {
@@ -476,7 +470,7 @@ impl NativeClientProfile {
     }
 
     /// Converts a guarded local or remote GTA ped pointer to its handle.
-    pub(crate) fn player_ped_handle(
+    pub fn player_ped_handle(
         self,
         gta_pools: GtaPoolSpec,
         id: u16,
@@ -547,7 +541,7 @@ impl NativeClientProfile {
     }
 
     /// Finds a player ID by its GTA ped handle, checking the local player first.
-    pub(crate) fn player_id_by_ped_handle(
+    pub fn player_id_by_ped_handle(
         self,
         gta_pools: GtaPoolSpec,
         handle: i32,

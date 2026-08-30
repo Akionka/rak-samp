@@ -9,3 +9,10 @@ repository = "https://github.com/Akionka/samp-client-sdk"
 
 [lib]
 name = "samp_native"
+
+[dependencies]
+gta-sa-native = { version = "=0.1.0-alpha.4", path = "../gta-sa-native" }
+modkit-win32 = { version = "=0.1.0-alpha.4", path = "../modkit-win32" }
+
+[dev-dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Memory"] }

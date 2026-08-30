@@ -303,6 +303,11 @@ dependencies = [
 [[package]]
 name = "samp-native"
 version = "0.1.0-alpha.4"
+dependencies = [
+ "gta-sa-native",
+ "modkit-win32",
+ "windows-sys",
+]
 
 [[package]]
 name = "samp-protocol"

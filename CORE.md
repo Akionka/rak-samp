@@ -76,11 +76,11 @@
   `NonZero<i32>` tokens that reject zero and negative raw values. It contains no
   fixed native addresses and no direct memory dereferences. SA-MP facades
   re-export these types and perform the SA-MP-to-GTA mappings.
-- `crates/samp-native/` owns the immutable direct-client profile data for R1,
-  R3-1, R5-1, and DL-R1: exact entry-point identities, native RVAs, layouts,
-  limits, and behavior strategies. The root host currently provides a thin
-  module-base binding while Phase 8 moves direct SA-MP operations and hooks
-  into this host-only backend crate.
+- `crates/samp-native/` owns direct-client profile data, guarded SA-MP memory
+  helpers, singleton and connection access, pool and GTA-handle mapping, and
+  player/synchronization operations for R1, R3-1, R5-1, and DL-R1. The root
+  host keeps a thin dereferencing profile wrapper only while Phase 8 moves the
+  remaining UI and RakClient hook batches into this host-only backend crate.
 - `samp-client-sdk-host` owns the Windows x86 bridge and produces
   `samp_client_sdk.asi`; its runtime keeps failure types and send policy
   separate from lifecycle control. The transitional root backend consumes one
@@ -159,10 +159,10 @@ refresh publication, native bitstream/string work, and hook patching live in
 dedicated child modules. One version-selected profile from
 `crates/samp-native/` gates every direct bridge. Four equal profile
 specifications contain explicit per-version RVAs, layouts, and narrow
-strategies for R1, R3-1, R5-1, and DL-R1. The remaining root
-`native_client/` modules own singleton lookup, native aliases, textdraws,
-handle lookups, and the capability-oriented `players/` and `ui/` operation
-trees until their Phase 8 extraction.
+strategies for R1, R3-1, R5-1, and DL-R1. `samp-native` also owns singleton,
+connection, pool, GTA-handle mapping, player, and synchronization operations.
+The remaining root `native_client/` modules own UI, text-label, and textdraw
+operations until their Phase 8 extraction.
 
 The Host API root retains
 its export and ordered ABI

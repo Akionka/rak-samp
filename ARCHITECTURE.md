@@ -39,13 +39,13 @@ values, native string/bitstream handling, and SA-MP hook patching.
 game-thread publication, and the `CPools` reference-conversion targets.
 `crates/gta-sa/` owns the typed GTA entity handles.
 `crates/samp-native/` owns the four immutable SA-MP profile specifications,
-their verified layouts, limits, RVAs, ABI strategies, and exact identity
-selection. The root `native_client/profile.rs` is a temporary module-base
-binding used by the direct operation modules that remain to migrate during
+their verified layouts, limits, RVAs, ABI strategies, exact identity selection,
+guarded SA-MP memory helpers, singleton and connection access, pool and GTA
+handle mapping, and player/synchronization operations. The root
+`native_client/profile.rs` remains a temporary dereferencing wrapper only for
+the UI, text-label, and textdraw operation modules still migrating during
 Phase 8. One selected profile drives every cache refresh and game tick for R1,
-R3-1, R5-1, and DL-R1. Shared root modules still own singleton lookup, native
-aliases, textdraws, handle lookups, and the capability-oriented `players/` and
-`ui/` operation trees until their coherent extraction batches.
+R3-1, R5-1, and DL-R1.
 Host listener registration and callback dispatch live in
 `host_api/listeners.rs`, while native chat-command callback slots and teardown
 synchronization live in `host_api/chat_commands.rs`; the root retains the

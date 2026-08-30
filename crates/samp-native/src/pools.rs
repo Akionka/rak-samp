@@ -2,9 +2,9 @@
 
 use super::{
     memory::{read_i32_bool, read_pointer, read_unaligned, readable_range},
-    profile::{FieldOffset, NativeClientProfile, PoolGetterAbi},
+    profile::{FieldOffset, NativeProfile, PoolGetterAbi},
 };
-use crate::runtime::{DirectClientError, GangzoneSnapshot};
+use crate::{DirectClientError, GangzoneSnapshot};
 use gta_sa_native::{CpoolRefAbi, GtaPoolSpec, cpool_ref};
 use std::{ffi::c_void, mem};
 
@@ -13,17 +13,17 @@ type ClassicPoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_vo
 type R1VehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 type ClassicVehicleExistsFn = unsafe extern "thiscall" fn(*mut c_void, u16) -> i32;
 
-impl NativeClientProfile {
-    pub(crate) fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
+impl NativeProfile {
+    pub fn player_pool(self) -> Result<*mut c_void, DirectClientError> {
         self.pool_root(self.spec.net_game.get_player_pool_rva.get())
     }
 
-    pub(crate) fn vehicle_pool(self) -> Result<*mut c_void, DirectClientError> {
+    pub fn vehicle_pool(self) -> Result<*mut c_void, DirectClientError> {
         self.pool_root(self.spec.net_game.get_vehicle_pool_rva.get())
     }
 
     /// Reads one guarded vehicle occupancy value through the selected native API.
-    pub(crate) fn vehicle_exists(self, id: u16) -> Result<bool, DirectClientError> {
+    pub fn vehicle_exists(self, id: u16) -> Result<bool, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.vehicles.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -68,7 +68,7 @@ impl NativeClientProfile {
     }
 
     /// Reads one guarded object-pool occupancy flag.
-    pub(crate) fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
+    pub fn object_exists(self, id: u16) -> Result<bool, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.objects.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -82,7 +82,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one object wrapper's GTA handle without exposing its native pointer.
-    pub(crate) fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+    pub fn object_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         if !self.object_exists(id)? {
             return Ok(None);
         }
@@ -122,7 +122,7 @@ impl NativeClientProfile {
     }
 
     /// Finds an object ID by its copied GTA handle.
-    pub(crate) fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+    pub fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
         for id in 0..self.spec.pools.limits.objects.get() {
             let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
             if self.object_handle(id)? == Some(handle) {
@@ -133,7 +133,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one pickup GTA handle from the selected pickup pool.
-    pub(crate) fn pickup_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+    pub fn pickup_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.pickups.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -161,7 +161,7 @@ impl NativeClientProfile {
     }
 
     /// Finds a pickup ID by its copied GTA handle.
-    pub(crate) fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
+    pub fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, DirectClientError> {
         for id in 0..self.spec.pools.limits.pickups.get() {
             let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
             if self.pickup_handle(id)? == Some(handle) {
@@ -172,7 +172,7 @@ impl NativeClientProfile {
     }
 
     /// Converts one guarded vehicle game-object pointer to its GTA handle.
-    pub(crate) fn vehicle_handle(
+    pub fn vehicle_handle(
         self,
         gta_pools: GtaPoolSpec,
         id: u16,
@@ -216,7 +216,7 @@ impl NativeClientProfile {
     }
 
     /// Finds a vehicle ID by its GTA handle.
-    pub(crate) fn vehicle_id_by_handle(
+    pub fn vehicle_id_by_handle(
         self,
         gta_pools: GtaPoolSpec,
         handle: i32,
@@ -231,7 +231,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one guarded gangzone record from the selected pool.
-    pub(crate) fn gangzone(self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
+    pub fn gangzone(self, id: u16) -> Result<Option<GangzoneSnapshot>, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.gangzones.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -389,7 +389,7 @@ mod tests {
             SampVersion::R5_1,
             SampVersion::Dl,
         ] {
-            let profile = NativeClientProfile::select(0x10000, version, version.entry_point())
+            let profile = NativeProfile::select(0x10000, version, version.entry_point())
                 .expect("the supported identity must select");
             assert_eq!(
                 profile.vehicle_exists(2000),
@@ -410,7 +410,7 @@ mod tests {
     #[test]
     fn dl_keeps_its_extended_object_limit() {
         let profile =
-            NativeClientProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
+            NativeProfile::select(0x10000, SampVersion::Dl, SampVersion::Dl.entry_point())
                 .expect("the DL identity must select");
         assert_eq!(profile.spec.pools.limits.objects.get(), 2100);
         assert_eq!(
@@ -421,12 +421,9 @@ mod tests {
 
     #[test]
     fn pool_getters_do_not_run_before_r3_initializes_its_pool_root() {
-        let bootstrap = NativeClientProfile::select(
-            0x10000,
-            SampVersion::R3_1,
-            SampVersion::R3_1.entry_point(),
-        )
-        .expect("the R3 identity must select");
+        let bootstrap =
+            NativeProfile::select(0x10000, SampVersion::R3_1, SampVersion::R3_1.entry_point())
+                .expect("the R3 identity must select");
         let mut module =
             vec![0_u8; bootstrap.spec.net_game.singleton_rva.get() + mem::size_of::<usize>()];
         let mut net_game =
@@ -440,7 +437,7 @@ mod tests {
                 net_game.as_mut_ptr() as usize,
             );
         }
-        let profile = NativeClientProfile::select(
+        let profile = NativeProfile::select(
             module.as_ptr() as usize,
             SampVersion::R3_1,
             SampVersion::R3_1.entry_point(),

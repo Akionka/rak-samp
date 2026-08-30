@@ -2,12 +2,9 @@ pub(crate) use samp_native::profile::*;
 
 use crate::SampVersion;
 
-/// Module-base binding for one immutable SA-MP native profile specification.
+/// Transitional host binding for one `samp-native` profile.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(crate) struct NativeClientProfile {
-    pub(crate) module_base: usize,
-    pub(crate) spec: &'static ProfileSpec,
-}
+pub(crate) struct NativeClientProfile(samp_native::NativeProfile);
 
 impl NativeClientProfile {
     /// Selects a data-only native profile for an exact supported executable identity.
@@ -24,11 +21,15 @@ impl NativeClientProfile {
             SampVersion::R5_1 => samp_native::SampVersion::R5_1,
             SampVersion::Dl => samp_native::SampVersion::Dl,
         };
-        let profile = samp_native::NativeProfile::select(module_base, version, entry_point)?;
-        Some(Self {
-            module_base: profile.module_base,
-            spec: profile.spec,
-        })
+        samp_native::NativeProfile::select(module_base, version, entry_point).map(Self)
+    }
+}
+
+impl core::ops::Deref for NativeClientProfile {
+    type Target = samp_native::NativeProfile;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
     }
 }
 

@@ -2,9 +2,9 @@
 
 use super::*;
 
-impl NativeClientProfile {
+impl NativeProfile {
     /// Copies the selected profile's fixed animation catalog.
-    pub(crate) fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
+    pub fn animation_catalog(self) -> Result<Vec<AnimationSnapshot>, DirectClientError> {
         let layout = self.spec.players.animation;
         let length = layout
             .entry_count

@@ -10,12 +10,9 @@ type ClassicLocalPlayerNoArgFn = unsafe extern "thiscall" fn(*mut c_void);
 type R1LocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 type ClassicLocalPlayerSendTrailerFn = unsafe extern "thiscall" fn(*mut c_void, u16);
 
-impl NativeClientProfile {
+impl NativeProfile {
     /// Copies one on-foot record from the selected local or remote player.
-    pub(crate) fn onfoot_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
+    pub fn onfoot_sync(self, id: u16) -> Result<Option<OnFootSyncSnapshot>, DirectClientError> {
         let Some(address) = self.sync_record_address(
             id,
             self.spec.players.local.onfoot_offset,
@@ -28,10 +25,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one in-car record from the selected local or remote player.
-    pub(crate) fn incar_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
+    pub fn incar_sync(self, id: u16) -> Result<Option<InCarSyncSnapshot>, DirectClientError> {
         let Some(address) = self.sync_record_address(
             id,
             self.spec.players.local.incar_offset,
@@ -44,7 +38,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one passenger record from the selected local or remote player.
-    pub(crate) fn passenger_sync(
+    pub fn passenger_sync(
         self,
         id: u16,
     ) -> Result<Option<PassengerSyncSnapshot>, DirectClientError> {
@@ -60,10 +54,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one trailer record from the selected local or remote player.
-    pub(crate) fn trailer_sync(
-        self,
-        id: u16,
-    ) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
+    pub fn trailer_sync(self, id: u16) -> Result<Option<TrailerSyncSnapshot>, DirectClientError> {
         let Some(address) = self.sync_record_address(
             id,
             self.spec.players.local.trailer_offset,
@@ -76,7 +67,7 @@ impl NativeClientProfile {
     }
 
     /// Copies one aim record from the selected local or remote player.
-    pub(crate) fn aim_sync(self, id: u16) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
+    pub fn aim_sync(self, id: u16) -> Result<Option<AimSyncSnapshot>, DirectClientError> {
         let Some(address) = self.sync_record_address(
             id,
             self.spec.players.local.aim_offset,
@@ -89,11 +80,7 @@ impl NativeClientProfile {
     }
 
     /// Sends unoccupied sync with the unified unsigned seat contract.
-    pub(crate) fn force_unoccupied_sync(
-        self,
-        vehicle: u16,
-        seat: u8,
-    ) -> Result<(), DirectClientError> {
+    pub fn force_unoccupied_sync(self, vehicle: u16, seat: u8) -> Result<(), DirectClientError> {
         if usize::from(vehicle) >= self.spec.pools.limits.vehicles.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -116,32 +103,32 @@ impl NativeClientProfile {
     }
 
     /// Invokes the local aim sync send after clearing the profile's send gate.
-    pub(crate) fn force_aim_sync(self) -> Result<(), DirectClientError> {
+    pub fn force_aim_sync(self) -> Result<(), DirectClientError> {
         self.reset_force_sync_gate()?;
         self.call_local_no_arg(self.spec.players.local_rvas.send_aim_data)
     }
 
     /// Invokes the local on-foot sync send after clearing the profile's send gate.
-    pub(crate) fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
+    pub fn force_onfoot_sync(self) -> Result<(), DirectClientError> {
         self.reset_force_sync_gate()?;
         self.call_local_no_arg(self.spec.players.local_rvas.send_onfoot_data)
     }
 
     /// Invokes the local stats sync send after clearing the profile's send gate.
-    pub(crate) fn force_stats_sync(self) -> Result<(), DirectClientError> {
+    pub fn force_stats_sync(self) -> Result<(), DirectClientError> {
         self.reset_force_sync_gate()?;
         self.call_local_no_arg(self.spec.players.local_rvas.send_stats)
     }
 
     /// Updates and sends the local trailer sync record.
-    pub(crate) fn force_trailer_sync(self, trailer: u16) -> Result<(), DirectClientError> {
+    pub fn force_trailer_sync(self, trailer: u16) -> Result<(), DirectClientError> {
         self.validate_vehicle_id(trailer)?;
         self.reset_force_sync_gate()?;
         self.call_local_trailer(self.spec.players.local_rvas.send_trailer_data, trailer)
     }
 
     /// Updates and sends the local in-car sync record.
-    pub(crate) fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {
+    pub fn force_vehicle_sync(self, vehicle: u16) -> Result<(), DirectClientError> {
         self.validate_vehicle_id(vehicle)?;
         let local = self.local_player_address()?;
         self.write_local_sync_field(
@@ -155,11 +142,7 @@ impl NativeClientProfile {
     }
 
     /// Updates and sends the local passenger sync record.
-    pub(crate) fn force_passenger_sync(
-        self,
-        vehicle: u16,
-        seat: u8,
-    ) -> Result<(), DirectClientError> {
+    pub fn force_passenger_sync(self, vehicle: u16, seat: u8) -> Result<(), DirectClientError> {
         self.validate_vehicle_id(vehicle)?;
         let local = self.local_player_address()?;
         let parent = self.spec.players.local.passenger_offset.get();
@@ -175,7 +158,7 @@ impl NativeClientProfile {
     }
 
     /// Invokes the local weapons update without resetting the send gate.
-    pub(crate) fn force_weapons_sync(self) -> Result<(), DirectClientError> {
+    pub fn force_weapons_sync(self) -> Result<(), DirectClientError> {
         self.call_local_no_arg(self.spec.players.local_rvas.update_weapons)
     }
 
@@ -372,10 +355,7 @@ fn sync_scalar<T: Copy>(address: usize, offset: usize) -> Result<T, DirectClient
     unsafe { read_unaligned(address) }.ok_or(DirectClientError::NotReady)
 }
 
-fn sync_vector(
-    address: usize,
-    offset: usize,
-) -> Result<crate::runtime::Vector3, DirectClientError> {
+fn sync_vector(address: usize, offset: usize) -> Result<crate::Vector3, DirectClientError> {
     let address = address
         .checked_add(offset)
         .ok_or(DirectClientError::NotReady)?;

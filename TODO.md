@@ -61,10 +61,10 @@ unchanged for compatibility. See [Phase 7 evidence](docs/evidence/phase-7-samp-s
 
 ### Phase 8 — extract `samp-native`
 
-In progress. `crates/samp-native` owns exact identity selection and the four
-immutable SA-MP profile specifications. Direct player/pool, UI/textdraw, cache,
-and RakClient hook batches remain in the root backend until their coherent
-extraction.
+In progress. `crates/samp-native` owns exact profile selection, guarded SA-MP
+memory, singleton/connection access, pool and GTA-handle mapping, and
+player/synchronization operations. UI/textdraw, cache, and RakClient hook
+batches remain in the root backend until their coherent extraction.
 
 ### Structural split tracker
 
