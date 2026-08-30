@@ -24,6 +24,10 @@ pub enum BitStreamError {
         offset_bits: usize,
         length_bits: usize,
     },
+    InvalidBitLength {
+        bit_len: usize,
+        byte_len: usize,
+    },
     CapacityExceeded {
         requested_bits: usize,
         capacity_bits: usize,
@@ -46,6 +50,10 @@ impl fmt::Display for BitStreamError {
             } => write!(
                 formatter,
                 "bit offset {offset_bits} is outside a {length_bits}-bit stream"
+            ),
+            Self::InvalidBitLength { bit_len, byte_len } => write!(
+                formatter,
+                "bit length {bit_len} does not fit in a {byte_len}-byte buffer"
             ),
             Self::CapacityExceeded {
                 requested_bits,
@@ -210,20 +218,33 @@ impl BitStream {
         Ok(())
     }
 
-    pub(crate) fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, BitStreamError> {
-        if bit_len > self.remaining_bits() {
-            return Err(BitStreamError::ReadOutOfBounds {
-                requested_bits: bit_len,
-                remaining_bits: self.remaining_bits(),
+    pub(crate) fn read_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), BitStreamError> {
+        if output.len() != bit_len.div_ceil(8) {
+            return Err(BitStreamError::InvalidBitLength {
+                bit_len,
+                byte_len: output.len(),
             });
         }
-        let mut output = vec![0_u8; bit_len.div_ceil(8)];
+        let remaining_bits = self.remaining_bits();
+        if bit_len > remaining_bits {
+            return Err(BitStreamError::ReadOutOfBounds {
+                requested_bits: bit_len,
+                remaining_bits,
+            });
+        }
+        output.fill(0);
         for bit_offset in 0..bit_len {
-            if self.read_bit()? {
+            let source_offset = self.read_offset + bit_offset;
+            if self.bit_at(source_offset) {
                 output[bit_offset / 8] |= 0x80 >> (bit_offset % 8);
             }
         }
-        Ok(output)
+        self.read_offset += bit_len;
+        Ok(())
     }
 
     pub fn read_bool(&mut self) -> Result<bool, BitStreamError> {
@@ -382,9 +403,8 @@ impl BitStream {
     }
 
     fn read_fixed<const N: usize>(&mut self) -> Result<[u8; N], BitStreamError> {
-        let bytes = self.read_bytes(N)?;
         let mut output = [0_u8; N];
-        output.copy_from_slice(&bytes);
+        self.read_bits_into(&mut output, N * u8::BITS as usize)?;
         Ok(output)
     }
 
@@ -495,11 +515,44 @@ mod tests {
 
         assert_eq!(stream.len_bits(), 4);
         assert_eq!(stream.as_bytes(), &[0b1011_1111]);
-        assert_eq!(stream.read_bits(4).unwrap(), vec![0b1011_0000]);
+        let mut output = [0];
+        stream.read_bits_into(&mut output, 4).unwrap();
+        assert_eq!(output, [0b1011_0000]);
         assert!(matches!(
-            stream.read_bits(1),
+            stream.read_bits_into(&mut output, 1),
             Err(BitStreamError::ReadOutOfBounds { .. })
         ));
+    }
+
+    #[test]
+    fn reads_into_caller_buffer_transactionally() {
+        let mut stream = BitStream::from_bytes_with_bits(vec![0b1010_1111], 3).unwrap();
+        let mut output = [0xff];
+
+        stream.read_bits_into(&mut output, 3).unwrap();
+
+        assert_eq!(output, [0b1010_0000]);
+        assert_eq!(stream.read_offset_bits(), 3);
+
+        let mut exhausted = [0xa5];
+        assert_eq!(
+            stream.read_bits_into(&mut exhausted, 1),
+            Err(BitStreamError::ReadOutOfBounds {
+                requested_bits: 1,
+                remaining_bits: 0,
+            })
+        );
+        assert_eq!(exhausted, [0xa5]);
+
+        let mut mismatched = [0x3c; 2];
+        assert_eq!(
+            stream.read_bits_into(&mut mismatched, 3),
+            Err(BitStreamError::InvalidBitLength {
+                bit_len: 3,
+                byte_len: 2,
+            })
+        );
+        assert_eq!(mismatched, [0x3c; 2]);
     }
 
     #[test]

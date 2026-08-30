@@ -102,13 +102,16 @@ for its ASI module and `samp.sampfuncs().log_console(b"message")` writes through
 SAMPFUNCS's own console logger. This optional bridge never loads or initializes
 SAMPFUNCS; absence returns `SampClientSdkResult::NotReady`.
 
-`samp_protocol::BitStream` is owned and bounded. Protocol values and Wire
-descriptors come directly from `samp-protocol`; the SDK does not re-export
-them or provide legacy Protocol descriptors, codecs, payload writers, or
-encoded payload values. Typed events, Protocol catalogs, exact sends, and incoming emulation
-retain exact-bit and exactly-once dispatch semantics. Direct state reads are
-copied into Host-owned snapshots; plugins never dereference Native client
-memory through the safe API.
+`samp_protocol::BitReader` borrows existing exact-bit payloads for decode without
+copying their buffers. `samp_protocol::BitStream` owns a bounded growable encode
+buffer and remains available for compatibility reads. Built-in fixed-width Wire
+reads use caller storage; owned variable-length results allocate only their
+result. Protocol values and Wire descriptors come directly from `samp-protocol`;
+the SDK does not re-export them or provide legacy Protocol descriptors, codecs,
+payload writers, or encoded payload values. Typed events, Protocol catalogs,
+exact sends, and incoming emulation retain exact-bit and exactly-once dispatch
+semantics. Direct state reads are copied into Host-owned snapshots; plugins never
+dereference Native client memory through the safe API.
 Protocol-backed `Net` sends return `ProtocolSendError`, which keeps structured
 Protocol encoding failures separate from synchronous Host enqueue rejection.
 Later queued execution is reported only through the returned `CommandReceipt`.

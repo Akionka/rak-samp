@@ -14,15 +14,17 @@
   Protocol-backed sends return `ProtocolSendError`, which preserves the exact
   Protocol encode failure separately from synchronous Host submission or
   enqueue rejection. Queued execution remains observable through its receipt.
-- `crates/samp-protocol/` is the platform-independent Rust package for owned
-  Protocol bitstreams, exact-bit payload values, public neutral `types` and
-  `limits`, one canonical set of cursor-preserving Wire read/write primitives,
-  including single-bit booleans with Protocol-owned bounds/source error mapping,
-  and nominal built-in Wire descriptors whose identity hides private codec
-  implementations. `IncomingPacket`, `OutgoingPacket`, `IncomingRpc`, and
-  `OutgoingRpc` are the only public generic descriptor wrappers; every custom or
-  ad-hoc descriptor therefore carries direction and an explicit trailing policy.
-  The sealed direction-neutral `WireDescriptor` remains their common capability.
+- `crates/samp-protocol/` is the platform-independent Rust package for borrowed
+  `BitReader` decode cursors, owned growable `BitStream` encode buffers and
+  compatibility reads, cursor-free exact-bit payload values, public neutral
+  `types` and `limits`, and canonical cursor-preserving Wire read/write
+  primitives. Built-in fixed-width reads use caller-provided stack buffers;
+  only owned variable-length results allocate. Packet/RPC codecs and nominal
+  built-in Wire descriptors hide private implementations. `IncomingPacket`,
+  `OutgoingPacket`, `IncomingRpc`, and `OutgoingRpc` are the only public generic
+  descriptor wrappers; every custom or ad-hoc descriptor therefore carries
+  direction and an explicit trailing policy. The sealed direction-neutral
+  `WireDescriptor` remains their common capability.
   Packet/RPC name catalogs,
   outgoing chat, slash-command, profile-neutral outgoing RPC codecs, common
   byte-aligned Packet codecs, and R1 exact-bit remote synchronization Packet

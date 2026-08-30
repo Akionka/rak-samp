@@ -94,10 +94,21 @@ impl Event<'_> {
     }
 
     pub fn read_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, ModResult> {
-        let bit_len = u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)?;
-        let mut out = vec![0; (bit_len as usize).div_ceil(u8::BITS as usize)];
-        unsafe { self.service.event_read_bits(self.raw, &mut out, bit_len) }?;
+        let mut out = vec![0; bit_len.div_ceil(u8::BITS as usize)];
+        self.read_bits_into(&mut out, bit_len)?;
         Ok(out)
+    }
+
+    pub(crate) fn read_bits_into(
+        &mut self,
+        out: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), ModResult> {
+        if out.len() != bit_len.div_ceil(u8::BITS as usize) {
+            return Err(modkit_abi::MOD_INVALID_ARGUMENT);
+        }
+        let bit_len = u32::try_from(bit_len).map_err(|_| modkit_abi::MOD_INVALID_ARGUMENT)?;
+        unsafe { self.service.event_read_bits(self.raw, out, bit_len) }
     }
 
     pub fn replace_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), ModResult> {

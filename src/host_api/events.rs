@@ -206,19 +206,28 @@ pub(super) unsafe extern "system" fn event_read_bits(
     output: *mut u8,
     bit_len: usize,
 ) -> SampClientSdkResult {
-    if output.is_null() && bit_len != 0 {
+    let required_bytes = bit_len.div_ceil(u8::BITS as usize);
+    if output.is_null() && required_bytes != 0 {
         return SampClientSdkResult::InvalidArgument;
     }
+    let output = if required_bytes == 0 {
+        &mut []
+    } else {
+        unsafe { std::slice::from_raw_parts_mut(output, required_bytes) }
+    };
+    event_read_bits_into(event, output, bit_len)
+}
+
+pub(super) fn event_read_bits_into(
+    event: *mut SampClientSdkEventV1,
+    output: &mut [u8],
+    bit_len: usize,
+) -> SampClientSdkResult {
     let Ok(event) = (unsafe { abi_event(event) }) else {
         return SampClientSdkResult::InvalidArgument;
     };
-    match unsafe { &mut *event.payload }.read_bits(bit_len) {
-        Ok(bytes) => {
-            if !bytes.is_empty() {
-                unsafe { ptr::copy_nonoverlapping(bytes.as_ptr(), output, bytes.len()) };
-            }
-            SampClientSdkResult::Ok
-        }
+    match unsafe { &mut *event.payload }.read_bits_into(output, bit_len) {
+        Ok(()) => SampClientSdkResult::Ok,
         Err(error) => bitstream_result(error),
     }
 }
@@ -383,7 +392,9 @@ fn bitstream_result(error: BitStreamError) -> SampClientSdkResult {
     match error {
         BitStreamError::ReadOutOfBounds { .. } => SampClientSdkResult::ReadOutOfBounds,
         BitStreamError::CapacityExceeded { .. } => SampClientSdkResult::PayloadTooLarge,
-        BitStreamError::InvalidOffset { .. } => SampClientSdkResult::InvalidArgument,
+        BitStreamError::InvalidOffset { .. } | BitStreamError::InvalidBitLength { .. } => {
+            SampClientSdkResult::InvalidArgument
+        }
     }
 }
 

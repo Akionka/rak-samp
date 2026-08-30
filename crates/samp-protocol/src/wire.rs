@@ -1,7 +1,7 @@
 use core::marker::PhantomData;
 
 use crate::{
-    BitRead, BitStream, BitStreamError, BitWrite, DecodeError, EncodeError, EncodedBits,
+    BitRead, BitReader, BitStream, BitStreamError, BitWrite, DecodeError, EncodeError, EncodedBits,
     EncodedBitsError,
 };
 
@@ -59,8 +59,9 @@ impl TrailingPolicy {
                         required_bits,
                     });
                 }
+                let mut padding = [0; 1];
                 reader
-                    .read_left_aligned_bits(required_bits)
+                    .read_left_aligned_bits_into(&mut padding, required_bits)
                     .map_err(DecodeError::Source)?;
                 Ok(())
             }
@@ -134,15 +135,15 @@ pub trait WireDescriptor: sealed::WireDescriptor<Self::Value> {
                 bit_len: stream.len_bits(),
             });
         }
-        EncodedBits::from_bits(stream.as_bytes().to_vec(), stream.len_bits())
-            .map_err(encode_bits_error)
+        let (bytes, bit_len) = stream.into_parts();
+        EncodedBits::from_bits(bytes, bit_len).map_err(encode_bits_error)
     }
 
-    /// Decodes a cursor-free exact-bit payload through the owned Protocol bitstream.
+    /// Decodes a cursor-free exact-bit payload through a borrowed Protocol reader.
     fn decode_bits(bits: &EncodedBits) -> Result<Self::Value, DecodeError<BitStreamError>> {
-        let mut stream = BitStream::from_bits(bits.as_bytes().to_vec(), bits.len_bits())
-            .map_err(DecodeError::Source)?;
-        Self::decode_from(&mut stream)
+        let mut reader =
+            BitReader::from_bits(bits.as_bytes(), bits.len_bits()).map_err(DecodeError::Source)?;
+        Self::decode_from(&mut reader)
     }
 }
 

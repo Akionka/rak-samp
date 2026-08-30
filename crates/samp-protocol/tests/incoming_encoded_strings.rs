@@ -49,8 +49,13 @@ impl BitRead for TestStream {
         self.bits.remaining_bits()
     }
 
-    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
-        BitRead::read_left_aligned_bits(&mut self.bits, bit_len).map_err(TestError::Bits)
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error> {
+        BitRead::read_left_aligned_bits_into(&mut self.bits, output, bit_len)
+            .map_err(TestError::Bits)
     }
 }
 

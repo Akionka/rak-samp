@@ -15,6 +15,17 @@ pub struct BitStream {
     read_offset: usize,
 }
 
+/// A bounded borrowed cursor over a Protocol bit payload.
+///
+/// This reader retains only a shared reference to its source. It cannot write
+/// or otherwise modify that source.
+#[derive(Clone, Debug)]
+pub struct BitReader<'a> {
+    bytes: &'a [u8],
+    bit_len: usize,
+    read_offset: usize,
+}
+
 /// A checked Protocol bitstream operation failed.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum BitStreamError {
@@ -64,8 +75,22 @@ pub trait BitRead {
     /// Returns the unread bit count.
     fn remaining_bits(&self) -> usize;
 
+    /// Reads `bit_len` raw bits into `output` as left-aligned, MSB-first bytes.
+    ///
+    /// `output.len()` must equal `bit_len.div_ceil(8)`. On error, this method
+    /// must leave both the cursor and `output` unchanged.
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error>;
+
     /// Reads `bit_len` raw bits as left-aligned, MSB-first bytes.
-    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error>;
+    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+        let mut output = vec![0; bit_len.div_ceil(u8::BITS as usize)];
+        self.read_left_aligned_bits_into(&mut output, bit_len)?;
+        Ok(output)
+    }
 }
 
 /// Writes raw, left-aligned, most-significant-bit-first bit buffers.
@@ -107,18 +132,7 @@ impl BitStream {
     /// Creates a bitstream from left-aligned meaningful bits in `bytes`.
     pub fn from_bits(bytes: impl Into<Vec<u8>>, bit_len: usize) -> Result<Self, BitStreamError> {
         let bytes = bytes.into();
-        let available_bits = bytes.len().saturating_mul(u8::BITS as usize);
-        if bit_len > available_bits {
-            return Err(BitStreamError::InvalidBitLength {
-                bit_len,
-                byte_len: bytes.len(),
-            });
-        }
-        if bit_len > MAX_BIT_STREAM_BITS {
-            return Err(BitStreamError::PayloadTooLarge {
-                requested_bits: bit_len,
-            });
-        }
+        validate_input_bit_len(&bytes, bit_len)?;
         let mut stream = Self {
             bytes,
             bit_len,
@@ -132,6 +146,12 @@ impl BitStream {
     #[must_use]
     pub fn as_bytes(&self) -> &[u8] {
         &self.bytes
+    }
+
+    /// Splits this owned stream into its storage and exact meaningful bit length.
+    #[must_use]
+    pub fn into_parts(self) -> (Vec<u8>, usize) {
+        (self.bytes, self.bit_len)
     }
 
     /// Returns the number of meaningful bits.
@@ -327,7 +347,16 @@ impl BitStream {
                 .ok_or(BitStreamError::PayloadTooLarge {
                     requested_bits: usize::MAX,
                 })?;
-        self.read_bits(bit_len)
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        let mut output = vec![0; len];
+        self.read_left_aligned_bits_into_impl(&mut output, bit_len)?;
+        Ok(output)
     }
 
     /// Writes an exact byte buffer.
@@ -347,7 +376,7 @@ impl BitStream {
 
     /// Reads a signed 8-bit integer.
     pub fn read_i8(&mut self) -> Result<i8, BitStreamError> {
-        Ok(self.read_bytes(1)?[0] as i8)
+        Ok(self.read_fixed::<1>()?[0] as i8)
     }
 
     /// Reads a signed 16-bit little-endian integer.
@@ -425,10 +454,32 @@ impl BitStream {
     }
 
     fn read_fixed<const N: usize>(&mut self) -> Result<[u8; N], BitStreamError> {
-        let bytes = self.read_bytes(N)?;
+        let bit_len = N
+            .checked_mul(u8::BITS as usize)
+            .ok_or(BitStreamError::PayloadTooLarge {
+                requested_bits: usize::MAX,
+            })?;
         let mut output = [0; N];
-        output.copy_from_slice(&bytes);
+        self.read_left_aligned_bits_into_impl(&mut output, bit_len)?;
         Ok(output)
+    }
+
+    fn read_left_aligned_bits_into_impl(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), BitStreamError> {
+        validate_output_bit_len(output, bit_len)?;
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        fill_left_aligned_bits(&self.bytes, self.read_offset, output, bit_len);
+        self.read_offset += bit_len;
+        Ok(())
     }
 
     fn ensure_additional_capacity(&self, additional_bits: usize) -> Result<(), BitStreamError> {
@@ -493,14 +544,43 @@ impl BitStream {
     }
 }
 
-impl BitRead for BitStream {
-    type Error = BitStreamError;
-
-    fn remaining_bits(&self) -> usize {
-        self.remaining_bits()
+impl<'a> BitReader<'a> {
+    /// Creates a byte-aligned borrowed reader.
+    pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, BitStreamError> {
+        let bit_len =
+            bytes
+                .len()
+                .checked_mul(u8::BITS as usize)
+                .ok_or(BitStreamError::PayloadTooLarge {
+                    requested_bits: usize::MAX,
+                })?;
+        Self::from_bits(bytes, bit_len)
     }
 
-    fn read_left_aligned_bits(&mut self, bit_len: usize) -> Result<Vec<u8>, Self::Error> {
+    /// Creates a borrowed reader from left-aligned meaningful bits in `bytes`.
+    pub fn from_bits(bytes: &'a [u8], bit_len: usize) -> Result<Self, BitStreamError> {
+        validate_input_bit_len(bytes, bit_len)?;
+        Ok(Self {
+            bytes,
+            bit_len,
+            read_offset: 0,
+        })
+    }
+
+    /// Returns the checked read cursor offset in bits.
+    #[must_use]
+    pub const fn read_offset_bits(&self) -> usize {
+        self.read_offset
+    }
+
+    /// Returns unread bits from the current cursor.
+    #[must_use]
+    pub const fn remaining_bits(&self) -> usize {
+        self.bit_len.saturating_sub(self.read_offset)
+    }
+
+    /// Advances the read cursor by a checked number of bits.
+    pub fn ignore_bits(&mut self, bit_len: usize) -> Result<(), BitStreamError> {
         let available_bits = self.remaining_bits();
         if bit_len > available_bits {
             return Err(BitStreamError::OutOfBounds {
@@ -508,13 +588,87 @@ impl BitRead for BitStream {
                 available_bits,
             });
         }
-        let mut output = vec![0; bit_len.div_ceil(u8::BITS as usize)];
-        for bit_offset in 0..bit_len {
-            if self.read_bool()? {
-                output[bit_offset / u8::BITS as usize] |= 0x80 >> (bit_offset % u8::BITS as usize);
-            }
+        self.read_offset += bit_len;
+        Ok(())
+    }
+}
+
+fn validate_input_bit_len(bytes: &[u8], bit_len: usize) -> Result<(), BitStreamError> {
+    let available_bits = bytes.len().saturating_mul(u8::BITS as usize);
+    if bit_len > available_bits {
+        return Err(BitStreamError::InvalidBitLength {
+            bit_len,
+            byte_len: bytes.len(),
+        });
+    }
+    if bit_len > MAX_BIT_STREAM_BITS {
+        return Err(BitStreamError::PayloadTooLarge {
+            requested_bits: bit_len,
+        });
+    }
+    Ok(())
+}
+
+fn validate_output_bit_len(output: &[u8], bit_len: usize) -> Result<(), BitStreamError> {
+    if output.len() != bit_len.div_ceil(u8::BITS as usize) {
+        return Err(BitStreamError::InvalidBitLength {
+            bit_len,
+            byte_len: output.len(),
+        });
+    }
+    Ok(())
+}
+
+fn fill_left_aligned_bits(bytes: &[u8], read_offset: usize, output: &mut [u8], bit_len: usize) {
+    output.fill(0);
+    for bit_offset in 0..bit_len {
+        let source_offset = read_offset + bit_offset;
+        let source = bytes[source_offset / u8::BITS as usize];
+        if source & (0x80 >> (source_offset % u8::BITS as usize)) != 0 {
+            output[bit_offset / u8::BITS as usize] |= 0x80 >> (bit_offset % u8::BITS as usize);
         }
-        Ok(output)
+    }
+}
+
+impl BitRead for BitReader<'_> {
+    type Error = BitStreamError;
+
+    fn remaining_bits(&self) -> usize {
+        self.remaining_bits()
+    }
+
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error> {
+        validate_output_bit_len(output, bit_len)?;
+        let available_bits = self.remaining_bits();
+        if bit_len > available_bits {
+            return Err(BitStreamError::OutOfBounds {
+                requested_bits: bit_len,
+                available_bits,
+            });
+        }
+        fill_left_aligned_bits(self.bytes, self.read_offset, output, bit_len);
+        self.read_offset += bit_len;
+        Ok(())
+    }
+}
+
+impl BitRead for BitStream {
+    type Error = BitStreamError;
+
+    fn remaining_bits(&self) -> usize {
+        self.remaining_bits()
+    }
+
+    fn read_left_aligned_bits_into(
+        &mut self,
+        output: &mut [u8],
+        bit_len: usize,
+    ) -> Result<(), Self::Error> {
+        self.read_left_aligned_bits_into_impl(output, bit_len)
     }
 }
 
@@ -523,5 +677,18 @@ impl BitWrite for BitStream {
 
     fn write_left_aligned_bits(&mut self, bytes: &[u8], bit_len: usize) -> Result<(), Self::Error> {
         self.write_left_aligned_bits(bytes, bit_len)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::BitReader;
+
+    #[test]
+    fn bit_reader_retains_the_borrowed_source() {
+        let source = [0b1010_0000];
+        let reader = BitReader::from_bits(&source, 3).unwrap();
+
+        assert_eq!(reader.bytes.as_ptr(), source.as_ptr());
     }
 }

@@ -1,5 +1,5 @@
 use samp_protocol::{
-    BitRead, BitStream, BitStreamError, BitWrite, DecodeError, EncodeError, EncodedBits,
+    BitRead, BitReader, BitStream, BitStreamError, BitWrite, DecodeError, EncodeError, EncodedBits,
     EncodedBitsError, MAX_BIT_STREAM_BITS, packet_name, rpc_name,
 };
 
@@ -45,6 +45,74 @@ fn raw_bit_read_is_left_aligned_and_msb_first() {
         BitRead::read_left_aligned_bits(&mut stream, 3),
         Ok(vec![0b1010_0000])
     );
+}
+
+#[test]
+fn borrowed_reader_preserves_meaningful_bits_and_terminal_padding() {
+    let source = [0b1010_1011, 0b1101_0111];
+    let mut reader = BitReader::from_bits(&source, 12).unwrap();
+    let mut prefix = [0xff];
+
+    BitRead::read_left_aligned_bits_into(&mut reader, &mut prefix, 3).unwrap();
+
+    assert_eq!(prefix, [0b1010_0000]);
+    assert_eq!(reader.read_offset_bits(), 3);
+    assert_eq!(reader.remaining_bits(), 9);
+
+    let mut suffix = [0xff; 2];
+    BitRead::read_left_aligned_bits_into(&mut reader, &mut suffix, 9).unwrap();
+
+    assert_eq!(suffix, [0b0101_1110, 0b1000_0000]);
+    assert_eq!(reader.read_offset_bits(), 12);
+    assert_eq!(reader.remaining_bits(), 0);
+}
+
+#[test]
+fn caller_buffer_reads_are_transactional_and_allow_zero_bits() {
+    let source = [0b1010_0000];
+    let mut reader = BitReader::from_bits(&source, 3).unwrap();
+    let mut empty = [];
+
+    BitRead::read_left_aligned_bits_into(&mut reader, &mut empty, 0).unwrap();
+
+    assert_eq!(reader.read_offset_bits(), 0);
+
+    let mut mismatched = [0x5a; 2];
+    assert_eq!(
+        BitRead::read_left_aligned_bits_into(&mut reader, &mut mismatched, 3),
+        Err(BitStreamError::InvalidBitLength {
+            bit_len: 3,
+            byte_len: 2,
+        })
+    );
+    assert_eq!(mismatched, [0x5a; 2]);
+    assert_eq!(reader.read_offset_bits(), 0);
+
+    let mut exhausted = [0xa5];
+    assert_eq!(
+        BitRead::read_left_aligned_bits_into(&mut reader, &mut exhausted, 4),
+        Err(BitStreamError::OutOfBounds {
+            requested_bits: 4,
+            available_bits: 3,
+        })
+    );
+    assert_eq!(exhausted, [0xa5]);
+    assert_eq!(reader.read_offset_bits(), 0);
+
+    let mut final_bits = [0xff];
+    BitRead::read_left_aligned_bits_into(&mut reader, &mut final_bits, 3).unwrap();
+    assert_eq!(final_bits, [0b1010_0000]);
+    assert_eq!(reader.remaining_bits(), 0);
+
+    let mut after_end = [0x3c];
+    assert_eq!(
+        BitRead::read_left_aligned_bits_into(&mut reader, &mut after_end, 1),
+        Err(BitStreamError::OutOfBounds {
+            requested_bits: 1,
+            available_bits: 0,
+        })
+    );
+    assert_eq!(after_end, [0x3c]);
 }
 
 #[test]

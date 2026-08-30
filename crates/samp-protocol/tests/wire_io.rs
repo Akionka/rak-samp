@@ -174,7 +174,11 @@ fn wire_primitives_keep_source_failures_separate_from_validation() {
             u16::BITS as usize
         }
 
-        fn read_left_aligned_bits(&mut self, _: usize) -> Result<Vec<u8>, Self::Error> {
+        fn read_left_aligned_bits_into(
+            &mut self,
+            _: &mut [u8],
+            _: usize,
+        ) -> Result<(), Self::Error> {
             Err("read failed")
         }
     }
