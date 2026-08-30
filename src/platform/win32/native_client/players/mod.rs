@@ -20,7 +20,7 @@ use crate::runtime::{
     OnFootSyncSnapshot, PassengerSyncSnapshot, PlayerInfoSnapshot, RemotePlayerStateSnapshot,
     TrailerSyncSnapshot,
 };
-use gta_sa_native::{CpoolRefAbi, GtaProfile, cpool_ref};
+use gta_sa_native::{CpoolRefAbi, GtaPoolSpec, cpool_ref};
 use std::{ffi::c_void, mem};
 
 impl NativeClientProfile {

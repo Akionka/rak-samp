@@ -252,7 +252,10 @@ fn direct_helpers_require_a_verified_native_profile() {
 
 #[test]
 fn handle_caches_are_cleared_across_connection_boundaries() {
-    let state = test_backend_state();
+    let mut state = test_backend_state();
+    state.context.native_client_profile = r1_native_profile();
+    state.rak_client.store(0x1000, Ordering::Release);
+    state.cache_generation.store(2, Ordering::Release);
     state.object_handle_cache.lock().unwrap()[7] = HandleCacheEntry::Known(Some(42));
     state.object_handle_requests.lock().unwrap().push_back(7);
     state
@@ -295,6 +298,25 @@ fn handle_caches_are_cleared_across_connection_boundaries() {
             .lock()
             .unwrap()
             .is_empty()
+    );
+
+    assert_eq!(state.object_handle(7), Err(DirectClientError::NotReady));
+    assert_eq!(
+        state.object_id_by_handle(42),
+        Err(DirectClientError::NotReady)
+    );
+    assert_eq!(
+        state.object_handle_requests.lock().unwrap().as_slices().0,
+        &[7]
+    );
+    assert_eq!(
+        state
+            .object_handle_reverse_requests
+            .lock()
+            .unwrap()
+            .as_slices()
+            .0,
+        &[42]
     );
 }
 

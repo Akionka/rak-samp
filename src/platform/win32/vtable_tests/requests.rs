@@ -34,6 +34,18 @@ fn handle_reads_are_deduplicated_queued_and_published_per_pump() {
 }
 
 #[test]
+fn active_profile_limit_rejects_an_id_before_queueing() {
+    let mut state = test_backend_state();
+    state.context.native_client_profile = r1_native_profile();
+
+    assert_eq!(
+        state.object_handle(1000),
+        Err(DirectClientError::InvalidArgument)
+    );
+    assert!(state.object_handle_requests.lock().unwrap().is_empty());
+}
+
+#[test]
 fn handle_reverse_requests_are_deduplicated() {
     let mut state = test_backend_state();
     state.context.native_client_profile = r1_native_profile();

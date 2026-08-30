@@ -12,6 +12,7 @@ use std::{
 
 pub(super) fn direct_client_result(error: DirectClientError) -> SampClientSdkResult {
     match error {
+        DirectClientError::InvalidArgument => SampClientSdkResult::InvalidArgument,
         DirectClientError::NotReady => SampClientSdkResult::NotReady,
         DirectClientError::Busy => SampClientSdkResult::Busy,
         DirectClientError::UnsupportedVersion => SampClientSdkResult::UnsupportedVersion,
@@ -116,7 +117,9 @@ fn allocate_monotonic_id(next: &AtomicU64) -> Option<u64> {
 
 #[cfg(test)]
 mod tests {
-    use super::allocate_monotonic_id;
+    use super::{allocate_monotonic_id, direct_client_result};
+    use crate::runtime::DirectClientError;
+    use sdk_abi::SampClientSdkResult;
     use std::sync::atomic::AtomicU64;
 
     #[test]
@@ -124,5 +127,13 @@ mod tests {
         let next = AtomicU64::new(u64::MAX);
         assert_eq!(allocate_monotonic_id(&next), Some(u64::MAX));
         assert_eq!(allocate_monotonic_id(&next), None);
+    }
+
+    #[test]
+    fn invalid_direct_client_argument_maps_to_the_stable_abi_result() {
+        assert_eq!(
+            direct_client_result(DirectClientError::InvalidArgument),
+            SampClientSdkResult::InvalidArgument
+        );
     }
 }

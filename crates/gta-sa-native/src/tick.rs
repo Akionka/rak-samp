@@ -77,6 +77,12 @@ impl GameTickRuntime {
         }
     }
 
+    /// Returns the verified GTA profile selected for this runtime.
+    #[must_use]
+    pub fn profile(&self) -> GtaProfile {
+        self.inner.profile
+    }
+
     /// Registers the host-owned participant driven by the GTA tick.
     pub fn register_participant(&self, participant: Weak<dyn GameTickParticipant>) {
         *self

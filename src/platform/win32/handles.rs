@@ -1,8 +1,7 @@
 //! Published forward and reverse GTA handle cache reads.
 
 use super::{
-    BackendState, HandleCacheEntry, MAX_SAMP_OBJECTS, MAX_SAMP_PICKUPS, MAX_SAMP_PLAYERS,
-    MAX_SAMP_VEHICLES, OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY,
+    BackendState, HandleCacheEntry, OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY,
     OBJECT_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY,
     PICKUP_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY,
     PLAYER_HANDLE_REVERSE_REQUEST_QUEUE_CAPACITY, VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY,
@@ -16,9 +15,17 @@ use std::{
 
 impl BackendState {
     pub(super) fn object_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        let maximum = self
+            .scalar_profile()
+            .ok_or(DirectClientError::UnsupportedVersion)?
+            .spec
+            .pools
+            .limits
+            .objects
+            .get();
         self.cached_handle(
             usize::from(id),
-            MAX_SAMP_OBJECTS,
+            maximum,
             &self.object_handle_cache,
             &self.object_handle_requests,
             OBJECT_HANDLE_REQUEST_QUEUE_CAPACITY,
@@ -40,9 +47,17 @@ impl BackendState {
     }
 
     pub(super) fn pickup_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        let maximum = self
+            .scalar_profile()
+            .ok_or(DirectClientError::UnsupportedVersion)?
+            .spec
+            .pools
+            .limits
+            .pickups
+            .get();
         self.cached_handle(
             usize::from(id),
-            MAX_SAMP_PICKUPS,
+            maximum,
             &self.pickup_handle_cache,
             &self.pickup_handle_requests,
             PICKUP_HANDLE_REQUEST_QUEUE_CAPACITY,
@@ -64,9 +79,17 @@ impl BackendState {
     }
 
     pub(super) fn vehicle_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        let maximum = self
+            .scalar_profile()
+            .ok_or(DirectClientError::UnsupportedVersion)?
+            .spec
+            .pools
+            .limits
+            .vehicles
+            .get();
         self.cached_handle(
             usize::from(id),
-            MAX_SAMP_VEHICLES,
+            maximum,
             &self.vehicle_handle_cache,
             &self.vehicle_handle_requests,
             VEHICLE_HANDLE_REQUEST_QUEUE_CAPACITY,
@@ -88,9 +111,17 @@ impl BackendState {
     }
 
     pub(super) fn player_ped_handle(&self, id: u16) -> Result<Option<i32>, DirectClientError> {
+        let maximum = self
+            .scalar_profile()
+            .ok_or(DirectClientError::UnsupportedVersion)?
+            .spec
+            .pools
+            .limits
+            .players
+            .get();
         self.cached_handle(
             usize::from(id),
-            MAX_SAMP_PLAYERS,
+            maximum,
             &self.player_handle_cache,
             &self.player_handle_requests,
             PLAYER_HANDLE_REQUEST_QUEUE_CAPACITY,
@@ -120,10 +151,10 @@ impl BackendState {
         queue_capacity: usize,
         client_available: bool,
     ) -> Result<Option<i32>, DirectClientError> {
-        if self.scalar_profile().is_none() {
-            return Err(DirectClientError::UnsupportedVersion);
+        if index >= maximum {
+            return Err(DirectClientError::InvalidArgument);
         }
-        if index >= maximum || !client_available || !self.cache_is_published() {
+        if !client_available || !self.cache_is_published() {
             return Err(DirectClientError::NotReady);
         }
         match try_lock_direct(cache)?

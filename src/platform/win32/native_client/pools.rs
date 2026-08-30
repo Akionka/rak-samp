@@ -5,7 +5,7 @@ use super::{
     profile::{FieldOffset, NativeClientProfile, PoolGetterAbi},
 };
 use crate::runtime::{DirectClientError, GangzoneSnapshot};
-use gta_sa_native::{CpoolRefAbi, GtaProfile, cpool_ref};
+use gta_sa_native::{CpoolRefAbi, GtaPoolSpec, cpool_ref};
 use std::{ffi::c_void, mem};
 
 type R1PoolGetterFn = unsafe extern "thiscall" fn(*mut c_void) -> *mut c_void;
@@ -172,7 +172,11 @@ impl NativeClientProfile {
     }
 
     /// Converts one guarded vehicle game-object pointer to its GTA handle.
-    pub(crate) fn vehicle_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+    pub(crate) fn vehicle_handle(
+        self,
+        gta_pools: GtaPoolSpec,
+        id: u16,
+    ) -> Result<Option<i32>, DirectClientError> {
         if !self.vehicle_exists(id)? {
             return Ok(None);
         }
@@ -206,25 +210,20 @@ impl NativeClientProfile {
             PoolGetterAbi::R1 => CpoolRefAbi::R1,
             PoolGetterAbi::Classic => CpoolRefAbi::Classic,
         };
-        let handle = unsafe {
-            cpool_ref(
-                GtaProfile::gta_sa_10_us().spec.pools.get_vehicle_ref,
-                abi,
-                game_object.cast(),
-            )
-        }
-        .map_err(|_| DirectClientError::NotReady)?;
+        let handle = unsafe { cpool_ref(gta_pools.get_vehicle_ref, abi, game_object.cast()) }
+            .map_err(|_| DirectClientError::NotReady)?;
         Ok(handle)
     }
 
     /// Finds a vehicle ID by its GTA handle.
     pub(crate) fn vehicle_id_by_handle(
         self,
+        gta_pools: GtaPoolSpec,
         handle: i32,
     ) -> Result<Option<u16>, DirectClientError> {
         for id in 0..self.spec.pools.limits.vehicles.get() {
             let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
-            if self.vehicle_handle(id)? == Some(handle) {
+            if self.vehicle_handle(gta_pools, id)? == Some(handle) {
                 return Ok(Some(id));
             }
         }

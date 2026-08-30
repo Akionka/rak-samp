@@ -10,16 +10,24 @@ try {
     }
 
     $sdk = $metadata.packages | Where-Object name -eq "samp-client-sdk"
+    $gta = $metadata.packages | Where-Object name -eq "gta-sa"
     $protocol = $metadata.packages | Where-Object name -eq "samp-protocol"
+    $gtaPath = (Split-Path $gta.manifest_path -Parent).Replace("\", "/")
     $protocolPath = (Split-Path $protocol.manifest_path -Parent).Replace("\", "/")
-    $patch = "patch.crates-io.samp-protocol.path='$protocolPath'"
+    $gtaPatch = "patch.crates-io.gta-sa.path='$gtaPath'"
+    $protocolPatch = "patch.crates-io.samp-protocol.path='$protocolPath'"
+
+    cargo package -p gta-sa --allow-dirty --locked
+    if ($LASTEXITCODE -ne 0) {
+        throw "gta-sa packaging failed"
+    }
 
     cargo package -p samp-protocol --allow-dirty --locked
     if ($LASTEXITCODE -ne 0) {
         throw "samp-protocol packaging failed"
     }
 
-    cargo package -p samp-client-sdk --allow-dirty --locked --config $patch
+    cargo package -p samp-client-sdk --allow-dirty --locked --config $gtaPatch --config $protocolPatch
     if ($LASTEXITCODE -ne 0) {
         throw "samp-client-sdk packaging failed"
     }
@@ -38,6 +46,10 @@ try {
     if (($normalizedManifest -join "`n") -notmatch "(?ms)\[dependencies\.samp-protocol\].*?version = `"$expectedVersion`"") {
         throw "The packaged SDK does not pin the synchronized Protocol version"
     }
+    $expectedGtaVersion = [regex]::Escape("=$($gta.version)")
+    if (($normalizedManifest -join "`n") -notmatch "(?ms)\[dependencies\.gta-sa\].*?version = `"$expectedGtaVersion`"") {
+        throw "The packaged SDK does not pin the synchronized GTA version"
+    }
 
     $packagedLock = tar -xOf $archive "$archiveRoot/Cargo.lock"
     if ($LASTEXITCODE -ne 0) {
@@ -46,6 +58,10 @@ try {
     $protocolPackages = [regex]::Matches(($packagedLock -join "`n"), '(?m)^name = "samp-protocol"$')
     if ($protocolPackages.Count -ne 1) {
         throw "The packaged SDK does not resolve exactly one Protocol crate"
+    }
+    $gtaPackages = [regex]::Matches(($packagedLock -join "`n"), '(?m)^name = "gta-sa"$')
+    if ($gtaPackages.Count -ne 1) {
+        throw "The packaged SDK does not resolve exactly one GTA crate"
     }
 
     Write-Host "Published crate package checks passed."

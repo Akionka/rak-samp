@@ -314,8 +314,9 @@ impl BackendState {
     }
 
     pub(super) fn refresh_vehicle_handles(&self, profile: NativeClientProfile) {
+        let gta_pools = self.game_tick.profile().spec.pools;
         for id in self.take_vehicle_handle_requests() {
-            let Ok(handle) = profile.vehicle_handle(id) else {
+            let Ok(handle) = profile.vehicle_handle(gta_pools, id) else {
                 continue;
             };
             let Ok(mut cache) = self.vehicle_handle_cache.try_lock() else {
@@ -328,8 +329,9 @@ impl BackendState {
     }
 
     pub(super) fn refresh_player_handles(&self, profile: NativeClientProfile) {
+        let gta_pools = self.game_tick.profile().spec.pools;
         for id in self.take_player_handle_requests() {
-            let Ok(handle) = profile.player_ped_handle(id) else {
+            let Ok(handle) = profile.player_ped_handle(gta_pools, id) else {
                 continue;
             };
             let Ok(mut cache) = self.player_handle_cache.try_lock() else {
@@ -366,8 +368,9 @@ impl BackendState {
     }
 
     pub(super) fn refresh_vehicle_handle_ids(&self, profile: NativeClientProfile) {
+        let gta_pools = self.game_tick.profile().spec.pools;
         for handle in self.take_vehicle_handle_id_requests() {
-            let Ok(id) = profile.vehicle_id_by_handle(handle) else {
+            let Ok(id) = profile.vehicle_id_by_handle(gta_pools, handle) else {
                 continue;
             };
             let Ok(mut cache) = self.vehicle_handle_reverse_cache.try_lock() else {
@@ -378,8 +381,9 @@ impl BackendState {
     }
 
     pub(super) fn refresh_player_handle_ids(&self, profile: NativeClientProfile) {
+        let gta_pools = self.game_tick.profile().spec.pools;
         for handle in self.take_player_handle_id_requests() {
-            let Ok(id) = profile.player_id_by_ped_handle(handle) else {
+            let Ok(id) = profile.player_id_by_ped_handle(gta_pools, handle) else {
                 continue;
             };
             let Ok(mut cache) = self.player_handle_reverse_cache.try_lock() else {
@@ -409,7 +413,8 @@ impl BackendState {
                 self.samp_game_state_ready.store(false, Ordering::Release);
             }
             Err(
-                DirectClientError::Busy
+                DirectClientError::InvalidArgument
+                | DirectClientError::Busy
                 | DirectClientError::UnsupportedVersion
                 | DirectClientError::QueueFull,
             ) => {

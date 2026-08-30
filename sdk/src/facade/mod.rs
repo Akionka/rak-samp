@@ -282,6 +282,7 @@ mod tests {
         assert_eq!(TextLabelId::new(MAX_SAMP_TEXT_LABELS), None);
         assert_eq!(TextdrawId::new(MAX_SAMP_TEXTDRAWS), None);
         assert_eq!(ObjectId::new(MAX_SAMP_OBJECTS), None);
+        assert_eq!(ObjectId::new(2099).map(ObjectId::get), Some(2099));
         assert_eq!(GangzoneId::new(MAX_SAMP_GANGZONES), None);
     }
 

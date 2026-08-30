@@ -476,7 +476,11 @@ impl NativeClientProfile {
     }
 
     /// Converts a guarded local or remote GTA ped pointer to its handle.
-    pub(crate) fn player_ped_handle(self, id: u16) -> Result<Option<i32>, DirectClientError> {
+    pub(crate) fn player_ped_handle(
+        self,
+        gta_pools: GtaPoolSpec,
+        id: u16,
+    ) -> Result<Option<i32>, DirectClientError> {
         if usize::from(id) >= self.spec.pools.limits.players.get() {
             return Err(DirectClientError::NotReady);
         }
@@ -537,20 +541,15 @@ impl NativeClientProfile {
             PoolGetterAbi::R1 => CpoolRefAbi::R1,
             PoolGetterAbi::Classic => CpoolRefAbi::Classic,
         };
-        let handle = unsafe {
-            cpool_ref(
-                GtaProfile::gta_sa_10_us().spec.pools.get_ped_ref,
-                abi,
-                game_ped.cast(),
-            )
-        }
-        .map_err(|_| DirectClientError::NotReady)?;
+        let handle = unsafe { cpool_ref(gta_pools.get_ped_ref, abi, game_ped.cast()) }
+            .map_err(|_| DirectClientError::NotReady)?;
         Ok(handle)
     }
 
     /// Finds a player ID by its GTA ped handle, checking the local player first.
     pub(crate) fn player_id_by_ped_handle(
         self,
+        gta_pools: GtaPoolSpec,
         handle: i32,
     ) -> Result<Option<u16>, DirectClientError> {
         let pool = self.player_pool()?;
@@ -563,12 +562,12 @@ impl NativeClientProfile {
         }
         .filter(|value| usize::from(*value) < self.spec.pools.limits.players.get())
         .ok_or(DirectClientError::NotReady)?;
-        if self.player_ped_handle(local_id)? == Some(handle) {
+        if self.player_ped_handle(gta_pools, local_id)? == Some(handle) {
             return Ok(Some(local_id));
         }
         for id in 0..self.spec.pools.limits.players.get() {
             let id = u16::try_from(id).map_err(|_| DirectClientError::NotReady)?;
-            if id != local_id && self.player_ped_handle(id)? == Some(handle) {
+            if id != local_id && self.player_ped_handle(gta_pools, id)? == Some(handle) {
                 return Ok(Some(id));
             }
         }

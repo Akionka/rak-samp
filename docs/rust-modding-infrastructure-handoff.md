@@ -2159,13 +2159,8 @@ refactor(gta): move game-process runtime out of samp backend
 - [x] Validate typed ID construction against the cross-profile maximum, then validate each operation against the active profile's bound before pool access.
 - [x] Add roundtrip/mapping tests using existing mock ABI behavior.
 
-Completed: 2026-08-30. `crates/gta-sa` owns the typed GTA entity handles as
-private `NonZero<i32>` tokens that reject zero and negative raw values.
-`gta-sa-native` owns the verified `CPools::GetPedRef`/`GetVehicleRef` targets in
-its profile and exposes a `cpool_ref` wrapper; the SA-MP backend calls it instead
-of holding its own GTA absolute addresses. SA-MP facades re-export the handle
-types and perform forward/reverse mappings through `Objects::id_by_handle`,
-`Vehicles::id_by_handle`, `Pickups::id_by_handle`, and `Players::id_by_ped_handle`.
+Completed on 2026-08-30. Automated and live evidence is recorded in
+[`docs/evidence/phase-6-gta-handles.md`](evidence/phase-6-gta-handles.md).
 
 ### Acceptance criteria
 
