@@ -13,7 +13,8 @@ mod resolve;
 
 pub use context::GameContext;
 pub use host::{
-    Core, GtaSaService, Host, HostStatus, LegacySamp, SampNetService, SampService, Service,
-    ServiceError,
+    Core, GtaSaService, Host, HostStatus, LegacySamp, SampCodecService, SampControlService,
+    SampNetService, SampPlayerService, SampPoolService, SampService, SampTextLabelService,
+    SampTextdrawService, SampUiService, Service, ServiceError,
 };
 pub use resolve::{ConnectError, DEFAULT_HOST_MODULE};

@@ -148,3 +148,145 @@ pub(super) unsafe extern "system" fn submit_create_text_label_auto(
         Err(error) => direct_client_result(error),
     }
 }
+
+pub(super) unsafe extern "system" fn modkit_snapshot(
+    id: u16,
+    output: *mut modkit_abi::SampTextLabelV1,
+) -> modkit_abi::ModResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    *output = modkit_abi::SampTextLabelV1::default();
+    let mut legacy = sdk_abi::SampClientSdkTextLabelV1::default();
+    let result = unsafe { super::snapshots::text_label_info(id, &mut legacy) };
+    if result != SampClientSdkResult::Ok {
+        return super::modkit::subscription_result(result);
+    }
+    if legacy.exists == 0 {
+        return modkit_abi::MOD_NOT_FOUND;
+    }
+    let text_len = usize::from(legacy.text_len);
+    if text_len > modkit_abi::SAMP_MAX_TEXT_LABEL_TEXT_BYTES {
+        return modkit_abi::MOD_NATIVE_CALL_FAILED;
+    }
+    output.id = legacy.id;
+    output.attached_player_id = legacy.attached_player_id;
+    output.attached_vehicle_id = legacy.attached_vehicle_id;
+    output.text_len = legacy.text_len;
+    output.colour = legacy.colour;
+    output.position = modkit_abi::SampVector3V1 {
+        x: legacy.position.x,
+        y: legacy.position.y,
+        z: legacy.position.z,
+    };
+    output.draw_distance = legacy.draw_distance;
+    output.behind_walls = legacy.behind_walls;
+    output.text[..text_len].copy_from_slice(&legacy.text[..text_len]);
+    modkit_abi::MOD_OK
+}
+
+pub(super) unsafe extern "system" fn modkit_submit_delete(
+    id: u16,
+    output: *mut modkit_abi::CommandReceiptId,
+) -> modkit_abi::ModResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    *output = modkit_abi::CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe { submit_delete_text_label(id, &mut legacy) };
+    if result == SampClientSdkResult::Ok {
+        *output = modkit_abi::CommandReceiptId(legacy.id);
+    }
+    super::modkit::subscription_result(result)
+}
+
+pub(super) unsafe extern "system" fn modkit_submit_set_text(
+    id: u16,
+    text: *const u8,
+    text_len: u32,
+    output: *mut modkit_abi::CommandReceiptId,
+) -> modkit_abi::ModResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    *output = modkit_abi::CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe { submit_set_text_label_text(id, text, text_len as usize, &mut legacy) };
+    if result == SampClientSdkResult::Ok {
+        *output = modkit_abi::CommandReceiptId(legacy.id);
+    }
+    super::modkit::subscription_result(result)
+}
+
+pub(super) unsafe extern "system" fn modkit_submit_create_at(
+    id: u16,
+    request: *const modkit_abi::SampTextLabelCreateV1,
+    output: *mut modkit_abi::CommandReceiptId,
+) -> modkit_abi::ModResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    *output = modkit_abi::CommandReceiptId(0);
+    let Some(request) = (unsafe { request.as_ref() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe {
+        submit_create_text_label(
+            id,
+            request.text,
+            request.text_len as usize,
+            request.colour,
+            Vector3 {
+                x: request.position.x,
+                y: request.position.y,
+                z: request.position.z,
+            },
+            request.draw_distance,
+            request.behind_walls,
+            request.attached_player_id,
+            request.attached_vehicle_id,
+            &mut legacy,
+        )
+    };
+    if result == SampClientSdkResult::Ok {
+        *output = modkit_abi::CommandReceiptId(legacy.id);
+    }
+    super::modkit::subscription_result(result)
+}
+
+pub(super) unsafe extern "system" fn modkit_submit_create(
+    request: *const modkit_abi::SampTextLabelCreateV1,
+    output: *mut modkit_abi::CommandReceiptId,
+) -> modkit_abi::ModResult {
+    let Some(output) = (unsafe { output.as_mut() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    *output = modkit_abi::CommandReceiptId(0);
+    let Some(request) = (unsafe { request.as_ref() }) else {
+        return modkit_abi::MOD_INVALID_ARGUMENT;
+    };
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe {
+        submit_create_text_label_auto(
+            request.text,
+            request.text_len as usize,
+            request.colour,
+            Vector3 {
+                x: request.position.x,
+                y: request.position.y,
+                z: request.position.z,
+            },
+            request.draw_distance,
+            request.behind_walls,
+            request.attached_player_id,
+            request.attached_vehicle_id,
+            &mut legacy,
+        )
+    };
+    if result == SampClientSdkResult::Ok {
+        *output = modkit_abi::CommandReceiptId(legacy.id);
+    }
+    super::modkit::subscription_result(result)
+}

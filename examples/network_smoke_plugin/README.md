@@ -1,7 +1,10 @@
 # Network smoke plugin
 
-This opt-in ASI exercises the network paths that are safe to validate against
-an isolated server without sending server-bound traffic:
+This opt-in ASI exercises legacy network paths that are safe to validate
+against an isolated server without sending server-bound traffic. It is the
+retained legacy-ABI compatibility smoke for Phase 11. Consumer examples use
+the exact-version `samp` services; this fixture remains on the frozen
+`samp-client-sdk` facade until the legacy removal gate is satisfied:
 
 - native SA-MP string compressor encode/decode round-trip;
 - a 3-bit incoming packet, allocated and queued natively, then blocked by the

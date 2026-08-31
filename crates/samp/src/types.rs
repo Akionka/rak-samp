@@ -29,6 +29,39 @@ impl ClientVersion {
     }
 }
 
+#[repr(i32)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum GameState {
+    None = 0,
+    WaitingForConnection = 9,
+    Connecting = 13,
+    Connected = 14,
+    AwaitingJoin = 15,
+    Restarting = 18,
+}
+
+impl GameState {
+    #[must_use]
+    pub const fn raw(self) -> i32 {
+        self as i32
+    }
+}
+
+#[repr(u32)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum SendRateKind {
+    OnFoot = modkit_abi::SAMP_SEND_RATE_ON_FOOT,
+    InVehicle = modkit_abi::SAMP_SEND_RATE_IN_CAR,
+    Aim = modkit_abi::SAMP_SEND_RATE_AIM,
+}
+
+impl SendRateKind {
+    #[must_use]
+    pub const fn raw(self) -> u32 {
+        self as u32
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct PlayerId(u16);
 
@@ -36,6 +69,44 @@ impl PlayerId {
     #[must_use]
     pub const fn new(raw: u16) -> Option<Self> {
         if raw < SAMP_MAX_PLAYERS {
+            Some(Self(raw))
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct VehicleId(u16);
+
+impl VehicleId {
+    #[must_use]
+    pub const fn new(raw: u16) -> Option<Self> {
+        if raw < modkit_abi::SAMP_MAX_VEHICLES {
+            Some(Self(raw))
+        } else {
+            None
+        }
+    }
+
+    #[must_use]
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct TextLabelId(u16);
+
+impl TextLabelId {
+    #[must_use]
+    pub const fn new(raw: u16) -> Option<Self> {
+        if raw < modkit_abi::SAMP_MAX_TEXT_LABELS {
             Some(Self(raw))
         } else {
             None
@@ -62,6 +133,60 @@ impl From<SampVector3V1> for Vector3 {
             y: value.y,
             z: value.z,
         }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextLabel {
+    pub id: TextLabelId,
+    pub text: Vec<u8>,
+    pub colour: u32,
+    pub position: Vector3,
+    pub draw_distance: f32,
+    pub behind_walls: bool,
+    pub attached_player_id: Option<PlayerId>,
+    pub attached_vehicle_id: Option<VehicleId>,
+}
+
+impl TextLabel {
+    pub(crate) fn from_abi(
+        value: modkit_abi::SampTextLabelV1,
+    ) -> Result<Self, modkit_abi::ModResult> {
+        let Some(id) = TextLabelId::new(value.id) else {
+            return Err(modkit_abi::MOD_NATIVE_CALL_FAILED);
+        };
+        let text_len = usize::from(value.text_len);
+        if text_len > modkit_abi::SAMP_MAX_TEXT_LABEL_TEXT_BYTES || value.behind_walls > 1 {
+            return Err(modkit_abi::MOD_NATIVE_CALL_FAILED);
+        }
+        let attached_player_id =
+            if value.attached_player_id == modkit_abi::SAMP_TEXT_LABEL_NO_ATTACHMENT {
+                None
+            } else {
+                Some(
+                    PlayerId::new(value.attached_player_id)
+                        .ok_or(modkit_abi::MOD_NATIVE_CALL_FAILED)?,
+                )
+            };
+        let attached_vehicle_id =
+            if value.attached_vehicle_id == modkit_abi::SAMP_TEXT_LABEL_NO_ATTACHMENT {
+                None
+            } else {
+                Some(
+                    VehicleId::new(value.attached_vehicle_id)
+                        .ok_or(modkit_abi::MOD_NATIVE_CALL_FAILED)?,
+                )
+            };
+        Ok(Self {
+            id,
+            text: value.text[..text_len].to_vec(),
+            colour: value.colour,
+            position: value.position.into(),
+            draw_distance: value.draw_distance,
+            behind_walls: value.behind_walls != 0,
+            attached_player_id,
+            attached_vehicle_id,
+        })
     }
 }
 
@@ -198,6 +323,19 @@ mod tests {
         };
         assert_eq!(
             LocalPlayer::from_abi(local),
+            Err(modkit_abi::MOD_NATIVE_CALL_FAILED)
+        );
+    }
+
+    #[test]
+    fn text_label_rejects_out_of_range_attached_vehicle() {
+        let label = modkit_abi::SampTextLabelV1 {
+            attached_player_id: modkit_abi::SAMP_TEXT_LABEL_NO_ATTACHMENT,
+            attached_vehicle_id: modkit_abi::SAMP_MAX_VEHICLES,
+            ..modkit_abi::SampTextLabelV1::default()
+        };
+        assert_eq!(
+            TextLabel::from_abi(label),
             Err(modkit_abi::MOD_NATIVE_CALL_FAILED)
         );
     }

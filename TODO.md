@@ -1,7 +1,8 @@
 # Repositioning TODO
 
 Status: complete for the original repositioning. Architecture work through
-Phase 9 is complete; Phase 10 GTA common gameplay expansion is active in the
+Phase 9 and the Phase 11 legacy SA-MP ABI migration are complete.
+Evidence-gated Phase 10 work remains in progress in the
 [Rust modding infrastructure handoff](docs/rust-modding-infrastructure-handoff.md).
 
 > Protocol/SDK boundary status: complete for issues #6, #21, #22, and #39.
@@ -93,6 +94,20 @@ See [pool evidence](docs/evidence/phase-10-gta-pools-static.md),
 [live smoke checklist](docs/native-layout-smoke.md#gta-sa-phase-10-common-gameplay).
 Streaming, camera controls, vehicle creation, and destruction remain
 unsupported until the evidence register requirements are met.
+
+### Phase 11 — finish migration from the legacy SA-MP ABI
+
+Completed. The complete 199-method safe-facade compatibility matrix and the
+separate 23-accessor unsafe-raw inventory are recorded in
+[the Phase 11 compatibility matrix](docs/legacy-samp-api-compatibility.md).
+Typed Protocol send conveniences use frozen `SampNetServiceV1`. Separate
+`SampTextLabelServiceV1`, `SampControlServiceV1`, `SampUiServiceV1`,
+`SampPlayerServiceV1`, `SampPoolServiceV1`, `SampTextdrawServiceV1`, and
+`SampCodecServiceV1` tables publish owned snapshots, native string decoding,
+queued mutations, and copied live-pool mappings without extending frozen V1
+tables. Only plugin-owned `BitStream` storage migrates to `samp::raw`; 22
+volatile native pointer accessors are explicit will-not-migrate decisions.
+Process-module probes and SAMPFUNCS console behavior remain Phase 12 scope.
 
 ### Structural split tracker
 

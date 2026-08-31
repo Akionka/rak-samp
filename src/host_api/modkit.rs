@@ -13,10 +13,17 @@ use modkit_abi::{
     GTA_SA_SERVICE_VERSION_V2, GtaSaServiceV1, GtaSaServiceV2, HostStatusV1, LegacySampServiceV1,
     MOD_BUFFER_TOO_SMALL, MOD_HOST_ABI_VERSION_V1, MOD_INVALID_ARGUMENT, MOD_NOT_FOUND,
     MOD_NOT_READY, MOD_OK, MOD_SHUTTING_DOWN, MOD_UNSUPPORTED_VERSION, ModHostApiV1, ModResult,
-    SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
-    SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, SampLocalPlayerV1,
-    SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampServerInfoV1,
-    SampServiceV1, SampVector3V1, ServiceHeader, SubscriptionId,
+    SAMP_CODEC_SERVICE_VERSION_V1, SAMP_CONTROL_SERVICE_VERSION_V1, SAMP_NET_SERVICE_VERSION_V1,
+    SAMP_PLAYER_SERVICE_VERSION_V1, SAMP_POOL_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1,
+    SAMP_TEXT_LABEL_SERVICE_VERSION_V1, SAMP_TEXTDRAW_SERVICE_VERSION_V1,
+    SAMP_UI_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_LEGACY_SAMP_ABI,
+    SERVICE_ID_SAMP, SERVICE_ID_SAMP_CODEC, SERVICE_ID_SAMP_CONTROL, SERVICE_ID_SAMP_NETWORK,
+    SERVICE_ID_SAMP_PLAYER, SERVICE_ID_SAMP_POOL, SERVICE_ID_SAMP_TEXT_LABEL,
+    SERVICE_ID_SAMP_TEXTDRAW, SERVICE_ID_SAMP_UI, SampCodecServiceV1, SampControlServiceV1,
+    SampLocalPlayerV1, SampNetEventV1, SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1,
+    SampPlayerServiceV1, SampPoolServiceV1, SampServerInfoV1, SampServiceV1,
+    SampTextLabelServiceV1, SampTextdrawServiceV1, SampUiServiceV1, SampVector3V1, ServiceHeader,
+    SubscriptionId,
 };
 use sdk_abi::{
     SampClientSdkCommandReceipt, SampClientSdkEventV1, SampClientSdkLocalPlayerV1,
@@ -138,6 +145,156 @@ static SAMP_SERVICE_V1: SampServiceV1 = SampServiceV1 {
     submit_register_chat_command: super::chat_commands::submit_register_chat_command_modkit,
 };
 
+static SAMP_TEXT_LABEL_SERVICE_V1: SampTextLabelServiceV1 = SampTextLabelServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_TEXT_LABEL,
+        version: SAMP_TEXT_LABEL_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampTextLabelServiceV1>() as u32,
+        reserved: 0,
+    },
+    snapshot: super::text_labels::modkit_snapshot,
+    submit_delete: super::text_labels::modkit_submit_delete,
+    submit_set_text: super::text_labels::modkit_submit_set_text,
+    submit_create_at: super::text_labels::modkit_submit_create_at,
+    submit_create: super::text_labels::modkit_submit_create,
+};
+
+static SAMP_CONTROL_SERVICE_V1: SampControlServiceV1 = SampControlServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_CONTROL,
+        version: SAMP_CONTROL_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampControlServiceV1>() as u32,
+        reserved: 0,
+    },
+    submit_game_state: samp_control_submit_game_state,
+    submit_send_rate: samp_control_submit_send_rate,
+    submit_connect: samp_control_submit_connect,
+    submit_disconnect: samp_control_submit_disconnect,
+};
+
+static SAMP_UI_SERVICE_V1: SampUiServiceV1 = SampUiServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_UI,
+        version: SAMP_UI_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampUiServiceV1>() as u32,
+        reserved: 0,
+    },
+    chat_display_mode: super::ui::chat_display_mode,
+    chat_entry: super::ui::chat_entry,
+    chat_input_active: super::ui::chat_input_active,
+    chat_input_text: super::ui::chat_input_text,
+    chat_command_defined: super::ui::chat_command_defined,
+    cursor_mode: super::ui::cursor_mode,
+    scoreboard_open: super::ui::scoreboard_open,
+    dialog_active: super::ui::dialog_active,
+    dialog_snapshot: super::ui::dialog_snapshot,
+    take_dialog_response: super::ui::take_dialog_response,
+    dialog_selected_item: super::ui::dialog_selected_item,
+    dialog_list_item_count: super::ui::dialog_list_item_count,
+    submit_chat_message: super::ui::submit_chat_message,
+    submit_death_message: super::ui::submit_death_message,
+    submit_chat_display_mode: super::ui::submit_chat_display_mode,
+    submit_chat_entry: super::ui::submit_chat_entry,
+    submit_chat_input_text: super::ui::submit_chat_input_text,
+    submit_chat_input_enabled: super::ui::submit_chat_input_enabled,
+    submit_chat_input_process: super::ui::submit_chat_input_process,
+    submit_cursor_mode: super::ui::submit_cursor_mode,
+    submit_cursor_toggle: super::ui::submit_cursor_toggle,
+    submit_scoreboard_open: super::ui::submit_scoreboard_open,
+    submit_dialog: super::ui::submit_dialog,
+    submit_dialog_client_side: super::ui::submit_dialog_client_side,
+    submit_dialog_selected_item: super::ui::submit_dialog_selected_item,
+    submit_dialog_editbox_text: super::ui::submit_dialog_editbox_text,
+    submit_dialog_close: super::ui::submit_dialog_close,
+};
+
+static SAMP_PLAYER_SERVICE_V1: SampPlayerServiceV1 = SampPlayerServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_PLAYER,
+        version: SAMP_PLAYER_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampPlayerServiceV1>() as u32,
+        reserved: 0,
+    },
+    remote_state: super::player_service::remote_state,
+    streamed_out_position: super::player_service::streamed_out_position,
+    onfoot_sync: super::player_service::onfoot_sync,
+    vehicle_sync: super::player_service::vehicle_sync,
+    passenger_sync: super::player_service::passenger_sync,
+    trailer_sync: super::player_service::trailer_sync,
+    aim_sync: super::player_service::aim_sync,
+    player_defined: super::player_service::player_defined,
+    player_paused: super::player_service::player_paused,
+    player_count: super::player_service::player_count,
+    player_max_id: super::player_service::player_max_id,
+    animation: super::player_service::animation,
+    animation_id: super::player_service::animation_id,
+    submit_spawn: super::player_service::submit_spawn,
+    submit_special_action: super::player_service::submit_special_action,
+    submit_name: super::player_service::submit_name,
+    submit_colour: super::player_service::submit_colour,
+    submit_force_unoccupied_sync: super::player_service::submit_force_unoccupied_sync,
+    submit_force_aim_sync: super::player_service::submit_force_aim_sync,
+    submit_force_onfoot_sync: super::player_service::submit_force_onfoot_sync,
+    submit_force_stats_sync: super::player_service::submit_force_stats_sync,
+    submit_force_trailer_sync: super::player_service::submit_force_trailer_sync,
+    submit_force_vehicle_sync: super::player_service::submit_force_vehicle_sync,
+    submit_force_passenger_sync: super::player_service::submit_force_passenger_sync,
+    submit_force_weapons_sync: super::player_service::submit_force_weapons_sync,
+};
+
+static SAMP_POOL_SERVICE_V1: SampPoolServiceV1 = SampPoolServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_POOL,
+        version: SAMP_POOL_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampPoolServiceV1>() as u32,
+        reserved: 0,
+    },
+    object_exists: super::pool_service::object_exists,
+    vehicle_exists: super::pool_service::vehicle_exists,
+    object_handle: super::pool_service::object_handle,
+    object_id_by_handle: super::pool_service::object_id_by_handle,
+    pickup_handle: super::pool_service::pickup_handle,
+    pickup_id_by_handle: super::pool_service::pickup_id_by_handle,
+    vehicle_handle: super::pool_service::vehicle_handle,
+    vehicle_id_by_handle: super::pool_service::vehicle_id_by_handle,
+    player_ped_handle: super::pool_service::player_ped_handle,
+    player_id_by_ped_handle: super::pool_service::player_id_by_ped_handle,
+    gangzone: super::pool_service::gangzone,
+};
+
+static SAMP_TEXTDRAW_SERVICE_V1: SampTextdrawServiceV1 = SampTextdrawServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_TEXTDRAW,
+        version: SAMP_TEXTDRAW_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampTextdrawServiceV1>() as u32,
+        reserved: 0,
+    },
+    exists: super::textdraw_service::exists,
+    snapshot: super::textdraw_service::snapshot,
+    submit_create: super::textdraw_service::submit_create,
+    submit_delete: super::textdraw_service::submit_delete,
+    submit_set_position: super::textdraw_service::submit_set_position,
+    submit_set_style: super::textdraw_service::submit_set_style,
+    submit_set_letter_style: super::textdraw_service::submit_set_letter_style,
+    submit_set_proportional: super::textdraw_service::submit_set_proportional,
+    submit_set_shadow: super::textdraw_service::submit_set_shadow,
+    submit_set_outline: super::textdraw_service::submit_set_outline,
+    submit_set_box: super::textdraw_service::submit_set_box,
+    submit_set_alignment: super::textdraw_service::submit_set_alignment,
+    submit_set_text: super::textdraw_service::submit_set_text,
+    submit_set_model_style: super::textdraw_service::submit_set_model_style,
+};
+
+static SAMP_CODEC_SERVICE_V1: SampCodecServiceV1 = SampCodecServiceV1 {
+    header: ServiceHeader {
+        service_id: SERVICE_ID_SAMP_CODEC,
+        version: SAMP_CODEC_SERVICE_VERSION_V1,
+        size: std::mem::size_of::<SampCodecServiceV1>() as u32,
+        reserved: 0,
+    },
+    decode_string: samp_codec_decode_string,
+};
+
 /// The host-owned immutable Legacy SA-MP service table.
 static LEGACY_SAMP_SERVICE_V1: std::sync::OnceLock<LegacySampServiceV1> =
     std::sync::OnceLock::new();
@@ -232,8 +389,190 @@ unsafe extern "system" fn query_service(
             unsafe { out_service.write((&SAMP_SERVICE_V1 as *const SampServiceV1).cast()) };
             MOD_OK
         }
+        SERVICE_ID_SAMP_TEXT_LABEL => {
+            if requested_version != SAMP_TEXT_LABEL_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service
+                    .write((&SAMP_TEXT_LABEL_SERVICE_V1 as *const SampTextLabelServiceV1).cast())
+            };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_CONTROL => {
+            if requested_version != SAMP_CONTROL_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service.write((&SAMP_CONTROL_SERVICE_V1 as *const SampControlServiceV1).cast())
+            };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_UI => {
+            if requested_version != SAMP_UI_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe { out_service.write((&SAMP_UI_SERVICE_V1 as *const SampUiServiceV1).cast()) };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_PLAYER => {
+            if requested_version != SAMP_PLAYER_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service.write((&SAMP_PLAYER_SERVICE_V1 as *const SampPlayerServiceV1).cast())
+            };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_POOL => {
+            if requested_version != SAMP_POOL_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service.write((&SAMP_POOL_SERVICE_V1 as *const SampPoolServiceV1).cast())
+            };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_TEXTDRAW => {
+            if requested_version != SAMP_TEXTDRAW_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service
+                    .write((&SAMP_TEXTDRAW_SERVICE_V1 as *const SampTextdrawServiceV1).cast())
+            };
+            MOD_OK
+        }
+        SERVICE_ID_SAMP_CODEC => {
+            if requested_version != SAMP_CODEC_SERVICE_VERSION_V1 {
+                return MOD_UNSUPPORTED_VERSION;
+            }
+            unsafe {
+                out_service.write((&SAMP_CODEC_SERVICE_V1 as *const SampCodecServiceV1).cast())
+            };
+            MOD_OK
+        }
         _ => MOD_NOT_FOUND,
     }
+}
+
+unsafe extern "system" fn samp_codec_decode_string(
+    input: *const u8,
+    input_byte_len: u32,
+    input_bit_len: u32,
+    input_read_offset: u32,
+    output: *mut u8,
+    output_capacity: u32,
+    output_len: *mut u32,
+    output_read_offset: *mut u32,
+) -> ModResult {
+    if output_len.is_null() || output_read_offset.is_null() {
+        return MOD_INVALID_ARGUMENT;
+    }
+    let mut legacy_len = 0usize;
+    let mut legacy_offset = 0usize;
+    let result = unsafe {
+        super::events::decode_string(
+            input,
+            input_byte_len as usize,
+            input_bit_len as usize,
+            input_read_offset as usize,
+            output,
+            output_capacity as usize,
+            &mut legacy_len,
+            &mut legacy_offset,
+        )
+    };
+    if result != SampClientSdkResult::Ok {
+        return subscription_result(result);
+    }
+    let (Ok(length), Ok(read_offset)) = (u32::try_from(legacy_len), u32::try_from(legacy_offset))
+    else {
+        return modkit_abi::MOD_NATIVE_CALL_FAILED;
+    };
+    unsafe {
+        output_len.write(length);
+        output_read_offset.write(read_offset);
+    }
+    MOD_OK
+}
+
+unsafe extern "system" fn samp_control_submit_game_state(
+    state: i32,
+    out: *mut CommandReceiptId,
+) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe { super::submit_samp_game_state(state, &mut legacy) };
+    if result == SampClientSdkResult::Ok {
+        *out = CommandReceiptId(legacy.id);
+    }
+    subscription_result(result)
+}
+
+unsafe extern "system" fn samp_control_submit_send_rate(
+    kind: u32,
+    milliseconds: u32,
+    out: *mut CommandReceiptId,
+) -> ModResult {
+    let Ok(kind) = u8::try_from(kind) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe { super::submit_send_rate(kind, milliseconds, &mut legacy) };
+    if result == SampClientSdkResult::Ok {
+        *out = CommandReceiptId(legacy.id);
+    }
+    subscription_result(result)
+}
+
+unsafe extern "system" fn samp_control_submit_connect(
+    address: *const u8,
+    address_len: u32,
+    port: u16,
+    out: *mut CommandReceiptId,
+) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result = unsafe {
+        super::connection::submit_connect_to_server(
+            address,
+            address_len as usize,
+            port,
+            &mut legacy,
+        )
+    };
+    if result == SampClientSdkResult::Ok {
+        *out = CommandReceiptId(legacy.id);
+    }
+    subscription_result(result)
+}
+
+unsafe extern "system" fn samp_control_submit_disconnect(
+    block_duration: u32,
+    out: *mut CommandReceiptId,
+) -> ModResult {
+    let Some(out) = (unsafe { out.as_mut() }) else {
+        return MOD_INVALID_ARGUMENT;
+    };
+    *out = CommandReceiptId(0);
+    let mut legacy = SampClientSdkCommandReceipt::default();
+    let result =
+        unsafe { super::connection::submit_disconnect_with_reason(block_duration, &mut legacy) };
+    if result == SampClientSdkResult::Ok {
+        *out = CommandReceiptId(legacy.id);
+    }
+    subscription_result(result)
 }
 
 unsafe extern "system" fn samp_version(out: *mut u32) -> ModResult {
@@ -728,6 +1067,16 @@ unsafe extern "system" fn core_receipt_poll(
     let Some(runtime) = clone_initialized(&host().runtime) else {
         return MOD_NOT_READY;
     };
+    if runtime.is_created_text_label_receipt(id.0) {
+        return match runtime.try_take_created_text_label(id.0) {
+            Ok(Some(result)) => {
+                unsafe { out.write(text_label_completion(result)) };
+                MOD_OK
+            }
+            Ok(None) => modkit_abi::MOD_PENDING,
+            Err(error) => command_error_result(error),
+        };
+    }
     match runtime.try_take_command(id.0) {
         Ok(Some(result)) => {
             unsafe { out.write(completion(result)) };
@@ -751,6 +1100,15 @@ unsafe extern "system" fn core_receipt_wait(
     };
     if !runtime.command_wait_allowed() {
         return modkit_abi::MOD_WAIT_REJECTED;
+    }
+    if runtime.is_created_text_label_receipt(id.0) {
+        return match runtime.wait_for_created_text_label(id.0, timeout_duration(timeout_ms)) {
+            Ok(result) => {
+                unsafe { out.write(text_label_completion(result)) };
+                MOD_OK
+            }
+            Err(error) => command_error_result(error),
+        };
     }
     match runtime.wait_for_command(id.0, timeout_duration(timeout_ms)) {
         Ok(result) => {
@@ -804,6 +1162,23 @@ fn timeout_duration(timeout_ms: u32) -> Duration {
 fn completion(result: Result<(), CommandError>) -> CommandCompletionV1 {
     match result {
         Ok(()) => CommandCompletionV1::default(),
+        Err(error) => CommandCompletionV1 {
+            status: command_error_result(error),
+            reserved: 0,
+            value0: 0,
+            value1: 0,
+        },
+    }
+}
+
+fn text_label_completion(result: Result<u16, CommandError>) -> CommandCompletionV1 {
+    match result {
+        Ok(id) => CommandCompletionV1 {
+            status: MOD_OK,
+            reserved: 0,
+            value0: u64::from(id),
+            value1: 0,
+        },
         Err(error) => CommandCompletionV1 {
             status: command_error_result(error),
             reserved: 0,

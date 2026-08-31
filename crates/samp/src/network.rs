@@ -1,10 +1,11 @@
-use crate::{CommandReceipt, Subscription};
+use crate::{CommandReceipt, ProtocolSendError, SendRateKind, Subscription};
 use modkit_abi::{
     ModResult, SAMP_NET_ACTION_BLOCK, SAMP_NET_ACTION_CONTINUE, SAMP_NET_DIRECTION_INCOMING,
-    SAMP_NET_DIRECTION_OUTGOING, SAMP_NET_PRIORITY_HIGH, SAMP_NET_RELIABILITY_RELIABLE_ORDERED,
+    SAMP_NET_DIRECTION_OUTGOING, SAMP_NET_PRIORITY_HIGH, SAMP_NET_RELIABILITY_RELIABLE,
+    SAMP_NET_RELIABILITY_RELIABLE_ORDERED, SAMP_NET_RELIABILITY_UNRELIABLE_SEQUENCED,
     SampNetEventCallbackV1, SampNetEventV1, SampNetSendOptionsV1,
 };
-use modkit_sdk::{Core, SampNetService};
+use modkit_sdk::{Core, SampCodecService, SampControlService, SampNetService};
 use std::{
     ffi::c_void,
     marker::PhantomData,
@@ -71,6 +72,22 @@ impl From<SendOptions> for SampNetSendOptionsV1 {
         }
     }
 }
+
+// Mirrors SF.lua's reference `raknetSendRpc` and `raknetSendBitStream`
+// policies in `.native-references/SF.lua/SFlua/raknet.lua`.
+const TYPED_RPC_SEND_OPTIONS: SendOptions = SendOptions {
+    priority: SAMP_NET_PRIORITY_HIGH,
+    reliability: SAMP_NET_RELIABILITY_RELIABLE,
+    ordering_channel: 0,
+    timestamp: false,
+};
+
+const TYPED_PACKET_SEND_OPTIONS: SendOptions = SendOptions {
+    priority: SAMP_NET_PRIORITY_HIGH,
+    reliability: SAMP_NET_RELIABILITY_UNRELIABLE_SEQUENCED,
+    ordering_channel: 0,
+    timestamp: false,
+};
 
 pub struct Event<'callback> {
     service: SampNetService,
@@ -150,11 +167,23 @@ struct EventState {
 pub struct Net {
     core: Core,
     service: SampNetService,
+    control: SampControlService,
+    codec: SampCodecService,
 }
 
 impl Net {
-    pub(crate) const fn new(core: Core, service: SampNetService) -> Self {
-        Self { core, service }
+    pub(crate) const fn new(
+        core: Core,
+        service: SampNetService,
+        control: SampControlService,
+        codec: SampCodecService,
+    ) -> Self {
+        Self {
+            core,
+            service,
+            control,
+            codec,
+        }
     }
 
     pub fn on_packet(
@@ -165,12 +194,61 @@ impl Net {
         self.register(direction, handler, true)
     }
 
+    pub fn set_send_rate(
+        self,
+        kind: SendRateKind,
+        milliseconds: u32,
+    ) -> Result<CommandReceipt, ModResult> {
+        CommandReceipt::new(
+            self.core,
+            self.control.submit_send_rate(kind.raw(), milliseconds)?,
+        )
+    }
+
+    pub fn connect(self, address: &[u8], port: u16) -> Result<CommandReceipt, ModResult> {
+        CommandReceipt::new(self.core, self.control.submit_connect(address, port)?)
+    }
+
+    pub fn disconnect(self, block_duration: u32) -> Result<CommandReceipt, ModResult> {
+        CommandReceipt::new(self.core, self.control.submit_disconnect(block_duration)?)
+    }
+
     pub fn on_rpc(
         self,
         direction: Direction,
         handler: impl for<'event> Fn(&mut Event<'event>) -> Action + Send + Sync + 'static,
     ) -> Result<Subscription, ModResult> {
         self.register(direction, handler, false)
+    }
+
+    pub fn on_packet_id(
+        self,
+        direction: Direction,
+        id: u8,
+        handler: impl for<'event> Fn(&mut Event<'event>) -> Action + Send + Sync + 'static,
+    ) -> Result<Subscription, ModResult> {
+        self.on_packet(direction, move |event| {
+            if event.id() == id {
+                handler(event)
+            } else {
+                Action::Continue
+            }
+        })
+    }
+
+    pub fn on_rpc_id(
+        self,
+        direction: Direction,
+        id: u8,
+        handler: impl for<'event> Fn(&mut Event<'event>) -> Action + Send + Sync + 'static,
+    ) -> Result<Subscription, ModResult> {
+        self.on_rpc(direction, move |event| {
+            if event.id() == id {
+                handler(event)
+            } else {
+                Action::Continue
+            }
+        })
     }
 
     pub fn on_incoming_typed_packet<D, F>(
@@ -318,13 +396,395 @@ impl Net {
         }
     }
 
+    #[must_use]
+    pub const fn rpc_name(self, id: u8) -> Option<&'static str> {
+        samp_protocol::rpc_name(id)
+    }
+
+    #[must_use]
+    pub const fn packet_name(self, id: u8) -> Option<&'static str> {
+        samp_protocol::packet_name(id)
+    }
+
+    fn submit_protocol_rpc<D>(
+        self,
+        _descriptor: D,
+        value: D::Value,
+    ) -> Result<CommandReceipt, ProtocolSendError>
+    where
+        D: samp_protocol::OutgoingRpcDescriptor,
+    {
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
+        self.send_rpc_with_options(
+            D::ID,
+            payload.as_bytes(),
+            payload.len_bits(),
+            TYPED_RPC_SEND_OPTIONS,
+        )
+        .map_err(ProtocolSendError::Host)
+    }
+
+    fn submit_protocol_packet<D>(
+        self,
+        _descriptor: D,
+        value: D::Value,
+    ) -> Result<CommandReceipt, ProtocolSendError>
+    where
+        D: samp_protocol::OutgoingPacketDescriptor,
+    {
+        let payload = D::encode_bits(&value).map_err(ProtocolSendError::Encode)?;
+        self.send_packet_with_options(
+            D::ID,
+            payload.as_bytes(),
+            payload.len_bits(),
+            TYPED_PACKET_SEND_OPTIONS,
+        )
+        .map_err(ProtocolSendError::Host)
+    }
+
+    fn send_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+        take: bool,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DAMAGE,
+            samp_protocol::rpc::outgoing::common::Damage {
+                player_id,
+                damage,
+                weapon,
+                body_part,
+                take,
+            },
+        )
+    }
+
+    /// Queues one bounded SA-MP chat or slash-command RPC.
+    pub fn send_chat(self, text: &[u8]) -> Result<CommandReceipt, ProtocolSendError> {
+        if text.first() == Some(&b'/') {
+            self.submit_protocol_rpc(
+                samp_protocol::rpc::outgoing::chat::SEND_COMMAND,
+                text.to_vec(),
+            )
+        } else {
+            self.submit_protocol_rpc(samp_protocol::rpc::outgoing::chat::SEND_CHAT, text.to_vec())
+        }
+    }
+
+    /// Queues the server-bound request-spawn RPC.
+    pub fn send_request_spawn(self) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_REQUEST_SPAWN, ())
+    }
+
+    /// Queues the protocol-level request-class RPC without changing local class state.
+    pub fn send_request_class(self, class_id: i32) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_REQUEST_CLASS,
+            class_id,
+        )
+    }
+
+    /// Queues the protocol-level interior-change RPC without changing GTA state.
+    pub fn send_interior_change(
+        self,
+        interior_id: u8,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_INTERIOR_CHANGE,
+            interior_id,
+        )
+    }
+
+    /// Queues the protocol-level spawn RPC without invoking native spawn code.
+    pub fn send_spawn(self) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_SPAWN, ())
+    }
+
+    /// Queues the protocol-level enter-vehicle RPC without changing the local ped.
+    pub fn send_enter_vehicle(
+        self,
+        vehicle_id: u16,
+        passenger: bool,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_ENTER_VEHICLE,
+            samp_protocol::rpc::outgoing::common::EnterVehicle {
+                vehicle_id,
+                passenger,
+            },
+        )
+    }
+
+    /// Queues the protocol-level exit-vehicle RPC without changing the local ped.
+    pub fn send_exit_vehicle(self, vehicle_id: u16) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EXIT_VEHICLE,
+            vehicle_id,
+        )
+    }
+
+    /// Queues a server-bound dialog response.
+    pub fn send_dialog_response(
+        self,
+        dialog_id: u16,
+        button: u8,
+        list_item: u16,
+        input: &[u8],
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DIALOG_RESPONSE,
+            samp_protocol::rpc::outgoing::common::DialogResponse {
+                dialog_id,
+                button,
+                list_item,
+                input: input.to_vec(),
+            },
+        )
+    }
+
+    /// Queues a server-bound player-click RPC.
+    pub fn send_click_player(
+        self,
+        player_id: u16,
+        source: u8,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_PLAYER,
+            samp_protocol::rpc::outgoing::common::ClickPlayer { player_id, source },
+        )
+    }
+
+    /// Queues a server-bound textdraw-click RPC.
+    pub fn send_click_textdraw(
+        self,
+        textdraw_id: u16,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_CLICK_TEXT_DRAW,
+            textdraw_id,
+        )
+    }
+
+    /// Queues a server-bound death notification.
+    pub fn send_death_by_player(
+        self,
+        player_id: u16,
+        reason: u8,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_DEATH_NOTIFICATION,
+            samp_protocol::rpc::outgoing::common::DeathNotification {
+                reason,
+                killer_id: player_id,
+            },
+        )
+    }
+
+    /// Queues the empty server-bound menu-quit RPC.
+    pub fn send_menu_quit(self) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_QUIT_MENU, ())
+    }
+
+    /// Queues a server-bound menu-row selection.
+    pub fn send_menu_select_row(self, row: u8) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_MENU_SELECT, row)
+    }
+
+    /// Queues a server-bound pickup notification.
+    pub fn send_picked_up_pickup(
+        self,
+        pickup_id: i32,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_PICKED_UP_PICKUP,
+            pickup_id,
+        )
+    }
+
+    /// Queues a server-bound vehicle-destroyed notification.
+    pub fn send_vehicle_destroyed(
+        self,
+        vehicle_id: u16,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DESTROYED,
+            vehicle_id,
+        )
+    }
+
+    /// Queues a server-bound vehicle-damage update.
+    pub fn send_vehicle_damage(
+        self,
+        vehicle_id: u16,
+        panel_damage: i32,
+        door_damage: i32,
+        lights: u8,
+        tires: u8,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_DAMAGED,
+            samp_protocol::rpc::outgoing::common::VehicleDamage {
+                vehicle_id,
+                panel_damage,
+                door_damage,
+                lights,
+                tires,
+            },
+        )
+    }
+
+    /// Queues a server-bound SCM event.
+    pub fn send_scm_event(
+        self,
+        event: i32,
+        id: i32,
+        param1: i32,
+        param2: i32,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_VEHICLE_TUNING,
+            samp_protocol::rpc::outgoing::common::VehicleTuning {
+                vehicle_id: id,
+                param1,
+                param2,
+                event,
+            },
+        )
+    }
+
+    /// Queues a server-bound give-damage notification.
+    pub fn send_give_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.send_damage(player_id, damage, weapon, body_part, false)
+    }
+
+    /// Queues a server-bound take-damage notification.
+    pub fn send_take_damage(
+        self,
+        player_id: u16,
+        damage: f32,
+        weapon: i32,
+        body_part: i32,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.send_damage(player_id, damage, weapon, body_part, true)
+    }
+
+    /// Queues a complete attached-object edit action.
+    pub fn send_edit_attached_object(
+        self,
+        edit: samp_protocol::rpc::outgoing::common::EditAttachedObject,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(
+            samp_protocol::rpc::outgoing::common::SEND_EDIT_ATTACHED_OBJECT,
+            edit,
+        )
+    }
+
+    /// Queues a complete global or player-object edit action.
+    pub fn send_edit_object(
+        self,
+        edit: samp_protocol::rpc::outgoing::common::EditObject,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_rpc(samp_protocol::rpc::outgoing::common::SEND_EDIT_OBJECT, edit)
+    }
+
+    /// Queues a bounded server-bound RCON command packet.
+    pub fn send_rcon_command(self, command: &[u8]) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(
+            samp_protocol::packet::common::SEND_RCON_COMMAND,
+            command.to_vec(),
+        )
+    }
+
+    /// Queues a complete local aim-sync packet.
+    pub fn send_aim_sync(
+        self,
+        sync: samp_protocol::packet::common::AimSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_AIM_SYNC, sync)
+    }
+
+    /// Queues a complete local bullet-sync packet.
+    pub fn send_bullet_sync(
+        self,
+        sync: samp_protocol::packet::common::BulletSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_BULLET_SYNC, sync)
+    }
+
+    /// Queues a complete local vehicle-sync packet.
+    pub fn send_vehicle_sync(
+        self,
+        sync: samp_protocol::packet::common::VehicleSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_VEHICLE_SYNC, sync)
+    }
+
+    /// Queues a complete local on-foot player-sync packet.
+    pub fn send_player_sync(
+        self,
+        sync: samp_protocol::packet::common::PlayerSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_PLAYER_SYNC, sync)
+    }
+
+    /// Queues a complete local spectator-sync packet.
+    pub fn send_spectator_sync(
+        self,
+        sync: samp_protocol::packet::common::SpectatorSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_SPECTATOR_SYNC, sync)
+    }
+
+    /// Queues a complete local trailer-sync packet.
+    pub fn send_trailer_sync(
+        self,
+        sync: samp_protocol::packet::common::TrailerSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_TRAILER_SYNC, sync)
+    }
+
+    /// Queues a complete local passenger-sync packet.
+    pub fn send_passenger_sync(
+        self,
+        sync: samp_protocol::packet::common::PassengerSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_PASSENGER_SYNC, sync)
+    }
+
+    /// Queues a complete local unoccupied-vehicle sync packet.
+    pub fn send_unoccupied_sync(
+        self,
+        sync: samp_protocol::packet::common::UnoccupiedSync,
+    ) -> Result<CommandReceipt, ProtocolSendError> {
+        self.submit_protocol_packet(samp_protocol::packet::common::SEND_UNOCCUPIED_SYNC, sync)
+    }
+
     pub fn send_packet(
         self,
         id: u8,
         bytes: &[u8],
-        bit_len: u32,
+        bit_len: usize,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_packet_with_options(id, bytes, bit_len, SendOptions::default())
+    }
+
+    pub fn send_packet_with_options(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: usize,
         options: SendOptions,
     ) -> Result<CommandReceipt, ModResult> {
+        let bit_len = checked_event_bit_len(bit_len)?;
         let id = self
             .service
             .submit_packet(id, bytes, bit_len, options.into())?;
@@ -335,13 +795,57 @@ impl Net {
         self,
         id: u8,
         bytes: &[u8],
-        bit_len: u32,
+        bit_len: usize,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_rpc_with_options(id, bytes, bit_len, SendOptions::default())
+    }
+
+    pub fn send_rpc_with_options(
+        self,
+        id: u8,
+        bytes: &[u8],
+        bit_len: usize,
         options: SendOptions,
     ) -> Result<CommandReceipt, ModResult> {
+        let bit_len = checked_event_bit_len(bit_len)?;
         let id = self
             .service
             .submit_rpc(id, bytes, bit_len, options.into())?;
         CommandReceipt::new(self.core, id)
+    }
+
+    pub fn send_packet_stream(
+        self,
+        id: u8,
+        payload: &samp_protocol::BitStream,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_packet(id, payload.as_bytes(), payload.len_bits())
+    }
+
+    pub fn send_packet_stream_with_options(
+        self,
+        id: u8,
+        payload: &samp_protocol::BitStream,
+        options: SendOptions,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_packet_with_options(id, payload.as_bytes(), payload.len_bits(), options)
+    }
+
+    pub fn send_rpc_stream(
+        self,
+        id: u8,
+        payload: &samp_protocol::BitStream,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_rpc(id, payload.as_bytes(), payload.len_bits())
+    }
+
+    pub fn send_rpc_stream_with_options(
+        self,
+        id: u8,
+        payload: &samp_protocol::BitStream,
+        options: SendOptions,
+    ) -> Result<CommandReceipt, ModResult> {
+        self.send_rpc_with_options(id, payload.as_bytes(), payload.len_bits(), options)
     }
 
     pub fn emulate_incoming_packet(
@@ -368,10 +872,49 @@ impl Net {
         CommandReceipt::new(self.core, id)
     }
 
-    pub fn encode_string(self, value: &[u8], out: &mut [u8]) -> Result<(usize, u32), ModResult> {
+    pub fn encode_string(self, value: &[u8]) -> Result<samp_protocol::EncodedBits, ModResult> {
+        let capacity_bits = value
+            .len()
+            .checked_mul(16)
+            .and_then(|bits| bits.checked_add(16))
+            .ok_or(modkit_abi::MOD_PAYLOAD_TOO_LARGE)?;
+        let mut bytes = vec![0; capacity_bits.div_ceil(u8::BITS as usize)];
+        let (byte_len, bit_len) = self.encode_string_into(value, &mut bytes)?;
+        bytes.truncate(byte_len);
+        samp_protocol::EncodedBits::from_bits(bytes, bit_len as usize)
+            .map_err(|_| modkit_abi::MOD_NATIVE_CALL_FAILED)
+    }
+
+    pub fn encode_string_into(
+        self,
+        value: &[u8],
+        out: &mut [u8],
+    ) -> Result<(usize, u32), ModResult> {
         self.service
             .encode_string(value, out)
             .map(|(bytes, bits)| (bytes as usize, bits))
+    }
+
+    pub fn decode_string(
+        self,
+        stream: &mut samp_protocol::BitStream,
+    ) -> Result<Vec<u8>, ModResult> {
+        const MAX_DECODED_BYTES: usize = 4_095;
+        let mut output = vec![0; MAX_DECODED_BYTES + 1];
+        let (output_len, read_offset) = self.codec.decode_string(
+            stream.as_bytes(),
+            stream.len_bits(),
+            stream.read_offset_bits(),
+            &mut output,
+        )?;
+        if output_len > MAX_DECODED_BYTES || read_offset > stream.len_bits() {
+            return Err(modkit_abi::MOD_NATIVE_CALL_FAILED);
+        }
+        stream
+            .set_read_offset(read_offset)
+            .map_err(|_| modkit_abi::MOD_NATIVE_CALL_FAILED)?;
+        output.truncate(output_len);
+        Ok(output)
     }
 
     pub fn incoming_emulation_ready(self) -> Result<bool, ModResult> {
@@ -404,7 +947,9 @@ unsafe extern "system" fn release_event(user_data: *mut c_void) {
 
 #[cfg(test)]
 mod tests {
-    use super::checked_event_bit_len;
+    use super::{
+        SendOptions, TYPED_PACKET_SEND_OPTIONS, TYPED_RPC_SEND_OPTIONS, checked_event_bit_len,
+    };
 
     #[test]
     fn event_read_bit_length_must_fit_the_modkit_abi() {
@@ -415,5 +960,29 @@ mod tests {
             checked_event_bit_len(u32::MAX as usize + 1),
             Err(modkit_abi::MOD_INVALID_ARGUMENT)
         );
+    }
+
+    #[test]
+    fn typed_delivery_distinguishes_rpc_from_packet_transport() {
+        assert_eq!(
+            TYPED_RPC_SEND_OPTIONS,
+            SendOptions {
+                priority: modkit_abi::SAMP_NET_PRIORITY_HIGH,
+                reliability: modkit_abi::SAMP_NET_RELIABILITY_RELIABLE,
+                ordering_channel: 0,
+                timestamp: false,
+            }
+        );
+        assert_eq!(
+            TYPED_PACKET_SEND_OPTIONS,
+            SendOptions {
+                priority: modkit_abi::SAMP_NET_PRIORITY_HIGH,
+                reliability: modkit_abi::SAMP_NET_RELIABILITY_UNRELIABLE_SEQUENCED,
+                ordering_channel: 0,
+                timestamp: false,
+            }
+        );
+        assert_ne!(TYPED_RPC_SEND_OPTIONS, SendOptions::default());
+        assert_ne!(TYPED_PACKET_SEND_OPTIONS, SendOptions::default());
     }
 }

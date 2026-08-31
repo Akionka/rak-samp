@@ -130,6 +130,116 @@ fn query_service_returns_samp_for_exact_version() {
 }
 
 #[test]
+fn query_service_returns_samp_text_label_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_TEXT_LABEL, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP text-label service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_TEXT_LABEL);
+    assert_eq!(header.version, SAMP_TEXT_LABEL_SERVICE_VERSION_V1);
+    assert_eq!(
+        header.size,
+        std::mem::size_of::<SampTextLabelServiceV1>() as u32
+    );
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_control_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_CONTROL, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP control service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_CONTROL);
+    assert_eq!(header.version, SAMP_CONTROL_SERVICE_VERSION_V1);
+    assert_eq!(
+        header.size,
+        std::mem::size_of::<SampControlServiceV1>() as u32
+    );
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_ui_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_UI, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP UI service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_UI);
+    assert_eq!(header.version, SAMP_UI_SERVICE_VERSION_V1);
+    assert_eq!(header.size, std::mem::size_of::<SampUiServiceV1>() as u32);
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_player_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_PLAYER, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP player service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_PLAYER);
+    assert_eq!(header.version, SAMP_PLAYER_SERVICE_VERSION_V1);
+    assert_eq!(
+        header.size,
+        std::mem::size_of::<SampPlayerServiceV1>() as u32
+    );
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_pool_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_POOL, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP pool service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_POOL);
+    assert_eq!(header.version, SAMP_POOL_SERVICE_VERSION_V1);
+    assert_eq!(header.size, std::mem::size_of::<SampPoolServiceV1>() as u32);
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_textdraw_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_TEXTDRAW, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP textdraw service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_TEXTDRAW);
+    assert_eq!(header.version, SAMP_TEXTDRAW_SERVICE_VERSION_V1);
+    assert_eq!(
+        header.size,
+        std::mem::size_of::<SampTextdrawServiceV1>() as u32
+    );
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn query_service_returns_samp_codec_for_exact_version() {
+    let mut out: *const ServiceHeader = ptr::null();
+    let result = unsafe { query_service(SERVICE_ID_SAMP_CODEC, 1, &mut out) };
+    assert_eq!(result, MOD_OK);
+    let header = unsafe { out.as_ref() }.expect("SA-MP codec service is non-null");
+    assert_eq!(header.service_id, SERVICE_ID_SAMP_CODEC);
+    assert_eq!(header.version, SAMP_CODEC_SERVICE_VERSION_V1);
+    assert_eq!(
+        header.size,
+        std::mem::size_of::<SampCodecServiceV1>() as u32
+    );
+    assert_eq!(header.reserved, 0);
+}
+
+#[test]
+fn text_label_completion_carries_the_created_id() {
+    let completion = text_label_completion(Ok(7));
+    assert_eq!(completion.status, MOD_OK);
+    assert_eq!(completion.value0, 7);
+    assert_eq!(completion.value1, 0);
+
+    let failed = text_label_completion(Err(CommandError::NativeFailure));
+    assert_eq!(failed.status, MOD_NATIVE_CALL_FAILED);
+    assert_eq!(failed.value0, 0);
+}
+#[test]
 fn samp_outputs_reject_null_storage() {
     assert_eq!(
         unsafe { samp_server_info(ptr::null_mut()) },

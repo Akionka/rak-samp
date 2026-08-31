@@ -17,14 +17,18 @@ mod messages;
 pub(crate) mod modkit;
 mod network;
 mod player_commands;
+mod player_service;
 mod players;
+mod pool_service;
 mod pools;
 mod raw;
 mod reclamation;
 mod sampfuncs;
 mod snapshots;
 mod text_labels;
+mod textdraw_service;
 mod textdraws;
+mod ui;
 
 #[cfg(test)]
 use helpers::finish_direct_command;
@@ -145,6 +149,11 @@ fn wait_for_client_hooks(runtime: &Runtime) -> bool {
     }
 }
 
+/// Deprecated migration-only bootstrap for legacy `samp-client-sdk` plugins.
+///
+/// New plugins must resolve `GtaModHost_GetApiV1` and query exact-version
+/// services through `modkit-sdk`. This export remains available until the
+/// Phase 11 removal gate is satisfied.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdk_GetApiV1(requested_version: u32) -> *const SampClientSdkApiV1 {
     if requested_version == ABI_VERSION_V1 {

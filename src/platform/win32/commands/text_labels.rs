@@ -142,6 +142,13 @@ impl BackendState {
         self.queue_text_label_command(TextLabelCommand::SetTextLabelText { id, text })
     }
 
+    pub(in crate::platform::win32) fn is_created_text_label_receipt(&self, id: CommandId) -> bool {
+        self.auto_text_label_creates
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .contains_key(&id)
+    }
+
     pub(in crate::platform::win32) fn try_take_created_text_label(
         &self,
         id: CommandId,
