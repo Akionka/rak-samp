@@ -15,7 +15,14 @@ mod ids;
 mod legacy;
 mod result;
 mod samp;
+mod samp_codec;
+mod samp_control;
 mod samp_net;
+mod samp_player;
+mod samp_pool;
+mod samp_text_label;
+mod samp_textdraw;
+mod samp_ui;
 mod service;
 
 pub use bootstrap::{GetModHostApiV1, MOD_HOST_ABI_VERSION_V1, ModHostApiV1};
@@ -34,8 +41,17 @@ pub use result::{
     MOD_UNSUPPORTED, MOD_UNSUPPORTED_VERSION, MOD_WAIT_REJECTED, ModResult,
 };
 pub use samp::*;
+pub use samp_codec::*;
+pub use samp_control::*;
 pub use samp_net::*;
+pub use samp_player::*;
+pub use samp_pool::*;
+pub use samp_text_label::*;
+pub use samp_textdraw::*;
+pub use samp_ui::*;
 pub use service::{
     SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_INPUT, SERVICE_ID_LEGACY_SAMP_ABI,
-    SERVICE_ID_RENDER, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK, ServiceHeader,
+    SERVICE_ID_RENDER, SERVICE_ID_SAMP, SERVICE_ID_SAMP_CODEC, SERVICE_ID_SAMP_CONTROL,
+    SERVICE_ID_SAMP_NETWORK, SERVICE_ID_SAMP_PLAYER, SERVICE_ID_SAMP_POOL,
+    SERVICE_ID_SAMP_TEXT_LABEL, SERVICE_ID_SAMP_TEXTDRAW, SERVICE_ID_SAMP_UI, ServiceHeader,
 };

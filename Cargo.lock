@@ -238,7 +238,8 @@ dependencies = [
 name = "samp-client-sdk-chat-command-example"
 version = "0.1.0"
 dependencies = [
- "samp-client-sdk",
+ "modkit-abi",
+ "samp",
  "samp-protocol",
  "windows-sys",
 ]
@@ -310,7 +311,7 @@ dependencies = [
 name = "samp-client-sdk-sample-plugin"
 version = "0.1.0"
 dependencies = [
- "samp-client-sdk",
+ "samp",
  "samp-protocol",
  "windows-sys",
 ]

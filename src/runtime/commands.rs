@@ -572,6 +572,10 @@ impl Runtime {
         self.backend.release_command(id)
     }
 
+    pub(crate) fn is_created_text_label_receipt(&self, id: CommandId) -> bool {
+        self.backend.is_created_text_label_receipt(id)
+    }
+
     pub(crate) fn try_take_created_text_label(
         &self,
         id: CommandId,

@@ -5,6 +5,10 @@
 - Send each emulated packet through incoming listeners exactly once.
 - Keep nested same-thread dispatch non-blocking.
 - Explicit sends bypass outgoing listeners.
+- Typed RPC sends use `HIGH_PRIORITY + RELIABLE`, channel 0, no timestamp.
+  Typed Packet sends use `HIGH_PRIORITY + UNRELIABLE_SEQUENCED`, channel 0.
+  Raw sends retain caller-selected options; never route typed sends through the
+  raw `SendOptions::default()` policy.
 - Keep callback-local replacement synchronous and serialize it before the
   atomic ABI replacement call.
 - Typed decode and replacement-encode failures return `Continue` without

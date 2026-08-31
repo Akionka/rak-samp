@@ -1,11 +1,10 @@
-//! Example ASI that handles `/sampclientsdk` through the process-wide samp-client-sdk host.
+//! Example ASI that handles `/sampclientsdk` through exact-version SA-MP services.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp_client_sdk_chat_command_example supports only 32-bit Windows x86 targets");
 
-use samp_client_sdk::{
-    ABI_VERSION_V1, LocalDialog, LocalDialogStyle, ProtocolSendError, Samp, SampClientSdkResult,
-    SubscriptionSet, events::ProtocolAction,
+use samp::{
+    DialogRequest, DialogStyle, ProtocolSendError, Samp, Subscription, events::ProtocolAction,
 };
 use samp_protocol::rpc::outgoing::chat::SEND_COMMAND;
 use std::{
@@ -14,7 +13,7 @@ use std::{
         Condvar, Mutex,
         atomic::{AtomicU32, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, TRUE},
@@ -36,7 +35,7 @@ static LAST_CHAT_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 static LAST_DIALOG_RESULT: AtomicU32 = AtomicU32::new(NOT_RUN);
 
 struct PluginState {
-    subscriptions: SubscriptionSet,
+    subscriptions: Vec<Subscription>,
     initializing: bool,
     shutting_down: bool,
 }
@@ -44,7 +43,7 @@ struct PluginState {
 impl PluginState {
     const fn new() -> Self {
         Self {
-            subscriptions: SubscriptionSet::new(),
+            subscriptions: Vec::new(),
             initializing: false,
             shutting_down: false,
         }
@@ -96,24 +95,8 @@ unsafe extern "system" fn DllMain(
 
 fn initialize() {
     let _initialization = InitializationGuard;
-    let deadline = Instant::now() + Duration::from_secs(30);
-    let samp = loop {
-        if STATE
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .shutting_down
-        {
-            return;
-        }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return;
-        }
-        match Samp::connect(remaining.min(Duration::from_millis(100))) {
-            Ok(samp) => break samp,
-            Err(samp_client_sdk::ResolveError::TimedOut) => {}
-            Err(_) => return,
-        }
+    let Ok(samp) = Samp::connect(Duration::from_secs(30)) else {
+        return;
     };
 
     let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
@@ -129,11 +112,7 @@ fn initialize() {
             ProtocolAction::Continue
         }
     }) {
-        Ok(subscription) => {
-            let mut subscriptions = SubscriptionSet::new();
-            subscriptions.push(subscription);
-            subscriptions
-        }
+        Ok(subscription) => vec![subscription],
         Err(_) => {
             return;
         }
@@ -143,42 +122,34 @@ fn initialize() {
 
 fn run_example(samp: Samp) {
     let chat_result = send_chat(samp);
-    LAST_CHAT_RESULT.store(chat_result as u32, Ordering::Release);
+    LAST_CHAT_RESULT.store(chat_result, Ordering::Release);
 
     let info = format!(
-        "samp-client-sdk host status: {:?}\nABI version: {}\nSEND_CHAT result: {:?}\n\nThis dialog is direct and local; it does not emulate RPC 61 or intercept a dialog response.",
-        samp.status(),
-        ABI_VERSION_V1,
-        chat_result,
+        "Exact-version SA-MP services\nSEND_CHAT result: {chat_result}\n\nThis dialog is direct and local; it does not emulate RPC 61 or intercept a dialog response.",
     );
     let dialog_result = show_local_dialog(samp, info.into_bytes());
-    LAST_DIALOG_RESULT.store(dialog_result as u32, Ordering::Release);
-    if samp.probe().is_sampfuncs_loaded() {
-        samp.sampfuncs()
-            .log_console(b"Hello from chat-command example")
-            .unwrap();
-    }
+    LAST_DIALOG_RESULT.store(dialog_result, Ordering::Release);
 }
 
-fn send_chat(samp: Samp) -> SampClientSdkResult {
+fn send_chat(samp: Samp) -> u32 {
     match samp.net().send_chat(CHAT_MESSAGE) {
-        Ok(_receipt) => SampClientSdkResult::Ok,
-        Err(ProtocolSendError::Encode(_)) => SampClientSdkResult::InvalidArgument,
-        Err(ProtocolSendError::Host(result)) => result,
+        Ok(_receipt) => 0,
+        Err(ProtocolSendError::Encode(_)) => modkit_abi::MOD_INVALID_ARGUMENT.0 as u32,
+        Err(ProtocolSendError::Host(result)) => result.0 as u32,
     }
 }
 
-fn show_local_dialog(samp: Samp, text: Vec<u8>) -> SampClientSdkResult {
-    match samp.dialogs().show(LocalDialog {
+fn show_local_dialog(samp: Samp, text: Vec<u8>) -> u32 {
+    match samp.ui().dialogs().show(DialogRequest {
         id: DIALOG_ID,
-        style: LocalDialogStyle::MessageBox,
-        title: b"samp-client-sdk example",
+        style: DialogStyle::MessageBox,
+        title: b"samp service example",
         text: &text,
         button1: b"Close",
         button2: b"",
     }) {
-        Ok(_receipt) => SampClientSdkResult::Ok,
-        Err(error) => error,
+        Ok(_receipt) => 0,
+        Err(error) => error.0 as u32,
     }
 }
 
@@ -188,7 +159,7 @@ fn is_samp_client_sdk_command(command: &[u8]) -> bool {
 
 /// Stops the callback before an unload manager calls `FreeLibrary`.
 ///
-/// Call this from a worker thread, never from `DllMain` or a samp-client-sdk callback.
+/// Call this from a worker thread, never from `DllMain` or a service callback.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkChatCommand_Shutdown() -> BOOL {
     let subscriptions = {
@@ -205,15 +176,23 @@ pub extern "system" fn SampClientSdkChatCommand_Shutdown() -> BOOL {
     if subscriptions.is_empty() {
         return TRUE;
     }
-    match subscriptions.unregister_and_wait() {
-        Ok(()) => TRUE,
-        Err(error) => {
-            STATE
-                .lock()
-                .unwrap_or_else(|error| error.into_inner())
-                .subscriptions = error.into_subscriptions();
-            0
+    let mut failed = Vec::new();
+    for mut subscription in subscriptions {
+        if subscription
+            .unregister_and_wait(Duration::from_secs(10))
+            .is_err()
+        {
+            failed.push(subscription);
         }
+    }
+    if failed.is_empty() {
+        TRUE
+    } else {
+        STATE
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .subscriptions = failed;
+        0
     }
 }
 

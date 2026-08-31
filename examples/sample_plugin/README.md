@@ -1,7 +1,8 @@
-# Sample samp-client-sdk plugin
+# Sample service-backed SA-MP plugin
 
-A minimal independent ASI: it waits for `samp_client_sdk.asi` on a worker thread and
-observes an incoming RPC through the typed event API.
+A minimal independent ASI: it resolves exact-version services from
+`samp_client_sdk.asi` on a worker thread and observes an incoming RPC through
+the typed `samp` event API.
 
 ```powershell
 cargo build --manifest-path examples/sample_plugin/Cargo.toml --release

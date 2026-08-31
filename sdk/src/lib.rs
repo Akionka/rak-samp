@@ -1,5 +1,12 @@
 //! Stable C ABI definitions and safe host-discovery helpers for `samp-client-sdk` plugins.
 //!
+//! ## Deprecated migration API
+//!
+//! This legacy monolithic SDK is frozen: it receives compatibility and safety
+//! fixes only. New plugins must use `modkit-sdk`, `samp`, and `gta-sa`, which
+//! resolve exact-version services through `GtaModHost_GetApiV1`. No new
+//! operation may be added to `SampClientSdkApiV1`.
+//!
 //! Depend on this crate from an independently loaded ASI plugin. Do **not**
 //! depend on the `samp_client_sdk` host crate: that would embed a second hook engine in
 //! the process instead of communicating with `samp_client_sdk.asi`. Register callbacks with

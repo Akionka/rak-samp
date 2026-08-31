@@ -9,7 +9,8 @@ license = "MIT"
 crate-type = ["cdylib"]
 
 [dependencies]
-samp_client_sdk = { package = "samp-client-sdk", path = "../../sdk" }
+modkit-abi = { path = "../../crates/modkit-abi" }
+samp = { path = "../../crates/samp" }
 samp-protocol = { path = "../../crates/samp-protocol" }
 windows-sys = { version = "0.61", features = [
     "Win32_Foundation",

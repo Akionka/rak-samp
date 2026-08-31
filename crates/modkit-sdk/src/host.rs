@@ -5,11 +5,21 @@ use modkit_abi::{
     GTA_SA_SERVICE_VERSION_V2, GtaCameraSnapshotV1, GtaPedSnapshotV1, GtaPoolKindV1,
     GtaReleaseCallbackV1, GtaSaServiceV1, GtaSaServiceV2, GtaTickCallbackV1, GtaTimerSnapshotV1,
     GtaVector3V1, GtaVehicleSnapshotV1, HostStatusV1, LegacySampServiceV1, ModHostApiV1, ModResult,
-    SAMP_NET_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA,
-    SERVICE_ID_LEGACY_SAMP_ABI, SERVICE_ID_SAMP, SERVICE_ID_SAMP_NETWORK,
-    SampChatCommandCallbackV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
-    SampNetSendOptionsV1, SampNetServiceV1, SampPlayerInfoV1, SampReleaseCallbackV1,
-    SampServerInfoV1, SampServiceV1, ServiceHeader, ServiceId, SubscriptionId,
+    SAMP_CODEC_SERVICE_VERSION_V1, SAMP_CONTROL_SERVICE_VERSION_V1, SAMP_NET_SERVICE_VERSION_V1,
+    SAMP_PLAYER_SERVICE_VERSION_V1, SAMP_POOL_SERVICE_VERSION_V1, SAMP_SERVICE_VERSION_V1,
+    SAMP_TEXT_LABEL_SERVICE_VERSION_V1, SAMP_TEXTDRAW_SERVICE_VERSION_V1,
+    SAMP_UI_SERVICE_VERSION_V1, SERVICE_ID_CORE, SERVICE_ID_GTA_SA, SERVICE_ID_LEGACY_SAMP_ABI,
+    SERVICE_ID_SAMP, SERVICE_ID_SAMP_CODEC, SERVICE_ID_SAMP_CONTROL, SERVICE_ID_SAMP_NETWORK,
+    SERVICE_ID_SAMP_PLAYER, SERVICE_ID_SAMP_POOL, SERVICE_ID_SAMP_TEXT_LABEL,
+    SERVICE_ID_SAMP_TEXTDRAW, SERVICE_ID_SAMP_UI, SampAimSyncV1, SampAnimationV1,
+    SampChatCommandCallbackV1, SampChatEntryV1, SampChatInputTextV1, SampCodecServiceV1,
+    SampControlServiceV1, SampDialogRequestV1, SampDialogResponseV1, SampDialogSnapshotV1,
+    SampGangzoneV1, SampInCarSyncV1, SampLocalPlayerV1, SampNetEventCallbackV1, SampNetEventV1,
+    SampNetSendOptionsV1, SampNetServiceV1, SampOnFootSyncV1, SampPassengerSyncV1,
+    SampPlayerInfoV1, SampPlayerServiceV1, SampPoolServiceV1, SampReleaseCallbackV1,
+    SampRemotePlayerStateV1, SampServerInfoV1, SampServiceV1, SampStreamedOutPlayerPositionV1,
+    SampTextLabelCreateV1, SampTextLabelServiceV1, SampTextLabelV1, SampTextdrawServiceV1,
+    SampTextdrawV1, SampTrailerSyncV1, SampUiServiceV1, ServiceHeader, ServiceId, SubscriptionId,
 };
 use std::ffi::c_void;
 use std::time::Duration;
@@ -155,6 +165,65 @@ impl Host {
         }
     }
 
+    /// Returns the SA-MP text-label service v1.
+    pub fn samp_text_labels(self) -> Result<SampTextLabelService, ServiceError> {
+        match self.query_service(
+            SERVICE_ID_SAMP_TEXT_LABEL,
+            SAMP_TEXT_LABEL_SERVICE_VERSION_V1,
+        )? {
+            Service::SampTextLabel(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP connection and replication-control service v1.
+    pub fn samp_control(self) -> Result<SampControlService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_CONTROL, SAMP_CONTROL_SERVICE_VERSION_V1)? {
+            Service::SampControl(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP local UI service v1.
+    pub fn samp_ui(self) -> Result<SampUiService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_UI, SAMP_UI_SERVICE_VERSION_V1)? {
+            Service::SampUi(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP player, synchronization, and animation service v1.
+    pub fn samp_players(self) -> Result<SampPlayerService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_PLAYER, SAMP_PLAYER_SERVICE_VERSION_V1)? {
+            Service::SampPlayer(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP pool mappings and gangzone service v1.
+    pub fn samp_pools(self) -> Result<SampPoolService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_POOL, SAMP_POOL_SERVICE_VERSION_V1)? {
+            Service::SampPool(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP textdraw service v1.
+    pub fn samp_textdraws(self) -> Result<SampTextdrawService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_TEXTDRAW, SAMP_TEXTDRAW_SERVICE_VERSION_V1)? {
+            Service::SampTextdraw(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
+    /// Returns the SA-MP native string codec service v1.
+    pub fn samp_codec(self) -> Result<SampCodecService, ServiceError> {
+        match self.query_service(SERVICE_ID_SAMP_CODEC, SAMP_CODEC_SERVICE_VERSION_V1)? {
+            Service::SampCodec(service) => Ok(service),
+            _ => Err(ServiceError::Host(modkit_abi::MOD_UNSUPPORTED)),
+        }
+    }
+
     /// Returns the latest GTA San Andreas service understood by this SDK.
     pub fn gta_sa_service(self) -> Result<GtaSaService, ServiceError> {
         match self.query_service(SERVICE_ID_GTA_SA, GTA_SA_SERVICE_VERSION_V2)? {
@@ -177,6 +246,20 @@ pub enum Service {
     Samp(SampService),
     /// The SA-MP Packet/RPC service v1.
     SampNet(SampNetService),
+    /// The SA-MP text-label service v1.
+    SampTextLabel(SampTextLabelService),
+    /// The SA-MP connection and replication-control service v1.
+    SampControl(SampControlService),
+    /// The SA-MP local UI service v1.
+    SampUi(SampUiService),
+    /// The SA-MP player, synchronization, and animation service v1.
+    SampPlayer(SampPlayerService),
+    /// The SA-MP pool mappings and gangzone service v1.
+    SampPool(SampPoolService),
+    /// The SA-MP textdraw service v1.
+    SampTextdraw(SampTextdrawService),
+    /// The SA-MP native string codec service v1.
+    SampCodec(SampCodecService),
 }
 
 impl Service {
@@ -281,6 +364,104 @@ impl Service {
                 };
                 table.map(|table| Service::SampNet(SampNetService { table }))
             }
+            SERVICE_ID_SAMP_TEXT_LABEL
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampTextLabelServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampTextLabelServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampTextLabel(SampTextLabelService { table }))
+            }
+            SERVICE_ID_SAMP_CONTROL
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampControlServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampControlServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampControl(SampControlService { table }))
+            }
+            SERVICE_ID_SAMP_UI
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampUiServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampUiServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampUi(SampUiService { table }))
+            }
+            SERVICE_ID_SAMP_PLAYER
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampPlayerServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampPlayerServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampPlayer(SampPlayerService { table }))
+            }
+            SERVICE_ID_SAMP_POOL
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampPoolServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampPoolServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampPool(SampPoolService { table }))
+            }
+            SERVICE_ID_SAMP_TEXTDRAW
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampTextdrawServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampTextdrawServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampTextdraw(SampTextdrawService { table }))
+            }
+            SERVICE_ID_SAMP_CODEC
+                if header.matches(
+                    service_id,
+                    version,
+                    core::mem::size_of::<SampCodecServiceV1>() as u32,
+                ) =>
+            {
+                let table = unsafe {
+                    (header as *const ServiceHeader)
+                        .cast::<SampCodecServiceV1>()
+                        .as_ref()
+                };
+                table.map(|table| Service::SampCodec(SampCodecService { table }))
+            }
             _ => None,
         }
     }
@@ -337,6 +518,48 @@ pub struct SampService {
 #[derive(Clone, Copy)]
 pub struct SampNetService {
     table: &'static SampNetServiceV1,
+}
+
+/// Validated low-level view of the SA-MP text-label service v1.
+#[derive(Clone, Copy)]
+pub struct SampTextLabelService {
+    table: &'static SampTextLabelServiceV1,
+}
+
+/// Validated low-level view of the SA-MP control service v1.
+#[derive(Clone, Copy)]
+pub struct SampControlService {
+    table: &'static SampControlServiceV1,
+}
+
+/// Validated low-level view of the SA-MP local UI service v1.
+#[derive(Clone, Copy)]
+pub struct SampUiService {
+    table: &'static SampUiServiceV1,
+}
+
+/// Validated low-level view of the SA-MP player service v1.
+#[derive(Clone, Copy)]
+pub struct SampPlayerService {
+    table: &'static SampPlayerServiceV1,
+}
+
+/// Validated low-level view of the SA-MP pool service v1.
+#[derive(Clone, Copy)]
+pub struct SampPoolService {
+    table: &'static SampPoolServiceV1,
+}
+
+/// Validated low-level view of the SA-MP textdraw service v1.
+#[derive(Clone, Copy)]
+pub struct SampTextdrawService {
+    table: &'static SampTextdrawServiceV1,
+}
+
+/// Validated low-level view of the SA-MP codec service v1.
+#[derive(Clone, Copy)]
+pub struct SampCodecService {
+    table: &'static SampCodecServiceV1,
 }
 
 impl GtaSaService {
@@ -713,6 +936,725 @@ impl SampService {
         } else {
             Err(result)
         }
+    }
+}
+
+impl SampTextLabelService {
+    pub fn snapshot(self, id: u16) -> Result<SampTextLabelV1, ModResult> {
+        let mut out = SampTextLabelV1::default();
+        result_with_out(unsafe { (self.table.snapshot)(id, &mut out) }, out)
+    }
+
+    pub fn submit_delete(self, id: u16) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(unsafe { (self.table.submit_delete)(id, &mut out) }, out)
+    }
+
+    pub fn submit_set_text(self, id: u16, text: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_set_text)(id, text.as_ptr(), text_len, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_create_at(
+        self,
+        id: u16,
+        request: &SampTextLabelCreateV1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_create_at)(id, request, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_create(
+        self,
+        request: &SampTextLabelCreateV1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_create)(request, &mut out) },
+            out,
+        )
+    }
+}
+
+impl SampCodecService {
+    pub fn decode_string(
+        self,
+        input: &[u8],
+        input_bit_len: usize,
+        input_read_offset: usize,
+        output: &mut [u8],
+    ) -> Result<(usize, usize), ModResult> {
+        let input_byte_len = checked_len(input.len())?;
+        let input_bit_len = checked_len(input_bit_len)?;
+        let input_read_offset = checked_len(input_read_offset)?;
+        let output_capacity = checked_len(output.len())?;
+        let mut output_len = 0;
+        let mut output_read_offset = 0;
+        let result = unsafe {
+            (self.table.decode_string)(
+                input.as_ptr(),
+                input_byte_len,
+                input_bit_len,
+                input_read_offset,
+                output.as_mut_ptr(),
+                output_capacity,
+                &mut output_len,
+                &mut output_read_offset,
+            )
+        };
+        if result.is_ok() {
+            Ok((output_len as usize, output_read_offset as usize))
+        } else {
+            Err(result)
+        }
+    }
+}
+
+impl SampControlService {
+    pub fn submit_game_state(self, state: i32) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_game_state)(state, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_send_rate(
+        self,
+        kind: u32,
+        milliseconds: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_send_rate)(kind, milliseconds, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_connect(self, address: &[u8], port: u16) -> Result<CommandReceiptId, ModResult> {
+        let address_len = checked_len(address.len())?;
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_connect)(address.as_ptr(), address_len, port, &mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_disconnect(self, block_duration: u32) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(
+            unsafe { (self.table.submit_disconnect)(block_duration, &mut out) },
+            out,
+        )
+    }
+}
+
+impl SampTextdrawService {
+    pub fn exists(self, id: u16) -> Result<bool, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.exists)(id, &mut out) }, out != 0)
+    }
+
+    pub fn snapshot(self, id: u16) -> Result<SampTextdrawV1, ModResult> {
+        let mut out = SampTextdrawV1::default();
+        result_with_out(unsafe { (self.table.snapshot)(id, &mut out) }, out)
+    }
+
+    pub fn submit_create(
+        self,
+        id: u16,
+        text: &[u8],
+        x: f32,
+        y: f32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_create)(id, text.as_ptr(), text_len, x, y, out)
+        })
+    }
+
+    pub fn submit_delete(self, id: u16) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_delete)(id, out) })
+    }
+
+    pub fn submit_set_position(
+        self,
+        id: u16,
+        x: f32,
+        y: f32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_set_position)(id, x, y, out) })
+    }
+
+    pub fn submit_set_style(self, id: u16, style: i32) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_set_style)(id, style, out) })
+    }
+
+    pub fn submit_set_letter_style(
+        self,
+        id: u16,
+        width: f32,
+        height: f32,
+        colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_set_letter_style)(id, width, height, colour, out)
+        })
+    }
+
+    pub fn submit_set_proportional(
+        self,
+        id: u16,
+        proportional: bool,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_set_proportional)(id, u8::from(proportional), out)
+        })
+    }
+
+    pub fn submit_set_shadow(
+        self,
+        id: u16,
+        shadow: u8,
+        colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_set_shadow)(id, shadow, colour, out) })
+    }
+
+    pub fn submit_set_outline(
+        self,
+        id: u16,
+        outline: u8,
+        colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_set_outline)(id, outline, colour, out) })
+    }
+
+    pub fn submit_set_box(
+        self,
+        id: u16,
+        enabled: bool,
+        colour: u32,
+        width: f32,
+        height: f32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_set_box)(id, u8::from(enabled), colour, width, height, out)
+        })
+    }
+
+    pub fn submit_set_alignment(
+        self,
+        id: u16,
+        alignment: u8,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_set_alignment)(id, alignment, out) })
+    }
+
+    pub fn submit_set_text(self, id: u16, text: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_set_text)(id, text.as_ptr(), text_len, out)
+        })
+    }
+
+    pub fn submit_set_model_style(
+        self,
+        id: u16,
+        rotation: [f32; 3],
+        zoom: f32,
+        colour1: u16,
+        colour2: u16,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_set_model_style)(
+                id,
+                rotation[0],
+                rotation[1],
+                rotation[2],
+                zoom,
+                colour1,
+                colour2,
+                out,
+            )
+        })
+    }
+
+    fn receipt(
+        self,
+        submit: impl FnOnce(*mut CommandReceiptId) -> ModResult,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(submit(&mut out), out)
+    }
+}
+
+impl SampPoolService {
+    pub fn object_exists(self, id: u16) -> Result<bool, ModResult> {
+        self.exists(id, self.table.object_exists)
+    }
+
+    pub fn vehicle_exists(self, id: u16) -> Result<bool, ModResult> {
+        self.exists(id, self.table.vehicle_exists)
+    }
+
+    pub fn object_handle(self, id: u16) -> Result<Option<i32>, ModResult> {
+        self.forward(id, self.table.object_handle)
+    }
+
+    pub fn object_id_by_handle(self, handle: i32) -> Result<Option<u16>, ModResult> {
+        self.reverse(handle, self.table.object_id_by_handle)
+    }
+
+    pub fn pickup_handle(self, id: u16) -> Result<Option<i32>, ModResult> {
+        self.forward(id, self.table.pickup_handle)
+    }
+
+    pub fn pickup_id_by_handle(self, handle: i32) -> Result<Option<u16>, ModResult> {
+        self.reverse(handle, self.table.pickup_id_by_handle)
+    }
+
+    pub fn vehicle_handle(self, id: u16) -> Result<Option<i32>, ModResult> {
+        self.forward(id, self.table.vehicle_handle)
+    }
+
+    pub fn vehicle_id_by_handle(self, handle: i32) -> Result<Option<u16>, ModResult> {
+        self.reverse(handle, self.table.vehicle_id_by_handle)
+    }
+
+    pub fn player_ped_handle(self, id: u16) -> Result<Option<i32>, ModResult> {
+        self.forward(id, self.table.player_ped_handle)
+    }
+
+    pub fn player_id_by_ped_handle(self, handle: i32) -> Result<Option<u16>, ModResult> {
+        self.reverse(handle, self.table.player_id_by_ped_handle)
+    }
+
+    pub fn gangzone(self, id: u16) -> Result<SampGangzoneV1, ModResult> {
+        let mut out = SampGangzoneV1::default();
+        result_with_out(unsafe { (self.table.gangzone)(id, &mut out) }, out)
+    }
+
+    fn exists(
+        self,
+        id: u16,
+        function: unsafe extern "system" fn(u16, *mut u8) -> ModResult,
+    ) -> Result<bool, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { function(id, &mut out) }, out != 0)
+    }
+
+    fn forward(
+        self,
+        id: u16,
+        function: unsafe extern "system" fn(u16, *mut i32) -> ModResult,
+    ) -> Result<Option<i32>, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { function(id, &mut out) }, (out != 0).then_some(out))
+    }
+
+    fn reverse(
+        self,
+        handle: i32,
+        function: unsafe extern "system" fn(i32, *mut u16) -> ModResult,
+    ) -> Result<Option<u16>, ModResult> {
+        let mut out = u16::MAX;
+        result_with_out(
+            unsafe { function(handle, &mut out) },
+            (out != u16::MAX).then_some(out),
+        )
+    }
+}
+
+impl SampPlayerService {
+    pub fn remote_state(self, id: u16) -> Result<SampRemotePlayerStateV1, ModResult> {
+        let mut out = SampRemotePlayerStateV1::default();
+        result_with_out(unsafe { (self.table.remote_state)(id, &mut out) }, out)
+    }
+
+    pub fn streamed_out_position(
+        self,
+        id: u16,
+    ) -> Result<SampStreamedOutPlayerPositionV1, ModResult> {
+        let mut out = SampStreamedOutPlayerPositionV1::default();
+        result_with_out(
+            unsafe { (self.table.streamed_out_position)(id, &mut out) },
+            out,
+        )
+    }
+
+    pub fn onfoot_sync(self, id: u16) -> Result<SampOnFootSyncV1, ModResult> {
+        let mut out = SampOnFootSyncV1::default();
+        result_with_out(unsafe { (self.table.onfoot_sync)(id, &mut out) }, out)
+    }
+
+    pub fn vehicle_sync(self, id: u16) -> Result<SampInCarSyncV1, ModResult> {
+        let mut out = SampInCarSyncV1::default();
+        result_with_out(unsafe { (self.table.vehicle_sync)(id, &mut out) }, out)
+    }
+
+    pub fn passenger_sync(self, id: u16) -> Result<SampPassengerSyncV1, ModResult> {
+        let mut out = SampPassengerSyncV1::default();
+        result_with_out(unsafe { (self.table.passenger_sync)(id, &mut out) }, out)
+    }
+
+    pub fn trailer_sync(self, id: u16) -> Result<SampTrailerSyncV1, ModResult> {
+        let mut out = SampTrailerSyncV1::default();
+        result_with_out(unsafe { (self.table.trailer_sync)(id, &mut out) }, out)
+    }
+
+    pub fn aim_sync(self, id: u16) -> Result<SampAimSyncV1, ModResult> {
+        let mut out = SampAimSyncV1::default();
+        result_with_out(unsafe { (self.table.aim_sync)(id, &mut out) }, out)
+    }
+
+    pub fn player_defined(self, id: u16) -> Result<bool, ModResult> {
+        self.player_bool(id, self.table.player_defined)
+    }
+
+    pub fn player_paused(self, id: u16) -> Result<bool, ModResult> {
+        self.player_bool(id, self.table.player_paused)
+    }
+
+    pub fn player_count(self, include_npcs: bool) -> Result<u16, ModResult> {
+        let mut out = 0;
+        result_with_out(
+            unsafe { (self.table.player_count)(u8::from(include_npcs), &mut out) },
+            out,
+        )
+    }
+
+    pub fn player_max_id(self) -> Result<Option<u16>, ModResult> {
+        let mut out = u16::MAX;
+        result_with_out(
+            unsafe { (self.table.player_max_id)(&mut out) },
+            (out != u16::MAX).then_some(out),
+        )
+    }
+
+    pub fn animation(self, id: u16) -> Result<SampAnimationV1, ModResult> {
+        let mut out = SampAnimationV1::default();
+        result_with_out(unsafe { (self.table.animation)(id, &mut out) }, out)
+    }
+
+    pub fn animation_id(self, name: &[u8], file: &[u8]) -> Result<Option<u16>, ModResult> {
+        let name_len = checked_len(name.len())?;
+        let file_len = checked_len(file.len())?;
+        let mut out = -1;
+        let result = unsafe {
+            (self.table.animation_id)(name.as_ptr(), name_len, file.as_ptr(), file_len, &mut out)
+        };
+        if !result.is_ok() {
+            return Err(result);
+        }
+        if out < 0 {
+            Ok(None)
+        } else {
+            u16::try_from(out)
+                .map(Some)
+                .map_err(|_| modkit_abi::MOD_NATIVE_CALL_FAILED)
+        }
+    }
+
+    pub fn submit_spawn(self) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_spawn)(out) })
+    }
+
+    pub fn submit_special_action(self, action: u8) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_special_action)(action, out) })
+    }
+
+    pub fn submit_name(self, name: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let name_len = checked_len(name.len())?;
+        self.receipt(|out| unsafe { (self.table.submit_name)(name.as_ptr(), name_len, out) })
+    }
+
+    pub fn submit_colour(self, id: u16, colour: u32) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_colour)(id, colour, out) })
+    }
+
+    pub fn submit_force_unoccupied_sync(
+        self,
+        vehicle: u16,
+        seat: u8,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_unoccupied_sync)(vehicle, seat, out) })
+    }
+
+    pub fn submit_force_aim_sync(self) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_aim_sync)(out) })
+    }
+
+    pub fn submit_force_onfoot_sync(self) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_onfoot_sync)(out) })
+    }
+
+    pub fn submit_force_stats_sync(self) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_stats_sync)(out) })
+    }
+
+    pub fn submit_force_trailer_sync(self, trailer: u16) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_trailer_sync)(trailer, out) })
+    }
+
+    pub fn submit_force_vehicle_sync(self, vehicle: u16) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_vehicle_sync)(vehicle, out) })
+    }
+
+    pub fn submit_force_passenger_sync(
+        self,
+        vehicle: u16,
+        seat: u8,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_passenger_sync)(vehicle, seat, out) })
+    }
+
+    pub fn submit_force_weapons_sync(self) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_force_weapons_sync)(out) })
+    }
+
+    fn player_bool(
+        self,
+        id: u16,
+        function: unsafe extern "system" fn(u16, *mut u8) -> ModResult,
+    ) -> Result<bool, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { function(id, &mut out) }, out != 0)
+    }
+
+    fn receipt(
+        self,
+        submit: impl FnOnce(*mut CommandReceiptId) -> ModResult,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(submit(&mut out), out)
+    }
+}
+
+impl SampUiService {
+    pub fn chat_display_mode(self) -> Result<i32, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.chat_display_mode)(&mut out) }, out)
+    }
+
+    pub fn chat_entry(self, id: u16) -> Result<SampChatEntryV1, ModResult> {
+        let mut out = SampChatEntryV1::default();
+        result_with_out(unsafe { (self.table.chat_entry)(id, &mut out) }, out)
+    }
+
+    pub fn chat_input_active(self) -> Result<bool, ModResult> {
+        self.bool_value(self.table.chat_input_active)
+    }
+
+    pub fn chat_input_text(self) -> Result<SampChatInputTextV1, ModResult> {
+        let mut out = SampChatInputTextV1::default();
+        result_with_out(unsafe { (self.table.chat_input_text)(&mut out) }, out)
+    }
+
+    pub fn chat_command_defined(self, name: &[u8]) -> Result<bool, ModResult> {
+        let name_len = checked_len(name.len())?;
+        let mut out = 0;
+        let result =
+            unsafe { (self.table.chat_command_defined)(name.as_ptr(), name_len, &mut out) };
+        result_with_out(result, out != 0)
+    }
+
+    pub fn cursor_mode(self) -> Result<i32, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.cursor_mode)(&mut out) }, out)
+    }
+
+    pub fn scoreboard_open(self) -> Result<bool, ModResult> {
+        self.bool_value(self.table.scoreboard_open)
+    }
+
+    pub fn dialog_active(self) -> Result<bool, ModResult> {
+        self.bool_value(self.table.dialog_active)
+    }
+
+    pub fn dialog_snapshot(self) -> Result<SampDialogSnapshotV1, ModResult> {
+        let mut out = SampDialogSnapshotV1::default();
+        result_with_out(unsafe { (self.table.dialog_snapshot)(&mut out) }, out)
+    }
+
+    pub fn take_dialog_response(self) -> Result<SampDialogResponseV1, ModResult> {
+        let mut out = SampDialogResponseV1::default();
+        result_with_out(unsafe { (self.table.take_dialog_response)(&mut out) }, out)
+    }
+
+    pub fn dialog_selected_item(self) -> Result<i32, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { (self.table.dialog_selected_item)(&mut out) }, out)
+    }
+
+    pub fn dialog_list_item_count(self) -> Result<i32, ModResult> {
+        let mut out = 0;
+        result_with_out(
+            unsafe { (self.table.dialog_list_item_count)(&mut out) },
+            out,
+        )
+    }
+
+    pub fn submit_chat_message(
+        self,
+        style: u32,
+        text: &[u8],
+        prefix: &[u8],
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        let prefix_len = checked_len(prefix.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_chat_message)(
+                style,
+                text.as_ptr(),
+                text_len,
+                prefix.as_ptr(),
+                prefix_len,
+                text_colour,
+                prefix_colour,
+                out,
+            )
+        })
+    }
+
+    pub fn submit_death_message(
+        self,
+        killer: &[u8],
+        victim: &[u8],
+        killer_colour: u32,
+        victim_colour: u32,
+        weapon: u8,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let killer_len = checked_len(killer.len())?;
+        let victim_len = checked_len(victim.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_death_message)(
+                killer.as_ptr(),
+                killer_len,
+                victim.as_ptr(),
+                victim_len,
+                killer_colour,
+                victim_colour,
+                weapon,
+                out,
+            )
+        })
+    }
+
+    pub fn submit_chat_display_mode(self, mode: i32) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_chat_display_mode)(mode, out) })
+    }
+
+    pub fn submit_chat_entry(
+        self,
+        id: u16,
+        text: &[u8],
+        prefix: &[u8],
+        text_colour: u32,
+        prefix_colour: u32,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        let prefix_len = checked_len(prefix.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_chat_entry)(
+                id,
+                text.as_ptr(),
+                text_len,
+                prefix.as_ptr(),
+                prefix_len,
+                text_colour,
+                prefix_colour,
+                out,
+            )
+        })
+    }
+
+    pub fn submit_chat_input_text(self, text: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_chat_input_text)(text.as_ptr(), text_len, out)
+        })
+    }
+
+    pub fn submit_chat_input_enabled(self, enabled: bool) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_chat_input_enabled)(u8::from(enabled), out)
+        })
+    }
+
+    pub fn submit_chat_input_process(self, text: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_chat_input_process)(text.as_ptr(), text_len, out)
+        })
+    }
+
+    pub fn submit_cursor_mode(self, mode: i32) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_cursor_mode)(mode, out) })
+    }
+
+    pub fn submit_cursor_toggle(self, show: bool) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_cursor_toggle)(u8::from(show), out) })
+    }
+
+    pub fn submit_scoreboard_open(self, open: bool) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_scoreboard_open)(u8::from(open), out) })
+    }
+
+    pub fn submit_dialog(
+        self,
+        request: &SampDialogRequestV1,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_dialog)(request, out) })
+    }
+
+    pub fn submit_dialog_client_side(
+        self,
+        client_side: bool,
+    ) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe {
+            (self.table.submit_dialog_client_side)(u8::from(client_side), out)
+        })
+    }
+
+    pub fn submit_dialog_selected_item(self, selected: i32) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_dialog_selected_item)(selected, out) })
+    }
+
+    pub fn submit_dialog_editbox_text(self, text: &[u8]) -> Result<CommandReceiptId, ModResult> {
+        let text_len = checked_len(text.len())?;
+        self.receipt(|out| unsafe {
+            (self.table.submit_dialog_editbox_text)(text.as_ptr(), text_len, out)
+        })
+    }
+
+    pub fn submit_dialog_close(self, button: u8) -> Result<CommandReceiptId, ModResult> {
+        self.receipt(|out| unsafe { (self.table.submit_dialog_close)(button, out) })
+    }
+
+    fn bool_value(
+        self,
+        function: unsafe extern "system" fn(*mut u8) -> ModResult,
+    ) -> Result<bool, ModResult> {
+        let mut out = 0;
+        result_with_out(unsafe { function(&mut out) }, out != 0)
+    }
+
+    fn receipt(
+        self,
+        submit: impl FnOnce(*mut CommandReceiptId) -> ModResult,
+    ) -> Result<CommandReceiptId, ModResult> {
+        let mut out = CommandReceiptId(0);
+        result_with_out(submit(&mut out), out)
     }
 }
 

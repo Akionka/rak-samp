@@ -861,6 +861,13 @@ Use stable integer service IDs. Reserve ranges by subsystem:
 0x0000_1000  GTA SA
 0x0000_2000  SA-MP
 0x0000_2001  SA-MP Network
+0x0000_2002  SA-MP Text Labels
+0x0000_2003  SA-MP Control
+0x0000_2004  SA-MP Local UI
+0x0000_2005  SA-MP Players
+0x0000_2006  SA-MP Pools
+0x0000_2007  SA-MP Textdraws
+0x0000_2008  SA-MP Codec
 0x0000_3000  Render            (future)
 0x0000_4000  Input             (future)
 0x0000_F000  Legacy SA-MP ABI  (migration only)
@@ -2376,13 +2383,71 @@ Do not port every plugin-sdk class before publishing a usable common gameplay la
 
 ### Tasks
 
-- [ ] Build a compatibility matrix mapping every public legacy safe facade method to new service/facade equivalent.
-- [ ] Port remaining chat/dialog/UI/player/pool/textdraw/text-label/connection actions.
-- [ ] Port command receipts including text-label-create typed result.
-- [ ] Port raw unsafe accessors into ownership-correct `gta_sa::raw` / `samp::raw` modules where still desired.
-- [ ] Update all examples to new APIs while retaining at least one legacy compatibility smoke until removal.
-- [ ] Mark `SampClientSdk_GetApiV1` deprecated in docs.
-- [ ] Freeze legacy behavior; no new features.
+- [x] Build a compatibility matrix mapping every public legacy safe facade method to new service/facade equivalent.
+- [x] Port remaining chat/dialog/UI/player/pool/textdraw/text-label/connection actions.
+- [x] Port command receipts including text-label-create typed result.
+- [x] Port raw unsafe accessors into ownership-correct `gta_sa::raw` / `samp::raw` modules where still desired.
+- [x] Update all examples to new APIs while retaining at least one legacy compatibility smoke until removal.
+- [x] Mark `SampClientSdk_GetApiV1` deprecated in docs.
+- [x] Freeze legacy behavior; no new features.
+
+Phase 11 completed on 2026-08-30. The exhaustive 199-method safe-facade
+inventory and the separate 23-accessor unsafe-raw inventory are recorded in
+`docs/legacy-samp-api-compatibility.md`. The matrix distinguishes direct
+equivalents, operations composed from focused Services, and explicit
+compatibility-only decisions.
+
+The completion gate passed workspace formatting, all 583 tests across 36
+suites, Clippy with warnings denied, and the locked release workspace build.
+
+The first action slice publishes `SampTextLabelServiceV1` under service ID
+`0x0000_2002`. It migrates owned label snapshots, delete/text/create actions,
+and automatic creation with a checked `TextLabelId` carried in
+`CommandCompletionV1.value0`. `SampControlServiceV1` at `0x0000_2003`
+migrates game-state writes, replication send rates, connect, and disconnect
+while preserving the global Host command sequence. The frozen general and
+Network V1 tables remain unchanged. Typed Protocol sends route through its
+generic submissions with SF.lua-compatible transport policies: RPCs use
+`HIGH_PRIORITY + RELIABLE`; Packets use
+`HIGH_PRIORITY + UNRELIABLE_SEQUENCED`; both use channel 0 without timestamps.
+
+`SampUiServiceV1` at `0x0000_2004` migrates owned chat, chat-input, dialog,
+cursor, and scoreboard state plus queued chat, death-window, dialog, cursor,
+and scoreboard actions. It reuses the global Host command queue and does not
+extend frozen `SampServiceV1`; ADR 0013 records the service boundary.
+
+`SampPlayerServiceV1` at `0x0000_2005` migrates remote-player state, owned
+synchronization and animation snapshots, local native synchronization actions,
+and player colour mutations. It preserves player-pool identity and the global
+Host command order without extending frozen `SampServiceV1`; ADR 0014 records
+the boundary.
+
+`SampPoolServiceV1` at `0x0000_2006` migrates object, pickup, vehicle, and
+player-ped forward/reverse mappings plus owned gangzone snapshots. Native
+addresses stay Host-internal; only scalar game handles, checked IDs, and copied
+records cross the ABI. ADR 0015 records the boundary.
+
+`SampTextdrawServiceV1` at `0x0000_2007` migrates owned textdraw snapshots and
+all queued create/delete/style/text/model actions. Fixed strings and bounded
+IDs cross the ABI; mutations retain global Host order and Core receipts. ADR
+0016 records the boundary.
+
+`SampCodecServiceV1` at `0x0000_2008` restores arbitrary plugin-owned
+`BitStream` native string decoding without extending frozen Network V1.
+Successful decoding advances the owned stream cursor; failures leave it
+unchanged. ADR 0017 records the boundary. Module probes and SAMPFUNCS console
+integration are explicit compatibility-only Phase 12 scope under ADR 0018.
+
+Raw migration keeps only `samp::raw::bitstream_data`, whose address is backed
+by plugin-owned storage. The 22 volatile SA-MP module/singleton/pool/vtable/RPC
+addresses remain Host-internal and are explicitly not migrated; ADR 0011
+records the ownership decision.
+
+The consumer-facing sample and chat-command examples now use `samp` services;
+the dedicated service chat/network examples already did. The opt-in network
+smoke remains on the frozen legacy facade as the removal-gate compatibility
+fixture. Exact-profile network probes remain validation fixtures rather than
+consumer API examples.
 
 ### Removal gate
 

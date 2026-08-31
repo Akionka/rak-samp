@@ -1,9 +1,9 @@
-//! Minimal independently loaded ASI plugin using the samp-client-sdk host ABI.
+//! Minimal independently loaded ASI plugin using exact-version SA-MP services.
 
 #[cfg(not(all(windows, target_arch = "x86")))]
 compile_error!("samp_client_sdk_sample_plugin supports only 32-bit Windows x86 targets");
 
-use samp_client_sdk::{Samp, Subscription, events::ProtocolAction};
+use samp::{Samp, Subscription, events::ProtocolAction};
 use samp_protocol::rpc::incoming::common::SERVER_MESSAGE;
 use std::{
     ffi::c_void,
@@ -11,7 +11,7 @@ use std::{
         Condvar, Mutex,
         atomic::{AtomicUsize, Ordering},
     },
-    time::{Duration, Instant},
+    time::Duration,
 };
 use windows_sys::Win32::{
     Foundation::{HINSTANCE, TRUE},
@@ -87,24 +87,8 @@ unsafe extern "system" fn DllMain(
 
 fn initialize() {
     let _initialization = InitializationGuard;
-    let deadline = Instant::now() + Duration::from_secs(30);
-    let samp = loop {
-        if STATE
-            .lock()
-            .unwrap_or_else(|error| error.into_inner())
-            .shutting_down
-        {
-            return;
-        }
-        let remaining = deadline.saturating_duration_since(Instant::now());
-        if remaining.is_zero() {
-            return;
-        }
-        match Samp::connect(remaining.min(Duration::from_millis(100))) {
-            Ok(samp) => break samp,
-            Err(samp_client_sdk::ResolveError::TimedOut) => {}
-            Err(_) => return,
-        }
+    let Ok(samp) = Samp::connect(Duration::from_secs(30)) else {
+        return;
     };
     let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
     if state.shutting_down {
@@ -124,10 +108,10 @@ fn initialize() {
 
 /// Stops callbacks before an unload manager calls `FreeLibrary`.
 ///
-/// This must be called from a worker thread, not from `DllMain` or a samp-client-sdk callback.
+/// This must be called from a worker thread, not from `DllMain` or a service callback.
 #[unsafe(no_mangle)]
 pub extern "system" fn SampClientSdkPlugin_Shutdown() -> BOOL {
-    let subscription = {
+    let mut subscription = {
         let mut state = STATE.lock().unwrap_or_else(|error| error.into_inner());
         state.shutting_down = true;
         while state.initializing {
@@ -141,13 +125,13 @@ pub extern "system" fn SampClientSdkPlugin_Shutdown() -> BOOL {
         subscription
     };
 
-    match subscription.unregister_and_wait() {
+    match subscription.unregister_and_wait(Duration::from_secs(10)) {
         Ok(()) => TRUE,
-        Err(error) => {
+        Err(_) => {
             STATE
                 .lock()
                 .unwrap_or_else(|error| error.into_inner())
-                .subscription = Some(error.into_subscription());
+                .subscription = Some(subscription);
             0
         }
     }

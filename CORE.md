@@ -45,8 +45,11 @@
   `CommandReceiptId`, opaque game-context token and execution constraints,
   `ServiceHeader`, the `ModHostApiV1` bootstrap table, `CoreServiceV1`,
   immutable `GtaSaServiceV1`, pool-aware `GtaSaServiceV2`, the small
-  `SampServiceV1` and `SampNetServiceV1` tables, and the migration-only
-  `LegacySampServiceV1` wrapper.
+  `SampServiceV1` and `SampNetServiceV1` tables, the separate
+  `SampTextLabelServiceV1`, `SampControlServiceV1`, `SampUiServiceV1`,
+  `SampPlayerServiceV1`, `SampPoolServiceV1`, `SampTextdrawServiceV1`, and
+  `SampCodecServiceV1` tables, and the migration-only `LegacySampServiceV1`
+  wrapper.
   It has no Windows, MinHook, GTA, or SA-MP native dependency.
 - `crates/modkit-sdk/` is the plugin-side safe connection to the host. It
   resolves only `GtaModHost_GetApiV1` through `Host::connect`/`connect_to`,
@@ -54,10 +57,18 @@
   SA-MP, and SA-MP network service views plus callback-scoped `GameContext`.
   It never falls back to `SampClientSdk_GetApiV1`.
 - `crates/samp/` is the safe service-backed SA-MP facade for new plugins. It
-  resolves Core, `SampServiceV1`, and `SampNetServiceV1` through `modkit-sdk`,
-  returns owned snapshots and Core-backed receipts/subscriptions, and adapts
-  `samp-protocol` descriptors to callback-local exact-bit events. It contains no
-  native addresses and has no dependency on the legacy SDK package.
+  resolves Core and exact-version SA-MP services through `modkit-sdk`, returns
+  owned snapshots and Core-backed receipts/subscriptions, and adapts
+  `samp-protocol` descriptors to callback-local exact-bit events and typed
+  sends. Its text-label facade returns a typed created ID through the common
+  completion carrier. Native SA-MP pointers remain Host-internal; the only raw
+  accessor exposes plugin-owned `BitStream` storage.
+
+Phase 11 migration coverage is tracked in
+`docs/legacy-samp-api-compatibility.md`. The inventory covers all 199 legacy
+safe-facade methods and all 23 explicit unsafe raw accessors. Missing operations
+require a new exact-version Service or an explicit will-not-migrate decision;
+the frozen V1 tables are not append-only extension points.
 - `crates/modkit-win32/` owns the generic Windows x86 implementation primitives
   reused by the host backends: per-page guarded native-memory reads/writes,
   validated `ReadableRegion`/`WritableRegion` views, checked PE/module helpers,
@@ -178,7 +189,8 @@ GTA ASI loader
  └─ feature-b.asi ─┴─> samp-client-sdk ─> SampClientSdk_GetApiV1 ─> host
 ```
 
-New plugins may instead connect through the modkit bootstrap:
+Legacy plugins continue to use the deprecated export above. New plugins connect
+through the modkit bootstrap:
 
 ```text
 GTA ASI loader
@@ -193,7 +205,7 @@ GTA ASI loader
    the owned RakClient constructor hook.
 3. RakClient construction installs the owned networking hooks. The bootstrap
    worker publishes ready state only after those hooks report ready.
-4. Plugin workers resolve `SampClientSdk_GetApiV1`, validate the table, and
-   register owned subscriptions. New plugins may instead resolve
-   `GtaModHost_GetApiV1` and query exact-version service tables.
+4. Legacy plugin workers may resolve the deprecated
+   `SampClientSdk_GetApiV1` while migration compatibility remains. New plugin
+   workers resolve `GtaModHost_GetApiV1` and query exact-version service tables.
 5. Plugin workers unregister and wait for callbacks before their DLL unloads.
